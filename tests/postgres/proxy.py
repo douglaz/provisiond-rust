@@ -77,7 +77,8 @@ class Proxy:
             self.connections.append(c)
             self.spawn(self.front,c)
 
-    def close_connection(self,c):
+    def close_connection(self,c,source='harness'):
+        c.setdefault('close_source',source)
         c['closed']=True
         for sock in [c['client'],c['server']]:
             try:
@@ -85,13 +86,13 @@ class Proxy:
             except OSError:
                 pass
             sock.close()
-        self.h.event('transport_closed',session=c['pid'])
+        self.h.event('transport_closed',session=c['pid'],source=source)
 
     def gate(self,c,direction,tag=None):
         for g in self.gates:
             if (g.direction==direction and g.pattern in c['query'] and
                 (not g.activated.is_set() or g.connection is c) and
-                (direction!='commit_reply' or tag==b'C')):
+                (direction not in ('commit_reply','execute_reply') or tag==b'C')):
                 if not g.activated.is_set():
                     g.connection=c
                     self.h.event('fault_activated',fault='transport_gate',direction=direction,
@@ -118,11 +119,25 @@ class Proxy:
                     c['query']=(body.rstrip(b'\0') if tag==b'Q' else body.split(b'\0',2)[1]).decode()
                     self.h.event('send_requested',query=c['query'],session=c['pid'],protocol=tag.decode())
                     self.gate(c,'send')
-                c['server'].sendall(tag+length+body)
+                try:
+                    c['server'].sendall(tag+length+body)
+                except OSError:
+                    # A withheld response also withholds upstream death. Keep
+                    # reading the client so only its own EOF proves closure;
+                    # e.g. dropping a prepared query may send Close after the
+                    # server's independent idle-transaction timeout.
+                    if not any(g.connection is c and g.activated.is_set() and
+                               not g.released.is_set() and g.direction in ('reply','execute_reply')
+                               for g in self.gates):
+                        raise
+                    self.h.event('gated_upstream_write_failed',session=c['pid'])
+                    continue
                 if tag in (b'Q',b'P'):
                     self.h.event('bytes_transmitted',query=c['query'],session=c['pid'],protocol=tag.decode())
-        except (EOFError,OSError):
-            self.close_connection(c)
+        except EOFError:
+            self.close_connection(c,'client_eof')
+        except OSError:
+            self.close_connection(c,'client_error')
 
     def back(self,c):
         try:
@@ -134,11 +149,12 @@ class Proxy:
                     c['pid']=struct.unpack('!I',body[:4])[0]
                 self.gate(c,'reply',tag)
                 self.gate(c,'commit_reply',tag)
+                self.gate(c,'execute_reply',tag)
                 c['client'].sendall(tag+length+body)
                 if tag in (b'C',b'Z',b'N',b'E'):
                     self.h.event('protocol_response',tag=tag.decode(),session=c['pid'],query=c['query'],command_tag=body.rstrip(b'\0').decode() if tag==b'C' else None,ready_status=body.decode() if tag==b'Z' else None)
         except (EOFError,OSError):
-            self.close_connection(c)
+            self.close_connection(c,'server_eof_or_error')
 
     def close(self):
         self.closed.set()

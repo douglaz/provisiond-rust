@@ -74,7 +74,7 @@ class Harness:
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
                            archive_mode='on', restart_after_crash='on', ports=[55410,55411,55412],
                            authentication='scram-sha-256 loopback only', standby_role='replicator')
-        if phase in ('checks','commits'):
+        if phase in ('checks','commits','regressions'):
             self.config['store'] = dict(read_pool=1,write_pool=1,statement_ms=1000,lock_ms=500,
                 idle_transaction_ms=1000,call_ms=2000,check_ms=3000,checkout_ms=250,
                 keepalive_idle_seconds=2,keepalive_interval_seconds=1,keepalive_count=2,
@@ -384,14 +384,17 @@ tcp_keepalives_count = 2
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--phase',choices=['w1','checks','commits','all'],default='all')
+    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','all'],default='all')
+    ap.add_argument('--case',choices=['session','transaction','runtime'],help='one focused regression; default runs all')
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
+    if args.case and args.phase!='regressions':
+        ap.error('--case requires --phase regressions')
     if args.phase=='all':
         cap_check()
         records=[]
-        for phase in ['w1','checks','commits']:
+        for phase in ['w1','checks','commits','regressions']:
             command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed)]
             # Explicit evidence names; every child command remains foreground.
             if args.evidence:
@@ -402,7 +405,7 @@ def main():
                                 result='pass' if result.returncode==0 else 'fail'))
             if result.returncode!=0:
                 break
-        status=0 if len(records)==3 and all(r['exit_status']==0 for r in records) else 1
+        status=0 if len(records)==4 and all(r['exit_status']==0 for r in records) else 1
         if args.evidence:
             args.evidence.write_text(json.dumps(dict(result='pass' if status==0 else 'fail',phases=records),indent=2)+'\n')
         return status
@@ -415,6 +418,10 @@ def main():
             from scenarios import check_scenarios
             h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
             check_scenarios(h)
+        elif args.phase=='regressions':
+            from scenarios import regression_scenarios
+            h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
+            regression_scenarios(h,args.case)
         elif args.phase=='commits':
             from scenarios import commit_scenarios
             h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
