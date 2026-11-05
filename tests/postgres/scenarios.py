@@ -672,3 +672,130 @@ def crash_and_restart(h):
         p.finish()
         h.results.append(dict(test='DB-04-'+crash,result='pass',old_backend=pid,
                              establishes='real waiting COMMIT becomes unresolved; same pool cannot expose new session until read-only admission passes after recovery'))
+
+
+def regression_scenarios(h,case=None):
+    """STO-7: deadlines close retained objects; sent COMMIT outlives its reactor caller."""
+    prepare(h)
+    for kind in ['session','transaction']:
+        if case and case!=kind:
+            continue
+        p=Probe(h)
+        pid=p.command('admit' if kind=='session' else 'tx_begin')['value']['session']
+        pattern='SELECT 1::text' if kind=='session' else "INSERT INTO fixture.destinations VALUES (1800,"
+        gate=h.proxy.arm(pattern,'reply' if kind=='session' else 'execute_reply')
+        command='ping' if kind=='session' else 'tx_execute'
+        start=time.monotonic()
+        p.send(command)
+        c=gate.wait()
+        assert c['pid']==pid and not c['closed']
+        before=h.sql(f"SELECT state FROM pg_stat_activity WHERE pid={pid}")
+        assert before==('idle' if kind=='session' else 'idle in transaction'),before
+        assert time.monotonic()-start<1, 'fault was not observed before client deadline'
+        h.event('deadline_fault_observed',call_kind=kind,session=pid,backend_state=before,object_retained=True)
+        failure=p.result(command,ok=False)
+        assert 'pre-COMMIT' in failure['error'] and 'deadline' in failure['error'],failure
+        # Front-side EOF is observed independently of withheld server replies.
+        # Transaction idle timeout may already have killed the server backend;
+        # that cannot close the client side of this deliberately gated proxy.
+        end=time.monotonic()+.5
+        while not c['closed'] and time.monotonic()<end:
+            time.sleep(.01)
+        backend=h.sql(f"SELECT count(*) FROM pg_stat_activity WHERE pid={pid}")
+        h.event('deadline_closure_observed',call_kind=kind,session=pid,transport_closed=c['closed'],
+                backend_count=backend,closure_source=c.get('close_source'),object_retained=True,elapsed_seconds=time.monotonic()-start,
+                server_timeout='idle_in_transaction_session_timeout=1000ms; independent of local closure')
+        assert c['closed'] and c.get('close_source')=='client_eof', 'expired pre-COMMIT call must close transport while object retained'
+        # Still retained: repeat must fail locally without transmitting work.
+        again=p.command(command,ok=False)
+        expected_error='unusable session' if kind=='session' else 'failed/cancelled'
+        assert expected_error in again['error'],again
+        p.command('release' if kind=='session' else 'tx_drop')
+        gate.release()
+        new=p.command('admit' if kind=='session' else 'write_admit')['value']['session']
+        assert new!=pid
+        assert any(e.get('event')=='session_admitted' and e['session']==new for e in p.events)
+        eventually(lambda:h.sql(f'SELECT count(*) FROM pg_stat_activity WHERE pid={pid}')=='0')
+        if kind=='transaction':
+            assert h.sql('SELECT count(*) FROM fixture.destinations WHERE id=1800')=='0'
+        p.finish()
+        h.results.append(dict(test='precommit-deadline-'+kind,result='pass',session=pid,new_session=new,
+                              establishes='activated withheld reply on admitted session; local transport closed while object retained; no dirty reuse; server fate separately observed'))
+    if case in (None,'runtime'):
+        p=Probe(h)
+        pid=p.command('prepare 1801')['value']['session']
+        c=next(c for c in h.proxy.connections if c['pid']==pid)
+        pause_standby(h)
+        p.command('commit')
+        wait_commit(h,p,pid)
+        p.command('drop_runtime')
+        assert any(e.get('event')=='request_runtime_dropped' for e in p.events)
+        checked_out=p.command('past_deadline')['value']['checked_out']
+        observations=dict(session=pid,transport_open=not c['closed'],checked_out=checked_out,
+                          terminal_outcomes=classified(p,pid),backend_in_syncrep=pid in syncrep(h))
+        h.event('runtime_drop_observed',**observations)
+        assert not c['closed'] and not classified(p,pid), 'caller runtime teardown must preserve original pending COMMIT transport and owner'
+        p.command('assert_retained')
+        assert pid in syncrep(h)
+        h.event('runtime_drop_retention',session=pid,checked_out=1,replacement_refused=True)
+        resume_standby(h)
+        assert p.command('await')['value']['outcome']=='acknowledged'
+        assert classified(p,pid)[-1]['session']==pid
+        assert not c['closed']
+        assert h.sql('SELECT destination FROM fixture.destinations WHERE id=1801')=='client-1801'
+        h.event('runtime_drop_reply_consumed',session=pid,outcome='acknowledged',original_transport=True)
+        p.finish()
+        h.results.append(dict(test='sent-commit-caller-runtime-drop',result='pass',session=pid,
+                              establishes='SyncRep observed before initiating reactor destroyed; original transport/checkout retained; replacement refused; real reply consumed on standby restoration'))
+    if case is None:
+        construction_cancellation(h)
+        construction_deadline(h)
+    assert h.proxy.cancel_requests==0
+    h.results.append(dict(test='regression-no-client-cancel',result='pass',observed_cancel_packets=0))
+
+
+
+def construction_cancellation(h):
+    # STO-7: exercise the new supervisor construction handoff both before
+    # authentication completes and after the driver exists, during admission.
+    for stage,pattern in [('authentication',''),('admission','store admission target')]:
+        p=Probe(h)
+        gate=h.proxy.arm(pattern,'reply')
+        p.command('pre_start')
+        c=gate.wait()
+        assert not c['closed']
+        result=p.command('pre_cancel')
+        eventually(lambda:c['closed'],seconds=.5)
+        assert c['close_source']=='client_eof'
+        new=result['value']['new_session']
+        assert any(e.get('event')=='session_admitted' and e['session']==new for e in p.events)
+        assert c['pid']!=new
+        h.event('construction_cancel_observed',stage=stage,session=c['pid'],new_session=new,
+                transport_closed=True,closure_source=c['close_source'])
+        gate.release()
+        p.finish()
+        h.results.append(dict(test='construction-cancel-'+stage,result='pass',
+                              establishes='observed constructor reply withholding; cancelled future closes original transport; replacement passes settings/admission'))
+
+
+
+def construction_deadline(h):
+    # STO-7: the process-owned connect/authentication future keeps its bound.
+    p=Probe(h)
+    gate=h.proxy.arm('','reply')
+    start=time.monotonic()
+    p.send('admit')
+    c=gate.wait()
+    assert not c['closed'] and time.monotonic()-start<1
+    result=p.result('admit',ok=False)
+    assert 'connect deadline' in result['error'],result
+    eventually(lambda:c['closed'],seconds=.5)
+    assert c['close_source']=='client_eof'
+    assert not any(e.get('event')=='session_admitted' for e in p.events)
+    h.event('construction_deadline_observed',transport_closed=True,closure_source=c['close_source'],
+            elapsed_seconds=time.monotonic()-start)
+    gate.release()
+    p.command('admit')
+    p.finish()
+    h.results.append(dict(test='construction-authentication-deadline',result='pass',
+                          establishes='supervisor-side authentication deadline closes unused physical transport; subsequent session passes admission'))

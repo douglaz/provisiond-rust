@@ -90,6 +90,25 @@ impl Process {
             .map_err(|_| anyhow::anyhow!("store supervisor unavailable"))
     }
 
+    /// STO-7: construct I/O on the supervisor's reactor, before handing it to
+    /// any caller. Cancellation drops unfinished construction or its undelivered
+    /// result on this runtime; it cannot leave an unowned connection behind.
+    pub(super) async fn run<T: Send + 'static>(
+        &self,
+        work: impl Future<Output = T> + Send + 'static,
+    ) -> anyhow::Result<T> {
+        let (mut sender, receiver) = tokio::sync::oneshot::channel();
+        self.submit(async move {
+            tokio::select! {
+                _ = sender.closed() => {},
+                result = work => { let _ = sender.send(result); }
+            }
+        })?;
+        receiver
+            .await
+            .map_err(|_| anyhow::anyhow!("store construction owner disappeared"))
+    }
+
     /// OPS-21 lifecycle fixture support. Drop stores first. Expiry does not abort
     /// tasks or release ownership: the process owner must then exit the process.
     pub async fn shutdown(&mut self, bound: Duration) -> anyhow::Result<()> {

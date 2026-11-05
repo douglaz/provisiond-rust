@@ -10,8 +10,15 @@ fn emit(value: serde_json::Value) {
     println!("{value}");
     io::stdout().flush().unwrap();
 }
-#[tokio::main(worker_threads = 2)]
-async fn main() -> anyhow::Result<()> {
+fn request_runtime() -> tokio::runtime::Runtime {
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .unwrap()
+}
+fn main() -> anyhow::Result<()> {
+    let mut runtime = Some(request_runtime());
     let trace: Trace = Arc::new(emit);
     let mut process = Process::new(trace.clone());
     let mut config: tokio_postgres::Config = std::env::var("STORE_CONNECTION")?.parse()?;
@@ -52,7 +59,16 @@ async fn main() -> anyhow::Result<()> {
             emit(json!({"event":"process_exit_requested","unresolved":true}));
             std::process::exit(74);
         }
-        let result: anyhow::Result<_> = async {
+        // STO-7: keep the process, Store and observer alive while destroying
+        // every request-runtime resource, including its reactor.
+        if command == "drop_runtime" {
+            drop(runtime.take().unwrap());
+            emit(json!({"event":"request_runtime_dropped"}));
+            runtime = Some(request_runtime()); // independent control path only
+            emit(json!({"event":"result","command":command,"ok":true,"value":{}}));
+            continue;
+        }
+        let result: anyhow::Result<_> = runtime.as_ref().unwrap().block_on(async {
             match command {
                 "prepare" => {
                     anyhow::ensure!(pending_transaction.is_none() && receipt.is_none(),"consumer already has a transaction/receipt");
@@ -106,6 +122,21 @@ async fn main() -> anyhow::Result<()> {
                     Ok(json!({"checked_out":store.write_checked_out()}))
                 }
                 "recycle" => { store.recycle_idle(); Ok(json!({"checked_out":store.write_checked_out()})) }
+                "tx_begin" => {
+                    let tx=store.begin().await?;
+                    let pid=tx.session_id();
+                    pending_transaction=Some(tx);
+                    Ok(json!({"session":pid}))
+                }
+                "tx_execute" => {
+                    pending_transaction.as_mut().unwrap().execute("INSERT INTO fixture.destinations VALUES (1800,'deadline-uncommitted')").await?;
+                    Ok(json!({}))
+                }
+                "tx_drop" => { drop(pending_transaction.take()); Ok(json!({})) }
+                "write_admit" => {
+                    let session=store.write_session().await?;
+                    Ok(json!({"session":session.pid}))
+                }
                 "rollback" => { pending_transaction.take().unwrap().rollback().await?; Ok(json!({})) }
                 "observe" => {
                     let pid:i32=words.next().unwrap().parse()?;
@@ -190,8 +221,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 _ => anyhow::bail!("unknown command"),
             }
-        }
-        .await;
+        });
         match result {
             Ok(value) => emit(json!({"event":"result","command":command,"ok":true,"value":value})),
             Err(e) => emit(
@@ -199,24 +229,26 @@ async fn main() -> anyhow::Result<()> {
             ),
         }
     }
-    if let Some(task) = pending_precommit {
-        task.abort();
-        let _ = task.await;
-    }
-    drop(pending_transaction);
-    drop(receipt);
-    drop(held);
-    drop(store);
-    // Process registration is explicit; all Manager references have now gone.
-    let p = Arc::get_mut(&mut process).expect("process owner references drained");
-    let bound = if bounded_stop {
-        Duration::from_secs(1)
-    } else {
-        Duration::from_secs(5)
-    };
-    if let Err(error) = p.shutdown(bound).await {
-        emit(json!({"event":"stop_bound_expired","unresolved":true,"error":error.to_string()}));
-        std::process::exit(75);
-    }
-    Ok(())
+    runtime.as_ref().unwrap().block_on(async {
+        if let Some(task) = pending_precommit {
+            task.abort();
+            let _ = task.await;
+        }
+        drop(pending_transaction);
+        drop(receipt);
+        drop(held);
+        drop(store);
+        // Process registration is explicit; all Manager references have now gone.
+        let p = Arc::get_mut(&mut process).expect("process owner references drained");
+        let bound = if bounded_stop {
+            Duration::from_secs(1)
+        } else {
+            Duration::from_secs(5)
+        };
+        if let Err(error) = p.shutdown(bound).await {
+            emit(json!({"event":"stop_bound_expired","unresolved":true,"error":error.to_string()}));
+            std::process::exit(75);
+        }
+        Ok(())
+    })
 }

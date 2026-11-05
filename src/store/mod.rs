@@ -186,7 +186,7 @@ pub struct Session {
     settings: Settings,
     trace: Trace,
     notices: Arc<Mutex<Vec<Value>>>,
-    close_driver: Option<tokio::sync::oneshot::Sender<()>>,
+    close_driver: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     tainted: AtomicBool,
 }
 impl managed::Manager for Manager {
@@ -210,31 +210,48 @@ impl managed::Manager for Manager {
                 && config.get_ssl_mode() == tokio_postgres::config::SslMode::Disable,
             "store spike requires one direct TCP endpoint with sslmode=disable"
         );
-        let tokio_postgres::config::Host::Tcp(host) = &config.get_hosts()[0] else {
+        let tokio_postgres::config::Host::Tcp(host) = config.get_hosts()[0].clone() else {
             bail!("TCP endpoint required");
         };
         let port = config.get_ports().first().copied().unwrap_or(5432);
         let protocol = Arc::new(transport::Protocol::default());
-        let (client, mut connection) = tokio::time::timeout(self.settings.call_bound, async {
-            let socket = tokio::net::TcpStream::connect((host.as_str(), port)).await?;
-            socket.set_nodelay(true)?;
-            let reference = socket2::SockRef::from(&socket);
-            reference.set_keepalive(true)?;
-            reference.set_tcp_keepalive(
-                &socket2::TcpKeepalive::new()
-                    .with_time(self.settings.keepalive_idle)
-                    .with_interval(self.settings.keepalive_interval)
-                    .with_retries(self.settings.keepalive_count),
-            )?;
-            ensure!(reference.keepalive()? && reference.tcp_keepalive_time()?==self.settings.keepalive_idle && reference.tcp_keepalive_interval()?==self.settings.keepalive_interval && reference.tcp_keepalive_retries()?==self.settings.keepalive_count,"client keepalive settings did not apply");
-            (self.trace)(json!({"event":"client_keepalives_observed","idle_seconds":reference.tcp_keepalive_time()?.as_secs(),"interval_seconds":reference.tcp_keepalive_interval()?.as_secs(),"count":reference.tcp_keepalive_retries()?}));
-            config
-                .connect_raw(transport::Transport::new(socket, protocol.clone()), NoTls)
+        let settings = self.settings.clone();
+        let trace = self.trace.clone();
+        let connect_protocol = protocol.clone();
+        // STO-7: socket registration and authentication use the process reactor,
+        // not the runtime that happens to poll pool.get(). Moving a registered
+        // socket's driver later would leave its I/O tied to that caller.
+        let (client, mut connection) = self
+            .process
+            .run(async move {
+                tokio::time::timeout(settings.call_bound, async {
+                    let socket = tokio::net::TcpStream::connect((host.as_str(), port)).await?;
+                    socket.set_nodelay(true)?;
+                    let reference = socket2::SockRef::from(&socket);
+                    reference.set_keepalive(true)?;
+                    reference.set_tcp_keepalive(
+                        &socket2::TcpKeepalive::new()
+                            .with_time(settings.keepalive_idle)
+                            .with_interval(settings.keepalive_interval)
+                            .with_retries(settings.keepalive_count),
+                    )?;
+                    ensure!(
+                        reference.keepalive()?
+                            && reference.tcp_keepalive_time()? == settings.keepalive_idle
+                            && reference.tcp_keepalive_interval()? == settings.keepalive_interval
+                            && reference.tcp_keepalive_retries()? == settings.keepalive_count,
+                        "client keepalive settings did not apply"
+                    );
+                    trace(json!({"event":"client_keepalives_observed","idle_seconds":reference.tcp_keepalive_time()?.as_secs(),"interval_seconds":reference.tcp_keepalive_interval()?.as_secs(),"count":reference.tcp_keepalive_retries()?}));
+                    config
+                        .connect_raw(transport::Transport::new(socket, connect_protocol), NoTls)
+                        .await
+                        .context("connect authentication")
+                })
                 .await
-                .context("connect authentication")
-        })
-        .await
-        .context("connect deadline")??;
+                .context("connect deadline")?
+            })
+            .await??;
         let notices = Arc::new(Mutex::new(Vec::new()));
         let diagnostics = notices.clone();
         let trace = self.trace.clone();
@@ -266,7 +283,7 @@ impl managed::Manager for Manager {
             settings: self.settings.clone(),
             trace: self.trace.clone(),
             notices,
-            close_driver: Some(close_driver),
+            close_driver: Mutex::new(Some(close_driver)),
             tainted: AtomicBool::new(false),
         };
         // STO-7: these apply on every new physical session, before admission.
@@ -292,12 +309,20 @@ impl managed::Manager for Manager {
     }
 }
 impl Session {
+    /// STO-7: deadline-driven closure does not wait for checkout/transaction Drop
+    /// or recycling. This is never used by the sent-COMMIT owner.
+    fn close(&self) {
+        self.tainted.store(true, Ordering::Release);
+        if let Some(close) = self.close_driver.lock().expect("driver close lock").take() {
+            let _ = close.send(());
+        }
+    }
     async fn query(&self, sql: &str) -> Result<Vec<SimpleQueryMessage>> {
         ensure!(!self.tainted.load(Ordering::Acquire), "unusable session");
         match tokio::time::timeout(self.settings.call_bound, self.client.simple_query(sql)).await {
             Ok(result) => result.context("store query"),
             Err(error) => {
-                self.tainted.store(true, Ordering::Release);
+                self.close();
                 Err(error).context("pre-COMMIT call deadline")
             }
         }
@@ -345,7 +370,7 @@ impl Session {
     /// STO-7: one fixed primary FLUSH target, refreshed implicit statement snapshots.
     /// Never executes state-changing SQL or uses insertion position.
     async fn check(&self, kind: &str) -> Result<()> {
-        tokio::time::timeout(self.settings.check_bound, async {
+        let result = tokio::time::timeout(self.settings.check_bound, async {
             let target=self.scalar(&format!("SELECT pg_current_wal_flush_lsn()::text /* store {kind} target */")).await?;
             (self.trace)(json!({"event":"check_target","kind":kind,"session":self.pid,"target":target}));
             loop {
@@ -359,7 +384,11 @@ impl Session {
                 if lsn(&values[6])? >= lsn(&target)? { return Ok(()); }
                 tokio::time::sleep(Duration::from_millis(20)).await;
             }
-        }).await.context("read-only check deadline")?
+        }).await;
+        if result.is_err() {
+            self.close();
+        }
+        result.context("read-only check deadline")?
     }
     async fn destination(&self, id: i32, attempt: u32) -> Result<String> {
         let value=self.scalar(&format!("SELECT destination FROM fixture.destinations WHERE id={id} /* destination SELECT */")).await?;
@@ -384,9 +413,7 @@ fn lsn(value: &str) -> Result<u64> {
 
 impl Drop for Session {
     fn drop(&mut self) {
-        if let Some(close) = self.close_driver.take() {
-            let _ = close.send(());
-        }
+        self.close();
     }
 }
 
@@ -438,6 +465,7 @@ impl Transaction {
             }
             Err(error) => {
                 self.failed = true;
+                session.close();
                 Err(error).context("pre-COMMIT transaction deadline")
             }
         }
