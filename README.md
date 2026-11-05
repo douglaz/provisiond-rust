@@ -54,17 +54,21 @@ separate real server faults from focused identity-predicate fixtures.
 Run the complete W1 then W2 inventory from fresh private directories with one foreground command:
 
 ```sh
-nix develop --command bash tools/postgres.sh --evidence evidence/w1w2.json
+nix develop --command bash tools/postgres.sh --evidence evidence/r2-final.json
 ```
 
 It performs bootstrap, replication loss/rebuild, physical backup/archive restore, connection and
 destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, backend crash,
 primary restart, residual-backend and bounded-process-stop fixtures, both targeted defect controls,
+retained-object deadline closure, caller-runtime shutdown, constructor cancellation/deadlines,
 and cleanup. The parent accepts a failing control only with its exact exit code and intended
 assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
-non-zero. The aggregate manifest links the three phase invocations; each phase writes its own
-sanitized manifest and retains raw evidence under the private harness root.
+non-zero. The aggregate manifest links four phase invocations (W1, checks, commits, regressions);
+each writes its own sanitized manifest and retains raw evidence under the private harness root.
 
-The `commits` phase can also run alone with the same harness options. This local TCP spike disables
+The `commits` and `regressions` phases can also run alone with the same harness options.
+For a focused regression, use `--phase regressions --case session`, `--case transaction`, or
+`--case runtime`. [Fresh acceptance and red/green results](evidence/r2.md) distinguish the
+historical suites from coverage of both corrected lifetime defects. This local TCP spike disables
 TLS and runs no product components on a promoted/restored history. It implements no W3 schema,
 engine, ledger, real providers or production alarms. DB-10 saturation remains not run (W8).

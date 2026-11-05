@@ -78,6 +78,29 @@ flush comparison cannot establish history agreement.
 
 **Measured 2026-11-05.** Select `tokio-postgres 0.7.18`, `deadpool 0.12.3`, `tokio 1.54.1`
 and `socket2 0.6.5` (exact transitive dependencies in Cargo.lock).
+The fresh follow-up command
+`nix develop --command bash tools/postgres.sh --evidence evidence/r2-final.json` exited 0,
+including the complete prior inventory, original controls (42/43), and the new lifetime regressions.
+[Follow-up evidence](../evidence/r2.md) records three intended assertion failures (exit 1 each)
+against unchanged `acc410c` runtime source in a disposable checkout, then the same assertions
+passing against the corrected source. The older command below passed its recorded cases but did
+not exercise retained-object timeout closure or destruction of the initiating I/O runtime.
+
+`Session::close` now taints and signals the supervised driver immediately on ordinary query,
+transaction-execute or read-only-check deadline expiry, even while the caller retains the object.
+No cancel request is sent. `Manager::create` constructs and authenticates TCP sockets through
+`Process::run` on the supervisor's own reactor before use; moving only the driver cannot transfer
+Tokio's reactor registration. Bounded construction is cancelled when its result receiver vanishes;
+undelivered results are dropped. Measured authentication/admission cancellation and authentication
+deadline fixtures show unused sockets closing and replacements passing admission. This retains
+ordinary pools and the existing per-COMMIT ownership structure.
+
+The actual Store regression destroys the initiating runtime after observed SyncRep while the
+process survives: the original socket and checkout remain held, another write checkout is refused,
+and restoring the standby produces the real acknowledged reply on that same connection. The
+retained timeout fixtures observe client EOF separately from server state; the transaction's
+independent idle timeout does not stand in for local closure. D-6 stays provisional/Open for W8.
+
 `nix develop --command bash tools/postgres.sh --evidence evidence/w1w2.json`
 exited 0, including both intended failing controls. [Recorded lifecycle evidence](../evidence/w1w2-commits.json)
 shows request timeout/drop/worker cancellation retaining the original checkout and physical
