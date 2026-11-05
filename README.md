@@ -38,3 +38,14 @@ fixture from archived WAL, explicitly promotes with components stopped, and tear
 Its exit status includes assertions and cleanup. Raw logs remain outside git; the optional
 `--evidence` path receives a sanitized manifest. The fixed cgroup/port/path checks deliberately
 refuse execution outside this host's isolated test allocation. See [scope](docs/scope.md) for limits.
+
+The store connection/destination spike is exercised with:
+
+```sh
+nix develop --command python3 tests/postgres/harness.py --phase checks --evidence evidence/w2-checks.json
+```
+
+It uses the actual Rust client and ordinary bounded pools. The opt-in `store-probe` example is
+an orchestration fixture; the default gate compiles it without starting PostgreSQL. Credentials
+are generated per invocation and stay outside git. [Recorded results](evidence/w2-checks.md)
+separate real server faults from focused identity-predicate fixtures.

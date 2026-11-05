@@ -270,6 +270,9 @@ tcp_keepalives_count = 2
 
     def cleanup(self):
         errors=[]
+        if hasattr(self,'probes'):
+            from scenarios import cleanup_clients
+            errors.extend(cleanup_clients(self))
         for name in list(self.nodes):
             try:
                 self.stop(name)
@@ -278,6 +281,7 @@ tcp_keepalives_count = 2
         # Remove only explicitly registered data owned by this invocation, after assertions.
         paths = {n['data'] for n in self.nodes.values()}
         paths.update(self.root/n for n in ['restore-backup','standby','rebuilt'])
+        paths.update(getattr(self,'owned_extra_paths',[]))
         for path in sorted(paths):
             if path.exists() and not errors:
                 shutil.rmtree(path)
@@ -313,6 +317,10 @@ def main():
     try:
         if args.phase=='w1':
             h.drill()
+        elif args.phase=='checks':
+            from scenarios import check_scenarios
+            h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
+            check_scenarios(h)
         else:
             raise ValueError('phase not implemented')
         status='pass'
