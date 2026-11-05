@@ -11,7 +11,7 @@ exposed as a public provisiond service, pointed at real provider accounts, or gi
 
 | Category | Contents | Status |
 |---|---|---|
-| Implemented behaviour | Nothing. The workspace builds three stub entry points (`api`, `engine`, `migrate`) that print a refusal and exit non-zero. | none implemented |
+| Implemented behaviour | The two-node harness bootstraps/rebuilds a standby and restores an archived-WAL fixture. The three product entry points (`api`, `engine`, `migrate`) print a refusal and exit non-zero. | harness demonstrated; product absent |
 | Simulator-only behaviour | Nothing yet. Provider and payment-rail behaviour will exist only as simulators under `tests/support/` until a separately approved pilot. Simulator evidence is never substituted for provider evidence. | none built |
 | Unsupported behaviour | Everything in "Not supported in this profile" below, and every v1 requirement not marked implemented in `docs/conformance-map.md`. | by design |
 | Production work not yet attempted | Real-provider drivers, rescue installation, every operation kind beyond the first slice, a customer UI, security review, key custody, billing operations, separate-host deployment rehearsal, operator runbooks, exposure limits. | not attempted |
