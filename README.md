@@ -29,7 +29,7 @@ request.
 Run in the capped local test unit described in [the harness](tests/postgres/harness.py):
 
 ```sh
-nix develop --command python3 tests/postgres/harness.py --phase w1 --evidence evidence/w1.json
+nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence evidence/r2-final-w1.json
 ```
 
 This single foreground command creates fresh private directories under the fixed owned harness
@@ -43,12 +43,12 @@ refuse execution outside this host's isolated test allocation. See [scope](docs/
 The store connection/destination spike is exercised with:
 
 ```sh
-nix develop --command python3 tests/postgres/harness.py --phase checks --evidence evidence/w2-checks.json
+nix develop --command python3 tests/postgres/harness.py --phase checks --seed 20261105 --evidence evidence/r2-final-checks.json
 ```
 
 It uses the actual Rust client and ordinary bounded pools. The opt-in `store-probe` example is
 an orchestration fixture; the default gate compiles it without starting PostgreSQL. Credentials
-are generated per invocation and stay outside git. [Recorded results](evidence/w2-checks.md)
+are generated per invocation and stay outside git. [Recorded results](evidence/r2-final-checks.json)
 separate real server faults from focused identity-predicate fixtures.
 
 Run the complete W1 then W2 inventory from fresh private directories with one foreground command:

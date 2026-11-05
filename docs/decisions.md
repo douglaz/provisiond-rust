@@ -33,8 +33,8 @@ when the work package that needs them starts, not as empty placeholders.
 **Measured 2026-11-05.** Use nixpkgs `postgresql_18` at
 `aff8a0b28396750446e5537a96461bc4facdb287`: PostgreSQL 18.6,
 `/nix/store/h9aczmrkpcmm9z47648m5n9sg67vi5gw-postgresql-18.6/bin/postgres`.
-The complete tool/OS versions and command statuses are in [W1 evidence](../evidence/w1.json).
-`nix develop --command python3 tests/postgres/harness.py --phase w1 --evidence evidence/w1.json`
+The complete tool/OS versions and command statuses are in [W1 evidence](../evidence/r2-final-w1.json).
+`nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence evidence/r2-final-w1.json`
 exited 0: fresh bootstrap, loss and rebuild of the sole designated standby, verified
 `pg_basebackup -X stream`, archived-WAL restore of a post-backup fixture, explicit promotion,
 and cleanup all passed. Raw logs remain at the manifest's owned evidence path.
@@ -65,8 +65,8 @@ returns only the designated sender's seven necessary fields, and grants PUBLIC n
 Its destination table grants are separate. No function can perform an administrative mutation.
 This is narrower than giving every application session `pg_read_all_stats`.
 
-`nix develop --command python3 tests/postgres/harness.py --phase checks --evidence evidence/w2-checks.json`
-exited 0. [Evidence](../evidence/w2-checks.json) records denied schema/function access, actual
+`nix develop --command python3 tests/postgres/harness.py --phase checks --seed 20261105 --evidence evidence/r2-final-checks.json`
+exited 0. [Evidence](../evidence/r2-final-checks.json) records denied schema/function access, actual
 NULL stats under SECURITY INVOKER, raw stats hidden from `app`, and refusals of file reading,
 configuration reload, setting the owner role and creating an object in the protected schema.
 A SQL adapter tests the wrong-role predicate separately from real topology faults; it is not
@@ -101,15 +101,15 @@ and restoring the standby produces the real acknowledged reply on that same conn
 retained timeout fixtures observe client EOF separately from server state; the transaction's
 independent idle timeout does not stand in for local closure. D-6 stays provisional/Open for W8.
 
-`nix develop --command bash tools/postgres.sh --evidence evidence/w1w2.json`
-exited 0, including both intended failing controls. [Recorded lifecycle evidence](../evidence/w1w2-commits.json)
+`nix develop --command bash tools/postgres.sh --evidence evidence/r2-final.json`
+exited 0, including both intended failing controls. [Recorded lifecycle evidence](../evidence/r2-final-commits.json)
 shows request timeout/drop/worker cancellation retaining the original checkout and physical
 transport through actual SyncRep, bounded checkout refusal, clean completion after catch-up,
 real driver warnings and lost replies, new-session checks after backend crash and primary restart,
 residual backends after process exit, and bounded whole-process stop. These supplement the
-[connection/destination evidence](../evidence/w2-checks.json). The final combined command is
-`nix develop --command bash tools/postgres.sh --evidence evidence/w1w2.json`; its recorded
-phase statuses are in [the combined manifest](../evidence/w1w2.json).
+[connection/destination evidence](../evidence/r2-final-checks.json). The final combined command is
+`nix develop --command bash tools/postgres.sh --evidence evidence/r2-final.json`; its recorded
+phase statuses are in [the combined manifest](../evidence/r2-final.json).
 
 Inspection of the installed driver's `connection.rs` (`poll_read`, `poll_message`, `poll_write`)
 and `simple_query.rs` showed notices are separate messages, complete simple queries end at
