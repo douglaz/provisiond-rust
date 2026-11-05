@@ -7,7 +7,7 @@ holds what that one excludes: the runtime, the database client, executable migra
 packaging, the provider and rail simulators, and the integration tests that run against real
 PostgreSQL.
 
-**Status: not a conforming service.** Nothing here is implemented yet. Do not point real provider
+**Status: not a conforming service.** A local database harness exists; product entry points still refuse service use. Do not point real provider
 accounts or real funds at any build from this repository.
 
 ## Where to start
@@ -22,3 +22,19 @@ accounts or real funds at any build from this repository.
 
 The gate is `nix develop --command bash tools/check.sh`; CI runs `tools/check.sh` on every pull
 request.
+
+## Local PostgreSQL drill
+
+Run in the capped local test unit described in [the harness](tests/postgres/harness.py):
+
+```sh
+nix develop --command python3 tests/postgres/harness.py --phase w1 --evidence evidence/w1.json
+```
+
+This single foreground command creates fresh private directories under the fixed owned harness
+root, checks ports 55410–55412 before binding, bootstraps one primary and one authenticated
+synchronous standby, rebuilds the standby, verifies a physical backup, restores a post-backup
+fixture from archived WAL, explicitly promotes with components stopped, and tears down.
+Its exit status includes assertions and cleanup. Raw logs remain outside git; the optional
+`--evidence` path receives a sanitized manifest. The fixed cgroup/port/path checks deliberately
+refuse execution outside this host's isolated test allocation. See [scope](docs/scope.md) for limits.

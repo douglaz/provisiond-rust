@@ -2,7 +2,7 @@
 
 Specification pin: `douglaz/provisiond@ac37c7cae5d3ff746515137774a4cdd5a3531375` (see `spec-lock.json`).
 
-Every row is planned work. Nothing in this repository implements or demonstrates any requirement yet.
+Rows record individual implemented or planned arms; the local bootstrap arm has recorded evidence.
 The test IDs are implementation test IDs from the implementation plan's failure-test inventory, not
 new CNF identifiers. A CNF entry here is a traceability pointer: one passing scenario does not
 discharge every arm of a larger conformance item. The requirement's complete current body at the pin
@@ -62,8 +62,8 @@ demonstration`. A row reaches `demonstrated` only with an evidence reference to 
 | LDG-55 | [12-billing-and-ledger.md:1671](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/12-billing-and-ledger.md#L1671) | none | MONEY-05: One deposit paid over both rails | none | not implemented |
 | CNF-365 | [10-conformance-checklist.md:1250](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/10-conformance-checklist.md#L1250) | none | REC-01: Lossless operator promotion | none | not implemented |
 | CNF-365 | [10-conformance-checklist.md:1250](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/10-conformance-checklist.md#L1250) | none | REC-02: Promoted primary has no replacement standby | none | not implemented |
-| STO-7 | [05-persistence.md:169](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/05-persistence.md#L169) | none | REC-03: Bootstrap without an acknowledgment partner | none | not implemented |
-| CNF-365 | [10-conformance-checklist.md:1250](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/10-conformance-checklist.md#L1250) | none | REC-03: Bootstrap without an acknowledgment partner | none | not implemented |
+| STO-7 | [05-persistence.md:169](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/05-persistence.md#L169) | `Harness.backup`, `Harness.identity`, `Harness.drill` | REC-03: Bootstrap without an acknowledgment partner | [W1](../evidence/w1.json), bootstrap arm only; product recovery absent | demonstrated |
+| CNF-365 | [10-conformance-checklist.md:1250](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/10-conformance-checklist.md#L1250) | `Harness.backup`, `Harness.identity`, `Harness.drill` | REC-03: Bootstrap without an acknowledgment partner | [W1](../evidence/w1.json), bootstrap arm only; product recovery absent | demonstrated |
 | STO-56 | [05-persistence.md:1504](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/05-persistence.md#L1504) | none | REC-04: Process crashes during nonzero incident progress | none | not implemented |
 | CNF-302 | [10-conformance-checklist.md:3248](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/10-conformance-checklist.md#L3248) | none | REC-04: Process crashes during nonzero incident progress | none | not implemented |
 | CNF-365 | [10-conformance-checklist.md:1250](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/10-conformance-checklist.md#L1250) | none | REC-04: Process crashes during nonzero incident progress | none | not implemented |
