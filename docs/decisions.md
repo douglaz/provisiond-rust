@@ -74,15 +74,55 @@ represented as a history or authentication proof. The real HBA rejects a differe
 The deployment still owns standby provenance and exclusive authentication; a name or numeric
 flush comparison cannot establish history agreement.
 
-### W2 client candidate and provisional parameters
+### D-4. Rust client, ordinary pools and process-owned COMMITs
 
-The measured candidate is `tokio-postgres 0.7.18`, `deadpool 0.12.3`, `tokio 1.54.1`
-(exact transitive dependencies in Cargo.lock). The checks command above demonstrated fresh
-physical-session settings, cancellation/failed-transaction closure, fixed-target polling on idle
-and active primaries, same-session post-read checks, whole-read repetition, and bounded unused
-connection closure. D-4 remains open until sent-COMMIT retention and actual warning classification
-are measured. Dependency inspection found that dropped query futures still drain replies;
-`Session` explicitly closes its supervised driver on pre-COMMIT discard instead of relying on that.
+**Measured 2026-11-05.** Select `tokio-postgres 0.7.18`, `deadpool 0.12.3`, `tokio 1.54.1`
+and `socket2 0.6.5` (exact transitive dependencies in Cargo.lock).
+`nix develop --command bash tools/postgres.sh --evidence evidence/w1w2.json`
+exited 0, including both intended failing controls. [Recorded lifecycle evidence](../evidence/w1w2-commits.json)
+shows request timeout/drop/worker cancellation retaining the original checkout and physical
+transport through actual SyncRep, bounded checkout refusal, clean completion after catch-up,
+real driver warnings and lost replies, new-session checks after backend crash and primary restart,
+residual backends after process exit, and bounded whole-process stop. These supplement the
+[connection/destination evidence](../evidence/w2-checks.json). The final combined command is
+`nix develop --command bash tools/postgres.sh --evidence evidence/w1w2.json`; its recorded
+phase statuses are in [the combined manifest](../evidence/w1w2.json).
+
+Inspection of the installed driver's `connection.rs` (`poll_read`, `poll_message`, `poll_write`)
+and `simple_query.rs` showed notices are separate messages, complete simple queries end at
+ReadyForQuery, and dropped query futures can leave response draining active. `Session` explicitly
+closes its supervised driver on pre-COMMIT discard. A small bounded TCP frame observer preserves
+CommandComplete tags and ReadyForQuery status, which the driver's row-count-only query API hides;
+fragmentation tests run without PostgreSQL. It records no authentication or row payloads. The
+prototype supports one TCP endpoint with `sslmode=disable`; this is a local spike, not a production
+TLS/deployment implementation. Kernel keepalive getters and server SHOW values verify both ends.
+
+`Store::commit` synchronously registers ownership before possible dispatch. The retained process
+thread drives a task set containing drivers and per-COMMIT owners; it observes outcomes even after
+a receiver disappears. Owners retain the original deadpool object, and have no deadline or retry.
+Panic guards abort before unwinding can release their checkout; dropping a live process supervisor
+also aborts. Shutdown closes admission and drains; a bound expiry requires whole-process exit,
+without claiming rollback. This is process lifecycle support, not product OPS-21 stop records.
+
+On this PostgreSQL 18.6/C locale, deliberate isolated backend cancellation emitted severity
+`WARNING`, SQLSTATE `01000`, primary message `canceling wait for synchronous replication due to
+user request`, the specified replication DETAIL, and then apparent `COMMIT` completion. Any WARNING
+associated with COMMIT is conservatively unresolved, even with that completion. Such sessions close.
+Only a clean complete COMMIT reply with idle status acknowledges; explicit rollback or known
+constraint/serialization/deadlock rejection with a complete idle reply is rejected. Other errors,
+missing replies and transport death are unresolved. No component cancel packet was observed.
+Eligible OPS-49 whole-transaction retries belong to future engine callers, never this owner.
+
+## Open
+
+| ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
+|---|---|---|---|---|
+| D-6 | Fixed pool, timeout, and retry values | W2/W8 | "OVR-19 constraints, measured behavior, and deployment phase." | open |
+| D-7 | Promotion/fencing and standby replacement procedure | W7 | "Rehearsed operational mechanism, not a prose assurance." | open |
+| D-8 | First real provider path and spending limit | W10/W11 | "Current provider evidence and explicit operator approval." | open; needs the owner |
+| D-9 | Fleet/exposure limits | W11 | "Stated assumptions and measured recovery, not arbitrary defaults." | open |
+
+### D-6 provisional W2 parameters (Open for W8)
 
 D-6 remains **Open for W8**. Provisional OVR-19 store-timeout rows are statement 1000 ms,
 lock 500 ms, idle transaction 1000 ms, client pre-COMMIT call/connect 2000 ms, read-only check
@@ -92,17 +132,22 @@ both client and server. Isolation is read committed; search path is `pg_catalog,
 `max_connections=24` with three reserved slots accommodates two store sessions plus bootstrap,
 fixture/observer and replication-test headroom; it is not a product capacity budget. No engine
 worker/periodic pool, Store-retry policy, production alarm threshold or restart policy is selected.
-The stop bound remains a later lifecycle fixture. These are test values, not outage guarantees.
+The lifecycle fixture uses a 1000 ms stop bound and exits unresolved at that bound; two complete
+read/check attempts are allowed for a broken destination-read session. These are test values,
+not outage guarantees.
 
-## Open
+| OVR-19 owning row | Requirement | Provisional local fixture value |
+|---|---|---|
+| Store timeouts | STO-7, STO-55 | statement 1000 ms; lock 500 ms; idle transaction 1000 ms |
+| API read/write concurrency | STO-55 | one checkout in each ordinary pool |
+| Pool checkout bound | STO-55 | 250 ms |
+| Pooled-connection keepalives | STO-7 | client/server idle 2 s, interval 1 s, count 2 |
+| Stop-record bound | OPS-21 | 1000 ms lifecycle fixture only; product record handling absent |
+| Connection budget | STO-55 | local max 24, reserved 3; fixture pools/observer/replication headroom only |
 
-| ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
-|---|---|---|---|---|
-| D-4 | Rust database client/pool | W2 | "Observed warning, cancellation, and physical-session behavior." | open |
-| D-6 | Fixed pool, timeout, and retry values | W2/W8 | "OVR-19 constraints, measured behavior, and deployment phase." | open |
-| D-7 | Promotion/fencing and standby replacement procedure | W7 | "Rehearsed operational mechanism, not a prose assurance." | open |
-| D-8 | First real provider path and spending limit | W10/W11 | "Current provider evidence and explicit operator approval." | open; needs the owner |
-| D-9 | Fleet/exposure limits | W11 | "Stated assumptions and measured recovery, not arbitrary defaults." | open |
+Client call/connect 2000 ms and check 3000 ms are implementation bounds obeying STO-7/OPS-49's
+server-timeout floor. The store owner has no commit deadline. D-6 selects no production retry,
+reconnect or alarm policy; full capacity and recovery evidence belongs to W8.
 
 When an open entry is settled, move it to "Settled" with the exact versions, commands, exit statuses
 and evidence paths that meet its basis. Preference, scope and cost questions go to the owner.

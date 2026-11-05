@@ -18,6 +18,7 @@ import sys
 import tempfile
 import time
 import traceback
+import tomllib
 
 SPEC = 'ac37c7cae5d3ff746515137774a4cdd5a3531375'
 ROOT = Path('/var/tmp/rloop-units/provisiond-rust-w1w2-1105T2104/harness')
@@ -73,10 +74,17 @@ class Harness:
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
                            archive_mode='on', restart_after_crash='on', ports=[55410,55411,55412],
                            authentication='scram-sha-256 loopback only', standby_role='replicator')
+        if phase in ('checks','commits'):
+            self.config['store'] = dict(read_pool=1,write_pool=1,statement_ms=1000,lock_ms=500,
+                idle_transaction_ms=1000,call_ms=2000,check_ms=3000,checkout_ms=250,
+                keepalive_idle_seconds=2,keepalive_interval_seconds=1,keepalive_count=2,
+                isolation='read committed',search_path='pg_catalog,fixture',stop_fixture_ms=1000,
+                transport='direct TCP; loopback proxy for faults; sslmode=disable')
+            self.config['ports'].append(55413)
         self.archive = self.root / 'archive'
         self.archive.mkdir()
         self.event('invocation', seed=seed, specification=SPEC, phase=phase,
-                   configuration=self.config,
+                   configuration=json.loads(json.dumps(self.config)),
                    configuration_sha256=hashlib.sha256(json.dumps(self.config, sort_keys=True).encode()).hexdigest())
         self.source = self.run(['git', 'rev-parse', 'HEAD']).stdout.strip()
         # Exact content identity, including untracked source, without hashing credentials/artifacts.
@@ -94,6 +102,7 @@ class Harness:
             'python':['python3','--version'], 'os':['uname','-sm'],
         }.items():
             self.versions[name] = self.run(cmd).stdout.strip()
+        self.versions['crates'] = {p['name']:p['version'] for p in tomllib.loads(Path('Cargo.lock').read_text())['package']}
         self.versions['postgres_path'] = str(Path(shutil.which('postgres')).resolve())
         self.versions['nixpkgs'] = 'aff8a0b28396750446e5537a96461bc4facdb287:postgresql_18'
 
@@ -105,7 +114,11 @@ class Harness:
 
     def run(self, cmd, *, sql=None, ok=True, timeout=45):
         # SQL/passwords are intentionally omitted from command manifests.
-        r = subprocess.run(cmd, input=sql, env=self.env, capture_output=True, text=True, timeout=timeout)
+        try:
+            r = subprocess.run(cmd, input=sql, env=self.env, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self.commands.append(dict(command=cmd, exit_status=None, result='inconclusive',reason='supervised command timed out; subprocess.run killed and waited for its child'))
+            raise
         self.commands.append(dict(command=cmd, exit_status=r.returncode))
         with (self.root / 'commands.log').open('a') as f:
             f.write(json.dumps(cmd)+'\n'+r.stdout+r.stderr+f'\nstatus={r.returncode}\n')
@@ -144,6 +157,17 @@ class Harness:
         self.sql(setup)
         self.sql('GRANT pg_read_all_stats TO observer;')
         self.identity()
+        names=['synchronous_commit','synchronous_standby_names','max_connections','superuser_reserved_connections',
+               'wal_level','archive_mode','archive_command','restart_after_crash','listen_addresses','port','shared_buffers',
+               'tcp_keepalives_idle','tcp_keepalives_interval','tcp_keepalives_count','lc_messages']
+        literals=','.join("'"+name+"'" for name in names)
+        observed=json.loads(self.sql(f'SELECT json_object_agg(name,setting)::text FROM pg_settings WHERE name IN ({literals})'))
+        observed['archive_command']=observed['archive_command'].replace(str(self.root),'<owned-run>')
+        assert observed['synchronous_commit']=='on' and observed['synchronous_standby_names']=='FIRST 1 (provisiond_sync)'
+        assert observed['archive_mode']=='on' and observed['restart_after_crash']=='on'
+        self.config['effective_primary']=observed
+        self.event('effective_configuration_observed',configuration=observed,
+                   sha256=hashlib.sha256(json.dumps(observed,sort_keys=True).encode()).hexdigest())
         self.sql('CREATE SCHEMA fixture AUTHORIZATION migrator; GRANT USAGE ON SCHEMA fixture TO app;')
         self.sql('CREATE TABLE fixture.destinations(id integer PRIMARY KEY, destination text NOT NULL); GRANT SELECT, INSERT, UPDATE ON fixture.destinations TO app;',role='migrator')
         self.event('bootstrap_complete', maintenance_mode_exception=False,
@@ -181,6 +205,8 @@ tcp_keepalives_count = 2
         log = (self.root / f'{name}.log').open('ab', buffering=0)
         n['process'] = subprocess.Popen(['postgres','-D',str(n['data'])], env=self.env,
                                          stdout=log, stderr=log)
+        n['command'] = dict(command=['postgres','-D',str(n['data'])],exit_status=None)
+        self.commands.append(n['command'])
         log.close()
         eventually(lambda: self.sql('SELECT 1',node=name,role=role,ok=False)=='1')
         self.event('server_started', node=name, pid=n['process'].pid, port=n['port'])
@@ -189,8 +215,13 @@ tcp_keepalives_count = 2
         n = self.nodes[name]
         if n.get('process') and n['process'].poll() is None:
             self.run(['pg_ctl','-D',str(n['data']),'stop','-m',mode,'-w','-t','15'])
-            n['process'].wait(timeout=5)
-            self.event('server_stopped', node=name, mode=mode)
+            status=n['process'].wait(timeout=5)
+            n['command']['exit_status']=status
+            self.event('server_stopped', node=name, mode=mode,exit_status=status)
+        elif n.get('process'):
+            status=n['process'].returncode
+            n['command']['exit_status']=status
+            assert status==0, f'owned server {name} exited unexpectedly: {status}'
 
     def crash_backend(self, pid):
         # Harness-only deliberate crash, validated against this owned postmaster.
@@ -209,6 +240,9 @@ tcp_keepalives_count = 2
         self.run(['pg_basebackup','-d','host=127.0.0.1 port=55410 user=replicator dbname=postgres application_name=bootstrap_backup',
                   '-D',str(dest),'-X','stream','--checkpoint=fast','--no-password'])
         self.run(['pg_verifybackup',str(dest)])
+        provenance=self.root/(name+'-backup-manifest.json')
+        provenance.write_bytes((dest/'backup_manifest').read_bytes())
+        self.event('backup_provenance_retained',path=str(provenance),sha256=hashlib.sha256(provenance.read_bytes()).hexdigest())
         if standby:
             (dest/'standby.signal').touch()
             # Set the final application name and authenticated role before startup.
@@ -267,6 +301,28 @@ tcp_keepalives_count = 2
         self.event('operator_promotion_complete', components='stopped')
         self.results.append(dict(test='W1-archive-restore-operator-promotion',result='pass',
                                  establishes='post-backup fixture recovered from archived WAL; explicit infrastructure-only promotion'))
+        import threading
+        sys.path.insert(0,'tests/support')
+        from pause import Simulator
+        for kind in ['provider','rail']:
+            simulator=Simulator()
+            replies=[]
+            worker=threading.Thread(target=lambda:replies.append(simulator.call()))
+            worker.start()
+            try:
+                assert simulator.acceptance.reached.wait(3) and not simulator.accepted
+                self.event('simulator_pause_observed',simulator=kind,point='acceptance')
+                simulator.acceptance.release.set()
+                assert simulator.reply.reached.wait(3) and simulator.accepted and not replies
+                self.event('simulator_pause_observed',simulator=kind,point='reply')
+            finally:
+                simulator.acceptance.release.set()
+                simulator.reply.release.set()
+                worker.join(timeout=3)
+            assert not worker.is_alive() and replies==['simulated reply']
+        self.results.append(dict(test='simulator-acceptance-reply-pauses',result='pass',
+                                 establishes='deterministic local provider/rail hooks only; no external effects'))
+
 
     def cleanup(self):
         errors=[]
@@ -280,7 +336,7 @@ tcp_keepalives_count = 2
                 errors.append(f'{name}: {e}')
         # Remove only explicitly registered data owned by this invocation, after assertions.
         paths = {n['data'] for n in self.nodes.values()}
-        paths.update(self.root/n for n in ['restore-backup','standby','rebuilt'])
+        paths.update(self.root/n for n in ['primary','restored','restore-backup','standby','rebuilt'])
         paths.update(getattr(self,'owned_extra_paths',[]))
         for path in sorted(paths):
             if path.exists() and not errors:
@@ -294,24 +350,62 @@ tcp_keepalives_count = 2
         return not errors
 
     def manifest(self, status):
-        return dict(result=status, specification_commit=SPEC, implementation_commit=self.source,
+        # Raw protocol/application streams stay under the private owned root.
+        # The repository receives consequential, credential-redacted observations.
+        observations=[]
+        for event in self.events:
+            if event['event'] in ('send_requested','bytes_transmitted'):
+                continue
+            value=dict(event)
+            if event['event']=='protocol_response':
+                if 'store COMMIT' not in event.get('query',''):
+                    continue
+            if 'query' in value:
+                value['statement_kind']='COMMIT' if 'store COMMIT' in value['query'] else 'read-only check' if 'store ' in value['query'] else 'fixture statement'
+                del value['query']
+            observations.append(value)
+        raw=self.root/'events.jsonl'
+        manifest=dict(result=status, specification_commit=SPEC, implementation_commit=self.source,
                     tested_source_sha256=self.tree, source_files=self.source_files,
                     seed=self.seed, versions=self.versions, configuration=self.config,
                     configuration_sha256=hashlib.sha256(json.dumps(self.config,sort_keys=True).encode()).hexdigest(),
                     command=['nix','develop','--command','python3',*sys.argv], commands=self.commands,
-                    scenarios=self.results, events=self.events, raw_evidence=str(self.root),
+                    scenarios=self.results, events=observations, raw_evidence=str(self.root),
+                    trace=dict(path=str(raw),sha256=hashlib.sha256(raw.read_bytes()).hexdigest()),
                     external_provider_rail_evidence='not applicable: no external effects',
                     limitations=['local processes only; no separate-host durability or fencing proof',
                                  'no product recovery incident, engine, ledger or production alarm implementation',
                                  'DB-10 full saturation: not run (W8)'])
+        encoded=json.dumps(manifest)
+        for password in self.passwords.values():
+            encoded=encoded.replace(password,'<redacted>')
+        return json.loads(encoded)
 
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--phase',choices=['w1','checks','commits'],default='w1')
+    ap.add_argument('--phase',choices=['w1','checks','commits','all'],default='all')
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
+    if args.phase=='all':
+        cap_check()
+        records=[]
+        for phase in ['w1','checks','commits']:
+            command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed)]
+            # Explicit evidence names; every child command remains foreground.
+            if args.evidence:
+                path=args.evidence.with_name(args.evidence.stem+'-'+phase+'.json')
+                command.extend(['--evidence',str(path)])
+            result=subprocess.run(command,check=False)
+            records.append(dict(phase=phase,command=['nix','develop','--command',*command],exit_status=result.returncode,
+                                result='pass' if result.returncode==0 else 'fail'))
+            if result.returncode!=0:
+                break
+        status=0 if len(records)==3 and all(r['exit_status']==0 for r in records) else 1
+        if args.evidence:
+            args.evidence.write_text(json.dumps(dict(result='pass' if status==0 else 'fail',phases=records),indent=2)+'\n')
+        return status
     h=Harness(args.phase,args.seed)
     status='fail'
     try:
@@ -321,6 +415,10 @@ def main():
             from scenarios import check_scenarios
             h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
             check_scenarios(h)
+        elif args.phase=='commits':
+            from scenarios import commit_scenarios
+            h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
+            commit_scenarios(h)
         else:
             raise ValueError('phase not implemented')
         status='pass'
