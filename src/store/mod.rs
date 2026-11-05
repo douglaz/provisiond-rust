@@ -146,8 +146,11 @@ impl Store {
     pub async fn destination(&self, id: i32) -> Result<String> {
         let mut last = None;
         for attempt in 1..=2 {
-            let session = self.read_session().await?;
+            // A cancelled attempt drops this guard and discards the physical session.
+            let mut attempt_session = DiscardUnlessFinished(Some(self.read_session().await?));
+            let session = attempt_session.0.as_ref().expect("attempt session");
             let result = session.destination(id, attempt).await;
+            let session = attempt_session.0.take().expect("attempt session");
             match result {
                 Ok(value) => return Ok(value),
                 Err(error) => {
@@ -319,7 +322,13 @@ impl Session {
     }
     async fn query(&self, sql: &str) -> Result<Vec<SimpleQueryMessage>> {
         ensure!(!self.tainted.load(Ordering::Acquire), "unusable session");
-        match tokio::time::timeout(self.settings.call_bound, self.client.simple_query(sql)).await {
+        // A caller that drops this future mid-call leaves a reply outstanding; the
+        // guard closes the session so recycling rejects it.
+        let mut in_flight = CloseUnlessFinished(Some(self));
+        let outcome =
+            tokio::time::timeout(self.settings.call_bound, self.client.simple_query(sql)).await;
+        in_flight.0 = None;
+        match outcome {
             Ok(result) => result.context("store query"),
             Err(error) => {
                 self.close();
@@ -414,6 +423,31 @@ fn lsn(value: &str) -> Result<u64> {
 impl Drop for Session {
     fn drop(&mut self) {
         self.close();
+    }
+}
+
+/// STO-7: closes a session whose pre-COMMIT call was cancelled before it finished.
+struct CloseUnlessFinished<'a>(Option<&'a Session>);
+impl Drop for CloseUnlessFinished<'_> {
+    fn drop(&mut self) {
+        if let Some(session) = self.0.take() {
+            (session.trace)(json!({"event":"call_cancelled_session_closed","session":session.pid}));
+            session.close();
+        }
+    }
+}
+
+/// STO-7: discards a read attempt's checkout unless the attempt finished.
+struct DiscardUnlessFinished(Option<Checkout>);
+impl Drop for DiscardUnlessFinished {
+    fn drop(&mut self) {
+        if let Some(checkout) = self.0.take() {
+            (checkout.trace)(
+                json!({"event":"destination_cancelled_session_discarded","session":checkout.pid}),
+            );
+            checkout.close();
+            drop(managed::Object::take(checkout));
+        }
     }
 }
 
