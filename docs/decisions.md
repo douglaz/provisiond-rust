@@ -55,12 +55,50 @@ catch-up; equal positions or timeline labels alone do not establish record agree
 cannot prove these duties on another deployment. Promotion/restore is infrastructure-only, with
 components stopped; STO-54 incident handling is not implemented.
 
+### D-5. Narrow statistics function
+
+**Measured 2026-11-05.** [The fixture grants](../tests/postgres/privileges.sql) use a
+NOLOGIN `stats_reader` with `pg_read_all_stats`, owning only `store_guard.sample()`.
+The VOLATILE SECURITY DEFINER function pins `search_path=pg_catalog`, has no arguments,
+returns only the designated sender's seven necessary fields, and grants PUBLIC no execution.
+`app` gets schema USAGE and function EXECUTE, with no owner membership or direct statistics grant.
+Its destination table grants are separate. No function can perform an administrative mutation.
+This is narrower than giving every application session `pg_read_all_stats`.
+
+`nix develop --command python3 tests/postgres/harness.py --phase checks --evidence evidence/w2-checks.json`
+exited 0. [Evidence](../evidence/w2-checks.json) records denied schema/function access, actual
+NULL stats under SECURITY INVOKER, raw stats hidden from `app`, and refusals of file reading,
+configuration reload, setting the owner role and creating an object in the protected schema.
+A SQL adapter tests the wrong-role predicate separately from real topology faults; it is not
+represented as a history or authentication proof. The real HBA rejects a different replication role.
+The deployment still owns standby provenance and exclusive authentication; a name or numeric
+flush comparison cannot establish history agreement.
+
+### W2 client candidate and provisional parameters
+
+The measured candidate is `tokio-postgres 0.7.18`, `deadpool 0.12.3`, `tokio 1.54.1`
+(exact transitive dependencies in Cargo.lock). The checks command above demonstrated fresh
+physical-session settings, cancellation/failed-transaction closure, fixed-target polling on idle
+and active primaries, same-session post-read checks, whole-read repetition, and bounded unused
+connection closure. D-4 remains open until sent-COMMIT retention and actual warning classification
+are measured. Dependency inspection found that dropped query futures still drain replies;
+`Session` explicitly closes its supervised driver on pre-COMMIT discard instead of relying on that.
+
+D-6 remains **Open for W8**. Provisional OVR-19 store-timeout rows are statement 1000 ms,
+lock 500 ms, idle transaction 1000 ms, client pre-COMMIT call/connect 2000 ms, read-only check
+3000 ms, and checkout 250 ms. Pooled TCP keepalives are idle 2 s, interval 1 s, count 2 on
+both client and server. Isolation is read committed; search path is `pg_catalog,fixture`;
+`synchronous_commit=on`. Read and write pools each have one checkout. The local primary's
+`max_connections=24` with three reserved slots accommodates two store sessions plus bootstrap,
+fixture/observer and replication-test headroom; it is not a product capacity budget. No engine
+worker/periodic pool, Store-retry policy, production alarm threshold or restart policy is selected.
+The stop bound remains a later lifecycle fixture. These are test values, not outage guarantees.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
 |---|---|---|---|---|
 | D-4 | Rust database client/pool | W2 | "Observed warning, cancellation, and physical-session behavior." | open |
-| D-5 | Replication-statistics privilege mechanism | W2 | "Least necessary access and fail-closed tests." | open |
 | D-6 | Fixed pool, timeout, and retry values | W2/W8 | "OVR-19 constraints, measured behavior, and deployment phase." | open |
 | D-7 | Promotion/fencing and standby replacement procedure | W7 | "Rehearsed operational mechanism, not a prose assurance." | open |
 | D-8 | First real provider path and spending limit | W10/W11 | "Current provider evidence and explicit operator approval." | open; needs the owner |

@@ -109,13 +109,13 @@ class Proxy:
                 tag = receive(c['client'],1)
                 length = receive(c['client'],4)
                 body = receive(c['client'],struct.unpack('!I',length)[0]-4)
-                if tag==b'Q':
-                    c['query']=body.rstrip(b'\0').decode()
-                    self.h.event('send_requested',query=c['query'],session=c['pid'])
+                if tag in (b'Q',b'P'):
+                    c['query']=(body.rstrip(b'\0') if tag==b'Q' else body.split(b'\0',2)[1]).decode()
+                    self.h.event('send_requested',query=c['query'],session=c['pid'],protocol=tag.decode())
                     self.gate(c,'send')
                 c['server'].sendall(tag+length+body)
-                if tag==b'Q':
-                    self.h.event('bytes_transmitted',query=c['query'],session=c['pid'])
+                if tag in (b'Q',b'P'):
+                    self.h.event('bytes_transmitted',query=c['query'],session=c['pid'],protocol=tag.decode())
         except (EOFError,OSError):
             self.close_connection(c)
 
