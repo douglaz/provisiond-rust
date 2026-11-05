@@ -11,7 +11,7 @@ exposed as a public provisiond service, pointed at real provider accounts, or gi
 
 | Category | Contents | Status |
 |---|---|---|
-| Implemented behaviour | The two-node harness bootstraps/rebuilds a standby and restores an archived-WAL fixture. The store spike applies physical-session settings, checks a fixed flushed prefix before admission and after destination reads, and discards interrupted reads/transactions. The three product entry points (`api`, `engine`, `migrate`) print a refusal and exit non-zero. | harness demonstrated; product absent |
+| Implemented behaviour | The two-node harness bootstraps/rebuilds a standby and restores an archived-WAL fixture. The store spike applies physical-session settings, checks a fixed flushed prefix before admission and after destination reads, discards interrupted reads/transactions, and supervises sent COMMITs with warning-aware outcomes. The three product entry points (`api`, `engine`, `migrate`) print a refusal and exit non-zero. | harness demonstrated; product absent |
 | Simulator-only behaviour | Deterministic acceptance/reply pause hooks in `tests/support/`; no business workflow or real provider/rail driver. Simulator evidence is never substituted for provider evidence. | hooks only |
 | Unsupported behaviour | Everything in "Not supported in this profile" below, and every v1 requirement not marked implemented in `docs/conformance-map.md`. | by design |
 | Production work not yet attempted | Real-provider drivers, rescue installation, every operation kind beyond the first slice, a customer UI, security review, key custody, billing operations, separate-host deployment rehearsal, operator runbooks, exposure limits. | not attempted |
@@ -75,3 +75,9 @@ not full service conformance.
   They are historical evidence, not a result for this profile.
 - Lean proofs in the specification repository are model results under stated assumptions, not
   implementation tests.
+
+The store spike uses direct loopback TCP with TLS disabled in its isolated harness. It is not a
+production transport/deployment implementation. Sent-COMMIT owners and a bounded lifecycle
+subprocess do not implement product workers, Stop records, retry policy, startup generations,
+recovery incidents or alarms. DB-03 demonstrates a residual backend after client exit; DB-10 full
+saturation remains not run (W8). All three product entry points continue to refuse service use.

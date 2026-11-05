@@ -10,7 +10,7 @@ fn emit(value: serde_json::Value) {
     println!("{value}");
     io::stdout().flush().unwrap();
 }
-#[tokio::main]
+#[tokio::main(worker_threads = 2)]
 async fn main() -> anyhow::Result<()> {
     let trace: Trace = Arc::new(emit);
     let mut process = Process::new(trace.clone());
@@ -33,16 +33,97 @@ async fn main() -> anyhow::Result<()> {
     };
     let store = Arc::new(Store::new(settings, process.clone(), 1, 1, trace)?);
     let mut pending_precommit = None;
-    let mut held = None;
+    let mut pending_transaction = None;
+    let mut receipt = None;
+    let mut bounded_stop = false;
+    let mut held: Option<provisiond::store::Checkout> = None;
     for line in io::stdin().lock().lines() {
         let line = line?;
         let mut words = line.split_whitespace();
         let command = words.next().unwrap_or("");
-        if command == "exit" {
+        if command == "exit" || command == "stop" {
+            bounded_stop = command == "stop";
+            if bounded_stop {
+                emit(json!({"event":"stop_started"}));
+            }
             break;
+        }
+        if command == "process_exit" {
+            emit(json!({"event":"process_exit_requested","unresolved":true}));
+            std::process::exit(74);
         }
         let result: anyhow::Result<_> = async {
             match command {
+                "prepare" => {
+                    anyhow::ensure!(pending_transaction.is_none() && receipt.is_none(),"consumer already has a transaction/receipt");
+                    let id:i32=words.next().unwrap().parse()?;
+                    let mut tx=store.begin().await?;
+                    let pid=tx.session_id();
+                    tx.execute(&format!("INSERT INTO fixture.destinations VALUES ({id},'client-{id}')")).await?;
+                    pending_transaction=Some(tx);
+                    Ok(json!({"session":pid}))
+                }
+                "commit" => {
+                    let tx=pending_transaction.take().unwrap();
+                    receipt=Some(match std::env::var("STORE_TEST_DEFECT").as_deref() {
+                        Ok("retention")=>store.test_commit(tx,provisiond::store::TestCommitDefect::ReleaseCheckout)?,
+                        Ok("warning")=>store.test_commit(tx,provisiond::store::TestCommitDefect::IgnoreWarning)?,
+                        _=>store.commit(tx)?,
+                    });
+                    Ok(json!({"registered":true}))
+                }
+                "await" | "assert_unacknowledged" => {
+                    let outcome=receipt.take().unwrap().wait().await?;
+                    if command=="assert_unacknowledged" && outcome==provisiond::store::CommitOutcome::Acknowledged {
+                        emit(json!({"event":"assertion_failure","assertion":"replication warning must not acknowledge"}));
+                        std::process::exit(43);
+                    }
+                    Ok(json!({"outcome":outcome.label(),"detail":format!("{outcome:?}")}))
+                }
+                "drop_request" => { drop(receipt.take()); Ok(json!({})) }
+                "timeout_request" => {
+                    anyhow::ensure!(tokio::time::timeout(Duration::from_millis(30),receipt.take().unwrap().wait()).await.is_err(),"expected middleware deadline during SyncRep");
+                    Ok(json!({"middleware_timeout":true}))
+                }
+                "cancel_worker" => {
+                    let waiter=receipt.take().unwrap();
+                    let worker=tokio::spawn(async move {waiter.wait().await});
+                    worker.abort();
+                    anyhow::ensure!(worker.await.unwrap_err().is_cancelled(),"worker cancellation");
+                    Ok(json!({}))
+                }
+                "assert_retained" => {
+                    if store.write_checked_out()!=1 {
+                        emit(json!({"event":"assertion_failure","assertion":"original write checkout retained","checked_out":store.write_checked_out()}));
+                        std::process::exit(42);
+                    }
+                    let error=store.write_session().await.err().expect("write must be refused at checkout");
+                    anyhow::ensure!(error.to_string().contains("waiting"),"refusal was not pool capacity: {error}");
+                    Ok(json!({"checked_out":1,"checkout_refused":true}))
+                }
+                "past_deadline" => {
+                    tokio::time::sleep(Duration::from_millis(2200)).await;
+                    Ok(json!({"checked_out":store.write_checked_out()}))
+                }
+                "recycle" => { store.recycle_idle(); Ok(json!({"checked_out":store.write_checked_out()})) }
+                "rollback" => { pending_transaction.take().unwrap().rollback().await?; Ok(json!({})) }
+                "observe" => {
+                    let pid:i32=words.next().unwrap().parse()?;
+                    Ok(json!({"observed":held.as_mut().unwrap().test_query(&format!("SELECT pid::text || ':' || wait_event FROM pg_stat_activity WHERE pid={pid}")).await?}))
+                }
+                "reject_failed" => {
+                    let mut tx=store.begin().await?;
+                    anyhow::ensure!(tx.execute("SELECT 1/0").await.is_err(),"expected failure");
+                    let outcome=store.commit(tx)?.wait().await?;
+                    anyhow::ensure!(matches!(outcome,provisiond::store::CommitOutcome::Rejected{..}),"failed transaction dispatched");
+                    Ok(json!({"outcome":outcome.label()}))
+                }
+                "deferred" => {
+                    let mut tx=store.begin().await?;
+                    tx.execute("INSERT INTO fixture.deferred VALUES (999),(999)").await?;
+                    receipt=Some(store.commit(tx)?);
+                    Ok(json!({}))
+                }
                 "abandon" => {
                     let mut tx = store.begin().await?;
                     let pid = tx.session_id();
@@ -118,10 +199,24 @@ async fn main() -> anyhow::Result<()> {
             ),
         }
     }
+    if let Some(task) = pending_precommit {
+        task.abort();
+        let _ = task.await;
+    }
+    drop(pending_transaction);
+    drop(receipt);
     drop(held);
     drop(store);
     // Process registration is explicit; all Manager references have now gone.
     let p = Arc::get_mut(&mut process).expect("process owner references drained");
-    p.shutdown(Duration::from_secs(5)).await?;
+    let bound = if bounded_stop {
+        Duration::from_secs(1)
+    } else {
+        Duration::from_secs(5)
+    };
+    if let Err(error) = p.shutdown(bound).await {
+        emit(json!({"event":"stop_bound_expired","unresolved":true,"error":error.to_string()}));
+        std::process::exit(75);
+    }
     Ok(())
 }

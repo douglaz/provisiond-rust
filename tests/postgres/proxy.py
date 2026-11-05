@@ -24,12 +24,15 @@ class Gate:
         self.activated = threading.Event()
         self.released = threading.Event()
         self.connection = None
+        self.on_release = None
 
     def wait(self):
         assert self.activated.wait(10), f'fault never activated: {self.pattern}'
         return self.connection
 
     def release(self):
+        if not self.released.is_set() and self.on_release:
+            self.on_release()
         self.released.set()
 
 
@@ -56,6 +59,7 @@ class Proxy:
 
     def arm(self, pattern, direction='reply'):
         gate = Gate(pattern,direction)
+        gate.on_release=lambda:self.h.event('fault_released',fault='transport_gate',pattern=pattern,direction=direction,activated=gate.activated.is_set())
         self.gates.append(gate)
         self.h.event('fault_requested', fault='transport_gate', pattern=pattern,direction=direction)
         return gate
@@ -69,11 +73,12 @@ class Proxy:
             except OSError:
                 return
             server = socket.create_connection(('127.0.0.1',55410))
-            c = dict(client=client,server=server,pid=None,query='',gate=None)
+            c = dict(client=client,server=server,pid=None,query='',gate=None,closed=False)
             self.connections.append(c)
             self.spawn(self.front,c)
 
     def close_connection(self,c):
+        c['closed']=True
         for sock in [c['client'],c['server']]:
             try:
                 sock.shutdown(socket.SHUT_RDWR)
@@ -131,7 +136,7 @@ class Proxy:
                 self.gate(c,'commit_reply',tag)
                 c['client'].sendall(tag+length+body)
                 if tag in (b'C',b'Z',b'N',b'E'):
-                    self.h.event('protocol_response',tag=tag.decode(),session=c['pid'],query=c['query'])
+                    self.h.event('protocol_response',tag=tag.decode(),session=c['pid'],query=c['query'],command_tag=body.rstrip(b'\0').decode() if tag==b'C' else None,ready_status=body.decode() if tag==b'Z' else None)
         except (EOFError,OSError):
             self.close_connection(c)
 

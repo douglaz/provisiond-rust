@@ -7,17 +7,23 @@ import signal
 import subprocess
 import threading
 import time
-from harness import eventually
+from harness import eventually, cap_check
 from proxy import Proxy
 
 
 class Probe:
-    def __init__(self,h,role='app',password=None):
+    def __init__(self,h,role='app',password=None,defect=None):
+        cap_check()
+        self.expected_status=0
+        self.finished=False
         self.h=h
         self.events=[]
         self.queue=queue.Queue()
         self.index=len(getattr(h,'probes',[]))
         env=dict(h.env,STORE_CONNECTION=f"host=127.0.0.1 port=55413 user={role} password={password or h.passwords[role]} dbname=postgres sslmode=disable")
+        if defect:
+            env['STORE_TEST_DEFECT']=defect
+        self.defect=defect
         stderr=(h.root/f'client-{self.index}.stderr').open('w')
         self.p=subprocess.Popen(['target/debug/examples/store-probe'],stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE,stderr=stderr,text=True,env=env,bufsize=1)
@@ -25,7 +31,7 @@ class Probe:
         self.thread=threading.Thread(target=self.read)
         self.thread.start()
         h.probes.append(self)
-        h.event('client_process_started',pid=self.p.pid,probe=self.index)
+        h.event('client_process_started',pid=self.p.pid,probe=self.index,test_defect=defect)
 
     def read(self):
         for line in self.p.stdout:
@@ -55,6 +61,8 @@ class Probe:
         return self.result(command.split()[0],ok)
 
     def finish(self):
+        if self.finished:
+            return
         if self.p.poll() is None:
             self.send('exit')
             self.p.stdin.close()
@@ -62,13 +70,15 @@ class Probe:
         else:
             status=self.p.returncode
         self.thread.join(timeout=3)
-        self.h.commands.append(dict(command=['target/debug/examples/store-probe'],exit_status=status))
-        assert status==0,(status,(self.h.root/f'client-{self.index}.stderr').read_text())
+        self.h.commands.append(dict(command=['target/debug/examples/store-probe'],test_defect=self.defect,exit_status=status))
+        self.finished=True
+        assert status==self.expected_status,(status,(self.h.root/f'client-{self.index}.stderr').read_text())
 
 
 def prepare(h):
     h.init()
     h.sql(Path('tests/postgres/privileges.sql').read_text())
+    h.sql('CREATE TABLE fixture.deferred(value integer UNIQUE DEFERRABLE INITIALLY DEFERRED); GRANT INSERT ON fixture.deferred TO app;',role='migrator')
     h.probes=[]
     h.paused=[]
     h.extra=[]
@@ -82,13 +92,15 @@ def pause_standby(h):
     h.event('fault_requested',fault='standby_receiver_pause',pid=pid)
     os.kill(pid,signal.SIGSTOP)
     eventually(lambda: Path(f'/proc/{pid}/stat').read_text().split(') ',1)[1].startswith('T '))
-    h.paused.append(pid)
+    h.paused.append((pid,parent,Path(f'/proc/{pid}/stat').read_text().split(') ',1)[1].split()[19]))
     h.event('fault_activated',fault='standby_receiver_pause',pid=pid)
     return pid
 
 
 def resume_standby(h):
-    for pid in h.paused:
+    for pid,parent,start in h.paused:
+        fields=Path(f'/proc/{pid}/stat').read_text().split(') ',1)[1].split()
+        assert int(fields[1])==parent and fields[19]==start,'paused process identity changed'
         os.kill(pid,signal.SIGCONT)
         h.event('fault_released',fault='standby_receiver_pause',pid=pid)
     h.paused=[]
@@ -102,10 +114,13 @@ def syncrep(h):
 
 def fixture_write_wait(h,id):
     log=(h.root/f'fixture-{id}.log').open('w')
+    cap_check()
     p=subprocess.Popen(['psql','-XAt','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p','55410','-U','administrator','-d','postgres'],
                        stdin=subprocess.PIPE,stdout=log,stderr=log,text=True,env=h.env)
     log.close()
     h.extra.append(p)
+    p.recorded_command=dict(command=p.args,exit_status=None)
+    h.commands.append(p.recorded_command)
     p.stdin.write(f"BEGIN; INSERT INTO fixture.destinations VALUES ({id},'destination-{id}'); COMMIT;\n")
     p.stdin.close()
     pid=eventually(lambda: next(iter(syncrep(h)),None))
@@ -271,11 +286,14 @@ def replication_negatives(h):
         path.mkdir()
         h.owned_extra_paths=getattr(h,'owned_extra_paths',[])+[path]
         log=(h.root/f'wal-stream-{len(h.extra)}.log').open('w')
+        cap_check()
         p=subprocess.Popen(['pg_receivewal','--no-loop','--synchronous','-D',str(path),
                             '-d',f'host=127.0.0.1 port=55410 user={role} application_name={name}'],
                            env=h.env,stdout=log,stderr=log)
         log.close()
         h.extra.append(p)
+        p.recorded_command=dict(command=p.args,exit_status=None)
+        h.commands.append(p.recorded_command)
         return p
     duplicate=receiver('provisiond_sync')
     eventually(lambda: h.sql("SELECT count(*) FROM pg_stat_replication WHERE application_name='provisiond_sync'")=='2')
@@ -299,16 +317,33 @@ def replication_negatives(h):
     backup_path=h.root/'identity-backup'
     h.owned_extra_paths.append(backup_path)
     backup_log=(h.root/'identity-backup.log').open('w')
+    cap_check()
     backup=subprocess.Popen(['pg_basebackup','-d','host=127.0.0.1 port=55410 user=replicator application_name=bootstrap_probe',
-                             '-D',str(backup_path),'-X','stream','--checkpoint=fast','--max-rate=1M','--no-password'],
+                             '-D',str(backup_path),'-X','stream','--checkpoint=fast','--max-rate=1M','--status-interval=1','--no-password'],
                             env=h.env,stdout=backup_log,stderr=backup_log)
     backup_log.close()
     h.extra.append(backup)
+    backup.recorded_command=dict(command=backup.args,exit_status=None)
+    h.commands.append(backup.recorded_command)
     eventually(lambda: h.sql("SELECT count(*) FROM pg_stat_replication WHERE application_name='bootstrap_probe' AND state='streaming'")=='1')
     h.event('backup_sender_observed',observation=h.sql("SELECT application_name,state,coalesce(flush_lsn::text,'NULL') FROM pg_stat_replication WHERE application_name='bootstrap_probe'"),
-            note='NULL is reported as unknown; only the independent pg_receivewal stream asserts a later durable flush')
+            note='backup-command NULL is unknown; streaming sender is separately checked through the exact admission target')
     q=Probe(h)
-    failure=q.command('admit',ok=False)
+    q.send('admit')
+    eventually(lambda:any(e.get('event')=='check_target' for e in q.events))
+    exact=next(e['target'] for e in q.events if e.get('event')=='check_target')
+    # Physical-backup infrastructure: finish the current WAL segment so the
+    # backup's streaming sender can report a durable prefix beyond this fixed
+    # target. No component row/transaction or replication setting changes.
+    h.event('backup_wal_segment_release_requested',target=exact)
+    switched=h.sql('SELECT pg_switch_wal()')
+    h.event('backup_wal_segment_release_observed',target=exact,switch_lsn=switched)
+    eventually(lambda:h.sql(f"SELECT flush_lsn >= '{exact}'::pg_lsn FROM pg_stat_replication WHERE application_name='bootstrap_probe' AND state='streaming'")=='t',seconds=2)
+    assert not any(e.get('event')=='result' for e in q.events),'attempt ended before the non-designated backup reached its target'
+    h.event('non_designated_backup_caught_up',target=exact,
+            senders=h.sql("SELECT application_name,state,coalesce(flush_lsn::text,'NULL') FROM pg_stat_replication ORDER BY application_name,state"),
+            attempted_session=next(e['session'] for e in q.events if e.get('event')=='check_target'))
+    failure=q.result('admit',ok=False)
     assert 'deadline' in failure['error'],failure
     assert not any(e.get('event')=='session_admitted' for e in q.events)
     q.finish()
@@ -316,11 +351,11 @@ def replication_negatives(h):
     wrong.wait(timeout=5)
     resume_standby(h)
     status=backup.wait(timeout=45)
-    h.commands.append(dict(command=['pg_basebackup','-X','stream','--max-rate=1M','application_name=bootstrap_probe'],exit_status=status))
+    h.commands.append(dict(command=['pg_basebackup','-X','stream','--max-rate=1M','--status-interval=1','application_name=bootstrap_probe'],exit_status=status))
     assert status==0,(h.root/'identity-backup.log').read_text()
     h.run(['pg_verifybackup',str(backup_path)])
     h.results.append(dict(test='DB-05-non-designated',result='pass',
-                         injection='caught-up pg_receivewal backup-named protocol stream; designated physical receiver paused',
+                         injection='pg_basebackup streaming sender reached the exact admission target while its connection check remained pending; extra pg_receivewal stream; designated receiver paused',
                          establishes='non-designated later flush never substitutes for designated peer'))
     # Wrong authenticated identity with the right name, using a distinct replication role.
     h.sql('ALTER ROLE observer REPLICATION')
@@ -357,10 +392,12 @@ def cleanup_clients(h):
         thread.join(timeout=15)
         if thread.is_alive():
             errors.append('writer thread did not stop')
-    for pid in getattr(h,'paused',[]):
+    for pid,parent,start in getattr(h,'paused',[]):
         try:
-            os.kill(pid,signal.SIGCONT)
-        except ProcessLookupError:
+            fields=Path(f'/proc/{pid}/stat').read_text().split(') ',1)[1].split()
+            if int(fields[1])==parent and fields[19]==start:
+                os.kill(pid,signal.SIGCONT)
+        except (ProcessLookupError,FileNotFoundError):
             pass
     h.paused=[]
     for p in getattr(h,'probes',[]):
@@ -385,4 +422,253 @@ def cleanup_clients(h):
             except subprocess.TimeoutExpired:
                 p.kill()
                 p.wait(timeout=5)
+        if hasattr(p,'recorded_command'):
+            p.recorded_command['exit_status']=p.returncode
     return errors
+
+
+def wait_commit(h,p,pid):
+    eventually(lambda: pid in syncrep(h))
+    h.event('server_commit_received',probe=p.index,session=pid,wait_event='SyncRep')
+    assert any(e.get('event')=='owner_accepted' and e['session']==pid for e in p.events)
+    assert not any(e.get('event')=='commit_classified' and e['session']==pid for e in p.events)
+
+
+def classified(p,pid=None):
+    return [e for e in p.events if e.get('event')=='commit_classified' and (pid is None or e['session']==pid)]
+
+
+def commit_scenarios(h):
+    prepare(h)
+    # A clean complete COMMIT and a proven pre-COMMIT rejection are separate.
+    p=Probe(h)
+    pid=p.command('prepare 1001')['value']['session']
+    p.command('commit')
+    assert p.command('await')['value']['outcome']=='acknowledged'
+    assert classified(p)[-1]['command_tag']=='COMMIT'
+    same=p.command('prepare 1002')['value']['session']
+    assert same==pid, 'successful terminal transaction should allow clean reuse'
+    p.command('rollback')
+    p.command('reject_failed')
+    p.command('deferred')
+    assert p.command('await')['value']['outcome']=='rejected'
+    assert h.sql('SELECT count(*) FROM fixture.deferred')=='0'
+    p.finish()
+    h.results.append(dict(test='commit-command-and-rejection-semantics',result='pass',
+                         establishes='COMMIT plus complete idle reply acknowledges; failed pre-COMMIT and deferred constraint rejection do not'))
+    # Retention defect frees the original checkout only after real receipt and cancellation.
+    p=Probe(h,defect='retention')
+    pid=p.command('prepare 1250')['value']['session']
+    pause_standby(h)
+    p.command('commit')
+    wait_commit(h,p,pid)
+    p.command('drop_request')
+    eventually(lambda:any(e.get('event')=='defect_checkout_released' for e in p.events))
+    assert pid in syncrep(h)
+    p.expected_status=42
+    p.send('assert_retained')
+    status=p.p.wait(timeout=8)
+    p.thread.join(timeout=2)
+    assert status==42 and any(e.get('assertion')=='original write checkout retained' for e in p.events)
+    resume_standby(h)
+    p.finish()
+    h.results.append(dict(test='retention-defect-control',result='expected negative demonstration',exit_status=42,
+                         assertion='original write checkout retained',establishes='exact same green retention assertion detects original-checkout loss after observed SyncRep'))
+    # Two independent ordinary client pools exercise the engine/API database arms
+    # without starting product components or implementing their caller policies.
+    engine=Probe(h)
+    api=Probe(h)
+    api.command('admit')
+    ep=engine.command('prepare 1103')['value']['session']
+    ap=api.command('prepare 1104')['value']['session']
+    pause_standby(h)
+    engine.command('commit')
+    api.command('commit')
+    wait_commit(h,engine,ep)
+    wait_commit(h,api,ap)
+    api.command('ping')
+    assert ep in syncrep(h) and ap in syncrep(h)
+    resume_standby(h)
+    assert engine.command('await')['value']['outcome']=='acknowledged'
+    assert api.command('await')['value']['outcome']=='acknowledged'
+    engine.finish()
+    api.finish()
+    h.results.append(dict(test='DB-01-independent-client-pools',result='pass',engine_fixture_backend=ep,api_fixture_backend=ap,
+                         establishes='both state-changing fixture commits simultaneously wait for the sole designated standby; pre-admitted read remains usable',
+                         not_run='product engine/API business workflows and alarms'))
+    # DB-01/02: retain an uninterrupted healthy read session and separate budget.
+    for number,cancellation in enumerate(['timeout_request','drop_request','cancel_worker'],start=1100):
+        p=Probe(h)
+        reader=p.command('admit')['value']['session']
+        pid=p.command(f'prepare {number}')['value']['session']
+        pause_standby(h)
+        p.command('commit')
+        wait_commit(h,p,pid)
+        if cancellation=='timeout_request':
+            assert p.command('past_deadline')['value']['checked_out']==1
+            assert pid in syncrep(h) and not classified(p,pid)
+            p.command('ping')
+            # A new physical session needs a new check and must fail while behind.
+            new=Probe(h)
+            new.command('admit',ok=False)
+            assert not any(e.get('event')=='session_admitted' for e in new.events)
+            new.finish()
+        p.command(cancellation)
+        p.command('recycle')
+        p.command('assert_retained')
+        assert pid in syncrep(h) and not classified(p,pid)
+        assert any(c['pid']==pid and not c['closed'] for c in h.proxy.connections), 'original transport must remain live'
+        p.command('ping')
+        assert [e['session'] for e in p.events if e.get('event')=='session_admitted' and e['session']==reader]==[reader]
+        resume_standby(h)
+        eventually(lambda: classified(p,pid))
+        assert classified(p,pid)[-1]['outcome']=='acknowledged'
+        assert h.sql(f'SELECT destination FROM fixture.destinations WHERE id={number}')==f'client-{number}'
+        p.finish()
+        h.results.append(dict(test='DB-02-'+cancellation,result='pass',session=pid,read_session=reader,
+                             establishes='real SyncRep preceded cancellation; original checkout retained, extra write refused, same read session usable; clean terminal result after release'))
+    h.results.append(dict(test='DB-01',result='pass',
+                         establishes='state-changing real client COMMIT waits beyond server/client call bounds; healthy read session still usable; fresh checks fail closed',
+                         not_run='engine retry, funding/settlement and production alarm arms'))
+    # DB-08 green and exact failing warning control against the same assertion.
+    for defect,number in [('warning',1201),(None,1200)]:
+        p=Probe(h,defect=defect)
+        pid=p.command(f'prepare {number}')['value']['session']
+        pause_standby(h)
+        p.command('commit')
+        wait_commit(h,p,pid)
+        h.event('fault_requested',fault='deliberate_contract_violation_backend_cancel',session=pid)
+        assert h.sql(f'SELECT pg_cancel_backend({pid})')=='t'
+        if defect:
+            p.expected_status=43
+            p.send('assert_unacknowledged')
+            status=p.p.wait(timeout=8)
+            p.thread.join(timeout=2)
+            assert status==43 and any(e.get('assertion')=='replication warning must not acknowledge' for e in p.events)
+            result='expected negative demonstration'
+        else:
+            assert p.command('assert_unacknowledged')['value']['outcome']=='unresolved'
+            result='pass'
+        warnings=[e for e in p.events if e.get('event')=='driver_notice' and e.get('severity')=='WARNING']
+        assert warnings and warnings[-1]['detail']=='The transaction has already committed locally, but might not have been replicated to the standby.',warnings
+        assert classified(p,pid)[-1]['command_tag']=='COMMIT'
+        assert h.sql(f'SELECT destination FROM fixture.destinations WHERE id={number}')==f'client-{number}'
+        h.event('fault_activated',fault='real_replication_warning',session=pid,
+                diagnostic=warnings[-1],apparent_completion='COMMIT',control=defect)
+        resume_standby(h)
+        p.finish()
+        h.results.append(dict(test='DB-08' if not defect else 'warning-defect-control',result=result,
+                             exit_status=0 if not defect else 43,assertion='replication warning must not acknowledge',
+                             diagnostic=warnings[-1],establishes='actual driver warning plus COMMIT completion; intentional defect fails exact assertion'))
+    # Lost terminal reply: database effect is independently visible, client is unresolved.
+    p=Probe(h)
+    pid=p.command('prepare 1300')['value']['session']
+    gate=h.proxy.arm('COMMIT /* store COMMIT */','commit_reply')
+    p.command('commit')
+    c=gate.wait()
+    assert c['pid']==pid
+    assert h.sql('SELECT destination FROM fixture.destinations WHERE id=1300')=='client-1300'
+    assert not classified(p,pid)
+    h.proxy.close_connection(c)
+    gate.release()
+    assert p.command('await')['value']['outcome']=='unresolved'
+    new=p.command('prepare 1301')['value']['session']
+    assert new!=pid
+    p.command('rollback')
+    p.finish()
+    h.results.append(dict(test='lost-COMMIT-reply',result='pass',session=pid,
+                         establishes='COMMIT reached server and fixture committed; withheld terminal reply then socket death yields unresolved, never rollback; replacement checked'))
+    residual_and_stop(h)
+    crash_and_restart(h)
+    assert h.proxy.cancel_requests==0
+    h.results.append(dict(test='commit-lifecycle-no-client-cancel',result='pass',observed_cancel_packets=0))
+    h.results.append(dict(test='DB-10',result='not run',reason='full capacity/saturation/retry/recovery is W8'))
+
+
+def residual_and_stop(h):
+    # Pre-establish uninterrupted observation access before exiting the client.
+    observer=Probe(h)
+    observer.command('admit')
+    p=Probe(h)
+    pid=p.command('prepare 1400')['value']['session']
+    pause_standby(h)
+    p.command('commit')
+    wait_commit(h,p,pid)
+    p.expected_status=74
+    p.send('process_exit')
+    assert p.p.wait(timeout=5)==74
+    assert observer.command(f'observe {pid}')['value']['observed']==f'{pid}:SyncRep'
+    replacement=Probe(h)
+    replacement.command('admit',ok=False)
+    replacement.finish()
+    assert observer.command(f'observe {pid}')['value']['observed']==f'{pid}:SyncRep'
+    h.event('residual_backend_observed',session=pid,client_exit_status=74,live_new_pool_usable_sessions=0,
+            observation='same pre-established physical observer; no global occupancy bound inferred')
+    resume_standby(h)
+    p.finish()
+    observer.finish()
+    h.results.append(dict(test='DB-03',result='pass',old_backend=pid,
+                         establishes='backend outlives process during SyncRep, outside replacement pool accounting; replacement check remains enabled'))
+    # Stop begins while owner remains pending; process exit, not abandonment, ends the obligation.
+    observer=Probe(h)
+    observer.command('admit')
+    p=Probe(h)
+    pid=p.command('prepare 1450')['value']['session']
+    pause_standby(h)
+    p.command('commit')
+    wait_commit(h,p,pid)
+    p.expected_status=75
+    start=time.monotonic()
+    p.send('stop')
+    eventually(lambda:any(e.get('event')=='stop_started' for e in p.events))
+    assert p.p.poll() is None
+    assert observer.command(f'observe {pid}')['value']['observed']==f'{pid}:SyncRep'
+    while p.p.poll() is None and time.monotonic()-start<5:
+        if not any(e.get('event')=='stop_bound_expired' for e in p.events):
+            assert any(c['pid']==pid and not c['closed'] for c in h.proxy.connections), 'shutdown initiation released original transport'
+        time.sleep(.02)
+    assert p.p.returncode==75
+    elapsed=time.monotonic()-start
+    p.thread.join(timeout=2)
+    assert .9<=elapsed<3 and any(e.get('event')=='stop_bound_expired' and e['unresolved'] for e in p.events)
+    assert not classified(p,pid)
+    resume_standby(h)
+    p.finish()
+    observer.finish()
+    h.results.append(dict(test='bounded-process-stop',result='pass',exit_status=75,stop_bound_ms=1000,elapsed_seconds=elapsed,
+                         establishes='original sent COMMIT owned while process survives; stop bound exits whole fixture with unresolved report',
+                         not_run='product stop-record/ENG-07 implementation'))
+
+
+def crash_and_restart(h):
+    for crash,id in [('backend',1500),('primary',1501)]:
+        p=Probe(h)
+        # Same pool object survives both the failed attempt and recovery.
+        p.command('admit')
+        pid=p.command(f'prepare {id}')['value']['session']
+        pause_standby(h)
+        p.command('commit')
+        wait_commit(h,p,pid)
+        if crash=='backend':
+            postmaster=h.nodes['primary']['process'].pid
+            h.crash_backend(pid)
+            assert h.nodes['primary']['process'].pid==postmaster
+            eventually(lambda:'all server processes terminated; reinitializing' in (h.root/'primary.log').read_text())
+        else:
+            h.stop('primary',mode='immediate')
+            h.start('primary')
+        assert p.command('await')['value']['outcome']=='unresolved'
+        # Waiting locally committed write is visible after PostgreSQL recovery,
+        # but that fact does not authorize an unchecked new physical session.
+        assert h.sql(f'SELECT destination FROM fixture.destinations WHERE id={id}')==f'client-{id}'
+        p.command('release')
+        p.command('admit',ok=False)
+        before=len(p.events)
+        resume_standby(h)
+        p.command('admit')
+        new_events=p.events[before:]
+        assert any(e.get('event')=='check_target' and e.get('kind')=='admission' for e in new_events)
+        assert any(e.get('event')=='session_admitted' for e in new_events)
+        p.finish()
+        h.results.append(dict(test='DB-04-'+crash,result='pass',old_backend=pid,
+                             establishes='real waiting COMMIT becomes unresolved; same pool cannot expose new session until read-only admission passes after recovery'))

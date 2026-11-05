@@ -29,7 +29,7 @@ pub struct Process {
 }
 
 /// Abort before unwinding can discard any other supervised owner/checkout.
-struct AbortOnPanic;
+pub(super) struct AbortOnPanic;
 impl Drop for AbortOnPanic {
     fn drop(&mut self) {
         if thread::panicking() {
@@ -46,6 +46,7 @@ impl Process {
         let handle = thread::Builder::new()
             .name("store-process".into())
             .spawn(move || {
+                let _abort = AbortOnPanic;
                 let runtime = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()

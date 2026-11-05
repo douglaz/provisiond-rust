@@ -7,8 +7,9 @@ holds what that one excludes: the runtime, the database client, executable migra
 packaging, the provider and rail simulators, and the integration tests that run against real
 PostgreSQL.
 
-**Status: not a conforming service.** A local database harness exists; product entry points still refuse service use. Do not point real provider
-accounts or real funds at any build from this repository.
+**Status: not a conforming service.** A local database harness and store lifecycle spike exist.
+Product entry points still refuse service use. Do not point real provider accounts or real funds
+at any build from this repository.
 
 ## Where to start
 
@@ -49,3 +50,21 @@ It uses the actual Rust client and ordinary bounded pools. The opt-in `store-pro
 an orchestration fixture; the default gate compiles it without starting PostgreSQL. Credentials
 are generated per invocation and stay outside git. [Recorded results](evidence/w2-checks.md)
 separate real server faults from focused identity-predicate fixtures.
+
+Run the complete W1 then W2 inventory from fresh private directories with one foreground command:
+
+```sh
+nix develop --command bash tools/postgres.sh --evidence evidence/w1w2.json
+```
+
+It performs bootstrap, replication loss/rebuild, physical backup/archive restore, connection and
+destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, backend crash,
+primary restart, residual-backend and bounded-process-stop fixtures, both targeted defect controls,
+and cleanup. The parent accepts a failing control only with its exact exit code and intended
+assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
+non-zero. The aggregate manifest links the three phase invocations; each phase writes its own
+sanitized manifest and retains raw evidence under the private harness root.
+
+The `commits` phase can also run alone with the same harness options. This local TCP spike disables
+TLS and runs no product components on a promoted/restored history. It implements no W3 schema,
+engine, ledger, real providers or production alarms. DB-10 saturation remains not run (W8).

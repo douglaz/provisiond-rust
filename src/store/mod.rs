@@ -1,6 +1,11 @@
 //! Database lifecycle spike for pinned STO-7/STO-55. No product engine or schema.
+mod commit;
 mod process;
+mod transport;
 use anyhow::{Context, Result, bail, ensure};
+#[cfg(feature = "store-test-hooks")]
+pub use commit::TestCommitDefect;
+pub use commit::{CommitOutcome, CommitReceipt};
 use deadpool::managed::{self, Metrics, RecycleError, RecycleResult};
 use futures_util::future::poll_fn;
 pub use process::Process;
@@ -88,6 +93,7 @@ pub struct Store {
     write: Pool,
     settings: Settings,
     trace: Trace,
+    process: Arc<Process>,
 }
 impl Store {
     pub fn new(
@@ -101,7 +107,7 @@ impl Store {
         ensure!(read_limit > 0 && write_limit > 0, "empty pool budget");
         let manager = Manager {
             settings: settings.clone(),
-            process,
+            process: process.clone(),
             trace: trace.clone(),
         };
         let read = Pool::builder(manager.clone())
@@ -119,6 +125,7 @@ impl Store {
             write,
             settings,
             trace,
+            process,
         })
     }
     async fn checkout(&self, pool: &Pool) -> Result<Checkout> {
@@ -160,6 +167,10 @@ impl Store {
         drop(self.write.retain(|_, _| false));
         drop(self.read.retain(|_, _| false));
     }
+    pub fn write_checked_out(&self) -> usize {
+        let status = self.write.status();
+        status.size - status.available
+    }
     pub fn write_available(&self) -> usize {
         self.write.status().available
     }
@@ -169,7 +180,8 @@ impl Store {
 }
 
 pub struct Session {
-    client: Client,
+    client: Arc<Client>,
+    protocol: Arc<transport::Protocol>,
     pub pid: i32,
     settings: Settings,
     trace: Trace,
@@ -191,13 +203,42 @@ impl managed::Manager for Manager {
             .keepalives_idle(self.settings.keepalive_idle)
             .keepalives_interval(self.settings.keepalive_interval)
             .keepalives_retries(self.settings.keepalive_count);
-        let (client, mut connection) =
-            tokio::time::timeout(self.settings.call_bound, config.connect(NoTls))
+        // A thin TCP observer retains command tags without changing the driver.
+        // This prototype supports one explicit TCP endpoint with TLS disabled.
+        ensure!(
+            config.get_hosts().len() == 1
+                && config.get_ssl_mode() == tokio_postgres::config::SslMode::Disable,
+            "store spike requires one direct TCP endpoint with sslmode=disable"
+        );
+        let tokio_postgres::config::Host::Tcp(host) = &config.get_hosts()[0] else {
+            bail!("TCP endpoint required");
+        };
+        let port = config.get_ports().first().copied().unwrap_or(5432);
+        let protocol = Arc::new(transport::Protocol::default());
+        let (client, mut connection) = tokio::time::timeout(self.settings.call_bound, async {
+            let socket = tokio::net::TcpStream::connect((host.as_str(), port)).await?;
+            socket.set_nodelay(true)?;
+            let reference = socket2::SockRef::from(&socket);
+            reference.set_keepalive(true)?;
+            reference.set_tcp_keepalive(
+                &socket2::TcpKeepalive::new()
+                    .with_time(self.settings.keepalive_idle)
+                    .with_interval(self.settings.keepalive_interval)
+                    .with_retries(self.settings.keepalive_count),
+            )?;
+            ensure!(reference.keepalive()? && reference.tcp_keepalive_time()?==self.settings.keepalive_idle && reference.tcp_keepalive_interval()?==self.settings.keepalive_interval && reference.tcp_keepalive_retries()?==self.settings.keepalive_count,"client keepalive settings did not apply");
+            (self.trace)(json!({"event":"client_keepalives_observed","idle_seconds":reference.tcp_keepalive_time()?.as_secs(),"interval_seconds":reference.tcp_keepalive_interval()?.as_secs(),"count":reference.tcp_keepalive_retries()?}));
+            config
+                .connect_raw(transport::Transport::new(socket, protocol.clone()), NoTls)
                 .await
-                .context("connect deadline")??;
+                .context("connect authentication")
+        })
+        .await
+        .context("connect deadline")??;
         let notices = Arc::new(Mutex::new(Vec::new()));
         let diagnostics = notices.clone();
         let trace = self.trace.clone();
+        let driver_protocol = protocol.clone();
         let (close_driver, mut close) = tokio::sync::oneshot::channel();
         self.process.submit(async move {
             loop {
@@ -216,9 +257,11 @@ impl managed::Manager for Manager {
                     None => { trace(json!({"event":"driver_closed"})); break; }
                 }
             }
+            driver_protocol.dead();
         })?;
         let mut session = Session {
-            client,
+            client: Arc::new(client),
+            protocol,
             pid: 0,
             settings: self.settings.clone(),
             trace: self.trace.clone(),
@@ -376,6 +419,8 @@ impl Transaction {
     /// Trusted application SQL: one statement, with transaction control reserved
     /// for this module. The product schema/caller policy is not implemented yet.
     pub async fn execute(&mut self, statement: &str) -> Result<u64> {
+        ensure!(!self.failed, "transaction has a failed/cancelled statement");
+        self.failed = true;
         let session = self.checkout.as_ref().context("transaction consumed")?;
         let result = tokio::time::timeout(
             session.settings.call_bound,
@@ -383,7 +428,10 @@ impl Transaction {
         )
         .await;
         match result {
-            Ok(Ok(rows)) => Ok(rows),
+            Ok(Ok(rows)) => {
+                self.failed = false;
+                Ok(rows)
+            }
             Ok(Err(error)) => {
                 self.failed = true;
                 Err(error).context("transaction statement")
