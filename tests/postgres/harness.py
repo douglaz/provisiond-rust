@@ -450,8 +450,8 @@ tcp_keepalives_count = 2
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','all'],default='all')
-    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','licensing_stop','outcome_stop','deadline','lock_observers','surface','predispatch','startup'],help='one focused regression; default runs all')
-    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','licensing_stop','outcome_stop','deadline','lock_observers','surface','predispatch','startup_order'])
+    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','licensing_stop','outcome_stop','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','surface','predispatch','startup'],help='one focused regression; default runs all')
+    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','licensing_stop','outcome_stop','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop'])
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
@@ -459,7 +459,7 @@ def main():
     cases={
         'regressions':{'session','transaction','runtime','cancelled'},
         'corrections':{'execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency'},
-        'core':{'migrations','money','claims','generation','stops','external','claim_cancel','licensing_stop','outcome_stop','deadline','lock_observers','surface','predispatch','startup'},
+        'core':{'migrations','money','claims','generation','stops','external','claim_cancel','licensing_stop','outcome_stop','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','surface','predispatch','startup'},
     }
     if args.case and args.case not in cases.get(args.phase,set()):
         ap.error('--case is incompatible with the selected phase')
@@ -468,6 +468,7 @@ def main():
         'generation':('core','generation'),'claim_guard':('core','claims'),'payment_atomic':('core','money'),
         **{d:('core',d) for d in ('claim_cancel','licensing_stop','outcome_stop','deadline','lock_observers','surface','predispatch')},
         'startup_order':('core','startup'),
+        **{d:('core',d) for d in ('terminal_zero','terminal_capacity','loss_stop')},
     }
     if args.defect and (args.phase,args.case)!=defect_cases[args.defect]:
         ap.error('--defect requires its exact compatible phase and case')

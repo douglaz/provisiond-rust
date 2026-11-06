@@ -4,7 +4,7 @@ use anyhow::{Result, ensure};
 use serde_json::json;
 use std::{
     sync::{
-        Arc,
+        Arc, Mutex, MutexGuard,
         atomic::{AtomicBool, Ordering},
     },
     time::{Duration, Instant},
@@ -140,7 +140,7 @@ pub struct EngineDatabase {
     store: Arc<Store>,
     lock: Session,
     fence: Fence,
-    stopping: AtomicBool,
+    lock_loss: Mutex<Option<Instant>>,
 }
 /// OVR-19's startup-lock row is an explicit assignment in the accepted local
 /// profile. It shares the provisional pooled values, validated before transport use.
@@ -270,7 +270,7 @@ impl EngineDatabase {
                 fatal: Arc::new(AtomicBool::new(false)),
                 entry: Arc::new(tokio::sync::Mutex::new(())),
             },
-            stopping: AtomicBool::new(false),
+            lock_loss: Mutex::new(None),
         })
     }
     pub fn component(&self) -> Component {
@@ -290,20 +290,23 @@ impl EngineDatabase {
         self.lock.pid
     }
     pub fn detect_lock_loss(&self) -> bool {
-        if self.lock.client.is_closed() || self.lock.protocol.snapshot().dead {
-            if !self.stopping.swap(true, Ordering::AcqRel) {
-                (self.store.trace)(
-                    json!({"event":"startup_lock_lost","session":self.lock.pid,"stop_new_work":true}),
-                );
-            }
-            true
-        } else {
-            false
+        let mut loss = self.lock_loss_state();
+        if loss.is_none() && (self.lock.client.is_closed() || self.lock.protocol.snapshot().dead) {
+            *loss = Some(Instant::now());
+            (self.store.trace)(
+                json!({"event":"startup_lock_lost","session":self.lock.pid,"stop_new_work":true}),
+            );
         }
+        loss.is_some()
+    }
+    // OPS-21/47: publish detection and arbitrate first/user stops under the same
+    // short lock. No record transaction or asynchronous wait holds this guard.
+    pub(crate) fn lock_loss_state(&self) -> MutexGuard<'_, Option<Instant>> {
+        self.lock_loss.lock().expect("lock-loss ordering")
     }
     pub fn ensure_new_work(&self) -> Result<()> {
         ensure!(
-            !self.detect_lock_loss() && !self.stopping.load(Ordering::Acquire),
+            !self.detect_lock_loss(),
             "engine stopping: no claims or periodic passes"
         );
         ensure!(!self.fence.fatal.load(Ordering::Acquire), "engine fatal");

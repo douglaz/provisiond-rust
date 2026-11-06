@@ -24,6 +24,9 @@ CONTROLS=[
     ('surface','core','surface','unfenced transaction must refuse engine-only business methods','unfenced_engine_method_observed'),
     ('predispatch','core','predispatch','live pre-dispatch create must fail despite licensing marker','live_create_position_observed'),
     ('startup_order','core','startup','unsupported real engine startup must precede protected entry','real_startup_schema_observed'),
+    ('terminal_zero','core','terminal_zero','zero-row stop must report refusal and end stale execution','terminal_zero_observed'),
+    ('terminal_capacity','core','terminal_capacity','completed stop must retire worker capacity','terminal_capacity_observed'),
+    ('loss_stop','core','loss_stop','user stop after detected loss must take later-stop exit','user_stop_after_loss_observed'),
 ]
 
 

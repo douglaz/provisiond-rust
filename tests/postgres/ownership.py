@@ -14,6 +14,107 @@ def accepted(p,op):
     return [e for e in p.events if e.get('event')=='simulator_accepted' and e.get('operation')==op]
 
 
+def terminal_zero(h,defect=None):
+    # OPS-22/STO-3: an acknowledged transaction can refuse the stale guard.
+    for newer in (False,True):
+        empty_queue(h);op=enqueue(h,'terminal-zero-'+str(newer),'terminal-zero-'+str(newer),resource=True,offer='terminal-zero-'+str(newer))
+        p=core_probe(h,defect);p.command('engine_start');a=p.command('claim')['value']
+        generation=h.sql('SELECT generation FROM provisiond.startup_generation')
+        h.sql(f"UPDATE provisiond.operations SET claim_number=claim_number+1,status='queued' WHERE id='{op}'")
+        def snapshot():
+            return h.sql(f"SELECT jsonb_build_object('operation',(SELECT to_jsonb(o) FROM provisiond.operations o WHERE id='{op}'),'commitment',(SELECT to_jsonb(c) FROM provisiond.commitments c WHERE operation_id='{op}'),'exclusion',(SELECT to_jsonb(e) FROM provisiond.resource_exclusions e WHERE operation_id='{op}'),'ledger',(SELECT count(*) FROM provisiond.ledger_entries WHERE operation_id='{op}'),'machines',(SELECT count(*) FROM provisiond.machines))")
+        before=snapshot()
+        gate=h.proxy.arm('store COMMIT','commit_reply');p.command('record_stop '+op);gate.wait()
+        assert snapshot()==before
+        assert p.command('owners')['value']==dict(workers=1,available_slots=2)
+        if newer:
+            p.command('wait_start');eventually(lambda:any(e.get('event')=='waiter_polled' for e in p.events))
+            b=p.command('claim')['value'];assert b['id']==op and b['number']>a['number']
+            assert p.command('owners')['value']==dict(workers=1,available_slots=1), 'pending stale record retains its own permit alongside newer worker'
+            assert p.command('wait_pending')['value']['pending'], 'existing observer must retain stale record until completion'
+            before=snapshot()
+        gate.release();p.command('wait_records')
+        if newer:p.command('wait_join')
+        eventually(lambda:any(e.get('event')=='stop_record_finished' and e.get('operation')==op for e in p.events))
+        finished=next(e for e in p.events if e.get('event')=='stop_record_finished' and e.get('operation')==op)
+        zero=[e for e in p.events if e.get('event')=='worker_zero_row' and e.get('operation')==op]
+        owners=p.command('owners')['value']
+        unchanged=snapshot()==before
+        h.event('terminal_zero_observed',operation=op,newer_worker=newer,finished=finished,zero_row_diagnostics=zero,owners=owners,row_money_exclusion_unchanged=unchanged,generation_unchanged=h.sql('SELECT generation FROM provisiond.startup_generation')==generation)
+        # Drain the stale fixture before its expected red assertion.
+        p.finish()
+        assert finished.get('landed') is False and zero, 'zero-row stop must report refusal and end stale execution'
+        assert finished['affected'] is False and unchanged
+        assert h.sql('SELECT generation FROM provisiond.startup_generation')==generation
+        assert owners==dict(workers=int(newer),available_slots=3-int(newer)), 'late stale stop must preserve newer worker capacity'
+        assert not any(e.get('event')=='whole_transaction_retry' for e in p.events)
+        if newer:
+            # The newer row is left running for the next ordinary restart fixture.
+            assert h.sql(f"SELECT status||':'||claim_number FROM provisiond.operations WHERE id='{op}'")==f"running:{b['number']}"
+    h.results.append(dict(test='terminal-stop-zero-row',result='pass',arms='acknowledged guard refusal, unchanged row/money/exclusion, stale-only retirement including newer worker'))
+
+
+def terminal_capacity(h,defect=None):
+    # OPS-21/STO-55: pending COMMIT retains capacity; terminal records release it.
+    empty_queue(h);ids=[enqueue(h,'terminal-capacity-'+str(i),'terminal-capacity-'+str(i)) for i in range(4)]
+    p=core_probe(h,defect);p.command('engine_start')
+    for _ in ids:
+        c=p.command('claim')['value'];assert c['id'] in ids
+        gate=h.proxy.arm('store COMMIT','commit_reply');p.command('record_stop '+c['id']);gate.wait()
+        held_owners=p.command('owners')['value'];assert held_owners==dict(workers=1,available_slots=2)
+        assert p.command('record_state '+c['id'])['value']['result'] is None
+        gate.release();p.command('wait_records')
+        h.proxy.gates.remove(gate)
+        eventually(lambda:any(e.get('event')=='stop_record_finished' and e.get('operation')==c['id'] for e in p.events))
+        owners=p.command('owners')['value']
+        h.event('terminal_capacity_observed',operation=c['id'],pending_owners=held_owners,completed_owners=owners,acknowledged=True)
+        if owners!=dict(workers=0,available_slots=3):p.finish()
+        assert owners==dict(workers=0,available_slots=3), 'completed stop must retire worker capacity'
+        finished=next(e for e in p.events if e.get('event')=='stop_record_finished' and e.get('operation')==c['id'])
+        assert finished['landed'] is True and finished['affected'] is True
+    p.finish();h.results.append(dict(test='terminal-stop-capacity-reuse',result='pass',arms='four claims using three slots; original capacity held until acknowledgment'))
+
+
+def loss_stop(h,defect=None):
+    # OPS-21/47: user stops after observed loss are later even before fan-out.
+    for window in ('unregistered','sent_record'):
+        empty_queue(h);op=enqueue(h,'loss-user-'+window,'loss-user-'+window)
+        p=core_probe(h,defect,boundary='lock_registration');startup=p.command('engine_start')['value'];p.command('claim')
+        gate=h.proxy.arm('store COMMIT','commit_reply')
+        original=None
+        if window=='sent_record':
+            p.command('record_stop '+op);gate.wait();original=p.command('record_state '+op)['value']
+        generation=h.sql('SELECT generation FROM provisiond.startup_generation')
+        h.sql(f"SELECT pg_terminate_backend({startup['lock_pid']})")
+        p.command('observe_pair');held(p,'lock_registration')
+        assert any(e.get('event')=='startup_lock_lost' for e in p.events)
+        assert h.sql('SELECT generation FROM provisiond.startup_generation')==generation
+        p.command('new_work',ok=False)
+        p.command('claim',ok=False)
+        if original:assert p.command('record_state '+op)['value']==original
+        marker=len(h.events);started=time.monotonic()
+        r=p.command('record_stop '+op,ok=None)
+        later=not r['ok'] and 'later stop' in r.get('error','')
+        if later:
+            p.expected_status=71;p.finish()
+        else:
+            # Fault observed: the user stop was absorbed. Let the faulty owner
+            # finish before asserting, so teardown is not the negative signal.
+            if window=='unregistered':gate.wait()
+            gate.release();p.command('boundary_release');p.command('observe_join',ok=False);p.expected_status=71;p.finish()
+        gate.release()
+        sends=[e for e in h.events[marker:] if e.get('event')=='send_requested' and 'store COMMIT' in e.get('query','')]
+        starts=[e for e in p.events if e.get('event')=='stop_record_started']
+        state=h.sql(f"SELECT status FROM provisiond.operations WHERE id='{op}'")
+        h.event('user_stop_after_loss_observed',window=window,later_stop=later,exit_status=p.p.returncode,elapsed_seconds=time.monotonic()-started,stop_records_started=len(starts),record_commits_after_user_stop=len(sends),durable_status=state,original_record=original,generation_unchanged=h.sql('SELECT generation FROM provisiond.startup_generation')==generation)
+        assert later, 'user stop after detected loss must take later-stop exit'
+        assert time.monotonic()-started<.4, 'later stop must not wait for lock-loss fanout or a record'
+        assert p.p.returncode==71 and len(starts)==int(window=='sent_record') and not sends
+        assert state in ('running','failed')  # A sent transaction's fate is the server's.
+        assert not any(e.get('event')=='whole_transaction_retry' for e in p.events)
+    h.results.append(dict(test='user-stop-after-lock-loss',result='pass',arms='detection before fanout; earlier sent record; prompt nonzero later-stop exit without repeat'))
+
+
 def claim_cancel(h,defect=None):
     for window in ('commit','claim_registration'):
         empty_queue(h)
@@ -39,9 +140,8 @@ def claim_cancel(h,defect=None):
         h.event('claim_cancellation_observed',window=window,operation=running,registered_owner=owned,available_slots_while_held=retained_slots,process_survived=p.p.poll() is None)
         assert owned and r['ok'] and retained_slots==2, 'cancelled claim must retain a registered worker owner'
         owners=p.command('owners')['value']
-        assert owners['workers']==1 and owners['available_slots']==2
+        assert owners['workers']==0 and owners['available_slots']==3, 'completed stop must retire worker capacity'
         assert not accepted(p,running)
-        # A stopped worker still owns a slot in this implementation until record retirement.
         p.finish()
     h.results.append(dict(test='claim-caller-cancellation',result='pass',arms='sent COMMIT reply and completion/registration window'))
 
@@ -152,16 +252,23 @@ def lock_observers(h,defect=None):
     p.command('execute_return '+claims[1]['id']);eventually(lambda:any(e.get('event')=='execute_returned' for e in p.events))
     holder=tenant_holder(h,[claims[2]['tenant']],'lock-pair')
     p.command('record_stop '+claims[2]['id'])
+    original=p.command('record_state '+claims[2]['id'])['value']
+    assert original['deadline'] is not None and original['result'] is None
     generation=h.sql('SELECT generation FROM provisiond.startup_generation')
     h.sql(f"SELECT pg_terminate_backend({startup['lock_pid']})")
     eventually(lambda:any(e.get('event')=='driver_dead' for e in p.events))
     p.command('observe_pair');held(p,'lock_registration');time.sleep(.02)
+    after=p.command('record_state '+claims[2]['id'])['value']
+    assert after==original, 'lock loss must retain original record identity and absolute deadline'
+    p.command('new_work',ok=False)
+    p.command('claim',ok=False)
+    assert not any(e.get('event')=='claim_registered' for e in p.events[p.events.index(next(e for e in p.events if e.get('event')=='startup_lock_lost')):])
     p.command('boundary_release')
     holder.stdin.close();assert holder.wait(timeout=5)==0
     p.command('observe_join',ok=False);p.expected_status=71;p.finish()
     states=h.sql("SELECT string_agg(status,',' ORDER BY id) FROM provisiond.operations WHERE id IN ("+','.join("'"+i+"'" for i in ids)+")")
     starts=[e for e in p.events if e.get('event')=='stop_record_started']
-    h.event('concurrent_lock_observers_observed',states=states,starts=len(starts),registration_windows=sum(e.get('event')=='execution_boundary_held' for e in p.events))
+    h.event('concurrent_lock_observers_observed',states=states,starts=len(starts),registration_windows=sum(e.get('event')=='execution_boundary_held' for e in p.events),original_record=original,after_detection=after,new_work_refused=True,claim_refused=True)
     assert all(h.sql(f"SELECT status FROM provisiond.operations WHERE id='{c['id']}'")!='running' for c in claims), 'one lock loss must land records before exit'
     assert len(starts)==3 and len(set(e['operation'] for e in starts))==3
     assert h.sql('SELECT generation FROM provisiond.startup_generation')==generation

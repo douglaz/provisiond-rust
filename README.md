@@ -66,7 +66,7 @@ It performs bootstrap, replication loss/rebuild, physical backup/archive restore
 destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, backend crash,
 primary restart, residual-backend and bounded-process-stop fixtures, retained-object deadline
 closure, caller-runtime shutdown, constructor cancellation/deadlines, the transactional core,
-eighteen additional defect controls, and cleanup. The parent accepts a failing control only with its
+twenty-one additional defect controls, and cleanup. The parent accepts a failing control only with its
 exact exit code and intended assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
 non-zero. The aggregate manifest requires all seven phases (W1, checks, commits, regressions, corrections,
 core, controls);
@@ -112,10 +112,11 @@ operation scheduler. The integration fixtures invoke the same library paths dire
 Focused commands use `--phase corrections --case verify_cancel`, `--phase core --case migrations`,
 `--case money`, `--case claims`, `--case generation`, `--case stops` or `--case external`.
 The additional core cases are `claim_cancel`, `licensing_stop`, `outcome_stop`, `deadline`,
-`lock_observers`, `surface`, `predispatch` and `startup`. They exercise caller cancellation,
+`lock_observers`, `terminal_zero`, `terminal_capacity`, `loss_stop`, `surface`, `predispatch` and `startup`. They exercise caller cancellation,
 licensing SQL/retry/COMMIT stops, returned outcomes, actual autonomous deadline exits, concurrent
-lock observers, engine-only methods, live dispatch position and real engine startup.
-`--phase controls` runs all eighteen required defects. Each defect requires its exact phase/case;
+lock observers, terminal guard refusals and capacity reuse, user stops after detected loss,
+engine-only methods, live dispatch position and real engine startup.
+`--phase controls` runs all twenty-one required defects. Each defect requires its exact phase/case;
 unknown or mismatched selectors exit nonzero before setup. The canonical command includes every
 control and accepts only its intended assertion failure after activation and successful cleanup.
 ENG-05 automatic reconciliation, ENG-07's dedicated replication-freeze stop-record drill and

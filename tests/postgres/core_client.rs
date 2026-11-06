@@ -38,6 +38,8 @@ async fn main() -> Result<()> {
         let result:Result<Value>=async {
             match cmd {
                 "owners"=>Ok(engine.as_ref().context("no engine")?.test_owners()),
+                "record_state"=>Ok(engine.as_ref().context("no engine")?.test_record(arg)),
+                "new_work"=> {engine.as_ref().context("no engine")?.test_new_work()?;Ok(json!({}))}
                 "claim_start"=> {let e=engine.clone().context("no engine")?;pending_claim=Some(tokio::spawn(async move {e.claim().await}));Ok(json!({}))}
                 "claim_cancel"=> {let t=pending_claim.take().context("no claim")?;t.abort();let _=t.await;Ok(json!({}))}
                 "execute_start"=> {let e=engine.clone().context("no engine")?;let id=arg.to_owned();pending_execute=Some(tokio::spawn(async move {e.execute_simulator(&id,None).await}));Ok(json!({}))}
@@ -47,6 +49,8 @@ async fn main() -> Result<()> {
                 "observe_join"=> {let (a,b)=pending_observe.take().context("no observers")?.await?;a?;b?;Ok(json!({}))}
                 "wait_start"=> {let e=engine.clone().context("no engine")?;pending_wait=Some(tokio::spawn(async move {emit(json!({"event":"waiter_polled"}));e.wait_records().await}));Ok(json!({}))}
                 "wait_cancel"=> {let t=pending_wait.take().context("no waiter")?;t.abort();let _=t.await;Ok(json!({}))}
+                "wait_pending"=>Ok(json!({"pending":!pending_wait.as_ref().context("no waiter")?.is_finished()})),
+                "wait_join"=> {pending_wait.take().context("no waiter")?.await??;Ok(json!({}))}
                 "unfenced"=> {
                     let c=Claim {id:"00000000-0000-0000-0000-000000000001".into(),tenant:"unfenced".into(),kind:"create".into(),number:1};
                     let mut t=api.begin().await?;

@@ -30,6 +30,7 @@ pub enum Outcome {
 struct RecordState {
     deadline: Option<Instant>,
     result: Option<std::result::Result<bool, String>>,
+    slot: Option<Arc<tokio::sync::OwnedSemaphorePermit>>,
 }
 struct Record {
     state: Mutex<RecordState>,
@@ -49,7 +50,7 @@ impl std::fmt::Display for ExecutionStopped {
 }
 impl std::error::Error for ExecutionStopped {}
 struct Worker {
-    _slot: tokio::sync::OwnedSemaphorePermit,
+    slot: Arc<tokio::sync::OwnedSemaphorePermit>,
     claim: Claim,
     component: Component,
     outcome: Option<Outcome>,
@@ -110,6 +111,19 @@ impl Engine {
     #[cfg(feature = "store-test-hooks")]
     pub fn test_owners(&self) -> Value {
         json!({"workers":self.workers.lock().expect("workers").len(),"available_slots":self.worker_slots.available_permits()})
+    }
+    #[cfg(feature = "store-test-hooks")]
+    pub fn test_record(&self, id: &str) -> Value {
+        let workers = self.workers.lock().expect("workers");
+        let record = workers.get(id).and_then(|w| w.record.as_ref());
+        record.map_or(Value::Null, |record| {
+            let state = record.state.lock().expect("record");
+            json!({"identity":format!("{:p}", Arc::as_ptr(record)),"deadline":state.deadline.map(|d|format!("{d:?}")),"result":state.result.as_ref().map(|r| match r { Ok(affected) => json!({"affected":affected}), Err(error) => json!({"error":error}) })})
+        })
+    }
+    #[cfg(feature = "store-test-hooks")]
+    pub fn test_new_work(&self) -> Result<()> {
+        self.database.ensure_new_work()
     }
     #[cfg(feature = "store-test-hooks")]
     pub fn test_release(&self) {
@@ -294,6 +308,10 @@ impl Engine {
         Ok(())
     }
     pub async fn claim(self: &Arc<Self>) -> Result<Option<Claim>> {
+        ensure!(
+            self.database.lock_loss_state().is_none(),
+            "engine stopping: no claims or periodic passes"
+        );
         self.observe_lock().await?;
         // STO-55: claim callers reserve capacity before any await on a checkout.
         // Retain it through execution and recording, including sent COMMIT waits.
@@ -376,7 +394,7 @@ impl Engine {
             self.workers.lock().expect("workers").insert(
                 c.id.clone(),
                 Worker {
-                    _slot: slot,
+                    slot: Arc::new(slot),
                     claim: c.clone(),
                     component: component.clone(),
                     outcome: None,
@@ -582,6 +600,7 @@ impl Engine {
                 state: Mutex::new(RecordState {
                     deadline: None,
                     result: None,
+                    slot: Some(worker.slot.clone()),
                 }),
             });
             worker.record = Some(record.clone());
@@ -605,17 +624,11 @@ impl Engine {
                 })
                 .await
                 .map_err(|e| format!("{e:#}"));
-            engine.finish_record(&pending, result.clone());
+            engine.finish_record(&pending, result.clone(), &id, number);
             component.trace(
-                json!({"event":"settlement_finished","operation":id,"landed":result.is_ok()}),
+                json!({"event":"settlement_finished","operation":id,"landed":matches!(result,Ok(true)),"affected":result.as_ref().ok()}),
             );
-            if matches!(result,Ok(false)) {
-                component.trace(json!({"event":"worker_zero_row","operation":id,"observed":"guard did not match; worker ends"}));
-            }
             if let Err(error)=&result {engine.database.fatal(&format!("atomic settlement failed for {id}: {error}"));}
-            if result.is_ok() {
-                engine.retire(&id, number);
-            }
         })?;
         Ok(record)
     }
@@ -671,13 +684,35 @@ impl Engine {
         // STO-7: process exit, never dropping a sent COMMIT in a surviving process.
         std::process::exit(71)
     }
-    fn finish_record(&self, record: &Record, result: std::result::Result<bool, String>) {
+    fn finish_record(
+        &self,
+        record: &Record,
+        result: std::result::Result<bool, String>,
+        id: &str,
+        number: i64,
+    ) {
+        let mut workers = self.workers.lock().expect("workers");
         let mut state = record.state.lock().expect("record");
         if state.deadline.is_some_and(|d| Instant::now() >= d)
             && !crate::store::test_defect("deadline")
         {
             drop(state);
+            drop(workers);
             self.exit_unlanded();
+        }
+        // OPS-22: a terminal guard refusal ends only this execution. Publish the
+        // result for existing record owners, and retire under the same locks so
+        // waiters cannot see completion while its capacity is still retained.
+        if matches!(result, Ok(false)) && !crate::store::test_defect("terminal_zero") {
+            self.component().trace(json!({"event":"worker_zero_row","operation":id,"claim_number":number,"observed":"guard did not match; worker ends"}));
+        }
+        if result.is_ok() && !crate::store::test_defect("terminal_capacity") {
+            if workers.get(id).is_some_and(|w| w.claim.number == number) {
+                workers.remove(id);
+            }
+            // Retain the original permit while pending even if a newer claim
+            // replaces this worker in the registry. Never release its permit.
+            state.slot.take();
         }
         state.result = Some(result);
     }
@@ -692,6 +727,7 @@ impl Engine {
     ) -> Result<()> {
         let (claim, component, record, execution) = {
             let mut workers = self.workers.lock().expect("workers");
+            let loss = self.database.lock_loss_state();
             let Some(worker) = workers.get_mut(id) else {
                 if lock_loss {
                     return Ok(());
@@ -703,6 +739,9 @@ impl Engine {
                 if state.result.is_some() {
                     return Ok(());
                 }
+                if !lock_loss && loss.is_some() && !crate::store::test_defect("loss_stop") {
+                    return self.fatal("later stop: exit without repeating pending record");
+                }
                 if state.deadline.is_some() {
                     if lock_loss {
                         return Ok(());
@@ -713,10 +752,14 @@ impl Engine {
                 worker.component.trace(json!({"event":"stop_record_started","operation":worker.claim.id,"bound_ms":self.stop_bound.as_millis(),"existing_settlement":true}));
                 return self.watch_record(record.clone());
             }
+            if !lock_loss && loss.is_some() && !crate::store::test_defect("loss_stop") {
+                return self.fatal("later stop: exit without repeating pending record");
+            }
             let record = Arc::new(Record {
                 state: Mutex::new(RecordState {
                     deadline: Some(stopped_at + self.stop_bound),
                     result: None,
+                    slot: Some(worker.slot.clone()),
                 }),
             });
             worker.record = Some(record.clone());
@@ -733,6 +776,7 @@ impl Engine {
         self.watch_record(record.clone())?;
         component.trace(json!({"event":"stop_record_started","operation":claim.id,"bound_ms":self.stop_bound.as_millis()}));
         let operation_id = claim.id.clone();
+        let number = claim.number;
         let stale_outcome = if crate::store::test_defect("outcome_stop") {
             self.workers
                 .lock()
@@ -749,7 +793,7 @@ impl Engine {
             }
             // OPS-21: acknowledge execution termination before reading the final
             // outcome. An earlier None snapshot proves nothing about its return.
-            let outcome = if crate::store::test_defect("outcome_stop") {stale_outcome} else {engine.workers.lock().expect("workers").get(&operation_id).and_then(|w| w.outcome.clone())};
+            let outcome = if crate::store::test_defect("outcome_stop") {stale_outcome} else {engine.workers.lock().expect("workers").get(&operation_id).filter(|w|w.claim.number==number).and_then(|w| w.outcome.clone())};
             let dispatched = execution.as_ref().is_some_and(|e| e.dispatched.load(Ordering::Acquire));
             let result=engine.transaction_record(&component,&record,move |tx| {
                 let claim=claim.clone();let outcome=outcome.clone();
@@ -767,22 +811,25 @@ impl Engine {
                     tx.settle(&claim,if ambiguous {"needs_reconciliation"}else{"failed"},&Value::Null,&json!({"kind":"conflict","details":{"reason":"cut_off"},"retryable":!ambiguous})).await
                 })
             }).await.map_err(|e|format!("{e:#}"));
-            engine.finish_record(&record, result.clone());
-            component.trace(json!({"event":"stop_record_finished","operation":operation_id,"landed":result.is_ok(),"detail":result.as_ref().err()}));
+            engine.finish_record(&record, result.clone(), &operation_id, number);
+            component.trace(json!({"event":"stop_record_finished","operation":operation_id,"landed":matches!(result,Ok(true)) || (result.is_ok() && crate::store::test_defect("terminal_zero")),"affected":result.as_ref().ok(),"detail":result.as_ref().err()}));
         })?;
         Ok(())
     }
     pub async fn wait_records(&self) -> Result<()> {
+        let mut pending: Vec<(String, Arc<Record>)> = Vec::new();
         loop {
-            let pending: Vec<_> = self
-                .workers
-                .lock()
-                .expect("workers")
-                .iter()
-                .filter_map(|(id, w)| w.record.as_ref().map(|r| (id.clone(), r.clone())))
-                .collect();
+            // An observer that captured A keeps its result even if worker B
+            // later occupies the same operation ID in the registry.
+            for (id, worker) in self.workers.lock().expect("workers").iter() {
+                if let Some(record) = &worker.record
+                    && !pending.iter().any(|(_, r)| Arc::ptr_eq(r, record))
+                {
+                    pending.push((id.clone(), record.clone()));
+                }
+            }
             let mut unfinished = false;
-            for (id, record) in pending {
+            for (id, record) in &pending {
                 let state = record.state.lock().expect("record");
                 match &state.result {
                     Some(Ok(_)) => {}
@@ -817,7 +864,7 @@ impl Engine {
         if !self.database.detect_lock_loss() {
             return Ok(());
         }
-        let stopped_at = Instant::now();
+        let stopped_at = self.database.lock_loss_state().expect("detected lock loss");
         let ids: Vec<_> = self
             .workers
             .lock()
