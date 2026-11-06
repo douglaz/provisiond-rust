@@ -1,11 +1,12 @@
 # provisiond-rust
 
-An implementation of [provisiond](https://github.com/douglaz/provisiond), in Rust.
+An early Rust implementation of [provisiond](https://github.com/douglaz/provisiond), a
+multi-provider control plane that provisions and manages VPS and bare-metal machines.
 
 The specification lives in its own repository and owns every behavioural rule. This repository
-holds what that one excludes: the runtime, the database client, executable migrations, deployment
-packaging, the provider and rail simulators, and the integration tests that run against real
-PostgreSQL.
+contains the runtime prototype, database client, executable migrations, simulator fixtures and
+integration tests against real PostgreSQL. Deployment packaging and full provider and rail
+adapters remain future work.
 
 **Status: not a conforming service.** The local prototype has an admitted database client,
 offline migrations, fenced engine transactions and atomic money primitives. The API checks schema
@@ -30,10 +31,12 @@ request.
 Run inside a systemd unit capped with `MemoryMax=16G`, `MemorySwapMax=0` and
 `OOMPolicy=continue`. Set `PROVISIOND_HARNESS_UNIT` to that unit's name and
 `PROVISIOND_HARNESS_ROOT` to a private absolute directory outside `/tmp`; [the
-harness](tests/postgres/harness.py) checks both before it starts anything:
+harness](tests/postgres/harness.py) checks both before it starts anything. Set `TMPDIR` to
+a private directory outside `/tmp` as well. Choose a free port allocation and keep new evidence
+under the private harness root so a drill does not overwrite the recorded acceptance manifests:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence evidence/r2-final-w1.json
+PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence "$PROVISIOND_HARNESS_ROOT/w1.json"
 ```
 
 This single foreground command creates fresh private directories under the owned harness
@@ -48,7 +51,7 @@ isolated test allocation. See [scope](docs/scope.md) for limits.
 The store connection/destination spike is exercised with:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command python3 tests/postgres/harness.py --phase checks --seed 20261105 --evidence evidence/r2-final-checks.json
+PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command python3 tests/postgres/harness.py --phase checks --seed 20261105 --evidence "$PROVISIOND_HARNESS_ROOT/checks.json"
 ```
 
 It uses the actual Rust client and ordinary bounded pools. The opt-in `store-probe` example is
@@ -59,7 +62,7 @@ separate real server faults from focused identity-predicate fixtures.
 Run the complete database, transactional-core and defect-control inventory from fresh private directories:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence evidence/defer/w3-defer-final.json
+PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence "$PROVISIOND_HARNESS_ROOT/all.json"
 ```
 
 It performs bootstrap, replication loss/rebuild, physical backup/archive restore, connection and
