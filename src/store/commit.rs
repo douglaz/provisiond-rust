@@ -21,7 +21,8 @@ impl CommitOutcome {
         }
     }
 }
-/// Dropping this receiver has no effect on its process-owned COMMIT task.
+/// Dropping this receiver cancels pending verification; a possibly sent COMMIT
+/// remains process-owned until completion, transport death or process exit.
 pub struct CommitReceipt {
     receiver: oneshot::Receiver<CommitOutcome>,
 }
@@ -106,9 +107,20 @@ async fn own_commit(
     // STO-7: verify on the still-owned physical transaction before dispatch.
     // Ownership was registered synchronously, so dropping a receipt creates no gap.
     if !super::test_defect("commit_setting") {
-        let verified = session
-            .scalar("SHOW synchronous_commit /* precommit verify */")
-            .await;
+        let verification = session.scalar("SHOW synchronous_commit /* precommit verify */");
+        let verified = if super::test_defect("verify_cancel") {
+            verification.await
+        } else {
+            tokio::select! {
+                biased;
+                _ = sender.closed() => {
+                    session.close();
+                    trace(json!({"event":"precommit_cancelled","session":pid,"commit_not_dispatched":true}));
+                    return;
+                }
+                result = verification => result,
+            }
+        };
         if !matches!(verified.as_deref(), Ok("on")) {
             session.close();
             trace(json!({"event":"precommit_rejected","session":pid,"commit_not_dispatched":true}));
@@ -117,6 +129,13 @@ async fn own_commit(
             });
             return;
         }
+    }
+    // Last pre-dispatch observation; no await separates this boundary from the
+    // irrevocable owner below. Cancellation beyond it cannot release the checkout.
+    if !super::test_defect("verify_cancel") && sender.is_closed() {
+        session.close();
+        trace(json!({"event":"precommit_cancelled","session":pid,"commit_not_dispatched":true}));
+        return;
     }
     {
         let mut diagnostics = notices.lock().expect("notice lock");
