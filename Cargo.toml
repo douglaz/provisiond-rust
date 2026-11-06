@@ -7,7 +7,22 @@ description = "Rust implementation of the provisiond specification (pre-conforma
 repository = "https://github.com/douglaz/provisiond-rust"
 publish = false
 
+[features]
+store-test-hooks = []
+
+[[example]]
+name = "store-probe"
+path = "tests/postgres/client.rs"
+required-features = ["store-test-hooks"]
+
 [dependencies]
+anyhow = "1"
+deadpool = { version = "0.12", features = ["managed", "rt_tokio_1"] }
+futures-util = "0.3"
+serde_json = "1"
+socket2 = { version = "0.6", features = ["all"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+tokio-postgres = "0.7"
 
 [lints.rust]
 unsafe_code = "forbid"

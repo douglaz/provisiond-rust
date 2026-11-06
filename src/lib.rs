@@ -1,7 +1,9 @@
 //! provisiond: a pre-conformance prototype of the provisiond specification.
 //!
 //! The specification pinned in `spec-lock.json` owns every behavioural rule. Nothing in this crate
-//! implements a requirement yet; see `docs/scope.md` and `docs/conformance-map.md`.
+//! provides a conforming service yet; see `docs/scope.md` and `docs/conformance-map.md`.
+
+pub mod store;
 
 /// The specification commit this crate is written against.
 pub const SPEC_COMMIT: &str = "ac37c7cae5d3ff746515137774a4cdd5a3531375";
