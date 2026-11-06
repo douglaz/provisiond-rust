@@ -37,21 +37,21 @@ def cap_check():
 
 
 def free_port(port):
-    assert 55430 <= port <= 55479
+    assert 55500 <= port <= 55559
     with socket.socket() as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('127.0.0.1', port))
 
 
 def allocation():
-    """Required private four-port allocation, validated before starting any child."""
+    """Required private ten-port allocation, validated before starting any child."""
     raw = os.environ.get('PROVISIOND_HARNESS_PORT_BASE', '')
     if not raw.isascii() or not raw.isdecimal():
         raise ValueError('PROVISIOND_HARNESS_PORT_BASE must be an integer')
     base = int(raw)
-    if not 55430 <= base <= 55476:
-        raise ValueError('four harness ports must fit within 55430..55479')
-    return list(range(base, base + 4))
+    if base not in range(55500, 55560, 10):
+        raise ValueError('ten harness ports require a slot base in 55500..55550')
+    return list(range(base, base + 10))
 
 
 def preflight_ports():
