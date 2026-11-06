@@ -483,6 +483,7 @@ pub struct Transaction {
     failed: bool,
     permit: Option<tokio::sync::OwnedSemaphorePermit>,
     pub(crate) tenants: Vec<String>,
+    engine_fenced: bool,
 }
 impl Store {
     pub async fn begin(&self) -> Result<Transaction> {
@@ -492,6 +493,7 @@ impl Store {
             failed: false,
             permit: None,
             tenants: Vec::new(),
+            engine_fenced: false,
         };
         transaction
             .checkout
@@ -608,7 +610,7 @@ impl Diagnostics {
         self.commit_warning = false;
     }
 }
-fn test_defect(name: &str) -> bool {
+pub(crate) fn test_defect(name: &str) -> bool {
     #[cfg(feature = "store-test-hooks")]
     {
         std::env::var("STORE_TEST_DEFECT").as_deref() == Ok(name)
@@ -660,7 +662,7 @@ impl Store {
             &[],
         )
         .await?;
-        let claim = tx.claim().await?;
+        let claim = tx.claim_inner().await?;
         Ok((tx, claim))
     }
     async fn dedicated(&self) -> Result<Session> {
@@ -673,6 +675,7 @@ impl Store {
             failed: false,
             permit: None,
             tenants: Vec::new(),
+            engine_fenced: false,
         };
         let session = tx.checkout.as_ref().expect("checkout");
         session.notices.lock().expect("notice lock").reset();

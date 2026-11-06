@@ -16,6 +16,14 @@ CONTROLS=[
     ('generation','core','generation','stale engine generation must refuse transaction','stale_generation_observed'),
     ('claim_guard','core','claims','stale claim must affect zero rows','stale_claim_guard_observed'),
     ('payment_atomic','core','money','payment and credit must be atomic','payment_split_intermediate_observed'),
+    ('claim_cancel','core','claim_cancel','cancelled claim must retain a registered worker owner','claim_cancellation_observed'),
+    ('licensing_stop','core','licensing_stop','stopped licensing must not enter provider execution','licensing_stop_observed'),
+    ('outcome_stop','core','outcome_stop','returned outcome must win over stale cancellation snapshot','outcome_stop_observed'),
+    ('deadline','core','deadline','record deadline must exit without a polled waiter','record_deadline_observed'),
+    ('lock_observers','core','lock_observers','one lock loss must land records before exit','concurrent_lock_observers_observed'),
+    ('surface','core','surface','unfenced transaction must refuse engine-only business methods','unfenced_engine_method_observed'),
+    ('predispatch','core','predispatch','live pre-dispatch create must fail despite licensing marker','live_create_position_observed'),
+    ('startup_order','core','startup','unsupported real engine startup must precede protected entry','real_startup_schema_observed'),
 ]
 
 

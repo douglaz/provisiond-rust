@@ -91,6 +91,7 @@ impl Transaction {
     }
     /// STO-51/OPS-8: a refused re-acquire cannot steal another running hold.
     pub async fn reacquire(&mut self, c: &Claim) -> Result<bool> {
+        self.engine_only()?;
         let result = self.reacquire_inner(c).await;
         self.failed |= result.is_err();
         result
@@ -129,12 +130,23 @@ impl Transaction {
         self.failed |= result.is_err();
         result
     }
+    // OPS-50: the runtime proof is installed only by Component::begin after its
+    // first-statement generation check. API admission/payment remain unfenced.
+    fn engine_only(&mut self) -> Result<()> {
+        if !self.engine_fenced && !super::test_defect("surface") {
+            self.failed = true;
+            anyhow::bail!("engine-only transaction requires generation fence");
+        }
+        Ok(())
+    }
     pub async fn claim(&mut self) -> Result<Option<Claim>> {
+        self.engine_only()?;
         let result = self.claim_inner().await;
         self.failed |= result.is_err();
         result
     }
     pub async fn defer(&mut self, c: &Claim) -> Result<bool> {
+        self.engine_only()?;
         let result = self.defer_inner(c).await;
         self.failed |= result.is_err();
         result
@@ -146,6 +158,7 @@ impl Transaction {
         result: &Value,
         error: &Value,
     ) -> Result<bool> {
+        self.engine_only()?;
         let result = async {
             ensure!(
                 c.kind != "create" || target != "succeeded",
@@ -158,6 +171,7 @@ impl Transaction {
         result
     }
     pub async fn license_create(&mut self, c: &Claim) -> Result<bool> {
+        self.engine_only()?;
         let result = self.license_create_inner(c).await;
         self.failed |= result.is_err();
         result
@@ -168,6 +182,7 @@ impl Transaction {
         external_id: &str,
         earliest_date: Option<&str>,
     ) -> Result<bool> {
+        self.engine_only()?;
         let result = self
             .settle_verified_create_inner(c, external_id, earliest_date)
             .await;
@@ -310,7 +325,7 @@ impl Transaction {
     }
     /// STO-1/OPS-6: savepoint confines a per-machine unique refusal; the number
     /// increment is rolled back before the short queued defer, in this transaction.
-    async fn claim_inner(&mut self) -> Result<Option<Claim>> {
+    pub(super) async fn claim_inner(&mut self) -> Result<Option<Claim>> {
         let rows=self.rows("SELECT id::text FROM provisiond.operations WHERE status='queued' AND available_at<=clock_timestamp() ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1",&[]).await?;
         let Some(row) = rows.first() else {
             return Ok(None);

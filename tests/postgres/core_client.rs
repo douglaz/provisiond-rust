@@ -25,6 +25,10 @@ async fn main() -> Result<()> {
     let mut component = api.clone();
     let mut tx = None;
     let mut receipt = None;
+    let mut pending_claim = None;
+    let mut pending_execute = None;
+    let mut pending_observe = None;
+    let mut pending_wait = None;
     for line in io::stdin().lock().lines() {
         let line = line?;
         let (cmd, arg) = line.split_once(' ').unwrap_or((&line, ""));
@@ -33,6 +37,23 @@ async fn main() -> Result<()> {
         }
         let result:Result<Value>=async {
             match cmd {
+                "owners"=>Ok(engine.as_ref().context("no engine")?.test_owners()),
+                "claim_start"=> {let e=engine.clone().context("no engine")?;pending_claim=Some(tokio::spawn(async move {e.claim().await}));Ok(json!({}))}
+                "claim_cancel"=> {let t=pending_claim.take().context("no claim")?;t.abort();let _=t.await;Ok(json!({}))}
+                "execute_start"=> {let e=engine.clone().context("no engine")?;let id=arg.to_owned();pending_execute=Some(tokio::spawn(async move {e.execute_simulator(&id,None).await}));Ok(json!({}))}
+                "execute_join"=> {pending_execute.take().context("no execution")?.await??;Ok(json!({}))}
+                "boundary_release"=> {engine.as_ref().context("no engine")?.test_release();Ok(json!({}))}
+                "observe_pair"=> {let e=engine.clone().context("no engine")?;pending_observe=Some(tokio::spawn(async move {tokio::join!(e.observe_lock(),e.observe_lock())}));Ok(json!({}))}
+                "observe_join"=> {let (a,b)=pending_observe.take().context("no observers")?.await?;a?;b?;Ok(json!({}))}
+                "wait_start"=> {let e=engine.clone().context("no engine")?;pending_wait=Some(tokio::spawn(async move {emit(json!({"event":"waiter_polled"}));e.wait_records().await}));Ok(json!({}))}
+                "wait_cancel"=> {let t=pending_wait.take().context("no waiter")?;t.abort();let _=t.await;Ok(json!({}))}
+                "unfenced"=> {
+                    let c=Claim {id:"00000000-0000-0000-0000-000000000001".into(),tenant:"unfenced".into(),kind:"create".into(),number:1};
+                    let mut t=api.begin().await?;
+                    let r=match arg {"claim"=>t.claim().await.map(|_|()),"defer"=>t.defer(&c).await.map(|_|()),"license"=>t.license_create(&c).await.map(|_|()),"verified"=>t.settle_verified_create(&c,"unfenced",None).await.map(|_|()),"reacquire"=>t.reacquire(&c).await.map(|_|()),_=>t.settle(&c,"failed",&Value::Null,&Value::Null).await.map(|_|())};
+                    let refused=r.as_ref().err().is_some_and(|e|e.to_string().contains("engine-only transaction requires generation fence"));
+                    t.rollback().await?;Ok(json!({"refused":refused}))
+                }
                 "engine_start"=> {
                     let wait=if arg.is_empty(){500}else{provisiond::store::startup_milliseconds(arg)?};
                     let e=Engine::start(entry::local_engine_store(process.clone(),trace.clone())?,process.clone(),wait,Duration::from_secs(2),Duration::from_secs(1)).await?;
@@ -95,7 +116,7 @@ async fn main() -> Result<()> {
                     }
                 }
                 "execute_pending"=> {engine.as_ref().context("no engine")?.execute_simulator(arg,None).await?;Ok(json!({}))}
-                "execute_return"=> {engine.as_ref().context("no engine")?.execute_simulator(arg,Some(Outcome::VerifiedCreate {external_id:"simulator-stop-verified".into(),earliest_date:None})).await?;Ok(json!({}))}
+                "execute_return"=> {engine.as_ref().context("no engine")?.execute_simulator(arg,Some(Outcome::VerifiedCreate {external_id:format!("simulator-verified-{arg}"),earliest_date:None})).await?;Ok(json!({}))}
                 "start_settlement"=> {engine.as_ref().context("no engine")?.start_settlement(arg)?;Ok(json!({}))}
                 "record_stop"=> {engine.as_ref().context("no engine")?.record_stop(arg)?;Ok(json!({}))}
                 "wait_records"=> {engine.as_ref().context("no engine")?.wait_records().await?;Ok(json!({}))}

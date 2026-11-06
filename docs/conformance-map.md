@@ -110,6 +110,22 @@ of their full described behavior. Full service conformance is not claimed.
 | LDG-39 | [12-billing-and-ledger.md:1220](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/12-billing-and-ledger.md#L1220) | `settle_verified_create_inner`, `first_unit_debit_id` | ENG-04/06: copied unit/rational conversion, setup and nonzero first unit posted once; metering absent | [W3 core](../evidence/w3-final-core.json) | demonstrated |
 | LDG-70 | [12-billing-and-ledger.md:233](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/12-billing-and-ledger.md#L233) | `ledger::balance`, `ledger::audit`, `Component::audit_ledger` | MONEY-03 and audit fault: indexed latest balance, prefix recomputation, durable spending halt; repair absent | [W3 core](../evidence/w3-final-core.json) | demonstrated |
 
+## Claim and stop ownership arms
+
+The earlier W3 inventory did not exercise these boundaries. Symbols below implement the
+corrections; the final recorded run and controls are linked from [W3 acceptance](../evidence/w3.md).
+
+| Requirement | Pinned source | Implementation symbol | Test / arm | Evidence | Status |
+|---|---|---|---|---|---|
+| OPS-49, STO-55 | [03-operation-lifecycle.md:1968](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1968) | `Engine::claim_owned`, `worker_slots` | `claim_cancel`: sent reply and completion/registration cancellation retain exactly one owner/capacity | Final core/control manifests | implemented |
+| OPS-21 | [03-operation-lifecycle.md:1836](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1836) | `Execution`, `transaction_stoppable`, `register_stop` | `licensing_stop`, `outcome_stop`: SQL/retry/sent COMMIT/handoff and final outcome arbitration | Final core/control manifests | implemented |
+| OPS-21 | [03-operation-lifecycle.md:1836](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1836) | `watch_record`, `finish_record`, `transaction_record` | `deadline`: absent/cancelled waiter and existing settlement, original bound and actual exit | Final core/control manifests | implemented |
+| OPS-11 | [03-operation-lifecycle.md:241](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L241) | `Execution::dispatched`, `register_stop` | `predispatch`: live zero-call failure/releases; dispatched and ordinary-restart counterparts | Final core/control manifests | implemented |
+| OPS-47 | [03-operation-lifecycle.md:135](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L135) | `observe_lock`, `lock_observation` | `lock_observers`: one loss, two concurrent observers, existing record and returned outcome | Final core/control manifests | implemented |
+| OPS-50 | [03-operation-lifecycle.md:2042](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L2042) | `Transaction::engine_only`, `Component::begin` | `surface`: public engine-only primitives refuse API/unfenced transactions | Final core/control manifests | implemented |
+| STO-13 | [05-persistence.md:1604](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/05-persistence.md#L1604) | `EngineDatabase::start`, `compatible_schema` | `startup`: actual startup on missing/uninitialized/older/newer/incompatible schemas and ordering control | Final core/control manifests | implemented |
+| OVR-19 | [00-overview.md:419](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/00-overview.md#L419) | `StartupKeepalives::validate`, `connect` | Separate startup-lock assignment, invalid durations/counts and actual session observation | Final gate/core manifests | implemented |
+
 ## Additional W2 database fixtures
 
 | Requirement | Pinned source | Implementation symbol | Test ID | Evidence | Status |

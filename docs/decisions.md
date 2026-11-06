@@ -313,3 +313,51 @@ reconnect or alarm policy; full capacity and recovery evidence belongs to W8.
 
 When an open entry is settled, move it to "Settled" with the exact versions, commands, exit statuses
 and evidence paths that meet its basis. Preference, scope and cost questions go to the owner.
+
+### D-14. Claim and stop ownership
+
+OPS-49 claims now run under the existing process supervisor from reservation through
+acknowledgment and worker registration. The caller holds a receipt; losing it leaves exactly one
+registered worker and its original capacity, or fatal handling for an uncertain claim. No provider
+entry follows an unlearned result. OPS-21 execution is registered before licensing, and its owner
+covers the current transaction, retry loop and provider handoff. A stop permits the current sent
+COMMIT to finish, prevents another licensing attempt/dispatch, then records. Stop registration
+and actual simulator entry arbitrate under the worker lock. Create cut-offs use that live position;
+ordinary restart alone keeps OPS-15's conservative `about_to_order_at` rule.
+
+An execution publishes its final outcome before acknowledging termination; the stop record reads
+that outcome afterward. Record deadline and observed result share one mutex. A supervisor watchdog
+owns the first absolute deadline independently of `wait_records`, and the transaction loop checks
+it before another attempt. Late completion cannot become timely acknowledgment. Expiry logs every
+record not observed landed and exits the whole process nonzero, retaining sent-COMMIT ownership
+until that exit. The Store-retry budget remains independent. Lock-loss observation alone is
+serialized through fan-out and record completion; repeated observers cannot invent a later stop,
+and an existing record keeps its first deadline. A real later stop retains its exit.
+
+OPS-50's generation-first entry installs a private transaction capability only after the check.
+Public claim/defer/reacquire/licensing/settlement methods require it before business SQL. API
+admission/payment transactions remain unfenced. The exceptional held-generation fixture calls an
+internal primitive only in the opt-in hooks build.
+
+OVR-19's **Startup-lock connection keepalives** row explicitly shares the local pooled assignment:
+client/server idle 2 s, interval 1 s, count 2. `StartupKeepalives` validates positive whole seconds
+within PostgreSQL's signed range and a supported positive count before constructing the dedicated
+transport. The shared session factory verifies client socket getters; a separate lock-session
+observation checks all three server settings against that assignment. These are local-profile
+values, not independently tunable production parameters. D-6 remains Open for W8.
+
+Focused PostgreSQL commands for claim cancellation, licensing stops, returned-outcome publication,
+unpolled deadlines, concurrent lock observers, live position and unfenced methods first exited 1
+at their intended assertions on the supplied runtime logic, then exited 0 after correction.
+`nix develop --command bash tools/check.sh` exited 0. The final committed-source gate, full
+seven-phase acceptance and eighteen targeted controls are recorded in [W3 acceptance](../evidence/w3.md).
+The final manifests replace earlier W3 manifests; earlier passing inventory did not check these
+ownership boundaries. Test-hook runtimes are identified as such; default-feature build validation
+uses a separate target directory. No production policy or timing bound changed.
+
+Concrete acceptance windows use only opt-in holds at claim registration, licensing retry/entry,
+returned-outcome publication and lock-loss registration. Simulator external identities include the
+operation ID to avoid cross-scenario collisions. Setup funding checks acknowledgment and permits
+at most three API requests for the same payment identity after a recorded cold-checkout refusal;
+this is a fixture replay, not an engine retry or an increased checkout bound. Other setup errors
+fail. Fault tests retain their own assertions and do not use that replay to hide a fault.

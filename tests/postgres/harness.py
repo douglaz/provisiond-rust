@@ -105,6 +105,8 @@ class Harness:
         if phase=='core':
             self.config['engine']=dict(workers=3,write_pool=3,compatibility_read_pool=1,
                 startup_lock_outside_pool=True,startup_wait_ms=500,store_retry_ms=2000,stop_record_ms=1000,
+                startup_lock_keepalives=dict(idle_seconds=2,interval_seconds=1,count=2,profile_assignment="shared with pooled local values"),
+                runtime_build=dict(features=["store-test-hooks"],target_directory="target"),
                 migration_lock_ms=500,migration_lock_retries=2,schema_version=1,semantic_version=1,notice_cap=16)
         self.archive = self.root / 'archive'
         self.archive.mkdir()
@@ -448,8 +450,8 @@ tcp_keepalives_count = 2
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','all'],default='all')
-    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external'],help='one focused regression; default runs all')
-    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic'])
+    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','licensing_stop','outcome_stop','deadline','lock_observers','surface','predispatch','startup'],help='one focused regression; default runs all')
+    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','licensing_stop','outcome_stop','deadline','lock_observers','surface','predispatch','startup_order'])
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
@@ -457,13 +459,15 @@ def main():
     cases={
         'regressions':{'session','transaction','runtime','cancelled'},
         'corrections':{'execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency'},
-        'core':{'migrations','money','claims','generation','stops','external'},
+        'core':{'migrations','money','claims','generation','stops','external','claim_cancel','licensing_stop','outcome_stop','deadline','lock_observers','surface','predispatch','startup'},
     }
     if args.case and args.case not in cases.get(args.phase,set()):
         ap.error('--case is incompatible with the selected phase')
     defect_cases={
         **{d:('corrections',d) for d in ('execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel')},
         'generation':('core','generation'),'claim_guard':('core','claims'),'payment_atomic':('core','money'),
+        **{d:('core',d) for d in ('claim_cancel','licensing_stop','outcome_stop','deadline','lock_observers','surface','predispatch')},
+        'startup_order':('core','startup'),
     }
     if args.defect and (args.phase,args.case)!=defect_cases[args.defect]:
         ap.error('--defect requires its exact compatible phase and case')

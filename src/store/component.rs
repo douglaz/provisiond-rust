@@ -94,6 +94,7 @@ impl Component {
             (self.store.trace)(
                 json!({"event":"generation_checked","session":tx.session_id(),"generation":fence.generation,"equal":matches}),
             );
+            tx.engine_fenced = true;
         }
         Ok(tx)
     }
@@ -141,11 +142,72 @@ pub struct EngineDatabase {
     fence: Fence,
     stopping: AtomicBool,
 }
+/// OVR-19's startup-lock row is an explicit assignment in the accepted local
+/// profile. It shares the provisional pooled values, validated before transport use.
+#[derive(Clone, Copy)]
+struct StartupKeepalives {
+    idle: Duration,
+    interval: Duration,
+    count: u32,
+}
+impl StartupKeepalives {
+    fn local_profile(settings: &super::Settings) -> Result<Self> {
+        let value = Self {
+            idle: settings.keepalive_idle,
+            interval: settings.keepalive_interval,
+            count: settings.keepalive_count,
+        };
+        value.validate()
+    }
+    fn validate(self) -> Result<Self> {
+        let value = self;
+        for duration in [value.idle, value.interval] {
+            ensure!(
+                duration.as_secs() > 0
+                    && duration.as_secs() <= i32::MAX as u64
+                    && duration == Duration::from_secs(duration.as_secs()),
+                "invalid startup-lock keepalive duration"
+            );
+        }
+        ensure!(
+            value.count > 0 && value.count <= i32::MAX as u32,
+            "invalid startup-lock keepalive count"
+        );
+        Ok(value)
+    }
+    async fn connect(self, store: &Store) -> Result<Session> {
+        use deadpool::managed::Manager as _;
+        let mut manager = store.manager.clone();
+        manager.settings.keepalive_idle = self.idle;
+        manager.settings.keepalive_interval = self.interval;
+        manager.settings.keepalive_count = self.count;
+        manager.settings.validate()?;
+        let session = manager.create().await?;
+        let observed = session.scalar("SELECT current_setting('tcp_keepalives_idle') || ':' || current_setting('tcp_keepalives_interval') || ':' || current_setting('tcp_keepalives_count')").await?;
+        ensure!(
+            observed
+                == format!(
+                    "{}:{}:{}",
+                    self.idle.as_secs(),
+                    self.interval.as_secs(),
+                    self.count
+                ),
+            "startup-lock keepalives did not apply"
+        );
+        (store.trace)(
+            json!({"event":"startup_lock_keepalives_observed","session":session.pid,"idle_seconds":self.idle.as_secs(),"interval_seconds":self.interval.as_secs(),"count":self.count,"server":observed,"client_getters_verified":true,"profile_assignment":"shared with pooled local values"}),
+        );
+        Ok(session)
+    }
+}
 impl EngineDatabase {
     pub async fn start(store: Store, wait_ms: u32) -> Result<Self> {
         startup_milliseconds(&wait_ms.to_string())?;
-        store.compatible_schema().await?;
-        let lock = store.dedicated().await?;
+        if !super::test_defect("startup_order") {
+            store.compatible_schema().await?;
+        }
+        let keepalives = StartupKeepalives::local_profile(&store.settings)?;
+        let lock = keepalives.connect(&store).await?;
         let capacity=lock.scalar("SELECT (current_setting('max_connections')::int-current_setting('superuser_reserved_connections')::int-current_setting('reserved_connections')::int)::text").await?.parse::<usize>()?;
         ensure!(
             store.read.status().max_size + store.write.status().max_size < capacity,
@@ -173,6 +235,9 @@ impl EngineDatabase {
             .await;
         }
         (store.trace)(json!({"event":"startup_lock_acquired","session":lock.pid}));
+        if super::test_defect("startup_order") {
+            store.compatible_schema().await?;
+        }
         let mut advance = store.dedicated().await?;
         advance.settings.call_bound = advance
             .settings
@@ -256,6 +321,31 @@ impl EngineDatabase {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ovr19_startup_keepalives_reject_unsupported_durations() {
+        let mut settings = StartupKeepalives {
+            idle: Duration::from_secs(2),
+            interval: Duration::from_secs(1),
+            count: 2,
+        };
+        for value in [
+            Duration::ZERO,
+            Duration::from_millis(1500),
+            Duration::from_secs(i32::MAX as u64 + 1),
+        ] {
+            let original = settings;
+            settings.idle = value;
+            assert!(settings.validate().is_err());
+            settings = original;
+            settings.interval = value;
+            assert!(settings.validate().is_err());
+            settings = original;
+        }
+        for count in [0, i32::MAX as u32 + 1] {
+            settings.count = count;
+            assert!(settings.validate().is_err());
+        }
+    }
     #[test]
     fn ops15_bound_is_exact_positive_pg_milliseconds() {
         for value in [

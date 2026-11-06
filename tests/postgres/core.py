@@ -20,8 +20,10 @@ def environment(h,role='app',defect=None):
     return env
 
 
-def core_probe(h,defect=None):
-    return Probe(h,defect=defect,program='core-probe',extra_env=environment(h))
+def core_probe(h,defect=None,boundary=None):
+    env=environment(h)
+    if boundary: env["STORE_TEST_BOUNDARY"]=boundary
+    return Probe(h,defect=defect,program='core-probe',extra_env=env)
 
 
 def binary(h,name,*args,role='app',ok=True,defect=None):
@@ -59,11 +61,17 @@ def deposit(h,tenant,key):
 
 def fund(h,tenant,key,amount=100,defect=None):
     d=deposit(h,tenant,key)
-    p=core_probe(h,defect)
     value=dict(deposit=d,rail='lightning',reference='hash-'+key,amount=amount)
-    result=command(p,'payment',value,ok=None)
-    p.finish()
-    return d,value,result
+    # Setup funding is an API replay, never an engine retry or a changed checkout
+    # bound. Retain each refusal; only a cold-checkout refusal admits this replay.
+    for attempt in range(3):
+        p=core_probe(h,defect)
+        result=command(p,'payment',value,ok=None)
+        p.finish()
+        if result['ok']:return d,value,result
+        assert 'whole pool checkout deadline' in result['error'],result
+        h.event('fixture_funding_checkout_refused',attempt=attempt+1,request_replay=True,checkout_ms=250)
+    raise AssertionError('fixture funding never acknowledged after three API requests')
 
 
 def migrations(h):
@@ -205,6 +213,9 @@ def core_scenarios(h,case=None,defect=None):
         migrations(h)
         schema_constraints(h)
     else: binary(h,'migrate',role='migrator')
+    import ownership
+    for name in ('claim_cancel','licensing_stop','outcome_stop','deadline','lock_observers','surface','predispatch','startup'):
+        if case in (None,name): getattr(ownership,name)(h,defect)
     if case in (None,'money'): money(h,defect)
     if case in (None,'claims'):
         claims(h,defect)
@@ -504,7 +515,9 @@ def stops(h):
         gate=h.proxy.arm('OPS-50 first statement','reply')
         p.command('record_stop '+op);gate.wait()
         start=time.monotonic()
-        p.command('wait_records' if mode=='expiry' else 'later_stop',ok=False)
+        if mode=='expiry':
+            p.send('wait_records');assert p.p.wait(timeout=1.5)==71
+        else:p.command('later_stop',ok=False)
         p.expected_status=71;p.finish();elapsed=time.monotonic()-start
         if mode=='expiry': assert .8<=elapsed<1.5
         gate.release()

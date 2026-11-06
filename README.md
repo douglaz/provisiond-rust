@@ -66,7 +66,7 @@ It performs bootstrap, replication loss/rebuild, physical backup/archive restore
 destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, backend crash,
 primary restart, residual-backend and bounded-process-stop fixtures, retained-object deadline
 closure, caller-runtime shutdown, constructor cancellation/deadlines, the transactional core,
-ten additional defect controls, and cleanup. The parent accepts a failing control only with its
+eighteen additional defect controls, and cleanup. The parent accepts a failing control only with its
 exact exit code and intended assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
 non-zero. The aggregate manifest requires all seven phases (W1, checks, commits, regressions, corrections,
 core, controls);
@@ -85,6 +85,8 @@ implemented subset. DB-10 saturation remains not run (W8).
 The named `local-simulator` profile uses D-6's provisional settings. Configure
 `PROVISIOND_PROFILE=local-simulator`, `PROVISIOND_DATABASE_URL` (private, never committed),
 `PROVISIOND_STANDBY_NAME`, `PROVISIOND_STANDBY_ROLE` and `PROVISIOND_STANDBY_ADDRESS`.
+The startup-lock keepalives explicitly share the local pooled values (idle 2 s, interval 1 s,
+count 2), validated and observed on the dedicated session; D-6 remains Open for production.
 Engine startup also requires `PROVISIOND_STARTUP_WAIT_MS`, an integer in 1..2147483647;
 its local worker count is `PROVISIOND_WORKERS` (default 3). These are local fixture values,
 not a production deployment configuration.
@@ -109,7 +111,11 @@ operation scheduler. The integration fixtures invoke the same library paths dire
 
 Focused commands use `--phase corrections --case verify_cancel`, `--phase core --case migrations`,
 `--case money`, `--case claims`, `--case generation`, `--case stops` or `--case external`.
-`--phase controls` runs all ten required defects. Each defect requires its exact phase/case;
+The additional core cases are `claim_cancel`, `licensing_stop`, `outcome_stop`, `deadline`,
+`lock_observers`, `surface`, `predispatch` and `startup`. They exercise caller cancellation,
+licensing SQL/retry/COMMIT stops, returned outcomes, actual autonomous deadline exits, concurrent
+lock observers, engine-only methods, live dispatch position and real engine startup.
+`--phase controls` runs all eighteen required defects. Each defect requires its exact phase/case;
 unknown or mismatched selectors exit nonzero before setup. The canonical command includes every
 control and accepts only its intended assertion failure after activation and successful cleanup.
 ENG-05 automatic reconciliation, ENG-07's dedicated replication-freeze stop-record drill and

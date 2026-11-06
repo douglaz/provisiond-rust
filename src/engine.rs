@@ -4,7 +4,7 @@ use crate::store::{
     Claim, CommitOutcome, Component, EngineDatabase, FatalEngine, Store, Transaction,
 };
 use anyhow::{Context, Result, ensure};
-use futures_util::future::{AbortHandle, Abortable, BoxFuture};
+use futures_util::future::BoxFuture;
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
@@ -27,23 +27,43 @@ pub enum Outcome {
         error: Value,
     },
 }
-struct Record {
-    deadline: Mutex<Option<Instant>>,
-    result: Mutex<Option<std::result::Result<bool, String>>>,
+struct RecordState {
+    deadline: Option<Instant>,
+    result: Option<std::result::Result<bool, String>>,
 }
+struct Record {
+    state: Mutex<RecordState>,
+}
+#[derive(Default)]
+struct Execution {
+    stopped: AtomicBool,
+    done: AtomicBool,
+    dispatched: AtomicBool,
+}
+#[derive(Debug)]
+struct ExecutionStopped;
+impl std::fmt::Display for ExecutionStopped {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("execution stopped before continuation")
+    }
+}
+impl std::error::Error for ExecutionStopped {}
 struct Worker {
     _slot: tokio::sync::OwnedSemaphorePermit,
     claim: Claim,
     component: Component,
     outcome: Option<Outcome>,
     record: Option<Arc<Record>>,
-    execution: Option<(AbortHandle, Arc<AtomicBool>)>,
+    execution: Option<Arc<Execution>>,
 }
 pub struct Engine {
     database: EngineDatabase,
     process: Arc<crate::store::Process>,
     workers: Mutex<BTreeMap<String, Worker>>,
     worker_slots: Arc<tokio::sync::Semaphore>,
+    lock_observation: tokio::sync::Mutex<()>,
+    #[cfg(feature = "store-test-hooks")]
+    test_hold: AtomicBool,
     retry_bound: Duration,
     stop_bound: Duration,
 }
@@ -66,11 +86,34 @@ impl Engine {
             process,
             workers: Mutex::new(BTreeMap::new()),
             worker_slots,
+            lock_observation: tokio::sync::Mutex::new(()),
+            #[cfg(feature = "store-test-hooks")]
+            test_hold: AtomicBool::new(true),
             retry_bound,
             stop_bound,
         });
         engine.restart_pass().await?;
         Ok(engine)
+    }
+    // Concrete acceptance windows only; absent from default builds.
+    async fn test_boundary(&self, name: &str) {
+        #[cfg(feature = "store-test-hooks")]
+        if std::env::var("STORE_TEST_BOUNDARY").as_deref() == Ok(name) {
+            self.component()
+                .trace(json!({"event":"execution_boundary_held","boundary":name}));
+            while self.test_hold.load(Ordering::Acquire) {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        }
+        let _ = name;
+    }
+    #[cfg(feature = "store-test-hooks")]
+    pub fn test_owners(&self) -> Value {
+        json!({"workers":self.workers.lock().expect("workers").len(),"available_slots":self.worker_slots.available_permits()})
+    }
+    #[cfg(feature = "store-test-hooks")]
+    pub fn test_release(&self) {
+        self.test_hold.store(false, Ordering::Release);
     }
     pub fn component(&self) -> Component {
         self.database.component()
@@ -97,13 +140,52 @@ impl Engine {
     async fn transaction<T: Send>(
         &self,
         component: &Component,
-        mut operation: impl for<'a> FnMut(&'a mut Transaction) -> BoxFuture<'a, Result<T>>,
+        mut operation: impl for<'a> FnMut(&'a mut Transaction) -> BoxFuture<'a, Result<T>> + Send,
     ) -> Result<T> {
+        self.transaction_stoppable(component, &mut operation, None, None)
+            .await
+    }
+    async fn transaction_record<T: Send>(
+        &self,
+        component: &Component,
+        record: &Record,
+        mut operation: impl for<'a> FnMut(&'a mut Transaction) -> BoxFuture<'a, Result<T>> + Send,
+    ) -> Result<T> {
+        self.transaction_stoppable(component, &mut operation, None, Some(record))
+            .await
+    }
+    async fn transaction_stoppable<T: Send>(
+        &self,
+        component: &Component,
+        operation: &mut (impl for<'a> FnMut(&'a mut Transaction) -> BoxFuture<'a, Result<T>> + Send),
+        stop: Option<&AtomicBool>,
+        record: Option<&Record>,
+    ) -> Result<T> {
+        let check_stop = || -> Result<()> {
+            let expired = record.is_some_and(|r| {
+                r.state
+                    .lock()
+                    .expect("record")
+                    .deadline
+                    .is_some_and(|d| Instant::now() >= d)
+            });
+            if expired && !crate::store::test_defect("deadline") {
+                self.exit_unlanded();
+            }
+            if stop.is_some_and(|s| s.load(Ordering::Acquire))
+                && !crate::store::test_defect("licensing_stop")
+            {
+                return Err(ExecutionStopped.into());
+            }
+            Ok(())
+        };
         let mut spent = Duration::ZERO;
         loop {
+            check_stop()?;
             let started = Instant::now();
             let attempt = async {
                 let mut tx = component.begin().await?;
+                check_stop()?;
                 let value = operation(&mut tx).await?;
                 anyhow::Ok((value, tx))
             }
@@ -111,12 +193,14 @@ impl Engine {
             let mut serialization = false;
             match attempt {
                 Ok((value, tx)) => {
+                    check_stop()?;
                     let work_time = started.elapsed();
                     let (outcome, verification) = component.commit(tx)?.wait_accounted().await?;
                     if !matches!(&outcome,CommitOutcome::Rejected{reason} if reason.contains("40001"))
                     {
                         spent += work_time + verification;
                     }
+                    check_stop()?;
                     match outcome {
                         CommitOutcome::Acknowledged => return Ok(value),
                         CommitOutcome::Rejected { reason } if reason.contains("40001") => {
@@ -145,10 +229,14 @@ impl Engine {
                     }
                 }
             }
+            check_stop()?;
             if spent >= self.retry_bound {
                 return self.fatal("store retry exhausted; outcome retained until process exit");
             }
             component.trace(json!({"event":"whole_transaction_retry","spent_ms":spent.as_millis(),"serialization":serialization,"external_call_repeated":false}));
+            if stop.is_some() {
+                self.test_boundary("licensing_retry").await;
+            }
             if !serialization {
                 let backoff = Instant::now();
                 tokio::time::sleep(Duration::from_millis(10)).await;
@@ -216,10 +304,30 @@ impl Engine {
             .context("all configured workers occupied")?;
         self.database.ensure_new_work()?;
         let component = self.component();
+        if crate::store::test_defect("claim_cancel") {
+            return self.claim_owned(component, slot).await;
+        }
+        let engine = self.clone();
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        self.process.submit(async move {
+            let result = engine.claim_owned(component, slot).await;
+            // A missing caller leaves the registered worker and its capacity owned.
+            if sender.send(result).is_err() && engine.is_fatal() {
+                std::process::exit(71);
+            }
+        })?;
+        receiver.await.context("claim owner disappeared")?
+    }
+    async fn claim_owned(
+        self: &Arc<Self>,
+        component: Component,
+        slot: tokio::sync::OwnedSemaphorePermit,
+    ) -> Result<Option<Claim>> {
         // Ordinary pre-COMMIT failures consume OPS-49's whole-transaction budget.
         // Once a claim might have committed, a lost reply is fatal, never retried.
         let mut spent = Duration::ZERO;
         let claim = loop {
+            self.database.ensure_new_work()?;
             let started = Instant::now();
             let attempt = async {
                 let mut tx = component.begin().await?;
@@ -263,18 +371,22 @@ impl Engine {
                 }
             }
         };
+        self.test_boundary("claim_registration").await;
         if let Some(c) = &claim {
             self.workers.lock().expect("workers").insert(
                 c.id.clone(),
                 Worker {
                     _slot: slot,
                     claim: c.clone(),
-                    component,
+                    component: component.clone(),
                     outcome: None,
                     record: None,
                     execution: None,
                 },
             );
+        }
+        if let Some(c) = &claim {
+            component.trace(json!({"event":"claim_registered","operation":c.id,"number":c.number}));
         }
         Ok(claim)
     }
@@ -299,48 +411,86 @@ impl Engine {
             claim.kind == "create",
             "provider execution for this operation kind is not implemented; only create simulator execution is supported"
         );
-        if claim.kind == "create" {
-            let c = claim.clone();
-            self.transaction(&component, move |tx| {
-                let c = c.clone();
-                Box::pin(async move {
-                    ensure!(
-                        tx.license_create(&c).await?,
-                        "create dispatch guard refused"
-                    );
-                    Ok(())
-                })
-            })
-            .await?;
+        let execution = Arc::new(Execution::default());
+        {
+            let mut workers = self.workers.lock().expect("workers");
+            let worker = workers.get_mut(id).context("worker not found")?;
+            ensure!(
+                worker.execution.is_none() && worker.record.is_none(),
+                "worker already executing or recording"
+            );
+            worker.execution = Some(execution.clone());
         }
-        let (abort, registration) = AbortHandle::new_pair();
-        let done = Arc::new(AtomicBool::new(false));
-        self.workers
-            .lock()
-            .expect("workers")
-            .get_mut(id)
-            .context("worker not found")?
-            .execution = Some((abort, done.clone()));
         let engine = self.clone();
         let id = id.to_owned();
         self.process.submit(async move {
-            let execution = async {
-                let _call = component.external(crate::store::ExternalKind::Provider)?;
-                component
-                    .trace(json!({"event":"simulator_accepted","operation":id,"simulator":true}));
-                if let Some(outcome) = outcome {
-                    Ok(outcome)
+            let result = async {
+                let c = claim.clone();
+                engine
+                    .transaction_stoppable(
+                        &component,
+                        &mut move |tx| {
+                            let c = c.clone();
+                            Box::pin(async move {
+                                ensure!(
+                                    tx.license_create(&c).await?,
+                                    "create dispatch guard refused"
+                                );
+                                Ok(())
+                            })
+                        },
+                        Some(&execution.stopped),
+                        None,
+                    )
+                    .await?;
+                engine.test_boundary("licensed_entry").await;
+                // OPS-21: stop registration and actual step-9 entry arbitrate on
+                // the same lock. A timestamp is not a live worker's position.
+                let call = {
+                    let workers = engine.workers.lock().expect("workers");
+                    let _worker = workers.get(&id).context("worker not found")?;
+                    if execution.stopped.load(Ordering::Acquire)
+                        && !crate::store::test_defect("licensing_stop")
+                    {
+                        return Err(ExecutionStopped.into());
+                    }
+                    let call = component.external(crate::store::ExternalKind::Provider)?;
+                    execution.dispatched.store(true, Ordering::Release);
+                    component.trace(
+                        json!({"event":"simulator_accepted","operation":id,"simulator":true}),
+                    );
+                    call
+                };
+                let returned = if let Some(outcome) = outcome {
+                    // The simulated verified result is already in hand. Stops
+                    // after this boundary cannot replace it with a cut-off.
+                    engine.test_boundary("outcome_publication").await;
+                    Some(outcome)
                 } else {
-                    std::future::pending::<Result<Outcome>>().await
-                }
-            };
-            if let Ok(Ok(outcome)) = Abortable::new(execution, registration).await {
-                if let Some(w) = engine.workers.lock().expect("workers").get_mut(&id) {
-                    w.outcome = Some(outcome);
-                }
-                component.trace(json!({"event":"execute_returned","operation":id}));
+                    while !execution.stopped.load(Ordering::Acquire) {
+                        tokio::time::sleep(Duration::from_millis(1)).await;
+                    }
+                    None
+                };
+                drop(call);
+                anyhow::Ok(returned)
             }
-            done.store(true, Ordering::Release);
+            .await;
+            match result {
+                Ok(Some(outcome)) => {
+                    if let Some(w) = engine.workers.lock().expect("workers").get_mut(&id) {
+                        w.outcome = Some(outcome);
+                    }
+                    component.trace(json!({"event":"execute_returned","operation":id}));
+                }
+                Err(error) if error.downcast_ref::<ExecutionStopped>().is_none() => {
+                    engine.database.fatal(&format!(
+                        "execution failed without an outcome for {id}: {error:#}"
+                    ));
+                }
+                _ => {}
+            }
+            execution.done.store(true, Ordering::Release);
         })?;
         Ok(())
     }
@@ -362,7 +512,7 @@ impl Engine {
             self.outcome(&c.id, outcome.clone())?;
             let record = self.begin_settlement(&c.id)?;
             loop {
-                let result = record.result.lock().expect("record").clone();
+                let result = record.state.lock().expect("record").result.clone();
                 if let Some(result) = result {
                     return result.map_err(anyhow::Error::msg);
                 }
@@ -429,8 +579,10 @@ impl Engine {
             ensure!(worker.record.is_none(), "settlement already registered");
             let outcome = worker.outcome.clone().context("execute has not returned")?;
             let record = Arc::new(Record {
-                deadline: Mutex::new(None),
-                result: Mutex::new(None),
+                state: Mutex::new(RecordState {
+                    deadline: None,
+                    result: None,
+                }),
             });
             worker.record = Some(record.clone());
             (
@@ -446,13 +598,14 @@ impl Engine {
             let id = claim.id.clone();
             let number = claim.number;
             let result = engine
-                .transaction(&component, move |tx| {
+                .transaction_record(&component, &pending, move |tx| {
                     let claim = claim.clone();
                     let outcome = outcome.clone();
                     Box::pin(async move { apply_outcome(tx, &claim, &outcome).await })
                 })
                 .await
                 .map_err(|e| format!("{e:#}"));
+            engine.finish_record(&pending, result.clone());
             component.trace(
                 json!({"event":"settlement_finished","operation":id,"landed":result.is_ok()}),
             );
@@ -460,9 +613,7 @@ impl Engine {
                 component.trace(json!({"event":"worker_zero_row","operation":id,"observed":"guard did not match; worker ends"}));
             }
             if let Err(error)=&result {engine.database.fatal(&format!("atomic settlement failed for {id}: {error}"));}
-            let success = result.is_ok();
-            *pending.result.lock().expect("record") = Some(result);
-            if success {
+            if result.is_ok() {
                 engine.retire(&id, number);
             }
         })?;
@@ -472,60 +623,152 @@ impl Engine {
         self.begin_settlement(id)?;
         Ok(())
     }
-    /// OPS-21: registration is synchronous. Cancelling the waiter cannot cancel
-    /// the record task; it is supervised by the surviving process, like COMMIT.
+    /// OPS-21: the absolute deadline is owned by the supervisor, independent of
+    /// the presence or polling of a caller's wait_records future.
+    fn watch_record(self: &Arc<Self>, record: Arc<Record>) -> Result<()> {
+        if crate::store::test_defect("deadline") {
+            return Ok(());
+        }
+        let engine = self.clone();
+        self.process.submit(async move {
+            loop {
+                {
+                    let state = record.state.lock().expect("record");
+                    if matches!(state.result, Some(Ok(_))) {
+                        return;
+                    }
+                    if state.deadline.is_some_and(|d| Instant::now() >= d) {
+                        drop(state);
+                        engine.exit_unlanded();
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        })
+    }
+    fn exit_unlanded(&self) -> ! {
+        let ids: Vec<_> = self
+            .workers
+            .lock()
+            .expect("workers")
+            .iter()
+            .filter_map(|(id, w)| {
+                w.record.as_ref().and_then(|r| {
+                    r.state
+                        .lock()
+                        .expect("record")
+                        .result
+                        .as_ref()
+                        .is_none_or(|result| result.is_err())
+                        .then(|| id.clone())
+                })
+            })
+            .collect();
+        self.database.fatal(&format!(
+            "stop bound expired; records not observed landed: {}",
+            ids.join(",")
+        ));
+        // STO-7: process exit, never dropping a sent COMMIT in a surviving process.
+        std::process::exit(71)
+    }
+    fn finish_record(&self, record: &Record, result: std::result::Result<bool, String>) {
+        let mut state = record.state.lock().expect("record");
+        if state.deadline.is_some_and(|d| Instant::now() >= d)
+            && !crate::store::test_defect("deadline")
+        {
+            drop(state);
+            self.exit_unlanded();
+        }
+        state.result = Some(result);
+    }
     pub fn record_stop(self: &Arc<Self>, id: &str) -> Result<()> {
-        let (claim, component, outcome, record, execution) = {
+        self.register_stop(id, false, Instant::now())
+    }
+    fn register_stop(
+        self: &Arc<Self>,
+        id: &str,
+        lock_loss: bool,
+        stopped_at: Instant,
+    ) -> Result<()> {
+        let (claim, component, record, execution) = {
             let mut workers = self.workers.lock().expect("workers");
-            let worker = workers.get_mut(id).context("worker not found")?;
+            let Some(worker) = workers.get_mut(id) else {
+                if lock_loss {
+                    return Ok(());
+                }
+                anyhow::bail!("worker not found");
+            };
             if let Some(record) = &worker.record {
-                let mut deadline = record.deadline.lock().expect("record deadline");
-                if deadline.is_some() {
+                let mut state = record.state.lock().expect("record");
+                if state.result.is_some() {
+                    return Ok(());
+                }
+                if state.deadline.is_some() {
+                    if lock_loss {
+                        return Ok(());
+                    }
                     return self.fatal("later stop: exit without repeating pending record");
                 }
-                *deadline = Some(Instant::now() + self.stop_bound);
+                state.deadline = Some(stopped_at + self.stop_bound);
                 worker.component.trace(json!({"event":"stop_record_started","operation":worker.claim.id,"bound_ms":self.stop_bound.as_millis(),"existing_settlement":true}));
-                return Ok(());
+                return self.watch_record(record.clone());
             }
             let record = Arc::new(Record {
-                deadline: Mutex::new(Some(Instant::now() + self.stop_bound)),
-                result: Mutex::new(None),
+                state: Mutex::new(RecordState {
+                    deadline: Some(stopped_at + self.stop_bound),
+                    result: None,
+                }),
             });
             worker.record = Some(record.clone());
+            if let Some(execution) = &worker.execution {
+                execution.stopped.store(true, Ordering::Release);
+            }
             (
                 worker.claim.clone(),
                 worker.component.clone(),
-                worker.outcome.clone(),
                 record,
                 worker.execution.clone(),
             )
         };
-        if let Some((abort, _)) = &execution {
-            abort.abort();
-        }
+        self.watch_record(record.clone())?;
         component.trace(json!({"event":"stop_record_started","operation":claim.id,"bound_ms":self.stop_bound.as_millis()}));
         let operation_id = claim.id.clone();
+        let stale_outcome = if crate::store::test_defect("outcome_stop") {
+            self.workers
+                .lock()
+                .expect("workers")
+                .get(&operation_id)
+                .and_then(|w| w.outcome.clone())
+        } else {
+            None
+        };
         let engine = self.clone();
         self.process.submit(async move {
-            if let Some((_,done))=execution {
-                while !done.load(Ordering::Acquire) {tokio::time::sleep(Duration::from_millis(1)).await;}
+            if let Some(execution) = &execution {
+                while !execution.done.load(Ordering::Acquire) {tokio::time::sleep(Duration::from_millis(1)).await;}
             }
-            let result=engine.transaction(&component,move |tx| {
+            // OPS-21: acknowledge execution termination before reading the final
+            // outcome. An earlier None snapshot proves nothing about its return.
+            let outcome = if crate::store::test_defect("outcome_stop") {stale_outcome} else {engine.workers.lock().expect("workers").get(&operation_id).and_then(|w| w.outcome.clone())};
+            let dispatched = execution.as_ref().is_some_and(|e| e.dispatched.load(Ordering::Acquire));
+            let result=engine.transaction_record(&component,&record,move |tx| {
                 let claim=claim.clone();let outcome=outcome.clone();
                 Box::pin(async move {
                     if let Some(outcome)=outcome {return apply_outcome(tx,&claim,&outcome).await;}
-                    // Read current durable position and markers in the record's
-                    // transaction, never a stale in-memory marker snapshot.
                     crate::ledger::serialize(tx,&[&claim.tenant]).await?;
-                    let rows=tx.rows("SELECT kind,about_to_order_at IS NOT NULL,write_started_at IS NOT NULL FROM provisiond.operations WHERE id=$1::text::uuid",&[&claim.id]).await?;
+                    let rows=tx.rows("SELECT kind,write_started_at IS NOT NULL FROM provisiond.operations WHERE id=$1::text::uuid",&[&claim.id]).await?;
                     let row=rows.first().context("stopped operation missing")?;
                     let kind:String=row.get(0);
-                    let ambiguous=match kind.as_str() {"create"=>row.get::<_,bool>(1),"refresh"=>false,"power"=>row.get::<_,bool>(2),_=>anyhow::bail!("unsupported stop kind")};
+                    let ambiguous=match kind.as_str() {"create"=> {
+                        if crate::store::test_defect("predispatch") {
+                            tx.rows("SELECT about_to_order_at IS NOT NULL FROM provisiond.operations WHERE id=$1::text::uuid", &[&claim.id]).await?[0].get::<_,bool>(0)
+                        } else {dispatched}
+                    },"refresh"=>false,"power"=>row.get::<_,bool>(1),_=>anyhow::bail!("unsupported stop kind")};
                     tx.settle(&claim,if ambiguous {"needs_reconciliation"}else{"failed"},&Value::Null,&json!({"kind":"conflict","details":{"reason":"cut_off"},"retryable":!ambiguous})).await
                 })
             }).await.map_err(|e|format!("{e:#}"));
-            engine.component().trace(json!({"event":"stop_record_finished","operation":operation_id,"landed":result.is_ok(),"detail":result.as_ref().err()}));
-            *record.result.lock().expect("record")=Some(result);
+            engine.finish_record(&record, result.clone());
+            component.trace(json!({"event":"stop_record_finished","operation":operation_id,"landed":result.is_ok(),"detail":result.as_ref().err()}));
         })?;
         Ok(())
     }
@@ -538,11 +781,10 @@ impl Engine {
                 .iter()
                 .filter_map(|(id, w)| w.record.as_ref().map(|r| (id.clone(), r.clone())))
                 .collect();
-            let mut unfinished = Vec::new();
-            let mut expired = false;
+            let mut unfinished = false;
             for (id, record) in pending {
-                let result = record.result.lock().expect("record");
-                match &*result {
+                let state = record.state.lock().expect("record");
+                match &state.result {
                     Some(Ok(_)) => {}
                     Some(Err(error)) => {
                         self.database
@@ -552,23 +794,11 @@ impl Engine {
                         );
                     }
                     None => {
-                        expired |= record
-                            .deadline
-                            .lock()
-                            .expect("record deadline")
-                            .is_some_and(|deadline| Instant::now() >= deadline);
-                        unfinished.push(id);
+                        unfinished = true;
                     }
                 }
             }
-            if expired {
-                self.database.fatal(&format!(
-                    "stop bound expired; records not observed landed: {}",
-                    unfinished.join(",")
-                ));
-                return Err(FatalEngine("stop record deadline expired; process must exit").into());
-            }
-            if unfinished.is_empty() {
+            if !unfinished {
                 return Ok(());
             }
             tokio::time::sleep(Duration::from_millis(2)).await;
@@ -576,12 +806,18 @@ impl Engine {
     }
     /// Lock loss is the first stop only for workers without a pending record.
     pub async fn observe_lock(self: &Arc<Self>) -> Result<()> {
+        let _observation = if crate::store::test_defect("lock_observers") {
+            None
+        } else {
+            Some(self.lock_observation.lock().await)
+        };
         if self.is_fatal() {
             return Err(FatalEngine("engine fatal; process must exit").into());
         }
         if !self.database.detect_lock_loss() {
             return Ok(());
         }
+        let stopped_at = Instant::now();
         let ids: Vec<_> = self
             .workers
             .lock()
@@ -590,12 +826,17 @@ impl Engine {
             .filter(|(_, w)| {
                 w.record
                     .as_ref()
-                    .is_none_or(|r| r.deadline.lock().expect("record deadline").is_none())
+                    .is_none_or(|r| r.state.lock().expect("record").deadline.is_none())
             })
             .map(|(id, _)| id.clone())
             .collect();
+        self.test_boundary("lock_registration").await;
         for id in ids {
-            self.record_stop(&id)?;
+            self.register_stop(
+                &id,
+                !crate::store::test_defect("lock_observers"),
+                stopped_at,
+            )?;
         }
         self.wait_records().await?;
         self.fatal("startup lock lost; bounded records completed; exit nonzero")
