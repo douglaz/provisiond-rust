@@ -160,8 +160,8 @@ exited 0. Its raw record is `<run-dir>/corrections-4391fq37/manifest.json`; supe
 stay outside git. The original verification-cancellation assertion ran against the pre-fix runtime
 and exited 1 at the intended closure assertion (`<run-dir>/corrections-ln6f7bqj/manifest.json`),
 then the same assertion passed after correction. The final committed-source run retained all four
-samples in each mode: off, 226.03/224.22/216.22/215.43 ms; on, 52.81/56.29/54.45/53.18 ms (all admitted). [Final corrections](../evidence/w3-final-corrections.json)
-and [the eighteen controls](../evidence/w3-final-controls.json) record the integrated green/red results.
+samples in each mode: off, 217.94/214.23/212.97/215.22 ms; on, 48.72/47.49/47.77/49.95 ms (all admitted). [Final corrections](../evidence/w3-final-corrections.json)
+and [the twenty-one controls](../evidence/w3-final-controls.json) record the integrated green/red results.
 The complete commands, statuses and source identity are below. D-6 remains Open for W8.
 
 Measured environment: PostgreSQL 18.6, rustc 1.97.1, cargo 1.97.0, Python 3.14.7, Nix 2.34.9;
@@ -266,6 +266,25 @@ until that exit. The Store-retry budget remains independent. Lock-loss observati
 serialized through fan-out and record completion; repeated observers cannot invent a later stop,
 and an existing record keeps its first deadline. A real later stop retains its exit.
 
+OPS-22 terminal completion distinguishes acknowledgment of the guarded effect (`Ok(true)`)
+from acknowledgment of a zero-row refusal (`Ok(false)`). Both end that execution; only the former
+is reported landed. The latter emits the observed guard refusal without asserting a restart.
+Completion publishes the result and retires only the matching claim under the worker/record
+locks. Records retain their original capacity permit while pending, including when a newer claim
+replaces the registry entry; captured waiters retain their record result. Errors retain ownership
+and the existing retry/deadline/exit handling. Four stop completions can reuse three slots.
+
+OPS-21/47 detection stores its first monotonic timestamp and emits the loss log under the same
+short mutex used by user-stop registration. Fan-out uses that timestamp for new records. A user
+stop after detection exits as a later stop even before fan-out registers that worker; it never
+waits on the observation mutex or repeats a sent record. An earlier record keeps its deadline
+and identity through concurrent observers. Actual claims and the represented periodic admission
+boundary refuse new work after detection. [Core evidence](../evidence/w3-final-core.json) and
+[controls](../evidence/w3-final-controls.json) exercise both temporal orders. The three new
+assertions first exited 1 on the original faulty completion/ordering logic at `f026454`, with
+observation hooks only, then passed on final source. The red manifests retain that original
+source identity as well as each final-source defect reproduction.
+
 OPS-50's generation-first entry installs a private transaction capability only after the check.
 Public claim/defer/reacquire/licensing/settlement methods require it before business SQL. API
 admission/payment transactions remain unfenced. The exceptional held-generation fixture calls an
@@ -282,7 +301,7 @@ Focused PostgreSQL commands for claim cancellation, licensing stops, returned-ou
 unpolled deadlines, concurrent lock observers, live position and unfenced methods first exited 1
 at their intended assertions on the supplied runtime logic, then exited 0 after correction.
 `nix develop --command bash tools/check.sh` exited 0. The final committed-source gate, full
-seven-phase acceptance and eighteen targeted controls are recorded in [W3 acceptance](../evidence/w3.md).
+seven-phase acceptance and twenty-one targeted controls are recorded in [W3 acceptance](../evidence/w3.md).
 The final manifests replace earlier W3 manifests; earlier passing inventory did not check these
 ownership boundaries. Test-hook runtimes are identified as such; default-feature build validation
 uses a separate target directory. No production policy or timing bound changed.
@@ -296,8 +315,8 @@ fail. Fault tests retain their own assertions and do not use that replay to hide
 
 ### Evidence basis for D-10 through D-14
 
-**Measured 2026-11-06.** Tested implementation `26bf739e48e3434dcb0ba23d291b41f7e19720b7`,
-source-bundle SHA-256 `c6ed1ea75c80817e14b26297f8af86ef6c49491942e1e3c8d93233d7076f0213`,
+**Measured 2026-11-06.** Tested implementation `65c26d4712263d0e568c6849a9039d9107c6efac`,
+source-bundle SHA-256 `6b99018346567ef96507a8ecb8992f4a44d0a0fd9e13897ccb3d64a21c5b579e`,
 against the unchanged specification pin. The manifests recorded no source dirt. Later edits only
 attach documentation and sanitized evidence; they do not change the tested runtime or fixtures.
 
@@ -306,7 +325,7 @@ attach documentation and sanitized evidence; they do not change the tested runti
   hashes, default-feature binary build, port unit tests and invalid-selector refusals.
 - `PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence evidence/w3-final.json`
   exited **0**, all seven phases. [Aggregate](../evidence/w3-final.json) and
-  [report](../evidence/w3.md) link every phase and each of eighteen intended failing controls (exit 1).
+  [report](../evidence/w3.md) link every phase and each of twenty-one intended failing controls (exit 1).
   Cleanup passed for every positive and negative run. No real providers or funds were used.
 
 Fixture transport/framing corrections preserve the 250 ms acquisition budget and
