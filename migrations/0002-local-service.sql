@@ -46,7 +46,7 @@ GRANT DELETE ON provisiond.tenants,provisiond.enrolments,provisiond.operations T
 CREATE FUNCTION provisiond.wire_time(t timestamptz) RETURNS text LANGUAGE sql IMMUTABLE STRICT SET search_path=pg_catalog
 AS $$ SELECT to_char(t AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') $$;
 CREATE VIEW provisiond.operation_views AS SELECT o.id,o.tenant_id,o.created_at,
- jsonb_build_object('id',o.id,'kind',CASE WHEN o.kind='create' THEN 'create_machine' ELSE o.kind END,
+ jsonb_build_object('id',o.id,'kind',CASE WHEN o.kind='create' THEN 'create_machine' WHEN o.kind='delete' THEN 'delete_machine' ELSE o.kind END,
  'tenant',o.tenant_id,'status',o.status,'terminal',o.status IN ('succeeded','failed'),'revision',o.revision,
  'retryable',CASE WHEN o.status='needs_reconciliation' THEN false ELSE COALESCE((o.error->>'retryable')::boolean,false) END,
  'requested_by',o.requested_by,'system_reason',o.system_reason,'episode_id',o.episode_id,

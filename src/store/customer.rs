@@ -36,13 +36,22 @@ impl Store {
         for attempt in 1..=2 {
             let mut held = DiscardUnlessFinished(Some(self.read_session().await?));
             let s = held.0.as_ref().expect("session");
-            let result=async{let v=s.value(sql,params).await?;(self.trace)(serde_json::json!({"event":"destination_read","session":s.pid,"attempt":attempt}));s.check("post_read").await?;Ok(v)}.await;
+            let result=async{
+                let v=s.value(sql,params).await?;
+                if !v.is_null() && v.get("resource_kind").is_none_or(|kind|kind=="deposit") {
+                    (self.trace)(serde_json::json!({"event":"destination_read","session":s.pid,"attempt":attempt}));
+                    s.check("post_read").await?;
+                }
+                anyhow::Ok(v)
+            }.await;
             let s = held.0.take().expect("session");
             match result {
                 Ok(v) => {
-                    (self.trace)(
-                        serde_json::json!({"event":"destination_exposed","session":s.pid,"attempt":attempt}),
-                    );
+                    if !v.is_null() && v.get("resource_kind").is_none_or(|kind| kind == "deposit") {
+                        (self.trace)(
+                            serde_json::json!({"event":"destination_exposed","session":s.pid,"attempt":attempt}),
+                        );
+                    }
                     return Ok(v);
                 }
                 Err(e) => {
@@ -130,6 +139,25 @@ impl super::Transaction {
             let episode:String=self.rows("INSERT INTO provisiond.episodes(machine_id,key,reasons,state) VALUES($1::text::uuid,'delete','[\"tenant_suspended\"]','open') ON CONFLICT(machine_id,key) WHERE state='open' DO UPDATE SET reasons=EXCLUDED.reasons RETURNING id::text",&[&id]).await?[0].get(0);
             self.rows("INSERT INTO provisiond.operations(tenant_id,idempotency_key,kind,status,machine_id,provider_account,request,request_summary,correlation_id,requested_by,system_reason,episode_id) VALUES($1,$2,'delete','queued',$3::text::uuid,$4,'{}','{}',$5,'system','tenant_suspended',$6::text::uuid) RETURNING id",&[&c.tenant,&format!("suspension:{episode}"),&id,&summary["provider_account"].as_str(),&c.id,&episode]).await?;
         }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "store-test-hooks")]
+impl Store {
+    pub(crate) async fn test_overload_entry(
+        &self,
+        correlation: &str,
+        key_digest: &str,
+    ) -> Result<()> {
+        let session = self.read_session().await?;
+        session
+            .query("BEGIN READ WRITE /* isolated overload sensitivity control */")
+            .await?;
+        (self.trace)(
+            serde_json::json!({"event":"http_business_begin","correlation_id":correlation,"key_digest":key_digest,"session":session.pid,"defect":true}),
+        );
+        session.query("ROLLBACK").await?;
         Ok(())
     }
 }

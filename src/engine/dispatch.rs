@@ -236,6 +236,10 @@ impl Engine {
         self.order_step(c, component, e, 7).await?;
         d.client.validate(r, descriptor, current, &c.id)?;
         self.order_step(c, component, e, 8).await?;
+        if crate::store::test_defect("w4_ack") {
+            d.client.call(component,descriptor,"/order",&json!({"account":account,"operation":c.id,"correlator":c.id,"channel":descriptor["channel"],"request":r})).await?;
+            component.trace(json!({"event":"defect_ack_boundary_bypassed","operation":c.id}));
+        }
         let claim = c.clone();
         let licensed = self
             .transaction_stoppable(

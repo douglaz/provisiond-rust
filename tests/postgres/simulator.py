@@ -47,6 +47,7 @@ def main():
             body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or b'{}')
             if self.path=='/control':
                 with lock:
+                    if body.get('clear'):state['settlements']=[]
                     if 'offers' in body:state['offers']=body['offers']
                     if 'mode' in body:state['mode']=body['mode']
                     if 'settlement' in body:

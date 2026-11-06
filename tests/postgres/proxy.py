@@ -61,8 +61,9 @@ class Proxy:
         self.threads.append(t)
         t.start()
 
-    def arm(self, pattern, direction='reply'):
+    def arm(self, pattern, direction='reply', session=None):
         gate = Gate(pattern,direction)
+        gate.session_filter=session
         gate.on_release=lambda:self.h.event('fault_released',fault='transport_gate',pattern=pattern,direction=direction,activated=gate.activated.is_set())
         self.gates.append(gate)
         self.h.event('fault_requested', fault='transport_gate', pattern=pattern,direction=direction)
@@ -100,7 +101,7 @@ class Proxy:
 
     def gate(self,c,direction,tag=None):
         for g in self.gates:
-            if (g.direction==direction and g.pattern in c['query'] and
+            if (not g.released.is_set() and (g.session_filter is None or g.session_filter==c['pid']) and g.direction==direction and g.pattern in c['query'] and
                 (not g.activated.is_set() or g.connection is c) and
                 (direction not in ('commit_reply','execute_reply') or tag==b'C')):
                 if not g.activated.is_set():

@@ -53,7 +53,11 @@ pub(super) async fn credit(
             hash.len() == 64 && hash.bytes().all(|b| b.is_ascii_hexdigit()),
             "invalid transaction identity"
         );
-        format!("{}:{}", hash, v["vout"].as_u64().context("outpoint index")?)
+        format!(
+            "{}:{}",
+            hash.to_ascii_lowercase(),
+            u32::try_from(v["vout"].as_u64().context("outpoint index")?)?
+        )
     };
     let amount = v["amount_sats"]
         .as_i64()
@@ -85,7 +89,7 @@ pub(super) async fn credit(
     if !activated.is_empty() {
         tx.rows("SELECT pg_advisory_xact_lock(1347572815,0)", &[])
             .await?;
-        let assigned=tx.rows("INSERT INTO provisiond.tenant_provider_accounts(tenant_id,provider_account,policy_version) SELECT $1,a.account,'least-assigned-v1' FROM provisiond.provider_accounts a JOIN provisiond.provider_account_status s ON s.provider_account=a.account WHERE a.assignable AND s.status='healthy' ORDER BY (SELECT count(*) FROM provisiond.tenant_provider_accounts t WHERE t.provider_account=a.account),a.account LIMIT 1 RETURNING provider_account",&[&tenant]).await?;
+        let assigned=tx.rows("INSERT INTO provisiond.tenant_provider_accounts(tenant_id,provider_account,policy_version) SELECT $1,a.account,'least-assigned-v1' FROM provisiond.provider_accounts a JOIN provisiond.provider_account_status s ON s.provider_account=a.account WHERE a.assignable AND s.status='healthy' ORDER BY (SELECT count(*) FROM provisiond.tenant_provider_accounts t WHERE t.provider_account=a.account),a.account LIMIT 1 FOR UPDATE OF s RETURNING provider_account",&[&tenant]).await?;
         if assigned.is_empty() {
             component
                 .trace(json!({"event":"activation_without_healthy_assignment","tenant":tenant}));
@@ -102,6 +106,16 @@ pub(super) async fn watch(store: Arc<Store>, p: Parameters) -> Result<()> {
     let address = http::loopback(&std::env::var("PROVISIOND_RAIL_SIMULATOR")?)?;
     let component = store.component();
     loop {
+        #[cfg(feature = "store-test-hooks")]
+        if let Ok(root) = std::env::var("PROVISIOND_TEST_CONTROL") {
+            let path = std::path::Path::new(&root).join("hold-funding");
+            if path.exists() {
+                component.trace(json!({"event":"funding_held"}));
+                while path.exists() {
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                }
+            }
+        }
         let observations = {
             let _call = component.external(crate::store::ExternalKind::Rail)?;
             http::call(

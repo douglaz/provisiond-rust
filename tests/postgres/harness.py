@@ -399,6 +399,7 @@ tcp_keepalives_count = 2
         paths = {n['data'] for n in self.nodes.values()}
         paths.update(self.root/n for n in ['primary','restored','restore-backup','standby','rebuilt'])
         paths.update(getattr(self,'owned_extra_paths',[]))
+        paths.add(self.target)  # invocation-owned build output, after every child is reaped
         for path in sorted(paths):
             if path.exists() and not errors:
                 shutil.rmtree(path)
@@ -451,13 +452,14 @@ tcp_keepalives_count = 2
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','all'],default='all')
-    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup'],help='one focused regression; default runs all')
-    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset'])
+    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload'],help='one focused regression; default runs all')
+    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset','w4_atomic','w4_ack','w4_overload'])
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
     preflight_ports()
     cases={
+        'workflow':{'w4_atomic','w4_ack','w4_overload'},
         'regressions':{'session','transaction','runtime','cancelled'},
         'corrections':{'execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency'},
         'core':{'migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup'},
@@ -465,6 +467,7 @@ def main():
     if args.case and args.case not in cases.get(args.phase,set()):
         ap.error('--case is incompatible with the selected phase')
     defect_cases={
+        **{d:('workflow',d) for d in ('w4_atomic','w4_ack','w4_overload')},
         **{d:('corrections',d) for d in ('execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel')},
         'generation':('core','generation'),'claim_guard':('core','claims'),'payment_atomic':('core','money'),
         **{d:('core',d) for d in ('claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch')},
@@ -483,7 +486,7 @@ def main():
     if args.phase=='all':
         cap_check()
         records=[]
-        for phase in ['w1','checks','commits','regressions','corrections','core','controls']:
+        for phase in ['w1','checks','commits','regressions','corrections','core','workflow','controls']:
             command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed)]
             # Explicit evidence names; every child command remains foreground.
             if args.evidence:
@@ -494,7 +497,7 @@ def main():
                                 result='pass' if result.returncode==0 else 'fail'))
             if result.returncode!=0:
                 break
-        status=0 if len(records)==7 and all(r['exit_status']==0 for r in records) else 1
+        status=0 if len(records)==8 and all(r['exit_status']==0 for r in records) else 1
         if args.evidence:
             args.evidence.write_text(json.dumps(dict(result='pass' if status==0 else 'fail',phases=records),indent=2)+'\n')
         return status
@@ -521,7 +524,7 @@ def main():
             core_scenarios(h,args.case,args.defect)
         elif args.phase=='workflow':
             from workflow import workflow
-            workflow(h)
+            workflow(h,args.case,args.defect)
         elif args.phase=='commits':
             from scenarios import commit_scenarios
             h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)

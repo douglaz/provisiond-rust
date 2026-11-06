@@ -345,7 +345,18 @@ impl State {
         }
         // API-7 step 5a repeats under tenant serialization to close concurrent replay.
         let component = self.store.component();
-        let mut tx = component.begin().await?;
+        let mut tx = match component.begin().await {
+            Ok(tx) => tx,
+            Err(error) => {
+                #[cfg(feature = "store-test-hooks")]
+                if crate::store::test_defect("w4_overload") {
+                    self.store
+                        .test_overload_entry(correlation, &wire::digest(key.as_bytes()))
+                        .await?;
+                }
+                return Err(error);
+            }
+        };
         (self.trace)(
             json!({"event":"http_business_begin","correlation_id":correlation,"tenant":id,"key_digest":wire::digest(key.as_bytes())}),
         );
