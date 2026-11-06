@@ -94,7 +94,11 @@ Lock loss refuses queued claims after their component/pool waits, before BEGIN d
 permits shielded records for current workers. Already-dispatched claims keep bounded stop ownership.
 Active records remain visible by operation/claim even after replacement of the worker registry entry;
 expiry names the unobserved claims and later observers continue waiting for them. Existing records
-keep their original bounds; after-return outcomes retain their settlement loop. A true user stop
+keep their original bounds; after-return outcomes retain their settlement loop. Each claim owns
+its returned outcome independently of the operation-id registry: a displaced execution retains its
+verified return for its own guarded record and cannot supply a newer claim's result. The simulator
+regression checks the stale zero-row record, the newer claim's refusal without its own result and
+its distinct verified settlement/repeat with no stale machine or money effects. A true user stop
 after loss detection takes the later-stop exit even before fan-out registration. A terminal guard
 refusal leaves the newer row and money unchanged, reports that observation and ends the stale
 worker. Completed records release capacity while captured observers retain their result. Expiry, a later
@@ -109,6 +113,8 @@ the integration fixture. It is not a complete customer service or provider dispa
 profile's three workers, pool sizes, timeouts and retry/stop bounds remain provisional under D-6.
 
 [W3 acceptance](../evidence/w3.md) records the complete seven-phase run on committed source,
-including the full W1/W2 inventory, transactional-core scenarios and twenty-four intended negative controls.
+including the full W1/W2 inventory, 80 positive scenarios and twenty-six intended negative controls.
+Queued-entry evidence requires the original pending acquisition, one attempt, no precommit retry
+and checked refusal. Normal lock-observer evidence requires the actual post-registration read.
 Both the repository gate and canonical PostgreSQL command exited 0. Demonstration applies only to
 the explicitly traced arms; the deferred scenarios above remain not run.

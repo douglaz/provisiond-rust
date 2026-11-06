@@ -160,9 +160,9 @@ exited 0. Its raw record is `<run-dir>/corrections-4391fq37/manifest.json`; supe
 stay outside git. The original verification-cancellation assertion ran against the pre-fix runtime
 and exited 1 at the intended closure assertion (`<run-dir>/corrections-ln6f7bqj/manifest.json`),
 then the same assertion passed after correction. The final committed-source run retained all four
-samples in each mode: off, 214.30/213.83/252.32/251.34 ms (one refusal); on,
-48.01/49.35/51.38/48.52 ms (all admitted). [Final corrections](../evidence/w3-final-corrections.json)
-and [the twenty-four controls](../evidence/w3-final-controls.json) record the integrated green/red results.
+samples in each mode: off, 213.51/214.58/211.85/252.19 ms (one refusal); on,
+48.40/48.14/49.26/48.46 ms (all admitted). [Final corrections](../evidence/w3-final-corrections.json)
+and [the twenty-six controls](../evidence/w3-final-controls.json) record the integrated green/red results.
 The complete commands, statuses and source identity are below. D-6 remains Open for W8.
 
 Measured environment: PostgreSQL 18.6, rustc 1.97.1, cargo 1.97.0, Python 3.14.7, Nix 2.34.9;
@@ -302,7 +302,7 @@ Focused PostgreSQL commands for claim cancellation, licensing stops, returned-ou
 unpolled deadlines, concurrent lock observers, live position and unfenced methods first exited 1
 at their intended assertions on the supplied runtime logic, then exited 0 after correction.
 `nix develop --command bash tools/check.sh` exited 0. The final committed-source gate, full
-seven-phase acceptance and twenty-four targeted controls are recorded in [W3 acceptance](../evidence/w3.md).
+seven-phase acceptance and twenty-six targeted controls are recorded in [W3 acceptance](../evidence/w3.md).
 The final manifests replace earlier W3 manifests; earlier passing inventory did not check these
 ownership boundaries. Test-hook runtimes are identified as such; default-feature build validation
 uses a separate target directory. No production policy or timing bound changed.
@@ -347,12 +347,13 @@ and complete seven-phase command each exited 0, with 24 controls each exiting 1 
 Versions remain PostgreSQL 18.6, rustc 1.97.1, tokio-postgres 0.7.18 and deadpool 0.12.3;
 full version identity is in the final manifests. D-6/7/8/9 remain Open.
 
-### Evidence basis for D-10 through D-15
+### Historical evidence basis for D-10 through D-15
 
 **Measured 2026-11-06.** Tested implementation `6a2511abf38d2b9cb2377f6772bb599c85b4bb46`,
 source-bundle SHA-256 `e9ac95f7c9d3b175679c3683c7f45672f3673a6973469dfe1d99c0c9dec9da1f`,
-against the unchanged specification pin. The manifests recorded no source dirt. Later edits only
-attach documentation and sanitized evidence; they do not change the tested runtime or fixtures.
+against the unchanged specification pin. The manifests recorded no source dirt. This historical run and its manifests remain in git
+history. D-16 and the current acceptance report record the subsequent ownership correction and
+fresh final validation; the current final manifests supersede those linked here.
 
 - `nix develop --command bash tools/check.sh` exited **0** (format, lint and all
   unit/entry tests; no PostgreSQL started). [Gate record](../evidence/w3-gate.json) retains full-log
@@ -370,6 +371,55 @@ fault. The busy-port fixture uses the allocation's own port and the harness's so
 Unused server slots remain bound without listening until needed, preventing this run's clients
 from selecting those ports as ephemeral endpoints. These are isolated fixture mechanisms, not
 host networking changes or a production connection-admission authority.
+
+### D-16. Returned outcome ownership
+
+**Measured 2026-11-06.** OPS-6/21/22 and STO-3 use one shared
+`Arc<Mutex<Option<Outcome>>>` per claimed worker. Execution registration captures its claim,
+component, termination acknowledgment and outcome cell together under the worker registry lock.
+Execution publishes to that captured cell before setting its done flag. Stop registration captures
+the same cell before a later claim can replace the worker; after termination it consumes that
+cell's actual result under the original claim guard. A replacement owns a fresh empty cell.
+The manual outcome setter checks the supplied claim, direct settlement rechecks its claim at
+record registration, and stale direct writes do not borrow the replacement's component.
+Provider handoff checks the captured execution identity under the existing stop-arbitration lock.
+No lock crosses store I/O; cells expire with their execution/worker/record owners, without a
+persistent table, execution-history registry or new supervisor. Existing deadlines and permits
+remain unchanged.
+
+`nix develop --command python3 tests/postgres/harness.py --phase core --case replacement_outcome
+--seed 20261106 --evidence <run-dir>/outcome-correction/original-red.json` exited **1** at
+`replacement claim must refuse settlement without its own outcome` on the unchanged `e9aec96`
+runtime. All 15 runtime/migration file hashes match that commit; only four test fixtures changed,
+so source dirt is recorded honestly. No runtime overlay was needed. PostgreSQL showed claim 3
+`succeeded` with claim 1's external result after one simulator acceptance. Cleanup passed.
+[The final publication control](../evidence/w3-red-replacement_outcome.json) retains that original
+reproduction and the committed-source operation-only publication control (same assertion, exit 1).
+
+Tested implementation `4f1fe6d5c40d39540ce0020a662c46bb81bd0f97`, source-bundle SHA-256
+`987fcb89a2bf454a173c08396c97e19b0c9f84a68a49d1369ea9e158e09bc680`, has no source dirt.
+`nix develop --command bash tools/check.sh` exited **0**.
+`PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence evidence/w3-final.json`
+exited **0**, all seven phases: 80 positive entries, 26 intended assertion-failing controls
+(exit 1 each), and successful cleanup in all 32 phase/control runs. The unchanged W2 negative
+observations and deferred not-run entries remain separate. [Acceptance](../evidence/w3.md),
+[aggregate](../evidence/w3-final.json), [gate](../evidence/w3-gate.json) and
+[core](../evidence/w3-final-core.json) retain exact invocations/statuses, source identity and log hashes.
+
+The new regression observes A's verified result at the actual stop-record handoff and acknowledged
+zero-row refusal, unchanged B state/money/exclusion and retained capacity. B refuses settlement
+without its own outcome, then makes its own distinguishable simulator call and atomically records
+its machine/debits/commitment exactly once. Queued entry/pool acceptance now requires one original
+pending attempt, no `claim_precommit_retry` or replacement attempt, and actual checked refusal;
+the isolated pool admission control exits 1 at the intended forbidden-BEGIN assertion. Normal
+lock-observer and deadline-reset runs require completed fan-out and a real post-registration read.
+Only the explicitly selected pre-registration control keeps its earlier-snapshot fallback; both
+observer controls exit 1 at their intended assertions. No runtime timing bound or retry policy changed.
+
+Versions: PostgreSQL 18.6, rustc 1.97.1, cargo 1.97.0, Python 3.14.7, Nix 2.34.9;
+tokio-postgres 0.7.18, deadpool 0.12.3 and tokio 1.54.1. The separate default-feature build exited 0;
+runtime evidence uses `store-test-hooks`. Later documentation/evidence-only commits do not alter
+these tested runtime/fixture files. D-6/7/8/9 remain Open.
 
 ## Open
 
