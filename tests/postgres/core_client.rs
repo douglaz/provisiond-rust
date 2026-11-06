@@ -70,6 +70,15 @@ async fn main() -> Result<()> {
                     let values=[a?,b?].into_iter().map(|c|match c {Some(c)=>json!({"id":c.id,"tenant":c.tenant,"kind":c.kind,"number":c.number}),None=>Value::Null}).collect::<Vec<_>>();
                     Ok(json!({"claims":values}))
                 }
+                "claim_slots"=> {
+                    let e=engine.as_ref().context("no engine")?;
+                    let mut warmed=Vec::new();
+                    for _ in 0..3 {warmed.push(e.component().begin().await?);}
+                    for t in warmed {t.rollback().await?;}
+                    let (a,b,c,d)=tokio::join!(e.claim(),e.claim(),e.claim(),e.claim());
+                    let values=[a,b,c,d].into_iter().map(|r|match r {Ok(Some(c))=>json!({"id":c.id}),Ok(None)=>Value::Null,Err(e)=>json!({"error":e.to_string()})}).collect::<Vec<_>>();
+                    Ok(json!({"claims":values}))
+                }
                 "claim"=> {let c=engine.as_ref().context("no engine")?.claim().await?;Ok(match c {Some(c)=>json!({"id":c.id,"tenant":c.tenant,"kind":c.kind,"number":c.number}),None=>Value::Null})}
                 "defer"|"reacquire"|"settle"|"verified"|"license"|"outcome"=> {
                     let v:Value=serde_json::from_str(arg)?;

@@ -32,6 +32,7 @@ struct Record {
     result: Mutex<Option<std::result::Result<bool, String>>>,
 }
 struct Worker {
+    _slot: tokio::sync::OwnedSemaphorePermit,
     claim: Claim,
     component: Component,
     outcome: Option<Outcome>,
@@ -42,6 +43,7 @@ pub struct Engine {
     database: EngineDatabase,
     process: Arc<crate::store::Process>,
     workers: Mutex<BTreeMap<String, Worker>>,
+    worker_slots: Arc<tokio::sync::Semaphore>,
     retry_bound: Duration,
     stop_bound: Duration,
 }
@@ -58,10 +60,12 @@ impl Engine {
             "retry and stop bounds must be positive"
         );
         let database = EngineDatabase::start(store, wait_ms).await?;
+        let worker_slots = Arc::new(tokio::sync::Semaphore::new(database.worker_limit()));
         let engine = Arc::new(Self {
             database,
             process,
             workers: Mutex::new(BTreeMap::new()),
+            worker_slots,
             retry_bound,
             stop_bound,
         });
@@ -203,10 +207,13 @@ impl Engine {
     }
     pub async fn claim(self: &Arc<Self>) -> Result<Option<Claim>> {
         self.observe_lock().await?;
-        ensure!(
-            self.workers.lock().expect("workers").len() < self.database.worker_limit(),
-            "all configured workers occupied"
-        );
+        // STO-55: claim callers reserve capacity before any await on a checkout.
+        // Retain it through execution and recording, including sent COMMIT waits.
+        let slot = self
+            .worker_slots
+            .clone()
+            .try_acquire_owned()
+            .context("all configured workers occupied")?;
         self.database.ensure_new_work()?;
         let component = self.component();
         // Ordinary pre-COMMIT failures consume OPS-49's whole-transaction budget.
@@ -260,6 +267,7 @@ impl Engine {
             self.workers.lock().expect("workers").insert(
                 c.id.clone(),
                 Worker {
+                    _slot: slot,
                     claim: c.clone(),
                     component,
                     outcome: None,

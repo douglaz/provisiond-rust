@@ -290,6 +290,24 @@ def claims(h,defect=None):
     assert h.sql(f"SELECT status FROM provisiond.operations WHERE id='{other['id']}'")=='running'
     p.finish()
     h.results.append(dict(test='atomic-claim-machine-index',result='pass',arms='two overlapping Rust/PostgreSQL claims and refused yielded reacquire'))
+    # STO-55: reserve a worker before awaiting its claim transaction, including
+    # calls still waiting for a checkout. Completed claims retain that capacity.
+    empty_queue(h)
+    for n in range(4):
+        enqueue(h,f'worker-slot-{n}',f'worker-slot-{n}')
+    p=core_probe(h);p.command('engine_start')
+    raced=p.command('claim_slots')['value']['claims']
+    admitted=[c for c in raced if c and 'id' in c]
+    refused=[c for c in raced if c and 'error' in c]
+    h.event('worker_capacity_observed',concurrent_calls=4,configured_workers=3,admitted=len(admitted),refused=len(refused),results=raced)
+    assert len(admitted)==3 and len(refused)==1, 'four concurrent claims must reserve only three configured workers'
+    assert 'all configured workers occupied' in refused[0]['error']
+    assert h.sql("SELECT count(*) FROM provisiond.operations WHERE tenant_id LIKE 'worker-slot-%' AND status='running'")=='3'
+    assert h.sql("SELECT count(*) FROM provisiond.operations WHERE tenant_id LIKE 'worker-slot-%' AND status='queued' AND claim_number=0")=='1'
+    again=p.command('claim',ok=False)
+    assert 'all configured workers occupied' in again['error']
+    p.finish()
+    h.results.append(dict(test='worker-capacity-concurrent-claims',result='pass',arms='three retained permits, fourth refused before transaction'))
 
 
 def settlement_loss(h):
