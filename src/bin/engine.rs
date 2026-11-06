@@ -23,7 +23,9 @@ async fn main() {
             Duration::from_secs(1),
         )
         .await?;
+        let dispatcher = Arc::new(provisiond::engine::Dispatcher::load(&engine).await?);
         loop {
+            engine.dispatch_next(&dispatcher).await?;
             engine.observe_lock().await?;
             tokio::time::sleep(Duration::from_millis(5)).await;
         }

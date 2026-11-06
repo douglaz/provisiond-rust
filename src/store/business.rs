@@ -206,6 +206,8 @@ impl Transaction {
             offer.keys().all(|k| matches!(
                 k.as_str(),
                 "offer_id"
+                    | "billing_unit_seconds"
+                    | "accepted_terms"
                     | "machine_kind"
                     | "install_strategies"
                     | "recurring_price"
@@ -446,7 +448,10 @@ impl Transaction {
         let offer_id = offer["offer_id"]
             .as_str()
             .context("missing accepted offer")?;
-        let seconds = summary["first_unit"]["seconds"].as_i64().unwrap_or(0);
+        let seconds = offer["billing_unit_seconds"]
+            .as_i64()
+            .or_else(|| summary["first_unit"]["seconds"].as_i64())
+            .unwrap_or(0);
         let declared = offer["declared_cancellation_bound"].as_str();
         let strategies = offer["install_strategies"].to_string();
         let rows=self.rows("INSERT INTO provisiond.machines(tenant_id,provider_account,external_id,offer_id,kind,state,install_strategies,billing_unit_seconds,declared_cancellation_bound,earliest_cancellation_date) VALUES($1,$2,$3,$4,$5,'running',$6::text::jsonb,$7,$8::text::timestamptz,$9::text::timestamptz) ON CONFLICT(provider_account,external_id) DO UPDATE SET external_id=EXCLUDED.external_id WHERE provisiond.machines.tenant_id=EXCLUDED.tenant_id RETURNING id::text",&[&c.tenant,&account,&external_id,&offer_id,&machine_kind,&strategies,&seconds,&declared,&earliest_date]).await?;

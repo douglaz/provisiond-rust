@@ -90,7 +90,8 @@ class Harness:
         self.pgpass = self.root / 'pgpass'
         self.pgpass.write_text(''.join(f'127.0.0.1:*:*:{r}:{p}\n' for r, p in self.passwords.items()))
         self.pgpass.chmod(0o600)
-        self.env = dict(os.environ, PGPASSFILE=str(self.pgpass), PGCONNECT_TIMEOUT='2')
+        self.target = self.root/'target'
+        self.env = dict(os.environ, PGPASSFILE=str(self.pgpass), PGCONNECT_TIMEOUT='2', CARGO_TARGET_DIR=str(self.target))
         self.config = dict(synchronous_commit='on', synchronous_standby_names='FIRST 1 (provisiond_sync)',
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
                            archive_mode='on', restart_after_crash='on', ports=self.ports[:3],
@@ -449,7 +450,7 @@ tcp_keepalives_count = 2
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','all'],default='all')
+    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','all'],default='all')
     ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup'],help='one focused regression; default runs all')
     ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset'])
     ap.add_argument('--seed',type=int,default=20261105)
@@ -518,6 +519,9 @@ def main():
             from core import core_scenarios
             h.run(['cargo','build','--bins','--examples','--features','store-test-hooks','--locked'],timeout=120)
             core_scenarios(h,args.case,args.defect)
+        elif args.phase=='workflow':
+            from workflow import workflow
+            workflow(h)
         elif args.phase=='commits':
             from scenarios import commit_scenarios
             h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)

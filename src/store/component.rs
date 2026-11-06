@@ -350,6 +350,16 @@ impl EngineDatabase {
     }
 }
 
+impl Component {
+    pub(crate) async fn value(
+        &self,
+        sql: &str,
+        params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+    ) -> Result<serde_json::Value> {
+        self.store.value(sql, params).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

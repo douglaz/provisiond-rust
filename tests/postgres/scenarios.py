@@ -28,7 +28,7 @@ class Probe:
         self.defect=defect
         self.program=program
         stderr=(h.root/f'client-{self.index}.stderr').open('w')
-        self.p=subprocess.Popen(['target/debug/examples/'+program],stdin=subprocess.PIPE,
+        self.p=subprocess.Popen([str(h.target/'debug/examples'/program)],stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE,stderr=stderr,text=True,env=env,bufsize=1)
         stderr.close()
         self.thread=threading.Thread(target=self.read)
@@ -80,7 +80,7 @@ class Probe:
         else:
             status=self.p.returncode
         self.thread.join(timeout=3)
-        self.h.commands.append(dict(command=['target/debug/examples/'+self.program],test_defect=self.defect,exit_status=status))
+        self.h.commands.append(dict(command=[str(self.h.target/'debug/examples'/self.program)],test_defect=self.defect,exit_status=status))
         self.finished=True
         assert status==self.expected_status,(status,(self.h.root/f'client-{self.index}.stderr').read_text())
 

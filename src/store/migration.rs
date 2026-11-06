@@ -4,11 +4,12 @@ use super::{CommitOutcome, Store};
 use anyhow::{Context, Result, bail, ensure};
 use serde_json::json;
 
-pub const SCHEMA_VERSION: i64 = 1;
-pub const SEMANTIC_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
+pub const SEMANTIC_VERSION: i64 = 2;
 pub(crate) const MIGRATION_LOCK: i64 = 0x5052_4f56_4d49_4752;
 pub(crate) const STARTUP_LOCK: i64 = 0x5052_4f56_5354_4152;
 const CORE: &str = include_str!("../../migrations/0001-core.sql");
+const SERVICE: &str = include_str!("../../migrations/0002-local-service.sql");
 
 /// OVR-19: migrator inputs, not settled production defaults.
 pub struct MigrationOptions {
@@ -35,11 +36,13 @@ impl Store {
                 tx.rows("SELECT pg_advisory_xact_lock($1)",&[&MIGRATION_LOCK]).await?;
                 tx.batch("CREATE TABLE IF NOT EXISTS provisiond.schema_migrations (version bigint PRIMARY KEY, semantics bigint NOT NULL, completed_at timestamptz NOT NULL DEFAULT transaction_timestamp())").await?;
                 let history=tx.rows("SELECT version,semantics FROM provisiond.schema_migrations ORDER BY version",&[]).await?;
-                if !history.is_empty() {
-                    ensure!(history.len()==1 && history[0].get::<_,i64>(0)==SCHEMA_VERSION && history[0].get::<_,i64>(1)==SEMANTIC_VERSION,"unsupported migration history or shared-row semantics");
-                    return Ok(false);
+                ensure!(history.len()<=2 && history.iter().enumerate().all(|(i,r)|r.get::<_,i64>(0)==(i+1) as i64 && r.get::<_,i64>(1)==(i+1) as i64),"unsupported migration history or shared-row semantics");
+                if history.len()==2 { return Ok(false); }
+                if history.is_empty() {
+                    tx.batch(CORE).await?;
+                    tx.rows("INSERT INTO provisiond.schema_migrations(version,semantics) VALUES(1,1) RETURNING version",&[]).await?;
                 }
-                tx.batch(CORE).await?; // One SQL program; never split on semicolons.
+                tx.batch(SERVICE).await?; // One SQL program; never split on semicolons.
                 if super::test_defect("migration_failure") {tx.batch("SELECT 1/0 /* interrupted migration fixture */").await?;}
                 tx.rows("INSERT INTO provisiond.schema_migrations(version,semantics) VALUES($1,$2) RETURNING version",&[&SCHEMA_VERSION,&SEMANTIC_VERSION]).await?;
                 anyhow::Ok(true)
@@ -88,8 +91,8 @@ impl Store {
                 == "t",
             "missing/uninitialized schema"
         );
-        let version=session.scalar("SELECT COALESCE(json_agg(json_build_array(version,semantics))::text,'[]') FROM provisiond.schema_migrations").await?;
-        let expected = json!([[SCHEMA_VERSION, SEMANTIC_VERSION]]);
+        let version=session.scalar("SELECT COALESCE(json_agg(json_build_array(version,semantics) ORDER BY version)::text,'[]') FROM provisiond.schema_migrations").await?;
+        let expected = json!([[1, 1], [SCHEMA_VERSION, SEMANTIC_VERSION]]);
         ensure!(
             serde_json::from_str::<serde_json::Value>(&version)? == expected,
             "unsupported schema/semantic version: {version}; supports {expected}"

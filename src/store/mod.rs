@@ -2,6 +2,7 @@
 mod business;
 mod commit;
 mod component;
+mod customer;
 pub use business::{Claim, CreateRequest, Payment};
 pub use component::{
     Component, EngineDatabase, ExternalCall, ExternalKind, FatalEngine, startup_milliseconds,

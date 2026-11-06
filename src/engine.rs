@@ -1,5 +1,6 @@
 //! OPS-15/16/21/47/49/50: prototype startup, claims and bounded shielded records.
 //! Provider execution/reconciliation and later operation kinds remain unimplemented.
+mod dispatch;
 use crate::store::{
     Claim, CommitOutcome, Component, EngineDatabase, FatalEngine, Store, Transaction,
 };
@@ -17,6 +18,11 @@ use std::{
 
 #[derive(Clone, Debug)]
 pub enum Outcome {
+    VerifiedCreateDetails {
+        external_id: String,
+        earliest_date: Option<String>,
+        machine: Value,
+    },
     VerifiedCreate {
         external_id: String,
         earliest_date: Option<String>,
@@ -232,7 +238,9 @@ impl Engine {
                     }
                 }
                 Err(error) => {
-                    if error.downcast_ref::<FatalEngine>().is_some() {
+                    if error.downcast_ref::<FatalEngine>().is_some()
+                        || error.downcast_ref::<crate::wire::Error>().is_some()
+                    {
                         return Err(error);
                     }
                     let code = error
@@ -989,6 +997,20 @@ impl Engine {
 }
 async fn apply_outcome(tx: &mut Transaction, c: &Claim, outcome: &Outcome) -> Result<bool> {
     match outcome {
+        Outcome::VerifiedCreateDetails {
+            external_id,
+            earliest_date,
+            machine,
+        } => {
+            if !tx
+                .settle_verified_create(c, external_id, earliest_date.as_deref())
+                .await?
+            {
+                return Ok(false);
+            }
+            tx.attach_details(c, machine).await?;
+            Ok(true)
+        }
         Outcome::VerifiedCreate {
             external_id,
             earliest_date,
@@ -1003,3 +1025,24 @@ async fn apply_outcome(tx: &mut Transaction, c: &Claim, outcome: &Outcome) -> Re
         } => tx.settle(c, status, result, error).await,
     }
 }
+
+/// OVR-9/10a: API enqueue surface carries transactions and authorization, no credentials.
+pub trait Enqueue: Send + Sync {
+    fn enqueue<'a>(
+        &self,
+        tx: &'a mut Transaction,
+        request: &'a crate::store::CreateRequest,
+    ) -> BoxFuture<'a, Result<String>>;
+}
+pub struct Queue;
+impl Enqueue for Queue {
+    fn enqueue<'a>(
+        &self,
+        tx: &'a mut Transaction,
+        request: &'a crate::store::CreateRequest,
+    ) -> BoxFuture<'a, Result<String>> {
+        Box::pin(tx.admit_create(request))
+    }
+}
+
+pub use dispatch::Dispatcher;

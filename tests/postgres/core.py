@@ -15,7 +15,8 @@ def environment(h,role='app',defect=None):
     env=dict(PROVISIOND_PROFILE='local-simulator',
         PROVISIOND_DATABASE_URL=f'host=127.0.0.1 port={h.ports[3]} user={role} password={h.passwords[role]} dbname=postgres sslmode=disable',
         PROVISIOND_STANDBY_NAME='provisiond_sync',PROVISIOND_STANDBY_ROLE='replicator',
-        PROVISIOND_STANDBY_ADDRESS='127.0.0.1',PROVISIOND_STARTUP_WAIT_MS='500')
+        PROVISIOND_STANDBY_ADDRESS='127.0.0.1',PROVISIOND_STARTUP_WAIT_MS='500',
+        PROVISIOND_PROVIDER_SIMULATOR=f'127.0.0.1:{h.ports[5]}')
     if defect: env['STORE_TEST_DEFECT']=defect
     return env
 
@@ -30,7 +31,7 @@ def binary(h,name,*args,role='app',ok=True,defect=None):
     old=h.env
     h.env=dict(old,**environment(h,role,defect))
     try:
-        return h.run(['target/debug/'+name,*args],ok=ok,timeout=12)
+        return h.run([str(h.target/'debug'/name),*args],ok=ok,timeout=12)
     finally:
         h.env=old
 
@@ -79,7 +80,7 @@ def migrations(h):
         r=binary(h,name,'--check-schema',ok=False)
         assert r.returncode!=0 and 'schema_compatible' not in r.stdout
     binary(h,'migrate',role='migrator')
-    assert h.sql('SELECT version||\'/\'||semantics FROM provisiond.schema_migrations')=='1/1'
+    assert h.sql('SELECT version||\'/\'||semantics FROM provisiond.schema_migrations ORDER BY version DESC LIMIT 1')=='2/2'
     assert h.sql('SELECT count(*) FROM provisiond.startup_generation')=='1'
     binary(h,'migrate',role='migrator')
     # Genuine concurrent fresh runners, each supervised and waited before assertions.
@@ -87,12 +88,12 @@ def migrations(h):
     children=[]
     for n in range(2):
         log=(h.root/f'migrate-concurrent-{n}.log').open('w')
-        p=subprocess.Popen(['target/debug/migrate'],env=dict(h.env,**environment(h,'migrator')),stdout=log,stderr=log,text=True)
+        p=subprocess.Popen([str(h.target/'debug/migrate')],env=dict(h.env,**environment(h,'migrator')),stdout=log,stderr=log,text=True)
         log.close();h.extra.append(p);children.append(p)
     statuses=[p.wait(timeout=12) for p in children]
     h.event('migration_concurrent_observed',statuses=statuses,history=h.sql('SELECT count(*) FROM provisiond.schema_migrations'))
     assert statuses==[0,0]
-    assert h.sql('SELECT count(*) FROM provisiond.schema_migrations')=='1'
+    assert h.sql('SELECT count(*) FROM provisiond.schema_migrations')=='2'
     # Failed DDL/history transaction cannot expose partial schema or completion.
     h.sql('DROP SCHEMA provisiond CASCADE; CREATE SCHEMA provisiond AUTHORIZATION migrator;')
     r=binary(h,'migrate',role='migrator',defect='migration_failure',ok=False)
@@ -102,27 +103,27 @@ def migrations(h):
     # COMMIT actually lands before its reply is lost. Next invocation inspects it.
     gate=h.proxy.arm('store COMMIT','commit_reply')
     log=(h.root/'migration-uncertain.log').open('w')
-    p=subprocess.Popen(['target/debug/migrate'],env=dict(h.env,**environment(h,'migrator')),stdout=log,stderr=log,text=True)
+    p=subprocess.Popen([str(h.target/'debug/migrate')],env=dict(h.env,**environment(h,'migrator')),stdout=log,stderr=log,text=True)
     log.close();h.extra.append(p)
     c=gate.wait()
-    assert h.sql('SELECT count(*) FROM provisiond.schema_migrations')=='1'
+    assert h.sql('SELECT count(*) FROM provisiond.schema_migrations')=='2'
     h.proxy.close_connection(c,'lost_migration_reply')
     gate.release()
     assert p.wait(timeout=12)==1
-    h.event('migration_uncertain_observed',durable_version=1,exit_status=1)
+    h.event('migration_uncertain_observed',durable_version=2,exit_status=1)
     binary(h,'migrate',role='migrator')
-    for version,semantics in [(0,1),(2,1),(1,2)]:
-        h.sql(f'UPDATE provisiond.schema_migrations SET version={version},semantics={semantics}')
+    for version,semantics in [(0,2),(3,2),(2,3)]:
+        h.sql(f'UPDATE provisiond.schema_migrations SET version={version},semantics={semantics} WHERE version<>1')
         for name in ('api','engine'):
             r=binary(h,name,'--check-schema',ok=False)
             assert r.returncode==1 and 'unsupported schema/semantic' in r.stderr
             assert 'startup_lock_acquired' not in r.stdout and 'generation_advanced' not in r.stdout
-    h.sql('UPDATE provisiond.schema_migrations SET version=1,semantics=1')
+    h.sql('UPDATE provisiond.schema_migrations SET version=2,semantics=2 WHERE version<>1')
     for name in ('api','engine'):
         r=binary(h,name,'--check-schema')
         assert 'schema_compatible' in r.stdout
     r=binary(h,'api',ok=False)
-    assert r.returncode==78 and 'schema supported; HTTP service not implemented' in r.stderr
+    assert r.returncode==1 and 'missing local parameters file' in r.stderr
     # Initial acquisition failure is one attempt with returned layer reason.
     h.proxy.refuse_after=len(h.proxy.connections)
     before=len(h.proxy.connections)
@@ -603,13 +604,13 @@ def retry_exhaustion(h):
 
 def startup_contracts(h):
     env=environment(h);env.pop('PROVISIOND_STARTUP_WAIT_MS')
-    r=subprocess.run(['target/debug/engine'],env=dict(h.env,**env),capture_output=True,text=True,timeout=8)
+    r=subprocess.run([str(h.target/'debug/engine')],env=dict(h.env,**env),capture_output=True,text=True,timeout=8)
     assert r.returncode==1 and 'generation_advanced' not in r.stdout
-    h.commands.append(dict(command=['target/debug/engine'],configuration='missing startup wait bound',exit_status=r.returncode))
-    r=subprocess.run(['target/debug/engine'],env=dict(h.env,**environment(h),PROVISIOND_WORKERS='25'),capture_output=True,text=True,timeout=8)
+    h.commands.append(dict(command=[str(h.target/'debug/engine')],configuration='missing startup wait bound',exit_status=r.returncode))
+    r=subprocess.run([str(h.target/'debug/engine')],env=dict(h.env,**environment(h),PROVISIOND_WORKERS='25'),capture_output=True,text=True,timeout=8)
     assert r.returncode==1 and 'engine pools plus lock exceed ordinary PostgreSQL capacity' in r.stderr
     assert 'startup_lock_acquired' not in r.stdout
-    h.commands.append(dict(command=['target/debug/engine'],configuration='oversized engine pool',exit_status=r.returncode))
+    h.commands.append(dict(command=[str(h.target/'debug/engine')],configuration='oversized engine pool',exit_status=r.returncode))
     r=h.run(['psql','-XAt','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p',str(h.ports[0]),'-U','app','-d','postgres'],sql='BEGIN READ ONLY; SELECT generation FROM provisiond.startup_generation FOR SHARE;',ok=False)
     assert r.returncode!=0 and 'read-only transaction' in r.stderr
     h.event('provider_licensing_mode_observed',read_only_share_refused=True,engine_share_mode='BEGIN READ WRITE',app_has_generation_update_privilege=True)

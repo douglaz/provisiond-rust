@@ -10,7 +10,12 @@ async fn main() {
     let mut process = Process::new(trace.clone());
     let result = async {
         let store = entry::local_store(process.clone(), trace)?;
-        store.compatible_schema().await
+        store.compatible_schema().await?;
+        if std::env::args().any(|a| a == "--check-schema") {
+            Ok(())
+        } else {
+            provisiond::api::serve(store, Arc::new(|event| println!("{event}"))).await
+        }
     }
     .await;
     if let Err(error) = &result {
@@ -22,9 +27,5 @@ async fn main() {
         .await;
     if result.is_err() || shutdown.is_err() {
         std::process::exit(1);
-    }
-    if !std::env::args().any(|a| a == "--check-schema") {
-        eprintln!("provisiond api: schema supported; HTTP service not implemented");
-        std::process::exit(78);
     }
 }
