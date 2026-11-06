@@ -1,5 +1,6 @@
 //! Database lifecycle spike for pinned STO-7/STO-55. No product engine or schema.
 mod commit;
+pub mod migration;
 mod process;
 mod transport;
 use anyhow::{Context, Result, bail, ensure};
@@ -94,6 +95,7 @@ pub struct Store {
     settings: Settings,
     trace: Trace,
     process: Arc<Process>,
+    manager: Manager,
 }
 impl Store {
     pub fn new(
@@ -115,7 +117,7 @@ impl Store {
             .wait_timeout(Some(settings.checkout_bound))
             .runtime(deadpool::Runtime::Tokio1)
             .build()?;
-        let write = Pool::builder(manager)
+        let write = Pool::builder(manager.clone())
             .max_size(write_limit)
             .wait_timeout(Some(settings.checkout_bound))
             .runtime(deadpool::Runtime::Tokio1)
@@ -123,6 +125,7 @@ impl Store {
         Ok(Self {
             read,
             write,
+            manager,
             settings,
             trace,
             process,
@@ -470,14 +473,14 @@ impl Drop for DiscardUnlessFinished {
 /// STO-7: pre-COMMIT cancellation or failure closes the physical session before
 /// another checkout can use it. This guard never sends a PostgreSQL cancel packet.
 pub struct Transaction {
-    checkout: Option<Checkout>,
+    checkout: Option<Connection>,
     failed: bool,
 }
 impl Store {
     pub async fn begin(&self) -> Result<Transaction> {
         let checkout = self.write_session().await?;
         let transaction = Transaction {
-            checkout: Some(checkout),
+            checkout: Some(Connection::Pooled(checkout)),
             failed: false,
         };
         transaction
@@ -567,7 +570,7 @@ impl Drop for Transaction {
     fn drop(&mut self) {
         if let Some(checkout) = self.checkout.take() {
             (checkout.trace)(json!({"event":"precommit_session_discarded","session":checkout.pid}));
-            drop(managed::Object::take(checkout));
+            checkout.discard();
         }
     }
 }
@@ -596,5 +599,88 @@ fn test_defect(name: &str) -> bool {
     {
         let _ = name;
         false
+    }
+}
+
+/// Dedicated adapters share the same transaction and COMMIT owner (STO-7/12/51).
+enum Connection {
+    Pooled(Checkout),
+    Dedicated(Session),
+}
+impl std::ops::Deref for Connection {
+    type Target = Session;
+    fn deref(&self) -> &Session {
+        match self {
+            Self::Pooled(c) => c,
+            Self::Dedicated(s) => s,
+        }
+    }
+}
+impl Connection {
+    fn unpool(self) -> Session {
+        match self {
+            Self::Pooled(c) => managed::Object::take(c),
+            Self::Dedicated(s) => s,
+        }
+    }
+    fn discard(self) {
+        drop(self.unpool());
+    }
+}
+impl Store {
+    async fn dedicated(&self) -> Result<Session> {
+        use deadpool::managed::Manager as _;
+        self.manager.create().await
+    }
+    async fn begin_dedicated(&self, session: Session) -> Result<Transaction> {
+        let tx = Transaction {
+            checkout: Some(Connection::Dedicated(session)),
+            failed: false,
+        };
+        let session = tx.checkout.as_ref().expect("checkout");
+        session.notices.lock().expect("notice lock").reset();
+        session.query("BEGIN READ WRITE").await?;
+        Ok(tx)
+    }
+}
+impl Transaction {
+    /// Internal parameterized statements only; never a production caller-SQL API.
+    pub(crate) async fn rows(
+        &mut self,
+        sql: &str,
+        params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+    ) -> Result<Vec<tokio_postgres::Row>> {
+        ensure!(!self.failed, "transaction has a failed/cancelled statement");
+        self.failed = true;
+        let session = self.checkout.as_ref().context("transaction consumed")?;
+        let mut in_flight = CloseUnlessFinished(Some(session));
+        let outcome = tokio::time::timeout(
+            session.settings.call_bound,
+            session.client.query(sql, params),
+        )
+        .await;
+        in_flight.0 = None;
+        match outcome {
+            Ok(Ok(rows)) => {
+                self.failed = false;
+                Ok(rows)
+            }
+            Ok(Err(e)) => Err(e).context("transaction statement"),
+            Err(e) => {
+                session.close();
+                Err(e).context("pre-COMMIT transaction deadline")
+            }
+        }
+    }
+    async fn batch(&mut self, sql: &str) -> Result<()> {
+        ensure!(!self.failed, "transaction has a failed/cancelled statement");
+        self.failed = true;
+        self.checkout
+            .as_ref()
+            .context("transaction consumed")?
+            .query(sql)
+            .await?;
+        self.failed = false;
+        Ok(())
     }
 }

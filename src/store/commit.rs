@@ -1,7 +1,6 @@
 //! STO-7 sent-COMMIT ownership; OPS-49 uncertainty. One attempt, no retry.
-use super::{Checkout, Session, Store, Transaction, process::AbortOnPanic};
+use super::{Connection, Session, Store, Transaction, process::AbortOnPanic};
 use anyhow::{Context, Result};
-use deadpool::managed::Object;
 use serde_json::json;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::oneshot;
@@ -90,7 +89,7 @@ impl Store {
     }
 }
 async fn own_commit(
-    checkout: Checkout,
+    checkout: Connection,
     mut sender: oneshot::Sender<CommitOutcome>,
     owner: u64,
     mode: Mode,
@@ -159,7 +158,7 @@ async fn own_commit(
             _=sender.closed()=> {
                 // Deliberate disposable defect: keep the session live, but lose
                 // the original checkout on request cancellation. Never default.
-                unpooled=Some(Object::take(checkout.take().expect("checkout")));
+                unpooled=Some(checkout.take().expect("checkout").unpool());
                 trace(json!({"event":"defect_checkout_released","session":pid,"owner":owner}));
                 execution.await
             }
@@ -231,7 +230,7 @@ async fn own_commit(
     if outcome == CommitOutcome::Acknowledged {
         drop(checkout.take());
     } else if let Some(object) = checkout.take() {
-        drop(Object::take(object));
+        object.discard();
     }
     drop(unpooled);
     let _ = sender.send(outcome);
