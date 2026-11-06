@@ -408,8 +408,8 @@ tcp_keepalives_count = 2
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','all'],default='all')
-    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky'],help='one focused regression; default runs all')
-    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky'])
+    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency'],help='one focused regression; default runs all')
+    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel'])
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()

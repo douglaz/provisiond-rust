@@ -51,6 +51,7 @@ class Proxy:
         self.connections, self.threads, self.gates = [], [], []
         self.lock = threading.Lock()
         self.cancel_requests = 0
+        self.nodelay = True
         self.spawn(self.accept)
 
     def spawn(self, fn, *args):
@@ -74,6 +75,8 @@ class Proxy:
             except OSError:
                 return
             server = socket.create_connection(('127.0.0.1',self.h.ports[0]))
+            for transport in (client, server):
+                transport.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, int(self.nodelay))
             c = dict(client=client,server=server,pid=None,query='',gate=None,closed=False)
             self.connections.append(c)
             self.spawn(self.front,c)

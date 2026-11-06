@@ -22,12 +22,12 @@ class Ports(unittest.TestCase):
                 self.assertEqual(allocation(), list(range(base, base+4)))
 
     def test_busy_refused(self):
-        with patch.dict(os.environ, PROVISIOND_HARNESS_PORT_BASE='55430'):
-            with socket.socket() as listener:
-                listener.bind(('127.0.0.1', 55433))
-                listener.listen()
-                with self.assertRaises(OSError):
-                    preflight_ports()
+        ports = allocation()
+        with socket.socket() as listener:
+            listener.bind(('127.0.0.1', ports[-1]))
+            listener.listen()
+            with self.assertRaises(OSError):
+                preflight_ports()
 
 
 if __name__ == '__main__':

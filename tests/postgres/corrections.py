@@ -6,6 +6,47 @@ from harness import eventually
 
 def corrections(h, case=None, defect=None):
     prepare(h)
+    if case in (None, 'admission_latency'):
+        # Controlled comparison: same cold client/session/settings/admission path;
+        # only both proxy socket TCP_NODELAY values change. Retain every sample.
+        for nodelay in (False, True):
+            h.proxy.nodelay=nodelay
+            samples=[]
+            for sample in range(4):
+                p=Probe(h)
+                start=time.monotonic()
+                result=p.command('write_admit',ok=None)
+                elapsed=time.monotonic()-start
+                samples.append(dict(sample=sample,elapsed_ms=elapsed*1000,admitted=result['ok']))
+                p.finish()
+            h.event('cold_admission_comparison',proxy_tcp_nodelay=nodelay,samples=samples)
+            if nodelay:
+                assert all(s['admitted'] and s['elapsed_ms']<400 for s in samples), 'ordinary cold admission must fit unchanged checkout bound'
+        h.results.append(dict(test='cold-admission-controlled-comparison',result='pass'))
+    if case in (None, 'verify_cancel'):
+        p=Probe(h, defect=defect)
+        pid=p.command('prepare 1804')['value']['session']
+        gate=h.proxy.arm('precommit verify', 'reply')
+        p.command('commit')
+        c=gate.wait()
+        assert c['pid']==pid
+        def commits():
+            return [e for e in h.events if e.get('event')=='send_requested' and
+                    'store COMMIT' in e.get('query','') and e.get('session')==pid]
+        assert not commits(), 'verification must precede COMMIT'
+        p.command('drop_request')
+        end=time.monotonic()+.2
+        while not c['closed'] and time.monotonic()<end:
+            time.sleep(.005)
+        h.event('verification_cancellation_observed', session=pid,
+                transport_closed=c['closed'], source=c.get('close_source'), commits=len(commits()))
+        assert c['closed'] and c.get('close_source')=='client_eof', 'cancelled verification must close before reply release'
+        assert not commits(), 'cancelled verification must dispatch no COMMIT'
+        gate.release()
+        assert p.command('write_admit')['value']['session']!=pid
+        assert h.sql('SELECT count(*) FROM fixture.destinations WHERE id=1804')=='0'
+        p.finish()
+        h.results.append(dict(test='verification-cancellation', result='pass'))
     if case in (None, 'execute_cancel'):
         p=Probe(h, defect=defect)
         pid=p.command('tx_begin')['value']['session']
