@@ -103,7 +103,26 @@ async fn own_commit(
     let client = session.client.clone();
     let protocol = session.protocol.clone();
     let notices = session.notices.clone();
-    notices.lock().expect("notice lock").clear();
+    // STO-7: verify on the still-owned physical transaction before dispatch.
+    // Ownership was registered synchronously, so dropping a receipt creates no gap.
+    if !super::test_defect("commit_setting") {
+        let verified = session
+            .scalar("SHOW synchronous_commit /* precommit verify */")
+            .await;
+        if !matches!(verified.as_deref(), Ok("on")) {
+            session.close();
+            trace(json!({"event":"precommit_rejected","session":pid,"commit_not_dispatched":true}));
+            let _ = sender.send(CommitOutcome::Rejected {
+                reason: "synchronous_commit verification failed; COMMIT not dispatched".into(),
+            });
+            return;
+        }
+    }
+    {
+        let mut diagnostics = notices.lock().expect("notice lock");
+        diagnostics.committing = true;
+        diagnostics.commit_warning = false;
+    }
     let before = protocol.snapshot();
     trace(json!({"event":"owner_accepted","owner":owner,"session":pid}));
     trace(json!({"event":"commit_possible_dispatch","owner":owner,"session":pid}));
@@ -131,8 +150,15 @@ async fn own_commit(
     };
     // ErrorResponse alone is insufficient: consume terminal response or death.
     let reply = protocol.complete(before.ready).await;
-    let diagnostics = notices.lock().expect("notice lock").clone();
-    let warning = diagnostics.iter().any(|n| n["severity"] == "WARNING");
+    let (diagnostics, sticky_warning) = {
+        let retained = notices.lock().expect("notice lock");
+        (retained.values.clone(), retained.commit_warning)
+    };
+    let warning = if super::test_defect("notice_sticky") {
+        diagnostics.iter().any(|n| n["severity"] == "WARNING")
+    } else {
+        sticky_warning
+    };
     #[cfg(feature = "store-test-hooks")]
     let ignore = matches!(mode, Mode::IgnoreWarning);
     #[cfg(not(feature = "store-test-hooks"))]

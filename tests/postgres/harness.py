@@ -95,7 +95,7 @@ class Harness:
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
                            archive_mode='on', restart_after_crash='on', ports=self.ports[:3],
                            authentication='scram-sha-256 loopback only', standby_role='replicator')
-        if phase in ('checks','commits','regressions'):
+        if phase in ('checks','commits','regressions','corrections'):
             self.config['store'] = dict(read_pool=1,write_pool=1,statement_ms=1000,lock_ms=500,
                 idle_transaction_ms=1000,call_ms=2000,check_ms=3000,checkout_ms=250,
                 keepalive_idle_seconds=2,keepalive_interval_seconds=1,keepalive_count=2,
@@ -407,14 +407,15 @@ tcp_keepalives_count = 2
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','all'],default='all')
-    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled'],help='one focused regression; default runs all')
+    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','all'],default='all')
+    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky'],help='one focused regression; default runs all')
+    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky'])
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
     preflight_ports()
-    if args.case and args.phase!='regressions':
-        ap.error('--case requires --phase regressions')
+    if args.case and args.phase not in ('regressions','corrections'):
+        ap.error('--case requires --phase regressions or corrections')
     if args.phase=='all':
         cap_check()
         records=[]
@@ -446,6 +447,10 @@ def main():
             from scenarios import regression_scenarios
             h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
             regression_scenarios(h,args.case)
+        elif args.phase=='corrections':
+            from corrections import corrections
+            h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
+            corrections(h,args.case,args.defect)
         elif args.phase=='commits':
             from scenarios import commit_scenarios
             h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)

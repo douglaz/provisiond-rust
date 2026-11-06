@@ -129,9 +129,18 @@ impl Store {
         })
     }
     async fn checkout(&self, pool: &Pool) -> Result<Checkout> {
-        pool.get()
+        let acquisition = async {
+            pool.get()
+                .await
+                .map_err(|e| anyhow::anyhow!("pool checkout/create/check: {e}"))
+        };
+        if test_defect("checkout") {
+            return acquisition.await;
+        }
+        // STO-55: one bound includes waiting, recycling, construction and admission.
+        tokio::time::timeout(self.settings.checkout_bound, acquisition)
             .await
-            .map_err(|e| anyhow::anyhow!("pool checkout/create/check: {e}"))
+            .context("whole pool checkout deadline (waiting/create/admission)")?
     }
     pub async fn read_session(&self) -> Result<Checkout> {
         self.checkout(&self.read).await
@@ -188,7 +197,7 @@ pub struct Session {
     pub pid: i32,
     settings: Settings,
     trace: Trace,
-    notices: Arc<Mutex<Vec<Value>>>,
+    notices: Arc<Mutex<Diagnostics>>,
     close_driver: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     tainted: AtomicBool,
 }
@@ -255,7 +264,7 @@ impl managed::Manager for Manager {
                 .context("connect deadline")?
             })
             .await??;
-        let notices = Arc::new(Mutex::new(Vec::new()));
+        let notices = Arc::new(Mutex::new(Diagnostics::default()));
         let diagnostics = notices.clone();
         let trace = self.trace.clone();
         let driver_protocol = protocol.clone();
@@ -269,7 +278,14 @@ impl managed::Manager for Manager {
                 match message {
                     Some(Ok(AsyncMessage::Notice(n))) => {
                         let diagnostic=json!({"event":"driver_notice","severity":n.severity(),"sqlstate":n.code().code(),"message":n.message(),"detail":n.detail()});
-                        diagnostics.lock().expect("notice lock").push(diagnostic.clone());
+                        let mut retained = diagnostics.lock().expect("notice lock");
+                        if retained.committing && n.severity() == "WARNING" {
+                            retained.commit_warning = true;
+                        }
+                        if retained.values.len() < NOTICE_CAP || test_defect("notices") {
+                            retained.values.push(diagnostic.clone());
+                        }
+                        drop(retained);
                         trace(diagnostic);
                     }
                     Some(Ok(_)) => {},
@@ -353,7 +369,7 @@ impl Session {
         Ok(())
     }
     pub fn diagnostics(&self) -> Vec<Value> {
-        self.notices.lock().expect("notice lock").clone()
+        self.notices.lock().expect("notice lock").values.clone()
     }
     pub async fn settings(&mut self) -> Result<Vec<String>> {
         let mut result = Vec::new();
@@ -468,6 +484,14 @@ impl Store {
             .checkout
             .as_ref()
             .expect("checkout")
+            .notices
+            .lock()
+            .expect("notice lock")
+            .reset();
+        transaction
+            .checkout
+            .as_ref()
+            .expect("checkout")
             .query("BEGIN READ WRITE")
             .await?;
         Ok(transaction)
@@ -477,17 +501,28 @@ impl Transaction {
     pub fn session_id(&self) -> i32 {
         self.checkout.as_ref().expect("live transaction").pid
     }
-    /// Trusted application SQL: one statement, with transaction control reserved
-    /// for this module. The product schema/caller policy is not implemented yet.
+    /// Trusted fixture SQL is absent from production builds. Business statements
+    /// are private constants with parameters; callers cannot supply SQL (STO-7).
+    #[cfg(feature = "store-test-hooks")]
     pub async fn execute(&mut self, statement: &str) -> Result<u64> {
+        self.execute_internal(statement).await
+    }
+    #[cfg(feature = "store-test-hooks")]
+    async fn execute_internal(&mut self, statement: &str) -> Result<u64> {
         ensure!(!self.failed, "transaction has a failed/cancelled statement");
         self.failed = true;
         let session = self.checkout.as_ref().context("transaction consumed")?;
+        let mut in_flight = CloseUnlessFinished(if test_defect("execute_cancel") {
+            None
+        } else {
+            Some(session)
+        });
         let result = tokio::time::timeout(
             session.settings.call_bound,
             session.client.execute(statement, &[]),
         )
         .await;
+        in_flight.0 = None;
         match result {
             Ok(Ok(rows)) => {
                 self.failed = false;
@@ -503,6 +538,20 @@ impl Transaction {
                 Err(error).context("pre-COMMIT transaction deadline")
             }
         }
+    }
+    /// No production caller-SQL surface exists. This hook demonstrates refusal
+    /// without parsing or executing even indirect settings functions (STO-7).
+    #[cfg(feature = "store-test-hooks")]
+    pub async fn test_caller_sql(&mut self, sql: &str) -> Result<()> {
+        if test_defect("caller_sql") {
+            self.execute(sql).await?;
+            return Ok(());
+        }
+        bail!("caller SQL is not an admitted business statement")
+    }
+    #[cfg(feature = "store-test-hooks")]
+    pub fn test_diagnostics(&self) -> Vec<Value> {
+        self.checkout.as_ref().expect("checkout").diagnostics()
     }
     pub async fn rollback(mut self) -> Result<()> {
         self.checkout
@@ -520,5 +569,32 @@ impl Drop for Transaction {
             (checkout.trace)(json!({"event":"precommit_session_discarded","session":checkout.pid}));
             drop(managed::Object::take(checkout));
         }
+    }
+}
+
+// STO-7: diagnostic payload retention is bounded independently of warning safety.
+const NOTICE_CAP: usize = 16;
+#[derive(Default)]
+struct Diagnostics {
+    values: Vec<Value>,
+    committing: bool,
+    commit_warning: bool,
+}
+impl Diagnostics {
+    fn reset(&mut self) {
+        self.values.clear();
+        self.committing = false;
+        self.commit_warning = false;
+    }
+}
+fn test_defect(name: &str) -> bool {
+    #[cfg(feature = "store-test-hooks")]
+    {
+        std::env::var("STORE_TEST_DEFECT").as_deref() == Ok(name)
+    }
+    #[cfg(not(feature = "store-test-hooks"))]
+    {
+        let _ = name;
+        false
     }
 }

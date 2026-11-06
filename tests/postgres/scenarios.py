@@ -819,7 +819,7 @@ def construction_deadline(h):
     c=gate.wait()
     assert not c['closed'] and time.monotonic()-start<1
     result=p.result('admit',ok=False)
-    assert 'connect deadline' in result['error'],result
+    assert 'whole pool checkout deadline' in result['error'],result
     eventually(lambda:c['closed'],seconds=.5)
     assert c['close_source']=='client_eof'
     assert not any(e.get('event')=='session_admitted' for e in p.events)
