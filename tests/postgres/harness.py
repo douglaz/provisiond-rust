@@ -21,8 +21,10 @@ import traceback
 import tomllib
 
 SPEC = 'ac37c7cae5d3ff746515137774a4cdd5a3531375'
-ROOT = Path('/var/tmp/rloop-units/provisiond-rust-w1w2-1105T2104/harness')
-UNIT = 'rloop-provisiond-rust-w1w2-1105T2104.service'
+# The caller's capped unit and its private, owned run directory (outside git and /tmp).
+ROOT = Path(os.environ['PROVISIOND_HARNESS_ROOT'])
+UNIT = os.environ['PROVISIOND_HARNESS_UNIT']
+assert ROOT.is_absolute() and not str(ROOT).startswith('/tmp/') and UNIT.endswith('.service')
 
 
 def cap_check():
@@ -379,13 +381,15 @@ tcp_keepalives_count = 2
         encoded=json.dumps(manifest)
         for password in self.passwords.values():
             encoded=encoded.replace(password,'<redacted>')
+        # Decision 38: repository evidence carries no host-local paths.
+        encoded=encoded.replace(str(ROOT),'<run-dir>').replace(str(Path.cwd()),'<repo>')
         return json.loads(encoded)
 
 
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--phase',choices=['w1','checks','commits','regressions','all'],default='all')
-    ap.add_argument('--case',choices=['session','transaction','runtime'],help='one focused regression; default runs all')
+    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled'],help='one focused regression; default runs all')
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()

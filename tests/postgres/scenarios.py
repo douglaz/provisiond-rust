@@ -52,7 +52,7 @@ class Probe:
         while time.monotonic()<end:
             e=self.queue.get(timeout=max(.01,end-time.monotonic()))
             if e.get('event')=='result' and e['command']==command:
-                assert e['ok']==ok,e
+                assert ok is None or e['ok']==ok,e
                 return e
         raise AssertionError('missing client result: '+command)
 
@@ -747,12 +747,43 @@ def regression_scenarios(h,case=None):
         p.finish()
         h.results.append(dict(test='sent-commit-caller-runtime-drop',result='pass',session=pid,
                               establishes='SyncRep observed before initiating reactor destroyed; original transport/checkout retained; replacement refused; real reply consumed on standby restoration'))
+    if case in (None,'cancelled'):
+        cancelled_calls(h)
     if case is None:
         construction_cancellation(h)
         construction_deadline(h)
     assert h.proxy.cancel_requests==0
     h.results.append(dict(test='regression-no-client-cancel',result='pass',observed_cancel_packets=0))
 
+
+
+def cancelled_calls(h):
+    """STO-7: a caller that drops an in-flight read call, or a whole destination
+    attempt, must not return that physical session to the pool."""
+    p=Probe(h)
+    reused=[]
+    for kind,command,pattern in [('query','cancel_query',"'cancelled query probe'"),
+                                 ('destination','cancel_read 1810','destination SELECT')]:
+        gate=h.proxy.arm(pattern,'reply')
+        p.send(command)
+        c=gate.wait()
+        h.event('cancelled_call_fault_observed',call_kind=kind,session=c['pid'])
+        result=p.result(command.split()[0],ok=None)
+        gate.release()
+        h.event('cancelled_call_observed',call_kind=kind,session=c['pid'],ok=result['ok'],
+                error=result.get('error'),value=result.get('value'))
+        if not result['ok']:
+            reused.append(kind)
+            continue
+        assert result['value']['old_session']==c['pid']!=result['value']['new_session']
+        eventually(lambda:c['closed'],seconds=2)
+        assert c.get('close_source')=='client_eof',c.get('close_source')
+        eventually(lambda:h.sql(f"SELECT count(*) FROM pg_stat_activity WHERE pid={c['pid']}")=='0')
+        h.results.append(dict(test='cancelled-'+kind+'-not-reused',result='pass',session=c['pid'],
+                              new_session=result['value']['new_session'],
+                              establishes='reply withheld; caller drops the in-flight call; client closes that transport; next checkout is a new backend'))
+    p.finish()
+    assert not reused,f'cancelled pre-COMMIT read must not return its physical session: {reused}'
 
 
 def construction_cancellation(h):

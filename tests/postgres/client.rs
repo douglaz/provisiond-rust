@@ -214,6 +214,37 @@ fn main() -> anyhow::Result<()> {
                     held.as_mut().unwrap().test_check().await?;
                     Ok(json!({}))
                 }
+                // STO-7: the harness withholds the reply; the caller then drops
+                // the in-flight call and the next checkout must be a new session.
+                "cancel_query" => {
+                    drop(held.take());
+                    let mut session = store.read_session().await?;
+                    let pid = session.pid;
+                    let call = session.test_query("SELECT 'cancelled query probe'::text");
+                    anyhow::ensure!(
+                        tokio::time::timeout(Duration::from_millis(300), call).await.is_err(),
+                        "query finished before cancellation"
+                    );
+                    drop(session);
+                    let next = store.read_session().await?;
+                    anyhow::ensure!(next.pid != pid, "cancelled query session reused");
+                    Ok(json!({"old_session":pid,"new_session":next.pid}))
+                }
+                "cancel_read" => {
+                    drop(held.take());
+                    let id = words.next().unwrap().parse()?;
+                    // Pool size 1: the attempt checks out this same idle session.
+                    let pid = store.read_session().await?.pid;
+                    anyhow::ensure!(
+                        tokio::time::timeout(Duration::from_millis(300), store.destination(id))
+                            .await
+                            .is_err(),
+                        "destination finished before cancellation"
+                    );
+                    let next = store.read_session().await?;
+                    anyhow::ensure!(next.pid != pid, "cancelled destination session reused");
+                    Ok(json!({"old_session":pid,"new_session":next.pid}))
+                }
                 "read" => {
                     drop(held.take());
                     let id = words.next().unwrap().parse()?;

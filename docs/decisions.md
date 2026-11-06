@@ -88,7 +88,11 @@ not exercise retained-object timeout closure or destruction of the initiating I/
 
 `Session::close` now taints and signals the supervised driver immediately on ordinary query,
 transaction-execute or read-only-check deadline expiry, even while the caller retains the object.
-No cancel request is sent. `Manager::create` constructs and authenticates TCP sockets through
+No cancel request is sent. A caller that drops a read call or a `Store::destination` attempt
+mid-flight also closes that session; the `cancelled` regression withholds the reply, drops the
+caller, and checks the next checkout is a new backend. Against the pre-fix `043d8ae` store source
+it fails for both arms ([red evidence](../evidence/r2-red-cancelled.json)) and passes in the full
+command above. `Manager::create` constructs and authenticates TCP sockets through
 `Process::run` on the supervisor's own reactor before use; moving only the driver cannot transfer
 Tokio's reactor registration. Bounded construction is cancelled when its result receiver vanishes;
 undelivered results are dropped. Measured authentication/admission cancellation and authentication
