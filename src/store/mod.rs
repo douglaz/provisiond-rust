@@ -138,6 +138,10 @@ impl Store {
         })
     }
     async fn checkout(&self, pool: &Pool) -> Result<Checkout> {
+        #[cfg(feature = "store-test-hooks")]
+        if pool.status().available == 0 && pool.status().size == pool.status().max_size {
+            (self.trace)(json!({"event":"pool_checkout_waiting"}));
+        }
         let acquisition = async {
             pool.get()
                 .await
@@ -487,6 +491,12 @@ pub struct Transaction {
 }
 impl Store {
     pub async fn begin(&self) -> Result<Transaction> {
+        self.begin_checked(|| Ok(())).await
+    }
+    /// OPS-47/50: arbitrate dispatch after every acquisition wait. The returned
+    /// short guard covers only the first poll, which submits tokio-postgres's
+    /// simple query before waiting for its reply; never hold it across I/O.
+    async fn begin_checked<G>(&self, admission: impl FnOnce() -> Result<G>) -> Result<Transaction> {
         let checkout = self.write_session().await?;
         let transaction = Transaction {
             checkout: Some(Connection::Pooled(checkout)),
@@ -503,12 +513,27 @@ impl Store {
             .lock()
             .expect("notice lock")
             .reset();
-        transaction
-            .checkout
-            .as_ref()
-            .expect("checkout")
-            .query("BEGIN READ WRITE")
+        {
+            let query = transaction
+                .checkout
+                .as_ref()
+                .expect("checkout")
+                .query("BEGIN READ WRITE");
+            tokio::pin!(query);
+            let mut admission = Some(admission);
+            std::future::poll_fn(|cx| {
+                if let Some(check) = admission.take() {
+                    let _guard = match check() {
+                        Ok(guard) => guard,
+                        Err(error) => return std::task::Poll::Ready(Err(error)),
+                    };
+                    query.as_mut().poll(cx)
+                } else {
+                    query.as_mut().poll(cx)
+                }
+            })
             .await?;
+        }
         Ok(transaction)
     }
 }

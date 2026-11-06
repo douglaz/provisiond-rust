@@ -27,6 +27,9 @@ CONTROLS=[
     ('terminal_zero','core','terminal_zero','zero-row stop must report refusal and end stale execution','terminal_zero_observed'),
     ('terminal_capacity','core','terminal_capacity','completed stop must retire worker capacity','terminal_capacity_observed'),
     ('loss_stop','core','loss_stop','user stop after detected loss must take later-stop exit','user_stop_after_loss_observed'),
+    ('queued_claim','core','queued_claim','queued claim must not dispatch BEGIN after detected lock loss','queued_claim_observed'),
+    ('displaced_record','core','displaced_record','displaced pending record expiry must name its operation','displaced_record_expiry_observed'),
+    ('lock_record_reset','core','lock_observers','lock-loss fanout must retain original record identity and absolute deadline','concurrent_lock_observers_observed'),
 ]
 
 

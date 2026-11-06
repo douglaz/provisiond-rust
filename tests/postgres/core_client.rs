@@ -29,6 +29,8 @@ async fn main() -> Result<()> {
     let mut pending_execute = None;
     let mut pending_observe = None;
     let mut pending_wait = None;
+    let mut pending_begin = None;
+    let mut pool_holders = Vec::new();
     for line in io::stdin().lock().lines() {
         let line = line?;
         let (cmd, arg) = line.split_once(' ').unwrap_or((&line, ""));
@@ -37,6 +39,11 @@ async fn main() -> Result<()> {
         }
         let result:Result<Value>=async {
             match cmd {
+                "begin_start"=> {let c=component.clone();pending_begin=Some(tokio::spawn(async move {c.begin().await}));Ok(json!({}))}
+                "begin_join"=> {let t: provisiond::store::Transaction=pending_begin.take().context("no pending begin")?.await??;tx=Some(t);Ok(json!({}))}
+                "claim_join"=> {let c: Option<Claim>=pending_claim.take().context("no claim")?.await??;Ok(c.map_or(Value::Null,|c|json!({"id":c.id,"number":c.number})))}
+                "pool_fill"=> {let e=engine.as_ref().context("no engine")?;for _ in 0..3 {pool_holders.push(e.component().begin().await?);}Ok(json!({}))}
+                "pool_release"=> {for t in pool_holders.drain(..) {t.rollback().await?;}Ok(json!({}))}
                 "owners"=>Ok(engine.as_ref().context("no engine")?.test_owners()),
                 "record_state"=>Ok(engine.as_ref().context("no engine")?.test_record(arg)),
                 "new_work"=> {engine.as_ref().context("no engine")?.test_new_work()?;Ok(json!({}))}

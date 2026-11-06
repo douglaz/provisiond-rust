@@ -61,6 +61,9 @@ pub struct Engine {
     database: EngineDatabase,
     process: Arc<crate::store::Process>,
     workers: Mutex<BTreeMap<String, Worker>>,
+    // OPS-21: active observation belongs to a claim, independently of the
+    // current operation-id worker. Entries end with their terminal result.
+    records: Mutex<BTreeMap<(String, i64), Arc<Record>>>,
     worker_slots: Arc<tokio::sync::Semaphore>,
     lock_observation: tokio::sync::Mutex<()>,
     #[cfg(feature = "store-test-hooks")]
@@ -86,6 +89,7 @@ impl Engine {
             database,
             process,
             workers: Mutex::new(BTreeMap::new()),
+            records: Mutex::new(BTreeMap::new()),
             worker_slots,
             lock_observation: tokio::sync::Mutex::new(()),
             #[cfg(feature = "store-test-hooks")]
@@ -348,7 +352,7 @@ impl Engine {
             self.database.ensure_new_work()?;
             let started = Instant::now();
             let attempt = async {
-                let mut tx = component.begin().await?;
+                let mut tx = component.begin_new_work().await?;
                 let claim = tx.claim().await?;
                 anyhow::Ok((tx, claim))
             }
@@ -363,7 +367,9 @@ impl Engine {
                     }
                 },
                 Err(error) => {
-                    if error.downcast_ref::<FatalEngine>().is_some() {
+                    if self.database.lock_loss_state().is_some()
+                        || error.downcast_ref::<FatalEngine>().is_some()
+                    {
                         return Err(error);
                     }
                     let code = error
@@ -405,6 +411,12 @@ impl Engine {
         }
         if let Some(c) = &claim {
             component.trace(json!({"event":"claim_registered","operation":c.id,"number":c.number}));
+            // OPS-47/21: a transaction dispatched before loss may finish after
+            // fan-out took its snapshot. Give its worker the original loss bound.
+            let loss = *self.database.lock_loss_state();
+            if let Some(stopped_at) = loss {
+                self.register_stop(&c.id, true, stopped_at)?;
+            }
         }
         Ok(claim)
     }
@@ -604,6 +616,10 @@ impl Engine {
                 }),
             });
             worker.record = Some(record.clone());
+            self.records.lock().expect("records").insert(
+                (worker.claim.id.clone(), worker.claim.number),
+                record.clone(),
+            );
             (
                 worker.claim.clone(),
                 worker.component.clone(),
@@ -659,22 +675,39 @@ impl Engine {
             }
         })
     }
+    fn pending_records(&self) -> Vec<((String, i64), Arc<Record>)> {
+        if crate::store::test_defect("displaced_record") {
+            return self
+                .workers
+                .lock()
+                .expect("workers")
+                .iter()
+                .filter_map(|(id, w)| {
+                    w.record
+                        .as_ref()
+                        .map(|r| ((id.clone(), w.claim.number), r.clone()))
+                })
+                .collect();
+        }
+        self.records
+            .lock()
+            .expect("records")
+            .iter()
+            .map(|(key, r)| (key.clone(), r.clone()))
+            .collect()
+    }
     fn exit_unlanded(&self) -> ! {
         let ids: Vec<_> = self
-            .workers
-            .lock()
-            .expect("workers")
-            .iter()
-            .filter_map(|(id, w)| {
-                w.record.as_ref().and_then(|r| {
-                    r.state
-                        .lock()
-                        .expect("record")
-                        .result
-                        .as_ref()
-                        .is_none_or(|result| result.is_err())
-                        .then(|| id.clone())
-                })
+            .pending_records()
+            .into_iter()
+            .filter_map(|((id, number), r)| {
+                r.state
+                    .lock()
+                    .expect("record")
+                    .result
+                    .as_ref()
+                    .is_none_or(|result| result.is_err())
+                    .then(|| format!("{id} (claim={number})"))
             })
             .collect();
         self.database.fatal(&format!(
@@ -692,11 +725,13 @@ impl Engine {
         number: i64,
     ) {
         let mut workers = self.workers.lock().expect("workers");
+        let mut records = self.records.lock().expect("records");
         let mut state = record.state.lock().expect("record");
         if state.deadline.is_some_and(|d| Instant::now() >= d)
             && !crate::store::test_defect("deadline")
         {
             drop(state);
+            drop(records);
             drop(workers);
             self.exit_unlanded();
         }
@@ -713,6 +748,9 @@ impl Engine {
             // Retain the original permit while pending even if a newer claim
             // replaces this worker in the registry. Never release its permit.
             state.slot.take();
+        }
+        if result.is_ok() {
+            records.remove(&(id.to_owned(), number));
         }
         state.result = Some(result);
     }
@@ -763,6 +801,10 @@ impl Engine {
                 }),
             });
             worker.record = Some(record.clone());
+            self.records.lock().expect("records").insert(
+                (worker.claim.id.clone(), worker.claim.number),
+                record.clone(),
+            );
             if let Some(execution) = &worker.execution {
                 execution.stopped.store(true, Ordering::Release);
             }
@@ -821,11 +863,9 @@ impl Engine {
         loop {
             // An observer that captured A keeps its result even if worker B
             // later occupies the same operation ID in the registry.
-            for (id, worker) in self.workers.lock().expect("workers").iter() {
-                if let Some(record) = &worker.record
-                    && !pending.iter().any(|(_, r)| Arc::ptr_eq(r, record))
-                {
-                    pending.push((id.clone(), record.clone()));
+            for ((id, number), record) in self.pending_records() {
+                if !pending.iter().any(|(_, r)| Arc::ptr_eq(r, &record)) {
+                    pending.push((format!("{id} (claim={number})"), record));
                 }
             }
             let mut unfinished = false;
@@ -884,6 +924,19 @@ impl Engine {
                 !crate::store::test_defect("lock_observers"),
                 stopped_at,
             )?;
+        }
+        #[cfg(feature = "store-test-hooks")]
+        {
+            if crate::store::test_defect("lock_record_reset") {
+                for worker in self.workers.lock().expect("workers").values() {
+                    if let Some(record) = &worker.record {
+                        record.state.lock().expect("record").deadline =
+                            Some(Instant::now() + self.stop_bound);
+                    }
+                }
+            }
+            self.component()
+                .trace(json!({"event":"lock_registration_complete"}));
         }
         self.wait_records().await?;
         self.fatal("startup lock lost; bounded records completed; exit nonzero")

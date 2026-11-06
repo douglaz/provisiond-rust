@@ -39,6 +39,7 @@ struct Fence {
     generation: String,
     fatal: Arc<AtomicBool>,
     entry: Arc<tokio::sync::Mutex<()>>,
+    lock_loss: Arc<Mutex<Option<Instant>>>,
 }
 /// Fixed component identity. Its permit travels with a sent COMMIT, including
 /// after receipt cancellation, so lexical Drop cannot license an external call.
@@ -59,17 +60,41 @@ impl Store {
 }
 impl Component {
     pub async fn begin(&self) -> Result<Transaction> {
+        self.begin_entry(false).await
+    }
+    /// OPS-47: claims/passes cannot dispatch a new transaction after detection.
+    pub(crate) async fn begin_new_work(&self) -> Result<Transaction> {
+        self.begin_entry(!super::test_defect("queued_claim")).await
+    }
+    async fn begin_entry(&self, new_work: bool) -> Result<Transaction> {
         let permit =
             self.gate.clone().try_acquire_owned().map_err(|_| {
                 anyhow::anyhow!("component already owns transaction or external call")
             })?;
         let _entry = if let Some(fence) = &self.fence {
+            #[cfg(feature = "store-test-hooks")]
+            if fence.entry.try_lock().is_err() {
+                self.trace(json!({"event":"component_entry_waiting"}));
+            }
             Some(fence.entry.lock().await)
         } else {
             None
         };
         self.ensure_live()?;
-        let mut tx = self.store.begin().await?;
+        let mut tx = self
+            .store
+            .begin_checked(|| {
+                let loss = self
+                    .fence
+                    .as_ref()
+                    .map(|f| f.lock_loss.lock().expect("lock-loss ordering"));
+                self.ensure_live()?;
+                if new_work && loss.as_ref().is_some_and(|loss| loss.is_some()) {
+                    anyhow::bail!("engine stopping: no claims or periodic passes");
+                }
+                Ok(loss)
+            })
+            .await?;
         tx.permit = Some(permit);
         // Check after acquisition too: another component may detect supersession
         // while this one waits for a pool slot. No transaction business runs then.
@@ -140,7 +165,6 @@ pub struct EngineDatabase {
     store: Arc<Store>,
     lock: Session,
     fence: Fence,
-    lock_loss: Mutex<Option<Instant>>,
 }
 /// OVR-19's startup-lock row is an explicit assignment in the accepted local
 /// profile. It shares the provisional pooled values, validated before transport use.
@@ -269,8 +293,8 @@ impl EngineDatabase {
                 generation,
                 fatal: Arc::new(AtomicBool::new(false)),
                 entry: Arc::new(tokio::sync::Mutex::new(())),
+                lock_loss: Arc::new(Mutex::new(None)),
             },
-            lock_loss: Mutex::new(None),
         })
     }
     pub fn component(&self) -> Component {
@@ -302,7 +326,7 @@ impl EngineDatabase {
     // OPS-21/47: publish detection and arbitrate first/user stops under the same
     // short lock. No record transaction or asynchronous wait holds this guard.
     pub(crate) fn lock_loss_state(&self) -> MutexGuard<'_, Option<Instant>> {
-        self.lock_loss.lock().expect("lock-loss ordering")
+        self.fence.lock_loss.lock().expect("lock-loss ordering")
     }
     pub fn ensure_new_work(&self) -> Result<()> {
         ensure!(
