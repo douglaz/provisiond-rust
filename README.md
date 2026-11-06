@@ -29,10 +29,10 @@ request.
 ## Local PostgreSQL drill
 
 Run inside a systemd unit capped with `MemoryMax=16G`, `MemorySwapMax=0` and
-`OOMPolicy=continue`. Set `PROVISIOND_HARNESS_UNIT` to that unit's name and
-`PROVISIOND_HARNESS_ROOT` to a private absolute directory outside `/tmp`; [the
-harness](tests/postgres/harness.py) checks both before it starts anything. Set `TMPDIR` to
-a private directory outside `/tmp` as well. Choose a free port allocation and keep new evidence
+`OOMPolicy=continue`. Export `PROVISIOND_HARNESS_UNIT` with that unit's name and
+`PROVISIOND_HARNESS_ROOT` with a private absolute directory outside `/tmp`; [the
+harness](tests/postgres/harness.py) checks both before it starts anything. Export `TMPDIR` with
+the path of an existing private directory outside `/tmp` as well. Choose a free port allocation and keep new evidence
 under the private harness root so a drill does not overwrite the recorded acceptance manifests:
 
 ```sh
@@ -64,6 +64,9 @@ Run the complete database, transactional-core and defect-control inventory from 
 ```sh
 PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence "$PROVISIOND_HARNESS_ROOT/all.json"
 ```
+
+The aggregate `all.json` retains absolute paths in its child-command records. Redact identifying
+paths before sharing or committing it.
 
 It performs bootstrap, replication loss/rebuild, physical backup/archive restore, connection and
 destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, backend crash,
