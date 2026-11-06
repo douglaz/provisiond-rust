@@ -53,7 +53,8 @@ struct Worker {
     slot: Arc<tokio::sync::OwnedSemaphorePermit>,
     claim: Claim,
     component: Component,
-    outcome: Option<Outcome>,
+    // OPS-6/21: execution and record retain this claim's result across replacement.
+    outcome: Arc<Mutex<Option<Outcome>>>,
     record: Option<Arc<Record>>,
     execution: Option<Arc<Execution>>,
 }
@@ -349,6 +350,8 @@ impl Engine {
         // Once a claim might have committed, a lost reply is fatal, never retried.
         let mut spent = Duration::ZERO;
         let claim = loop {
+            #[cfg(feature = "store-test-hooks")]
+            component.trace(json!({"event":"claim_attempt_started"}));
             self.database.ensure_new_work()?;
             let started = Instant::now();
             let attempt = async {
@@ -403,7 +406,7 @@ impl Engine {
                     slot: Arc::new(slot),
                     claim: c.clone(),
                     component: component.clone(),
-                    outcome: None,
+                    outcome: Arc::new(Mutex::new(None)),
                     record: None,
                     execution: None,
                 },
@@ -428,29 +431,21 @@ impl Engine {
     ) -> Result<()> {
         self.observe_lock().await?;
         self.database.ensure_new_work()?;
-        let (claim, component) = {
-            let workers = self.workers.lock().expect("workers");
-            let w = workers.get(id).context("worker not found")?;
+        let execution = Arc::new(Execution::default());
+        let (claim, component, returned_outcome) = {
+            let mut workers = self.workers.lock().expect("workers");
+            let w = workers.get_mut(id).context("worker not found")?;
             ensure!(
                 w.execution.is_none() && w.record.is_none(),
                 "worker already executing or recording"
             );
-            (w.claim.clone(), w.component.clone())
-        };
-        ensure!(
-            claim.kind == "create",
-            "provider execution for this operation kind is not implemented; only create simulator execution is supported"
-        );
-        let execution = Arc::new(Execution::default());
-        {
-            let mut workers = self.workers.lock().expect("workers");
-            let worker = workers.get_mut(id).context("worker not found")?;
             ensure!(
-                worker.execution.is_none() && worker.record.is_none(),
-                "worker already executing or recording"
+                w.claim.kind == "create",
+                "provider execution for this operation kind is not implemented; only create simulator execution is supported"
             );
-            worker.execution = Some(execution.clone());
-        }
+            w.execution = Some(execution.clone());
+            (w.claim.clone(), w.component.clone(), w.outcome.clone())
+        };
         let engine = self.clone();
         let id = id.to_owned();
         self.process.submit(async move {
@@ -478,16 +473,21 @@ impl Engine {
                 // the same lock. A timestamp is not a live worker's position.
                 let call = {
                     let workers = engine.workers.lock().expect("workers");
-                    let _worker = workers.get(&id).context("worker not found")?;
+                    let worker = workers.get(&id).context("worker not found")?;
                     if execution.stopped.load(Ordering::Acquire)
                         && !crate::store::test_defect("licensing_stop")
                     {
                         return Err(ExecutionStopped.into());
                     }
+                    ensure!(
+                        worker.claim.number == claim.number
+                            && worker.execution.as_ref().is_some_and(|e| Arc::ptr_eq(e, &execution)),
+                        "execution replaced before provider entry"
+                    );
                     let call = component.external(crate::store::ExternalKind::Provider)?;
                     execution.dispatched.store(true, Ordering::Release);
                     component.trace(
-                        json!({"event":"simulator_accepted","operation":id,"simulator":true}),
+                        json!({"event":"simulator_accepted","operation":id,"claim_number":claim.number,"simulator":true}),
                     );
                     call
                 };
@@ -508,10 +508,15 @@ impl Engine {
             .await;
             match result {
                 Ok(Some(outcome)) => {
-                    if let Some(w) = engine.workers.lock().expect("workers").get_mut(&id) {
-                        w.outcome = Some(outcome);
+                    if crate::store::test_defect("replacement_outcome") {
+                        // Restore the operation-only publication defect for the control.
+                        if let Some(w) = engine.workers.lock().expect("workers").get(&id) {
+                            *w.outcome.lock().expect("outcome") = Some(outcome);
+                        }
+                    } else {
+                        *returned_outcome.lock().expect("outcome") = Some(outcome);
                     }
-                    component.trace(json!({"event":"execute_returned","operation":id}));
+                    component.trace(json!({"event":"execute_returned","operation":id,"claim_number":claim.number}));
                 }
                 Err(error) if error.downcast_ref::<ExecutionStopped>().is_none() => {
                     engine.database.fatal(&format!(
@@ -524,11 +529,13 @@ impl Engine {
         })?;
         Ok(())
     }
-    pub fn outcome(&self, id: &str, outcome: Outcome) -> Result<()> {
-        let mut workers = self.workers.lock().expect("workers");
-        let worker = workers.get_mut(id).context("worker not found")?;
+    pub fn outcome(&self, claim: &Claim, outcome: Outcome) -> Result<()> {
+        let workers = self.workers.lock().expect("workers");
+        let worker = workers.get(&claim.id).context("worker not found")?;
+        ensure!(worker.claim.number == claim.number, "worker claim replaced");
         ensure!(worker.record.is_none(), "execute already stopped");
-        worker.outcome = Some(outcome);
+        ensure!(worker.execution.is_none(), "worker already executing");
+        *worker.outcome.lock().expect("outcome") = Some(outcome);
         Ok(())
     }
     pub async fn settle(self: &Arc<Self>, c: &Claim, outcome: &Outcome) -> Result<bool> {
@@ -539,8 +546,8 @@ impl Engine {
             .get(&c.id)
             .is_some_and(|w| w.claim.number == c.number)
         {
-            self.outcome(&c.id, outcome.clone())?;
-            let record = self.begin_settlement(&c.id)?;
+            self.outcome(c, outcome.clone())?;
+            let record = self.begin_settlement(&c.id, Some(c.number))?;
             loop {
                 let result = record.state.lock().expect("record").result.clone();
                 if let Some(result) = result {
@@ -555,6 +562,7 @@ impl Engine {
             .lock()
             .expect("workers")
             .get(&c.id)
+            .filter(|w| w.claim.number == c.number)
             .map(|w| w.component.clone())
             .unwrap_or_else(|| self.component());
         let operation_id = c.id.clone();
@@ -586,6 +594,7 @@ impl Engine {
             .lock()
             .expect("workers")
             .get(&c.id)
+            .filter(|w| w.claim.number == c.number)
             .map(|w| w.component.clone())
             .unwrap_or_else(|| self.component());
         let id = c.id.clone();
@@ -602,12 +611,21 @@ impl Engine {
     }
     /// Retain the after-return outcome and its entire settlement loop even if a
     /// stop drops the caller. A first stop adds its bound to this same task.
-    fn begin_settlement(self: &Arc<Self>, id: &str) -> Result<Arc<Record>> {
+    fn begin_settlement(self: &Arc<Self>, id: &str, number: Option<i64>) -> Result<Arc<Record>> {
         let (claim, component, outcome, record) = {
             let mut workers = self.workers.lock().expect("workers");
             let worker = workers.get_mut(id).context("worker not found")?;
+            ensure!(
+                number.is_none_or(|n| worker.claim.number == n),
+                "worker claim replaced"
+            );
             ensure!(worker.record.is_none(), "settlement already registered");
-            let outcome = worker.outcome.clone().context("execute has not returned")?;
+            let outcome = worker
+                .outcome
+                .lock()
+                .expect("outcome")
+                .clone()
+                .context("execute has not returned")?;
             let record = Arc::new(Record {
                 state: Mutex::new(RecordState {
                     deadline: None,
@@ -649,7 +667,7 @@ impl Engine {
         Ok(record)
     }
     pub fn start_settlement(self: &Arc<Self>, id: &str) -> Result<()> {
-        self.begin_settlement(id)?;
+        self.begin_settlement(id, None)?;
         Ok(())
     }
     /// OPS-21: the absolute deadline is owned by the supervisor, independent of
@@ -763,7 +781,7 @@ impl Engine {
         lock_loss: bool,
         stopped_at: Instant,
     ) -> Result<()> {
-        let (claim, component, record, execution) = {
+        let (claim, component, record, execution, returned_outcome) = {
             let mut workers = self.workers.lock().expect("workers");
             let loss = self.database.lock_loss_state();
             let Some(worker) = workers.get_mut(id) else {
@@ -813,6 +831,7 @@ impl Engine {
                 worker.component.clone(),
                 record,
                 worker.execution.clone(),
+                worker.outcome.clone(),
             )
         };
         self.watch_record(record.clone())?;
@@ -820,11 +839,7 @@ impl Engine {
         let operation_id = claim.id.clone();
         let number = claim.number;
         let stale_outcome = if crate::store::test_defect("outcome_stop") {
-            self.workers
-                .lock()
-                .expect("workers")
-                .get(&operation_id)
-                .and_then(|w| w.outcome.clone())
+            returned_outcome.lock().expect("outcome").clone()
         } else {
             None
         };
@@ -835,7 +850,9 @@ impl Engine {
             }
             // OPS-21: acknowledge execution termination before reading the final
             // outcome. An earlier None snapshot proves nothing about its return.
-            let outcome = if crate::store::test_defect("outcome_stop") {stale_outcome} else {engine.workers.lock().expect("workers").get(&operation_id).filter(|w|w.claim.number==number).and_then(|w| w.outcome.clone())};
+            let outcome = if crate::store::test_defect("outcome_stop") {stale_outcome} else {returned_outcome.lock().expect("outcome").clone()};
+            #[cfg(feature = "store-test-hooks")]
+            component.trace(json!({"event":"stop_record_outcome","operation":operation_id,"claim_number":number,"external_id":match &outcome {Some(Outcome::VerifiedCreate{external_id,..})=>Some(external_id),_=>None}}));
             let dispatched = execution.as_ref().is_some_and(|e| e.dispatched.load(Ordering::Acquire));
             let result=engine.transaction_record(&component,&record,move |tx| {
                 let claim=claim.clone();let outcome=outcome.clone();

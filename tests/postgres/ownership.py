@@ -55,9 +55,9 @@ def terminal_zero(h,defect=None):
 
 
 
-def queued_claim(h,defect=None):
+def queued_claim(h,defect=None,only=None):
     # OPS-47: a call queued before detection has not yet dispatched a transaction.
-    for window in ('entry','pool','admitted'):
+    for window in ([only] if only else ('entry','pool','admitted')):
         empty_queue(h)
         ids=[enqueue(h,'queued-loss-'+window+str(i),'queued-loss-'+window+str(i)) for i in range(2)]
         p=core_probe(h,defect,boundary='lock_registration')
@@ -79,6 +79,7 @@ def queued_claim(h,defect=None):
         h.sql(f"SELECT pg_terminate_backend({startup['lock_pid']})")
         p.command('observe_pair');held(p,'lock_registration')
         assert any(e.get('event')=='startup_lock_lost' for e in p.events)
+        pending_at_release=p.command('claim_pending')['value']['pending']
         wire_marker=len(h.events)
         if window=='entry':
             blocker.release();p.command('begin_join');p.command('rollback')
@@ -88,19 +89,24 @@ def queued_claim(h,defect=None):
         state=h.sql(f"SELECT status||':'||claim_number FROM provisiond.operations WHERE id='{queued}'")
         begins=[e for e in h.events[wire_marker:] if e.get('event')=='send_requested' and e.get('query')=='BEGIN READ WRITE']
         registered=[e for e in p.events[client_marker:] if e.get('event')=='claim_registered']
+        target_events=p.events[client_marker:]
+        retries=[e for e in target_events if e.get('event') in ('claim_precommit_retry','whole_transaction_retry')]
+        attempts=sum(e.get('event')=='claim_attempt_started' for e in target_events)
+        checked_refusals=sum(e.get('event')=='checked_new_work_refused' for e in target_events)
         forbidden=(bool(begins) or bool(registered) or state!='queued:0' or bool(accepted(p,queued))) if window!='admitted' else False
         # Capture before fan-out: its stop-record BEGINs must not be charged to the claim.
-        h.event('queued_claim_observed',window=window,operation=queued,detected_before_release=True,reply=reply,new_begin_count=len(begins),claim_registered=len(registered),durable_state=state,external_entries=len(accepted(p,queued)),forbidden_entry=forbidden)
+        h.event('queued_claim_observed',window=window,operation=queued,detected_before_release=True,reply=reply,new_begin_count=len(begins),claim_registered=len(registered),durable_state=state,external_entries=len(accepted(p,queued)),forbidden_entry=forbidden,pending_at_release=pending_at_release,attempts=attempts,retries=retries,checked_refusals=checked_refusals)
         p.command('boundary_release');p.command('observe_join',ok=False);p.expected_status=71;p.finish()
         assert not forbidden, 'queued claim must not dispatch BEGIN after detected lock loss'
+        assert pending_at_release and attempts==1 and not retries, 'queued claim requires its original pending attempt without precommit retry'
         if window=='admitted':
             assert reply['ok'] and state in ('running:1','failed:1') and len(registered)==1
             assert h.sql(f"SELECT status FROM provisiond.operations WHERE id='{queued}'")=='failed', 'already dispatched claim must retain bounded stop ownership'
         else:
+            assert checked_refusals==1, 'queued claim requires refusal at checked entry'
             assert not reply['ok'] and 'no claims or periodic passes' in reply.get('error','')
             assert h.sql(f"SELECT status||':'||claim_number FROM provisiond.operations WHERE id='{queued}'")=='queued:0'
         assert h.sql(f"SELECT status FROM provisiond.operations WHERE id='{active}'")=='failed'
-        assert not any(e.get('event')=='whole_transaction_retry' for e in p.events)
     h.results.append(dict(test='queued-claim-lock-loss',result='pass',arms='entry mutex and pool waits refused before BEGIN; already-dispatched claim retains stop ownership'))
 
 
@@ -293,6 +299,63 @@ def outcome_stop(h,defect=None):
     h.results.append(dict(test='outcome-stop-publication',result='pass',arms='returned verified outcome, atomic machine/debits/commitment; cancellation counterpart in ENG-02'))
 
 
+def replacement_outcome(h,defect=None):
+    # STO-3/OPS-6/21/22: a returned result belongs to its captured execution.
+    empty_queue(h);op=enqueue(h,'replacement-outcome','replacement-outcome',resource=True,offer='replacement-outcome')
+    p=core_probe(h,defect,boundary='outcome_publication');p.command('engine_start')
+    a=p.command('claim')['value'];assert a['id']==op
+    external_a='stale-'+op;external_b='replacement-'+op
+    p.command('execute_return '+op+' '+external_a);held(p,'outcome_publication')
+    assert len(accepted(p,op))==1
+    h.sql(f"UPDATE provisiond.operations SET claim_number=claim_number+1,status='queued' WHERE id='{op}'")
+    p.command('record_stop '+op)
+    b=p.command('claim')['value'];assert b['id']==op and b['number']>a['number']
+    assert p.command('owners')['value']==dict(workers=1,available_slots=1)
+    def snapshot():
+        return h.sql(f"SELECT jsonb_build_object('operation',(SELECT to_jsonb(o) FROM provisiond.operations o WHERE id='{op}'),'commitment',(SELECT to_jsonb(c) FROM provisiond.commitments c WHERE operation_id='{op}'),'exclusion',(SELECT to_jsonb(e) FROM provisiond.resource_exclusions e WHERE operation_id='{op}'),'ledger',(SELECT jsonb_agg(to_jsonb(l) ORDER BY seq) FROM provisiond.ledger_entries l WHERE tenant_id='{b['tenant']}'),'machines',(SELECT jsonb_agg(to_jsonb(m) ORDER BY id) FROM provisiond.machines m))")
+    before=snapshot()
+    p.command('boundary_release');p.command('wait_records')
+    eventually(lambda:any(e.get('event')=='stop_record_finished' and e.get('operation')==op for e in p.events))
+    finished=next(e for e in p.events if e.get('event')=='stop_record_finished' and e.get('operation')==op)
+    after_a=snapshot();owners=p.command('owners')['value']
+    reply=p.command('start_settlement '+op,ok=None)
+    if reply['ok']:p.command('wait_records')
+    after_attempt=snapshot()
+    h.event('replacement_outcome_publication_observed',operation=op,original_claim=a['number'],replacement_claim=b['number'],original_external_id=external_a,replacement_external_id=external_b,simulator_calls_before_release=len(accepted(p,op)),finished=finished,owners_after_a=owners,unchanged_after_a=after_a==before,replacement_settlement_reply=reply,unchanged_after_attempt=after_attempt==before)
+    if reply['ok']:p.finish()
+    assert not reply['ok'] and 'execute has not returned' in reply.get('error',''), 'replacement claim must refuse settlement without its own outcome'
+    assert after_a==before and after_attempt==before
+    stale=dict(a,external_id=external_a)
+    refused=command(p,'outcome',stale,ok=False)
+    assert 'worker claim replaced' in refused['error'] and snapshot()==before
+    assert finished['affected'] is False and finished['landed'] is False
+    assert owners==dict(workers=1,available_slots=2), 'stale outcome record must retain replacement worker and slot'
+    captured=[e for e in p.events if e.get('event')=='stop_record_outcome' and e.get('operation')==op]
+    assert len(captured)==1 and captured[0]['claim_number']==a['number'] and captured[0]['external_id']==external_a, 'stale record must consume its own verified outcome'
+    zero=[e for e in p.events if e.get('event')=='worker_zero_row' and e.get('operation')==op]
+    assert len(zero)==1 and zero[0]['claim_number']==a['number']
+    p.command('execute_return '+op+' '+external_b)
+    eventually(lambda:sum(e.get('event')=='execute_returned' and e.get('operation')==op for e in p.events)==2)
+    calls=accepted(p,op)
+    assert [e['claim_number'] for e in calls]==[a['number'],b['number']]
+    p.command('start_settlement '+op);p.command('wait_records')
+    assert h.sql(f"SELECT status||':'||claim_number||':'||(result->>'external_id') FROM provisiond.operations WHERE id='{op}'")==f"succeeded:{b['number']}:{external_b}"
+    machine=h.sql(f"SELECT machine_id FROM provisiond.operations WHERE id='{op}'")
+    assert h.sql(f"SELECT external_id FROM provisiond.machines WHERE id='{machine}'")==external_b
+    assert h.sql(f"SELECT count(*) FROM provisiond.machines WHERE external_id='{external_a}'")=='0'
+    assert h.sql(f"SELECT count(*)||':'||sum(-amount_sats)||':'||bool_and(machine_id='{machine}' AND commitment_id=(SELECT id FROM provisiond.commitments WHERE operation_id='{op}')) FROM provisiond.ledger_entries WHERE operation_id='{op}'")=='2:15:true'
+    assert h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE tenant_id='{b['tenant']}' AND amount_sats>0")=='1'
+    assert h.sql(f"SELECT reserved_sats||':'||version||':'||machine_id FROM provisiond.commitments WHERE operation_id='{op}'")==f'45:2:{machine}'
+    assert h.sql(f"SELECT count(*) FROM provisiond.resource_exclusions WHERE operation_id='{op}'")=='0'
+    settled=snapshot();b['external_id']=external_b
+    assert command(p,'verified',b)['value']['affected']
+    assert snapshot()==settled, 'replacement result must repeat all effects exactly once'
+    assert p.command('owners')['value']==dict(workers=0,available_slots=3)
+    assert len(accepted(p,op))==2
+    h.event('replacement_own_outcome_observed',operation=op,original_record_outcome=captured[0],simulator_calls=calls,machine=machine,external_id=external_b,exact_repeat_unchanged=True)
+    p.finish();h.results.append(dict(test='replacement-outcome-publication',result='pass',arms='held verified A return, independent advance and B claim, retained A zero-row record, B refuses absent outcome then executes distinct result exactly once'))
+
+
 def deadline(h,defect=None):
     for mode in ('no_waiter','cancelled_waiter','settlement'):
         empty_queue(h);op=enqueue(h,'deadline-'+mode,'deadline-'+mode)
@@ -352,12 +415,15 @@ def lock_observers(h,defect=None):
     eventually(lambda:any(e.get('event') in ('lock_registration_complete','engine_fatal') for e in p.events))
     if any(e.get('event')=='lock_registration_complete' for e in p.events):
         after_registration=p.command('record_state '+claims[2]['id'])['value']
-    else:after_registration=after  # The lock_observers control exits before registration.
+    elif defect=='lock_observers':
+        after_registration=after  # Only this explicit control exits before registration.
+    else:after_registration=None
     holder.stdin.close();assert holder.wait(timeout=5)==0
     p.command('observe_join',ok=False);p.expected_status=71;p.finish()
     states=h.sql("SELECT string_agg(status,',' ORDER BY id) FROM provisiond.operations WHERE id IN ("+','.join("'"+i+"'" for i in ids)+")")
     starts=[e for e in p.events if e.get('event')=='stop_record_started']
-    h.event('concurrent_lock_observers_observed',states=states,starts=len(starts),registration_windows=sum(e.get('event')=='execution_boundary_held' for e in p.events),original_record=original,after_detection=after,after_registration=after_registration,new_work_refused=True,claim_refused=True)
+    h.event('concurrent_lock_observers_observed',states=states,starts=len(starts),registration_windows=sum(e.get('event')=='execution_boundary_held' for e in p.events),original_record=original,after_detection=after,after_registration=after_registration,post_registration_read=any(e.get('event')=='lock_registration_complete' for e in p.events),new_work_refused=True,claim_refused=True)
+    assert after_registration is not None, 'lock observer must complete registration before comparison'
     assert after_registration==original, 'lock-loss fanout must retain original record identity and absolute deadline'
     assert all(h.sql(f"SELECT status FROM provisiond.operations WHERE id='{c['id']}'")!='running' for c in claims), 'one lock loss must land records before exit'
     assert len(starts)==3 and len(set(e['operation'] for e in starts))==3

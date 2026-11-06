@@ -66,7 +66,7 @@ It performs bootstrap, replication loss/rebuild, physical backup/archive restore
 destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, backend crash,
 primary restart, residual-backend and bounded-process-stop fixtures, retained-object deadline
 closure, caller-runtime shutdown, constructor cancellation/deadlines, the transactional core,
-twenty-four additional defect controls, and cleanup. The parent accepts a failing control only with its
+twenty-six additional defect controls, and cleanup. The parent accepts a failing control only with its
 exact exit code and intended assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
 non-zero. The aggregate manifest requires all seven phases (W1, checks, commits, regressions, corrections,
 core, controls);
@@ -111,7 +111,7 @@ operation scheduler. The integration fixtures invoke the same library paths dire
 
 Focused commands use `--phase corrections --case verify_cancel`, `--phase core --case migrations`,
 `--case money`, `--case claims`, `--case generation`, `--case stops` or `--case external`.
-The additional core cases are `claim_cancel`, `licensing_stop`, `outcome_stop`, `deadline`,
+The additional core cases are `claim_cancel`, `licensing_stop`, `outcome_stop`, `replacement_outcome`, `deadline`,
 `lock_observers`, `terminal_zero`, `terminal_capacity`, `loss_stop`, `queued_claim`, `displaced_record`, `surface`, `predispatch` and `startup`. They exercise caller cancellation,
 licensing SQL/retry/COMMIT stops, returned outcomes, actual autonomous deadline exits, concurrent
 lock observers, terminal guard refusals and capacity reuse, user stops after detected loss,
@@ -119,7 +119,12 @@ engine-only methods, live dispatch position and real engine startup. Queued-entr
 component mutex and pool separately across detection. Displaced-record checks withhold the
 original COMMIT reply past its deadline, including a later observer and lock loss. The concurrent
 observer check compares the earlier exact deadline/identity after fan-out registration.
-`--phase controls` runs all twenty-four required defects. Each defect requires its exact phase/case;
+The replacement-outcome case holds A's verified return across B's claim, verifies A's own
+zero-row record and B's refusal without its own result, then settles B's distinct result once.
+Queued waits require one pending attempt with no precommit retry and actual checked-entry
+refusal. `--case queued_claim_pool --defect queued_claim_pool` isolates the pool defect;
+the canonical controls include both queued entry and pool windows.
+`--phase controls` runs all twenty-six required defects. Each defect requires its exact phase/case;
 unknown or mismatched selectors exit nonzero before setup. The canonical command includes every
 control and accepts only its intended assertion failure after activation and successful cleanup.
 ENG-05 automatic reconciliation, ENG-07's dedicated replication-freeze stop-record drill and

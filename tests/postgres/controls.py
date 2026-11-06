@@ -28,6 +28,8 @@ CONTROLS=[
     ('terminal_capacity','core','terminal_capacity','completed stop must retire worker capacity','terminal_capacity_observed'),
     ('loss_stop','core','loss_stop','user stop after detected loss must take later-stop exit','user_stop_after_loss_observed'),
     ('queued_claim','core','queued_claim','queued claim must not dispatch BEGIN after detected lock loss','queued_claim_observed'),
+    ('queued_claim_pool','core','queued_claim_pool','queued claim must not dispatch BEGIN after detected lock loss','queued_claim_observed'),
+    ('replacement_outcome','core','replacement_outcome','replacement claim must refuse settlement without its own outcome','replacement_outcome_publication_observed'),
     ('displaced_record','core','displaced_record','displaced pending record expiry must name its operation','displaced_record_expiry_observed'),
     ('lock_record_reset','core','lock_observers','lock-loss fanout must retain original record identity and absolute deadline','concurrent_lock_observers_observed'),
 ]
@@ -53,6 +55,8 @@ def controls(seed,evidence):
         if defect=='payment_atomic':valid=valid and observed[-1].get('counts')=='0:1'
         if defect=='claim_guard':valid=valid and observed[-1].get('affected') is True
         if defect=='generation':valid=valid and observed[-1].get('refused') is False
+        if defect=='queued_claim_pool':valid=valid and observed[-1].get('window')=='pool' and observed[-1].get('forbidden_entry') is True
+        if defect=='replacement_outcome':valid=valid and observed[-1].get('simulator_calls_before_release')==1 and observed[-1].get('replacement_settlement_reply',{}).get('ok') is True and observed[-1].get('unchanged_after_attempt') is False
         result='expected negative demonstration' if valid else 'fail'
         results.append(dict(defect=defect,result=result,exit_status=child.returncode,intended_assertion=assertion))
         if valid:

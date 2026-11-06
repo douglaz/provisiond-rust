@@ -49,6 +49,7 @@ async fn main() -> Result<()> {
                 "new_work"=> {engine.as_ref().context("no engine")?.test_new_work()?;Ok(json!({}))}
                 "claim_start"=> {let e=engine.clone().context("no engine")?;pending_claim=Some(tokio::spawn(async move {e.claim().await}));Ok(json!({}))}
                 "claim_cancel"=> {let t=pending_claim.take().context("no claim")?;t.abort();let _=t.await;Ok(json!({}))}
+                "claim_pending"=>Ok(json!({"pending":!pending_claim.as_ref().context("no claim")?.is_finished()})),
                 "execute_start"=> {let e=engine.clone().context("no engine")?;let id=arg.to_owned();pending_execute=Some(tokio::spawn(async move {e.execute_simulator(&id,None).await}));Ok(json!({}))}
                 "execute_join"=> {pending_execute.take().context("no execution")?.await??;Ok(json!({}))}
                 "boundary_release"=> {engine.as_ref().context("no engine")?.test_release();Ok(json!({}))}
@@ -121,13 +122,13 @@ async fn main() -> Result<()> {
                         "reacquire"=> {let mut t=component.begin().await?;let affected=t.reacquire(&c).await?;let outcome=component.commit(t)?.wait().await?;Ok(json!({"affected":affected,"outcome":outcome.label()}))}
                         "defer"=>Ok(json!({"affected":e.defer(&c).await?})),
                         "settle"|"verified"=>Ok(json!({"affected":e.settle(&c,&outcome).await?})),
-                        "outcome"=> {e.outcome(&c.id,outcome)?;Ok(json!({}))}
+                        "outcome"=> {e.outcome(&c,outcome)?;Ok(json!({}))}
                         "license"=> {let mut t=component.begin().await?;let affected=t.license_create(&c).await?;let outcome=component.commit(t)?.wait().await?;Ok(json!({"affected":affected,"outcome":outcome.label()}))}
                         _=>unreachable!()
                     }
                 }
                 "execute_pending"=> {engine.as_ref().context("no engine")?.execute_simulator(arg,None).await?;Ok(json!({}))}
-                "execute_return"=> {engine.as_ref().context("no engine")?.execute_simulator(arg,Some(Outcome::VerifiedCreate {external_id:format!("simulator-verified-{arg}"),earliest_date:None})).await?;Ok(json!({}))}
+                "execute_return"=> {let (id,external)=arg.split_once(' ').map(|(id,external)|(id,external.to_owned())).unwrap_or_else(||(arg,format!("simulator-verified-{arg}")));engine.as_ref().context("no engine")?.execute_simulator(id,Some(Outcome::VerifiedCreate {external_id:external,earliest_date:None})).await?;Ok(json!({}))}
                 "start_settlement"=> {engine.as_ref().context("no engine")?.start_settlement(arg)?;Ok(json!({}))}
                 "record_stop"=> {engine.as_ref().context("no engine")?.record_stop(arg)?;Ok(json!({}))}
                 "wait_records"=> {engine.as_ref().context("no engine")?.wait_records().await?;Ok(json!({}))}

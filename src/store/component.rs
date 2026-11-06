@@ -64,7 +64,10 @@ impl Component {
     }
     /// OPS-47: claims/passes cannot dispatch a new transaction after detection.
     pub(crate) async fn begin_new_work(&self) -> Result<Transaction> {
-        self.begin_entry(!super::test_defect("queued_claim")).await
+        self.begin_entry(
+            !(super::test_defect("queued_claim") || super::test_defect("queued_claim_pool")),
+        )
+        .await
     }
     async fn begin_entry(&self, new_work: bool) -> Result<Transaction> {
         let permit =
@@ -90,6 +93,8 @@ impl Component {
                     .map(|f| f.lock_loss.lock().expect("lock-loss ordering"));
                 self.ensure_live()?;
                 if new_work && loss.as_ref().is_some_and(|loss| loss.is_some()) {
+                    #[cfg(feature = "store-test-hooks")]
+                    self.trace(json!({"event":"checked_new_work_refused"}));
                     anyhow::bail!("engine stopping: no claims or periodic passes");
                 }
                 Ok(loss)
