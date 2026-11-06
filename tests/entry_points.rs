@@ -1,4 +1,4 @@
-//! The stub entry points must refuse: exit non-zero and print the refusal for their own name.
+//! Unconfigured prototype entries fail closed without starting PostgreSQL.
 
 use std::process::Command;
 
@@ -9,9 +9,15 @@ fn unconfigured_entries_refuse_and_exit_nonzero() {
         ("engine", env!("CARGO_BIN_EXE_engine")),
         ("migrate", env!("CARGO_BIN_EXE_migrate")),
     ] {
-        let output = Command::new(path).env_remove("PROVISIOND_PROFILE").output().expect("spawn stub");
+        let output = Command::new(path)
+            .env_remove("PROVISIOND_PROFILE")
+            .output()
+            .expect("spawn stub");
         assert!(!output.status.success(), "{name} exited with success");
         let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.contains(&format!("provisiond {name}:")), "entry diagnostic: {stderr}");
+        assert!(
+            stderr.contains(&format!("provisiond {name}:")),
+            "entry diagnostic: {stderr}"
+        );
     }
 }

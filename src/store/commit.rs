@@ -23,10 +23,13 @@ impl CommitOutcome {
 /// Dropping this receiver cancels pending verification; a possibly sent COMMIT
 /// remains process-owned until completion, transport death or process exit.
 pub struct CommitReceipt {
-    receiver: oneshot::Receiver<CommitOutcome>,
+    receiver: oneshot::Receiver<(CommitOutcome, std::time::Duration)>,
 }
 impl CommitReceipt {
     pub async fn wait(self) -> Result<CommitOutcome> {
+        Ok(self.wait_accounted().await?.0)
+    }
+    pub(crate) async fn wait_accounted(self) -> Result<(CommitOutcome, std::time::Duration)> {
         self.receiver
             .await
             .context("process commit owner disappeared")
@@ -72,9 +75,12 @@ impl Store {
             (self.trace)(
                 json!({"event":"precommit_rejected","session":transaction.session_id(),"commit_not_dispatched":true}),
             );
-            let _ = sender.send(CommitOutcome::Rejected {
-                reason: "failed/cancelled pre-COMMIT statement; COMMIT not dispatched".into(),
-            });
+            let _ = sender.send((
+                CommitOutcome::Rejected {
+                    reason: "failed/cancelled pre-COMMIT statement; COMMIT not dispatched".into(),
+                },
+                std::time::Duration::ZERO,
+            ));
             return Ok(CommitReceipt { receiver });
         }
         let checkout = transaction
@@ -83,17 +89,25 @@ impl Store {
             .context("transaction consumed")?;
         static NEXT: AtomicU64 = AtomicU64::new(1);
         let owner = NEXT.fetch_add(1, Ordering::Relaxed);
-        self.process
-            .submit(own_commit(checkout, sender, owner, mode))?;
+        self.process.submit(own_commit(
+            checkout,
+            sender,
+            owner,
+            mode,
+            transaction.permit.take(),
+        ))?;
         Ok(CommitReceipt { receiver })
     }
 }
 async fn own_commit(
     checkout: Connection,
-    mut sender: oneshot::Sender<CommitOutcome>,
+    mut sender: oneshot::Sender<(CommitOutcome, std::time::Duration)>,
     owner: u64,
     mode: Mode,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
 ) {
+    let _permit = permit;
+    let started = std::time::Instant::now();
     // This local precedes the guard, so panic aborts before it can release a slot.
     let mut checkout = Some(checkout);
     let _abort = AbortOnPanic;
@@ -123,9 +137,12 @@ async fn own_commit(
         if !matches!(verified.as_deref(), Ok("on")) {
             session.close();
             trace(json!({"event":"precommit_rejected","session":pid,"commit_not_dispatched":true}));
-            let _ = sender.send(CommitOutcome::Rejected {
-                reason: "synchronous_commit verification failed; COMMIT not dispatched".into(),
-            });
+            let _ = sender.send((
+                CommitOutcome::Rejected {
+                    reason: "synchronous_commit verification failed; COMMIT not dispatched".into(),
+                },
+                started.elapsed(),
+            ));
             return;
         }
     }
@@ -141,6 +158,7 @@ async fn own_commit(
         diagnostics.committing = true;
         diagnostics.commit_warning = false;
     }
+    let verification_time = started.elapsed();
     let before = protocol.snapshot();
     trace(json!({"event":"owner_accepted","owner":owner,"session":pid}));
     trace(json!({"event":"commit_possible_dispatch","owner":owner,"session":pid}));
@@ -233,5 +251,7 @@ async fn own_commit(
         object.discard();
     }
     drop(unpooled);
-    let _ = sender.send(outcome);
+    drop(_permit);
+    trace(json!({"event":"commit_owner_completed","owner":owner,"session":pid}));
+    let _ = sender.send((outcome, verification_time));
 }

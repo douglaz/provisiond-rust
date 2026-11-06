@@ -1,5 +1,11 @@
-//! Database lifecycle spike for pinned STO-7/STO-55. No product engine or schema.
+//! OVR-9/STO-7/STO-55: sole transaction entry, admission, pools and COMMIT ownership.
+mod business;
 mod commit;
+mod component;
+pub use business::{Claim, CreateRequest, Payment};
+pub use component::{
+    Component, EngineDatabase, ExternalCall, ExternalKind, FatalEngine, startup_milliseconds,
+};
 pub mod migration;
 mod process;
 mod transport;
@@ -475,6 +481,8 @@ impl Drop for DiscardUnlessFinished {
 pub struct Transaction {
     checkout: Option<Connection>,
     failed: bool,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    pub(crate) tenants: Vec<String>,
 }
 impl Store {
     pub async fn begin(&self) -> Result<Transaction> {
@@ -482,6 +490,8 @@ impl Store {
         let transaction = Transaction {
             checkout: Some(Connection::Pooled(checkout)),
             failed: false,
+            permit: None,
+            tenants: Vec::new(),
         };
         transaction
             .checkout
@@ -551,6 +561,14 @@ impl Transaction {
             return Ok(());
         }
         bail!("caller SQL is not an admitted business statement")
+    }
+    #[cfg(feature = "store-test-hooks")]
+    pub async fn test_scalar(&self, sql: &str) -> Result<String> {
+        self.checkout
+            .as_ref()
+            .context("transaction consumed")?
+            .scalar(sql)
+            .await
     }
     #[cfg(feature = "store-test-hooks")]
     pub fn test_diagnostics(&self) -> Vec<Value> {
@@ -628,6 +646,23 @@ impl Connection {
     }
 }
 impl Store {
+    /// CNF-368/369 isolated fault holder, outside ordinary pools. This deliberately
+    /// disables server timeouts only for the test's independently owned session.
+    #[cfg(feature = "store-test-hooks")]
+    pub async fn test_generation_holder(&self) -> Result<(Transaction, Option<Claim>)> {
+        let session = self.dedicated().await?;
+        session
+            .query("SET statement_timeout=0; SET idle_in_transaction_session_timeout=0")
+            .await?;
+        let mut tx = self.begin_dedicated(session).await?;
+        tx.rows(
+            "SELECT generation FROM provisiond.startup_generation WHERE singleton FOR SHARE",
+            &[],
+        )
+        .await?;
+        let claim = tx.claim().await?;
+        Ok((tx, claim))
+    }
     async fn dedicated(&self) -> Result<Session> {
         use deadpool::managed::Manager as _;
         self.manager.create().await
@@ -636,6 +671,8 @@ impl Store {
         let tx = Transaction {
             checkout: Some(Connection::Dedicated(session)),
             failed: false,
+            permit: None,
+            tenants: Vec::new(),
         };
         let session = tx.checkout.as_ref().expect("checkout");
         session.notices.lock().expect("notice lock").reset();
@@ -650,15 +687,25 @@ impl Transaction {
         sql: &str,
         params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
     ) -> Result<Vec<tokio_postgres::Row>> {
+        let bound = self
+            .checkout
+            .as_ref()
+            .context("transaction consumed")?
+            .settings
+            .call_bound;
+        self.rows_bound(sql, params, bound).await
+    }
+    async fn rows_bound(
+        &mut self,
+        sql: &str,
+        params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+        bound: Duration,
+    ) -> Result<Vec<tokio_postgres::Row>> {
         ensure!(!self.failed, "transaction has a failed/cancelled statement");
         self.failed = true;
         let session = self.checkout.as_ref().context("transaction consumed")?;
         let mut in_flight = CloseUnlessFinished(Some(session));
-        let outcome = tokio::time::timeout(
-            session.settings.call_bound,
-            session.client.query(sql, params),
-        )
-        .await;
+        let outcome = tokio::time::timeout(bound, session.client.query(sql, params)).await;
         in_flight.0 = None;
         match outcome {
             Ok(Ok(rows)) => {

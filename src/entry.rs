@@ -6,22 +6,60 @@ use std::{env, sync::Arc, time::Duration};
 /// No deployment defaults are selected by the prototype. This named profile uses
 /// D-6's provisional local fixture settings and cannot contact external providers.
 pub fn local_store(process: Arc<Process>, trace: Trace) -> Result<Store> {
-    ensure!(env::var("PROVISIOND_PROFILE").as_deref()==Ok("local-simulator"),
-        "pre-conformance prototype requires PROVISIOND_PROFILE=local-simulator");
-    let connection=env::var("PROVISIOND_DATABASE_URL").context("missing database connection")?
-        .parse().map_err(|_|anyhow::anyhow!("invalid database connection configuration"))?;
-    Store::new(Settings {
-        connection,
-        designated_name: env::var("PROVISIOND_STANDBY_NAME").context("missing designated standby name")?,
-        designated_role: env::var("PROVISIOND_STANDBY_ROLE").context("missing designated standby role")?,
-        designated_address: env::var("PROVISIOND_STANDBY_ADDRESS").context("missing designated standby address")?,
-        statement_ms:1000, lock_ms:500, idle_transaction_ms:1000,
-        call_bound:Duration::from_secs(2), check_bound:Duration::from_secs(3),
-        checkout_bound:Duration::from_millis(250),
-        keepalive_idle:Duration::from_secs(2),keepalive_interval:Duration::from_secs(1),keepalive_count:2,
-    },process,1,1,trace)
+    local_store_with_write_limit(process, trace, 1)
+}
+pub fn local_engine_store(process: Arc<Process>, trace: Trace) -> Result<Store> {
+    let workers = env::var("PROVISIOND_WORKERS")
+        .unwrap_or_else(|_| "3".into())
+        .parse::<usize>()
+        .context("invalid worker count")?;
+    ensure!(workers > 0, "worker count must be positive");
+    local_store_with_write_limit(process, trace, workers)
+}
+fn local_store_with_write_limit(
+    process: Arc<Process>,
+    trace: Trace,
+    write_limit: usize,
+) -> Result<Store> {
+    ensure!(
+        env::var("PROVISIOND_PROFILE").as_deref() == Ok("local-simulator"),
+        "pre-conformance prototype requires PROVISIOND_PROFILE=local-simulator"
+    );
+    let connection = env::var("PROVISIOND_DATABASE_URL")
+        .context("missing database connection")?
+        .parse()
+        .map_err(|_| anyhow::anyhow!("invalid database connection configuration"))?;
+    Store::new(
+        Settings {
+            connection,
+            designated_name: env::var("PROVISIOND_STANDBY_NAME")
+                .context("missing designated standby name")?,
+            designated_role: env::var("PROVISIOND_STANDBY_ROLE")
+                .context("missing designated standby role")?,
+            designated_address: env::var("PROVISIOND_STANDBY_ADDRESS")
+                .context("missing designated standby address")?,
+            statement_ms: 1000,
+            lock_ms: 500,
+            idle_transaction_ms: 1000,
+            call_bound: Duration::from_secs(2),
+            check_bound: Duration::from_secs(3),
+            checkout_bound: Duration::from_millis(250),
+            keepalive_idle: Duration::from_secs(2),
+            keepalive_interval: Duration::from_secs(1),
+            keepalive_count: 2,
+        },
+        process,
+        1,
+        write_limit,
+        trace,
+    )
 }
 
 pub async fn migrate(store: &Store) -> Result<()> {
-    store.migrate(MigrationOptions { lock_ms:500, lock_retries:2 }).await
+    store
+        .migrate(MigrationOptions {
+            lock_ms: 500,
+            lock_retries: 2,
+        })
+        .await
 }

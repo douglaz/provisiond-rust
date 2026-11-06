@@ -3,8 +3,10 @@
 //! The specification pinned in `spec-lock.json` owns every behavioural rule. Nothing in this crate
 //! provides a conforming service yet; see `docs/scope.md` and `docs/conformance-map.md`.
 
-pub mod store;
+pub mod engine;
 pub mod entry;
+pub mod ledger;
+pub mod store;
 
 /// The specification commit this crate is written against.
 pub const SPEC_COMMIT: &str = "ac37c7cae5d3ff746515137774a4cdd5a3531375";

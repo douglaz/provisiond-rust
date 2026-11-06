@@ -40,6 +40,7 @@ impl Store {
                     return Ok(false);
                 }
                 tx.batch(CORE).await?; // One SQL program; never split on semicolons.
+                if super::test_defect("migration_failure") {tx.batch("SELECT 1/0 /* interrupted migration fixture */").await?;}
                 tx.rows("INSERT INTO provisiond.schema_migrations(version,semantics) VALUES($1,$2) RETURNING version",&[&SCHEMA_VERSION,&SEMANTIC_VERSION]).await?;
                 anyhow::Ok(true)
             }.await;

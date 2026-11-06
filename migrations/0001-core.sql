@@ -137,6 +137,14 @@ CREATE TABLE provisiond.operator_deficiencies (
 );
 -- Recovery incidents are not implemented. Their presence blocks ordinary startup.
 CREATE TABLE provisiond.recovery_incidents (id uuid PRIMARY KEY, closed_at timestamptz);
+-- LDG-70: durable fail-closed result of the explicit ledger audit path.
+CREATE TABLE provisiond.spending_health(singleton boolean PRIMARY KEY CHECK(singleton),ledger_valid boolean NOT NULL);
+INSERT INTO provisiond.spending_health VALUES(true,true);
+CREATE TRIGGER spending_health_retained BEFORE DELETE OR TRUNCATE ON provisiond.spending_health
+FOR EACH STATEMENT EXECUTE FUNCTION provisiond.forbid_removal();
 GRANT USAGE ON SCHEMA provisiond TO app;
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA provisiond TO app;
 REVOKE UPDATE ON provisiond.ledger_entries, provisiond.tenant_identities FROM app;
+
+-- STO-58: known outcomes release their resource exclusions. Money history is retained.
+GRANT DELETE ON provisiond.resource_exclusions TO app;
