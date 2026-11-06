@@ -64,10 +64,10 @@ PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh 
 
 It performs bootstrap, replication loss/rebuild, physical backup/archive restore, connection and
 destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, backend crash,
-primary restart, residual-backend and bounded-process-stop fixtures, both targeted defect controls,
-retained-object deadline closure, caller-runtime shutdown, constructor cancellation/deadlines,
-and cleanup. The parent accepts a failing control only with its exact exit code and intended
-assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
+primary restart, residual-backend and bounded-process-stop fixtures, retained-object deadline
+closure, caller-runtime shutdown, constructor cancellation/deadlines, the transactional core,
+ten additional defect controls, and cleanup. The parent accepts a failing control only with its
+exact exit code and intended assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
 non-zero. The aggregate manifest requires all seven phases (W1, checks, commits, regressions, corrections,
 core, controls);
 each writes its own sanitized manifest and retains raw evidence under the private harness root.
@@ -114,3 +114,5 @@ unknown or mismatched selectors exit nonzero before setup. The canonical command
 control and accepts only its intended assertion failure after activation and successful cleanup.
 ENG-05 automatic reconciliation, ENG-07's dedicated replication-freeze stop-record drill and
 DB-10 saturation remain `not run` for their later work packages.
+[Recorded W3 acceptance](evidence/w3.md) names the tested commit, exact command statuses,
+phase manifests, each negative control and cleanup results.
