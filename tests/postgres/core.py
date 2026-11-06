@@ -394,18 +394,24 @@ def generation(h,defect=None):
         elif path=='admit':r=command(p,'admit',request('stale','stale'),ok=None)
         elif path=='payment':r=command(p,'payment',dict(deposit=c['id'],rail='lightning',reference='stale-payment',amount=1),ok=None)
         elif path=='claim':r=p.command('claim',ok=None)
-        elif path in ('defer','settle','verified','license'):
+        elif path=='defer':
+            # OPS-50: defer's process owner exits even with a live unpolled
+            # receipt. Observe that exit rather than requiring API delivery.
+            command(p,'defer_unpolled',c)
+            refused=p.p.wait(timeout=3)==71
+        elif path in ('settle','verified','license'):
             c['external_id']='stale-external';r=command(p,path,c,ok=None)
         else:
             p.command('record_stop '+active)
             r=p.command('wait_records',ok=None)
-        h.event('stale_generation_observed',path=path,refused=not r['ok'],old_generation=old['generation'],new_generation=new['generation'])
-        assert not r['ok'], 'stale engine generation must refuse transaction'
+        if path!='defer':refused=not r['ok']
+        h.event('stale_generation_observed',path=path,refused=refused,old_generation=old['generation'],new_generation=new['generation'])
+        assert refused, 'stale engine generation must refuse transaction'
         p.expected_status=71;p.finish()
         assert any(e.get('event')=='engine_superseded' for e in p.events)
         assert not any(e.get('event')=='whole_transaction_retry' for e in p.events)
         after=[e for e in h.events[marker:] if e.get('event')=='client_observation' and e.get('probe')==p.index]
-        assert any(e['message'].get('event')=='fatal_process_exit' for e in after)
+        if path!='defer':assert any(e['message'].get('event')=='fatal_process_exit' for e in after)
     # CNF-368/369: separate admitted Rust session outside the pool, with test-only
     # disabled statement/idle timeouts, holds a share lock and an uncommitted claim.
     for bound in (500,80):
