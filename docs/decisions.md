@@ -178,3 +178,99 @@ reconnect or alarm policy; full capacity and recovery evidence belongs to W8.
 
 When an open entry is settled, move it to "Settled" with the exact versions, commands, exit statuses
 and evidence paths that meet its basis. Preference, scope and cost questions go to the owner.
+
+### D-10. Store boundaries and local transport measurements
+
+STO-7/STO-55 retain the existing driver, pools, protocol observer and process-owned COMMIT path.
+Raw production caller SQL is absent; typed business statements and internal migration/advance
+settings are the admitted surface. Pending setting verification observes receipt cancellation;
+possible COMMIT dispatch begins an irrevocable owner that retains the original checkout and
+component permit. The notice cap is 16 payloads per physical session, reset at BEGIN, with an
+independent sticky warning bit scoped to the actual COMMIT attempt.
+
+The provisional 250 ms whole-checkout bound remains unchanged, including cold construction,
+authentication, settings and admission. A controlled cold-admission comparison changed only both
+fixture proxy sockets' TCP_NODELAY values. The recorded first comparison retained all four samples
+per mode: off, 252.59/252.51/252.65/250.80 ms (three refusals); on,
+48.29/48.84/48.13/51.76 ms (all admitted). This supports enabling the option on the fixture sockets;
+it does not establish Nagle/delayed ACK as the underlying mechanism. The command
+`PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command python3 tests/postgres/harness.py --phase corrections --seed 20261106`
+exited 0. Its raw record is `<run-dir>/corrections-4391fq37/manifest.json`; superseded experiments
+stay outside git. The original verification-cancellation assertion ran against the pre-fix runtime
+and exited 1 at the intended closure assertion (`<run-dir>/corrections-ln6f7bqj/manifest.json`),
+then the same assertion passed after correction. Final source controls and measurements will be
+recorded in the integrated bundle. D-6 remains Open for W8.
+
+Measured environment: PostgreSQL 18.6, rustc 1.97.1, cargo 1.97.0, Python 3.14.7, Nix 2.34.9;
+tokio-postgres 0.7.18, deadpool 0.12.3, tokio 1.54.1, socket2 0.6.5. Cargo.lock and final manifests
+retain exact versions. No production timeout or outage bound is selected by this experiment.
+
+### D-11. Offline schema and bootstrap representation
+
+STO-12/STO-13 use one transactional migration, schema/semantic version 1/1, ordinary index builds,
+no SQL splitting and no nontransactional migration. The fixed migration key is
+`0x50524f564d494752`; the distinct startup key is `0x50524f5653544152`. Deployment bootstrap owns
+the pre-migration observer boundary: `tests/postgres/privileges.sql` grants app and migrator only
+schema USAGE/function EXECUTE, with the existing pinned SECURITY DEFINER search path, no owner
+membership and no broad statistics grant. Bootstrap creates an empty schema owned by migrator.
+DDL/history completion use the ordinary synchronous COMMIT owner. Reconnect after lock-timeout
+retry is diagnosed separately from initial acquisition; a connection failure is never retried.
+
+The first-slice schema uses UUID identities, bigint signed satoshis, check-constrained text states,
+JSONB closed summaries and explicit reference columns. Partial unique indexes enforce one
+non-yielded running operation and one open commitment per machine. Ledger and deposit history
+have no tenant FK; retained triggers protect the generation, tenant identities, deposits and
+append-only ledger. Payments link one nonnull unique credit per unique rail identity. Principal
+scope alone owns request receipt uniqueness. This is not a claim of the entire logical schema.
+
+The fresh/rerun/concurrent/failure/uncertain migration and actual binary compatibility paths have
+run in the core fixture; final integrated command statuses and evidence remain to be attached.
+
+### D-12. Engine entry and local concurrency
+
+OVR-9/OPS-15/47/50 and STO-55 use an engine handle that exposes only fenced components. Each
+component owns one semaphore permit through transaction completion, including process-owned
+COMMIT. A separate entry mutex serializes generation checks with fatal-latch observation. Every
+ordinary engine transaction begins READ WRITE, then reads the singleton FOR SHARE first; this
+also implements provider-licensing reads. PostgreSQL refuses FOR SHARE in READ ONLY mode; the
+local app role has the required generation UPDATE privilege. API components omit the fence.
+
+The generation advance has a dedicated admitted transaction containing the replacement and its
+required SET LOCAL configuration, with a client floor covering the selected startup bound. Its
+acknowledgment precedes the bounded, per-row ordinary restart pass. An open incident refuses the
+unsupported recovery path. The local profile uses three worker write slots, one compatibility
+read slot and a dedicated lock session; startup checks these limits against ordinary capacity.
+Worker count can be stated through `PROVISIOND_WORKERS`. The fixture startup wait is 500 ms,
+Store-retry budget 2000 ms, Stop-record bound 1000 ms, migration lock timeout 500 ms and two
+lock-timeout retries. These values extend the provisional fixture register; D-6 stays Open.
+
+Worker outcomes and after-return settlement loops are process-owned. A first stop gives an
+existing settlement its own absolute Stop-record deadline; loss does not reset an older record.
+Store errors charge whole attempts and backoff; serialization failures retry immediately without
+charging that budget. Sent-COMMIT standby waits are excluded from that budget. Stop-record expiry
+requires process exit and cannot release a sent owner while keeping the engine alive. No claim
+reply uncertainty is retried blind. Unsupported parent/install/rescue/recovery paths are not built.
+
+### D-13. Monetary slice and simulator terms
+
+LDG-35 uses transaction advisory locks on `(1347572814, hashtext(tenant_id))`, ordered by ascending
+ASCII tenant identifier, without a live tenant row. Hash collisions can reduce concurrency; they
+do not permit concurrent writes for the same tenant. LDG-70 reads indexed latest seq/balance_after;
+a separate explicit audit recomputes prefixes and durably latches spending closed on mismatch.
+Repair/re-enable is an offline operator responsibility, not a replication-drift controller.
+
+STO-23/27 and LDG-11 compose balance authorization, conditional resource exclusion, commitment,
+operation and principal receipt. Resource claims have no expiry; known settlement releases them.
+Receipts in this local fixture use a one-day horizon, not a selected production retention value.
+STO-30/31 use payment identity rather than deposit/event identity, actual settled values and one
+atomic credit/payment transaction. No reservation entry is posted. Verified-create settlement
+repeats status, machine, setup/nonzero-unit debits, versioned commitment decrements, retained
+snapshots/references and exclusion changes as one unit. Clamp overflow records the operator's
+native-cost remainder; late attach and full metering remain unsupported. Every failed business
+method makes its transaction uncommittable.
+
+Offer and conversion inputs are simulator terms, not a first real provider/product decision.
+The retained offer/charge shapes are closed; setup/unit conversion evidence is copied into debits.
+The same component gate instruments provider, rail and rescue entries. No real providers, purchases
+or funds are involved. Final recorded implementation/evidence commands will settle these choices;
+D-7, D-8 and D-9 are unchanged.

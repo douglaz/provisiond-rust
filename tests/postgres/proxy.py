@@ -52,6 +52,7 @@ class Proxy:
         self.lock = threading.Lock()
         self.cancel_requests = 0
         self.nodelay = True
+        self.refuse_after = None
         self.spawn(self.accept)
 
     def spawn(self, fn, *args):
@@ -79,6 +80,10 @@ class Proxy:
                 transport.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, int(self.nodelay))
             c = dict(client=client,server=server,pid=None,query='',gate=None,closed=False)
             self.connections.append(c)
+            if self.refuse_after is not None and len(self.connections)>self.refuse_after:
+                self.h.event('fault_activated',fault='connection_refused',connection=len(self.connections))
+                self.close_connection(c,'refused_connection_fixture')
+                continue
             self.spawn(self.front,c)
 
     def close_connection(self,c,source='harness'):

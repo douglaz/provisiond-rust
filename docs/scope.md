@@ -11,8 +11,8 @@ exposed as a public provisiond service, pointed at real provider accounts, or gi
 
 | Category | Contents | Status |
 |---|---|---|
-| Implemented behaviour | The two-node harness bootstraps/rebuilds a standby and restores an archived-WAL fixture. The store spike applies physical-session settings, checks a fixed flushed prefix before admission and after destination reads, discards interrupted reads/transactions, closes retained pre-COMMIT connections on deadline, and supervises sent COMMITs with warning-aware outcomes on process-owned I/O. The three product entry points (`api`, `engine`, `migrate`) print a refusal and exit non-zero. | harness demonstrated; product absent |
-| Simulator-only behaviour | Deterministic acceptance/reply pause hooks in `tests/support/`; no business workflow or real provider/rail driver. Simulator evidence is never substituted for provider evidence. | hooks only |
+| Implemented behaviour | The two-node harness bootstraps/rebuilds a standby and restores an archived-WAL fixture. The store spike applies physical-session settings, checks a fixed flushed prefix before admission and after destination reads, discards interrupted reads/transactions, closes retained pre-COMMIT connections on deadline, and supervises sent COMMITs with warning-aware outcomes on process-owned I/O. The `migrate` binary applies offline versioned migrations through the same COMMIT owner. The engine checks compatibility, holds a lifetime lock, advances a UUID generation, fences transactions and performs ordinary restart recovery. Typed library methods implement claims, guarded settlements, reservations and payment credits. The API checks compatibility and remains non-serving. | implemented; final integrated evidence pending |
+| Simulator-only behaviour | Deterministic acceptance/reply pause hooks and Rust simulator entries; verified-create outcomes drive the atomic settlement primitive, without real provider/rail drivers. Simulator evidence is never substituted for provider evidence. | simulator paths implemented |
 | Unsupported behaviour | Everything in "Not supported in this profile" below, and every v1 requirement not marked implemented in `docs/conformance-map.md`. | by design |
 | Production work not yet attempted | Real-provider drivers, rescue installation, every operation kind beyond the first slice, a customer UI, security review, key custody, billing operations, separate-host deployment rehearsal, operator runbooks, exposure limits. | not attempted |
 
@@ -76,12 +76,30 @@ not full service conformance.
 - Lean proofs in the specification repository are model results under stated assumptions, not
   implementation tests.
 
-The store spike uses direct loopback TCP with TLS disabled in its isolated harness. It is not a
-production transport/deployment implementation. Sent-COMMIT owners and a bounded lifecycle
-subprocess do not implement product workers, Stop records, retry policy, startup generations,
-recovery incidents or alarms. DB-03 demonstrates a residual backend after client exit; DB-10 full
-saturation remains not run (W8). All three product entry points continue to refuse service use.
+The prototype uses direct loopback TCP with TLS disabled in its isolated harness. It is not a
+production transport/deployment implementation. Components retain transaction ownership through
+cancelled receipts and sent COMMIT completion; provider/rail/rescue instrumentation refuses an
+external entry while that component owns a transaction. A later generation cannot retract an
+already-licensed simulator call, prove a stale process dead or fence two writable histories.
 
-[Fresh W1/W2 acceptance](../evidence/r2.md) includes destruction of the initiating runtime during
-SyncRep, immediate local transport closure while expired pre-COMMIT objects remain retained, and
-cancelled/bounded connection construction. These are database lifecycle demonstrations only.
+The schema supports the represented `create`, `refresh` and `power` primitives. Ordinary restart
+moves interrupted writes to reconciliation, fails refreshes and conditionally fails pre-order
+creates with atomic commitment/exclusion release. Existing errors and markers survive. Open
+recovery incidents stop the unsupported startup path. Parent fan-out, install/rescue workflows,
+late attach, resolution, full metering/rates/solvency and operator recovery remain unimplemented.
+Unsupported kinds are refused rather than silently requeued.
+
+Lock loss stops new claims and permits shielded records for current workers. Existing records
+keep their original bounds; after-return outcomes retain their settlement loop. Expiry, a later
+stop, retry exhaustion and supersession require process exit, retaining uncertainty about any last
+reply. The dedicated replication-freeze stop-record drill (ENG-07) remains not run. ENG-05 automatic
+provider reconciliation and DB-10 deployment-wide saturation also remain not run. Local pool
+budgets do not guarantee observer access or bound residual backends across process lifetimes.
+
+The API has no listener: after a supported-schema check its ordinary entry explicitly exits 78.
+The engine entry is a startup/lifetime monitor, with transactional worker primitives exercised by
+the integration fixture. It is not a complete customer service or provider dispatcher. The local
+profile's three workers, pool sizes, timeouts and retry/stop bounds remain provisional under D-6.
+
+[Historical W1/W2 acceptance](../evidence/r2.md) remains database lifecycle evidence. New symbols
+are recorded as implemented until the final integrated manifest earns demonstration status.

@@ -7,9 +7,10 @@ holds what that one excludes: the runtime, the database client, executable migra
 packaging, the provider and rail simulators, and the integration tests that run against real
 PostgreSQL.
 
-**Status: not a conforming service.** A local database harness and store lifecycle spike exist.
-Product entry points still refuse service use. Do not point real provider accounts or real funds
-at any build from this repository.
+**Status: not a conforming service.** The local prototype has an admitted database client,
+offline migrations, fenced engine transactions and atomic money primitives. The API checks schema
+compatibility but has no HTTP service. Provider execution is simulator-only; automatic reconciliation,
+metering and recovery incidents remain unimplemented. No real provider accounts or funds may be used.
 
 ## Where to start
 
@@ -55,10 +56,10 @@ an orchestration fixture; the default gate compiles it without starting PostgreS
 are generated per invocation and stay outside git. [Recorded results](evidence/r2-final-checks.json)
 separate real server faults from focused identity-predicate fixtures.
 
-Run the complete W1 then W2 inventory from fresh private directories with one foreground command:
+Run the complete database, transactional-core and defect-control inventory from fresh private directories:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --evidence evidence/r2-final.json
+PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence evidence/w3-final.json
 ```
 
 It performs bootstrap, replication loss/rebuild, physical backup/archive restore, connection and
@@ -67,12 +68,49 @@ primary restart, residual-backend and bounded-process-stop fixtures, both target
 retained-object deadline closure, caller-runtime shutdown, constructor cancellation/deadlines,
 and cleanup. The parent accepts a failing control only with its exact exit code and intended
 assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
-non-zero. The aggregate manifest links four phase invocations (W1, checks, commits, regressions);
+non-zero. The aggregate manifest requires all seven phases (W1, checks, commits, regressions, corrections,
+core, controls);
 each writes its own sanitized manifest and retains raw evidence under the private harness root.
 
 The `commits` and `regressions` phases can also run alone with the same harness options.
 For a focused regression, use `--phase regressions --case session`, `--case transaction`,
 `--case runtime`, or `--case cancelled` (a read call or destination attempt dropped mid-flight). [Fresh acceptance and red/green results](evidence/r2.md) distinguish the
 historical suites from coverage of both corrected lifetime defects. This local TCP spike disables
-TLS and runs no product components on a promoted/restored history. It implements no W3 schema,
-engine, ledger, real providers or production alarms. DB-10 saturation remains not run (W8).
+TLS and runs no product components on a promoted/restored history. It demonstrates only the
+implemented subset. DB-10 saturation remains not run (W8).
+
+
+## Local prototype entry points
+
+The named `local-simulator` profile uses D-6's provisional settings. Configure
+`PROVISIOND_PROFILE=local-simulator`, `PROVISIOND_DATABASE_URL` (private, never committed),
+`PROVISIOND_STANDBY_NAME`, `PROVISIOND_STANDBY_ROLE` and `PROVISIOND_STANDBY_ADDRESS`.
+Engine startup also requires `PROVISIOND_STARTUP_WAIT_MS`, an integer in 1..2147483647;
+its local worker count is `PROVISIOND_WORKERS` (default 3). These are local fixture values,
+not a production deployment configuration.
+
+Bootstrap roles and the narrow observer before migration. The isolated harness creates roles
+with fresh credentials, then applies [privileges.sql](tests/postgres/privileges.sql) as its bootstrap
+administrator. That file gives the migrator USAGE/EXECUTE on the observer and ownership of the empty
+`provisiond` schema, without statistics/admin membership. The migration never needs an undocumented
+preparatory database command. This bootstrap fixture is not a production deployment package.
+
+For an offline release, first stop old components, prevent their restart, and establish that their
+sessions cannot write. Run `nix develop --command cargo run --bin migrate`; only an acknowledged
+migration permits new components to start. Release/schema/semantic version 1/1 is supported exactly;
+there is no down-migration. Lock-timeout retries are bounded; failed initial/reconnect acquisition
+exits immediately. Uncertain completion requires a later invocation to inspect durable history.
+
+`api --check-schema` and `engine --check-schema` perform the real compatibility check and exit 0
+only for a supported database. Ordinary `api` exits 78 after a successful check and explicitly
+reports that HTTP service is unimplemented. Ordinary `engine` advances the generation, performs
+the ordinary restart pass and monitors its lifetime lock; it has no provider dispatcher or full
+operation scheduler. The integration fixtures invoke the same library paths directly.
+
+Focused commands use `--phase corrections --case verify_cancel`, `--phase core --case migrations`,
+`--case money`, `--case claims`, `--case generation`, `--case stops` or `--case external`.
+`--phase controls` runs all ten required defects. Each defect requires its exact phase/case;
+unknown or mismatched selectors exit nonzero before setup. The canonical command includes every
+control and accepts only its intended assertion failure after activation and successful cleanup.
+ENG-05 automatic reconciliation, ENG-07's dedicated replication-freeze stop-record drill and
+DB-10 saturation remain `not run` for their later work packages.

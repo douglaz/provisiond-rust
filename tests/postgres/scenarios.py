@@ -12,7 +12,7 @@ from proxy import Proxy
 
 
 class Probe:
-    def __init__(self,h,role='app',password=None,defect=None):
+    def __init__(self,h,role='app',password=None,defect=None,program='store-probe',extra_env=None):
         cap_check()
         self.expected_status=0
         self.finished=False
@@ -21,11 +21,14 @@ class Probe:
         self.queue=queue.Queue()
         self.index=len(getattr(h,'probes',[]))
         env=dict(h.env,STORE_CONNECTION=f"host=127.0.0.1 port={h.ports[3]} user={role} password={password or h.passwords[role]} dbname=postgres sslmode=disable")
+        if extra_env:
+            env.update(extra_env)
         if defect:
             env['STORE_TEST_DEFECT']=defect
         self.defect=defect
+        self.program=program
         stderr=(h.root/f'client-{self.index}.stderr').open('w')
-        self.p=subprocess.Popen(['target/debug/examples/store-probe'],stdin=subprocess.PIPE,
+        self.p=subprocess.Popen(['target/debug/examples/'+program],stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE,stderr=stderr,text=True,env=env,bufsize=1)
         stderr.close()
         self.thread=threading.Thread(target=self.read)
@@ -64,13 +67,20 @@ class Probe:
         if self.finished:
             return
         if self.p.poll() is None:
-            self.send('exit')
-            self.p.stdin.close()
+            if self.expected_status==0:
+                try:
+                    self.send('exit')
+                except BrokenPipeError:
+                    pass # Status below still rejects an unexpected process exit.
+            try:
+                self.p.stdin.close()
+            except BrokenPipeError:
+                pass
             status=self.p.wait(timeout=8)
         else:
             status=self.p.returncode
         self.thread.join(timeout=3)
-        self.h.commands.append(dict(command=['target/debug/examples/store-probe'],test_defect=self.defect,exit_status=status))
+        self.h.commands.append(dict(command=['target/debug/examples/'+self.program],test_defect=self.defect,exit_status=status))
         self.finished=True
         assert status==self.expected_status,(status,(self.h.root/f'client-{self.index}.stderr').read_text())
 

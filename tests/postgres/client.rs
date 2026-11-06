@@ -141,14 +141,15 @@ fn main() -> anyhow::Result<()> {
                     let mut tx=store.begin().await?;
                     let sql=line.split_once(' ').unwrap().1;
                     let refused=tx.test_caller_sql(sql).await.is_err();
-                    let mode=tx.test_diagnostics();
+                    let mode=tx.test_scalar("SHOW synchronous_commit").await?;
                     drop(tx);
-                    Ok(json!({"refused":refused,"diagnostics":mode}))
+                    Ok(json!({"refused":refused,"observed_synchronous_commit":mode}))
                 }
-                "corrupt_setting" => {
+                "corrupt_setting" | "corrupt_session_setting" => {
                     let mut tx=store.begin().await?;
-                    tx.execute("SET LOCAL synchronous_commit=off").await?;
-                    tx.execute("INSERT INTO fixture.destinations VALUES (1803,'must-not-commit')").await?;
+                    let local=command=="corrupt_setting";
+                    tx.execute(if local {"SET LOCAL synchronous_commit=off"}else{"SET synchronous_commit=off"}).await?;
+                    tx.execute(if local {"INSERT INTO fixture.destinations VALUES (1803,'must-not-commit')"}else{"INSERT INTO fixture.destinations VALUES (1805,'must-not-commit')"}).await?;
                     let outcome=store.commit(tx)?.wait().await?;
                     Ok(json!({"outcome":outcome.label()}))
                 }

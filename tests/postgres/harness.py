@@ -95,19 +95,24 @@ class Harness:
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
                            archive_mode='on', restart_after_crash='on', ports=self.ports[:3],
                            authentication='scram-sha-256 loopback only', standby_role='replicator')
-        if phase in ('checks','commits','regressions','corrections'):
+        if phase in ('checks','commits','regressions','corrections','core'):
             self.config['store'] = dict(read_pool=1,write_pool=1,statement_ms=1000,lock_ms=500,
                 idle_transaction_ms=1000,call_ms=2000,check_ms=3000,checkout_ms=250,
                 keepalive_idle_seconds=2,keepalive_interval_seconds=1,keepalive_count=2,
                 isolation='read committed',search_path='pg_catalog,fixture',stop_fixture_ms=1000,
                 transport='direct TCP; loopback proxy for faults; sslmode=disable')
             self.config['ports'].append(self.ports[3])
+        if phase=='core':
+            self.config['engine']=dict(workers=3,write_pool=3,compatibility_read_pool=1,
+                startup_lock_outside_pool=True,startup_wait_ms=500,store_retry_ms=2000,stop_record_ms=1000,
+                migration_lock_ms=500,migration_lock_retries=2,schema_version=1,semantic_version=1,notice_cap=16)
         self.archive = self.root / 'archive'
         self.archive.mkdir()
         self.event('invocation', seed=seed, specification=SPEC, phase=phase,
                    configuration=json.loads(json.dumps(self.config)),
                    configuration_sha256=hashlib.sha256(json.dumps(self.config, sort_keys=True).encode()).hexdigest())
         self.source = self.run(['git', 'rev-parse', 'HEAD']).stdout.strip()
+        self.dirty = bool(self.run(['git','status','--porcelain','--','.',':(exclude)evidence/**']).stdout.strip())
         # Exact content identity, including untracked source, without hashing credentials/artifacts.
         paths = subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard'], text=True).splitlines()
         hashes = {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in paths
@@ -387,39 +392,53 @@ tcp_keepalives_count = 2
             observations.append(value)
         raw=self.root/'events.jsonl'
         manifest=dict(result=status, specification_commit=SPEC, implementation_commit=self.source,
-                    tested_source_sha256=self.tree, source_files=self.source_files,
+                    tested_source_sha256=self.tree, source_files=self.source_files, source_dirty=self.dirty,
                     seed=self.seed, versions=self.versions, configuration=self.config,
                     configuration_sha256=hashlib.sha256(json.dumps(self.config,sort_keys=True).encode()).hexdigest(),
                     command=['nix','develop','--command','python3',*sys.argv], commands=self.commands,
                     scenarios=self.results, events=observations, raw_evidence=str(self.root),
                     trace=dict(path=str(raw),sha256=hashlib.sha256(raw.read_bytes()).hexdigest()),
-                    external_provider_rail_evidence='not applicable: no external effects',
+                    external_provider_rail_evidence='simulator only; no real effects' if self.phase=='core' else 'not applicable: no external effects',
                     limitations=['local processes only; no separate-host durability or fencing proof',
-                                 'no product recovery incident, engine, ledger or production alarm implementation',
+                                 'no product recovery incidents, automatic provider reconciliation, full meter or production alarms',
                                  'DB-10 full saturation: not run (W8)'])
         encoded=json.dumps(manifest)
         for password in self.passwords.values():
             encoded=encoded.replace(password,'<redacted>')
-        # Decision 38: repository evidence carries no host-local paths.
+        # Repository evidence carries no host-local paths.
         encoded=encoded.replace(str(ROOT),'<run-dir>').replace(str(Path.cwd()),'<repo>')
         return json.loads(encoded)
 
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','all'],default='all')
-    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency'],help='one focused regression; default runs all')
-    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel'])
+    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','all'],default='all')
+    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external'],help='one focused regression; default runs all')
+    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic'])
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
     preflight_ports()
-    if args.case and args.phase not in ('regressions','corrections'):
-        ap.error('--case requires --phase regressions or corrections')
+    cases={
+        'regressions':{'session','transaction','runtime','cancelled'},
+        'corrections':{'execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency'},
+        'core':{'migrations','money','claims','generation','stops','external'},
+    }
+    if args.case and args.case not in cases.get(args.phase,set()):
+        ap.error('--case is incompatible with the selected phase')
+    defect_cases={
+        **{d:('corrections',d) for d in ('execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel')},
+        'generation':('core','generation'),'claim_guard':('core','claims'),'payment_atomic':('core','money'),
+    }
+    if args.defect and (args.phase,args.case)!=defect_cases[args.defect]:
+        ap.error('--defect requires its exact compatible phase and case')
+    if args.phase=='controls':
+        from controls import controls
+        return controls(args.seed,args.evidence)
     if args.phase=='all':
         cap_check()
         records=[]
-        for phase in ['w1','checks','commits','regressions']:
+        for phase in ['w1','checks','commits','regressions','corrections','core','controls']:
             command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed)]
             # Explicit evidence names; every child command remains foreground.
             if args.evidence:
@@ -430,7 +449,7 @@ def main():
                                 result='pass' if result.returncode==0 else 'fail'))
             if result.returncode!=0:
                 break
-        status=0 if len(records)==4 and all(r['exit_status']==0 for r in records) else 1
+        status=0 if len(records)==7 and all(r['exit_status']==0 for r in records) else 1
         if args.evidence:
             args.evidence.write_text(json.dumps(dict(result='pass' if status==0 else 'fail',phases=records),indent=2)+'\n')
         return status
@@ -451,6 +470,10 @@ def main():
             from corrections import corrections
             h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
             corrections(h,args.case,args.defect)
+        elif args.phase=='core':
+            from core import core_scenarios
+            h.run(['cargo','build','--bins','--examples','--features','store-test-hooks','--locked'],timeout=120)
+            core_scenarios(h,args.case,args.defect)
         elif args.phase=='commits':
             from scenarios import commit_scenarios
             h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
@@ -460,6 +483,7 @@ def main():
         status='pass'
     except BaseException as e:
         h.event('failure',type=type(e).__name__,message=str(e))
+        h.results.append(dict(test=args.case or args.phase,result='fail',reason=str(e)))
         traceback.print_exc()
     finally:
         if not h.cleanup():

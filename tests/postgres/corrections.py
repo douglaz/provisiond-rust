@@ -99,9 +99,12 @@ def corrections(h, case=None, defect=None):
         h.results.append(dict(test='whole-checkout-deadline',result='pass'))
     if case in (None, 'caller_sql'):
         p=Probe(h,defect=defect)
-        for statement in ["SET LOCAL synchronous_commit=off", "SET synchronous_commit=off", "RESET ALL", "RESET statement_timeout", "SELECT set_config('synchronous_commit','off',false)", "SELECT set_config('search_path','public',false)"]:
+        statements=["SET LOCAL synchronous_commit=off", "SET synchronous_commit=off", "RESET ALL", "RESET statement_timeout", "SELECT set_config('synchronous_commit','off',false)", "SELECT set_config('search_path','public',false)", "COMMIT", "set /* indirect */ synchronous_commit to off"]
+        for name,value in [('statement_timeout','0'),('lock_timeout','0'),('idle_in_transaction_session_timeout','0'),('default_transaction_isolation',"'serializable'"),('search_path',"'public'"),('tcp_keepalives_idle','9'),('tcp_keepalives_interval','9'),('tcp_keepalives_count','9'),('default_transaction_read_only','off')]:
+            statements.extend([f'SET LOCAL {name}={value}',f'SET {name}={value}',f'RESET {name}'])
+        for statement in statements:
             result=p.command('setting_attack '+statement)['value']
-            h.event('caller_sql_policy_observed',statement=statement,refused=result['refused'])
+            h.event('caller_sql_policy_observed',statement=statement,refused=result['refused'],observed_synchronous_commit=result['observed_synchronous_commit'])
             assert result['refused'], 'caller SQL must not change protected settings'
         p.command('admit')
         values=p.command('settings')['value']['settings']
@@ -109,15 +112,16 @@ def corrections(h, case=None, defect=None):
         p.finish()
         h.results.append(dict(test='protected-caller-sql',result='pass'))
     if case in (None, 'commit_setting'):
-        p=Probe(h,defect=defect)
-        outcome=p.command('corrupt_setting')['value']['outcome']
-        h.event('precommit_corruption_observed',outcome=outcome,
-                durable_rows=h.sql('SELECT count(*) FROM fixture.destinations WHERE id=1803'))
-        assert outcome=='rejected', 'lowered synchronous_commit must be rejected before COMMIT'
-        assert h.sql('SELECT count(*) FROM fixture.destinations WHERE id=1803')=='0'
-        p.command('admit')
-        assert 'synchronous_commit=on' in p.command('settings')['value']['settings']
-        p.finish()
+        for command,row in [('corrupt_setting',1803),('corrupt_session_setting',1805)]:
+            p=Probe(h,defect=defect)
+            outcome=p.command(command)['value']['outcome']
+            h.event('precommit_corruption_observed',scope=command,outcome=outcome,
+                    durable_rows=h.sql(f'SELECT count(*) FROM fixture.destinations WHERE id={row}'))
+            assert outcome=='rejected', 'lowered synchronous_commit must be rejected before COMMIT'
+            assert h.sql(f'SELECT count(*) FROM fixture.destinations WHERE id={row}')=='0'
+            p.command('admit')
+            assert 'synchronous_commit=on' in p.command('settings')['value']['settings']
+            p.finish()
         h.results.append(dict(test='precommit-setting-verification',result='pass'))
     if case in (None, 'notices'):
         p=Probe(h,defect=defect)
