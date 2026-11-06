@@ -77,6 +77,11 @@ def licensing_stop(h,defect=None,only=None):
         p.command('execute_join',ok=None)
         time.sleep(.04)
         h.event('licensing_stop_observed',window=window,operation=op,external_entries=len(accepted(p,op)))
+        if accepted(p,op):
+            # The forbidden entry is already independently observed. End this
+            # owned faulty process with an explicit later stop before asserting,
+            # retaining any sent transaction through that whole-process boundary.
+            p.command('later_stop',ok=False);p.expected_status=71;p.finish()
         assert not accepted(p,op), 'stopped licensing must not enter provider execution'
         p.command('wait_records')
         assert not any(e.get('event')=='send_requested' and e.get('query','').startswith('UPDATE provisiond.operations SET about_to_order_at=') for e in h.events[wire_marker:]), 'stopped licensing must not repeat'
@@ -123,6 +128,14 @@ def deadline(h,defect=None):
         except subprocess.TimeoutExpired:status=None
         elapsed=time.monotonic()-started
         h.event('record_deadline_observed',mode=mode,bound_ms=1000,tolerance_ms=150,elapsed_seconds=elapsed,exit_status=status,durable_status=durable,reply_withheld=True)
+        if status is None:
+            # The faulty process survived the original deadline. Release only
+            # after observing that failure, then drain its late record so cleanup
+            # cannot turn an intended red assertion into a setup/teardown error.
+            gate.release()
+            eventually(lambda:any(e.get('event') in ('stop_record_finished','settlement_finished') for e in p.events))
+            h.event('late_record_completion_observed',mode=mode,process_survived=True,original_deadline_exceeded=True)
+            p.finish()
         assert status==71, 'record deadline must exit without a polled waiter'
         p.expected_status=71;p.finish();gate.release()
         assert any(e.get('event')=='engine_fatal' and 'records not observed landed' in e.get('reason','') for e in p.events)
