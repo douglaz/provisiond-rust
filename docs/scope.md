@@ -90,7 +90,10 @@ recovery incidents stop the unsupported startup path. Parent fan-out, install/re
 late attach, resolution, full metering/rates/solvency and operator recovery remain unimplemented.
 Unsupported kinds are refused rather than silently requeued.
 
-Lock loss stops new claims and permits shielded records for current workers. Existing records
+Lock loss refuses queued claims after their component/pool waits, before BEGIN dispatch, and
+permits shielded records for current workers. Already-dispatched claims keep bounded stop ownership.
+Active records remain visible by operation/claim even after replacement of the worker registry entry;
+expiry names the unobserved claims and later observers continue waiting for them. Existing records
 keep their original bounds; after-return outcomes retain their settlement loop. A true user stop
 after loss detection takes the later-stop exit even before fan-out registration. A terminal guard
 refusal leaves the newer row and money unchanged, reports that observation and ends the stale
@@ -106,6 +109,6 @@ the integration fixture. It is not a complete customer service or provider dispa
 profile's three workers, pool sizes, timeouts and retry/stop bounds remain provisional under D-6.
 
 [W3 acceptance](../evidence/w3.md) records the complete seven-phase run on committed source,
-including the full W1/W2 inventory, transactional-core scenarios and twenty-one intended negative controls.
+including the full W1/W2 inventory, transactional-core scenarios and twenty-four intended negative controls.
 Both the repository gate and canonical PostgreSQL command exited 0. Demonstration applies only to
 the explicitly traced arms; the deferred scenarios above remain not run.

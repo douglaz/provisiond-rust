@@ -160,8 +160,9 @@ exited 0. Its raw record is `<run-dir>/corrections-4391fq37/manifest.json`; supe
 stay outside git. The original verification-cancellation assertion ran against the pre-fix runtime
 and exited 1 at the intended closure assertion (`<run-dir>/corrections-ln6f7bqj/manifest.json`),
 then the same assertion passed after correction. The final committed-source run retained all four
-samples in each mode: off, 217.94/214.23/212.97/215.22 ms; on, 48.72/47.49/47.77/49.95 ms (all admitted). [Final corrections](../evidence/w3-final-corrections.json)
-and [the twenty-one controls](../evidence/w3-final-controls.json) record the integrated green/red results.
+samples in each mode: off, 214.30/213.83/252.32/251.34 ms (one refusal); on,
+48.01/49.35/51.38/48.52 ms (all admitted). [Final corrections](../evidence/w3-final-corrections.json)
+and [the twenty-four controls](../evidence/w3-final-controls.json) record the integrated green/red results.
 The complete commands, statuses and source identity are below. D-6 remains Open for W8.
 
 Measured environment: PostgreSQL 18.6, rustc 1.97.1, cargo 1.97.0, Python 3.14.7, Nix 2.34.9;
@@ -301,7 +302,7 @@ Focused PostgreSQL commands for claim cancellation, licensing stops, returned-ou
 unpolled deadlines, concurrent lock observers, live position and unfenced methods first exited 1
 at their intended assertions on the supplied runtime logic, then exited 0 after correction.
 `nix develop --command bash tools/check.sh` exited 0. The final committed-source gate, full
-seven-phase acceptance and twenty-one targeted controls are recorded in [W3 acceptance](../evidence/w3.md).
+seven-phase acceptance and twenty-four targeted controls are recorded in [W3 acceptance](../evidence/w3.md).
 The final manifests replace earlier W3 manifests; earlier passing inventory did not check these
 ownership boundaries. Test-hook runtimes are identified as such; default-feature build validation
 uses a separate target directory. No production policy or timing bound changed.
@@ -313,10 +314,43 @@ at most three API requests for the same payment identity after a recorded cold-c
 this is a fixture replay, not an engine retry or an increased checkout bound. Other setup errors
 fail. Fault tests retain their own assertions and do not use that replay to hide a fault.
 
-### Evidence basis for D-10 through D-14
+### D-15. Claim dispatch arbitration and active record identity
 
-**Measured 2026-11-06.** Tested implementation `65c26d4712263d0e568c6849a9039d9107c6efac`,
-source-bundle SHA-256 `6b99018346567ef96507a8ecb8992f4a44d0a0fd9e13897ccb3d64a21c5b579e`,
+**Measured 2026-11-06.** OPS-47 checked claim entry shares the loss-publication mutex after the
+component-entry wait and the whole 250 ms pool acquisition. `Store::begin_checked` holds that
+short guard only for the initial poll of BEGIN, then releases it before awaiting a reply.
+Inspection of the locked tokio-postgres 0.7.18 `simple_query.rs::simple_query` and
+`client.rs::simple_query` shows submission precedes the first response wait. No extra checkout
+or blocking lock across store I/O is introduced. OPS-50's first generation statement and fatal
+mismatch remain enforced. Ordinary record/settlement transactions remain permitted after loss.
+Claims already dispatched can finish uncertain work; registration after detection attaches a
+stop using the original loss timestamp. Refused queued entry is returned without another claim
+attempt. There is still no production periodic scheduler.
+
+OPS-21 active records are keyed by `(operation id, claim number)` independently of the current
+worker map. Their results and original permits/deadlines survive worker replacement. New observers
+and expiry use that active registry; expiry names operation and claim. Terminal success/refusal
+removes the active entry, with captured observers retaining the result. Errors remain visible until
+the required exit. Lock order is worker registry, active records, record state; no new lock crosses
+an asynchronous store wait. Existing user-stop arbitration also takes the loss mutex under the
+worker registry, before record access.
+
+The focused real-PG commands `nix develop --command python3 tests/postgres/harness.py --phase core
+--case <case> --seed 20261106 --evidence <raw-manifest>` exited 0 for `queued_claim`,
+`displaced_record`, `lock_observers`, `terminal_zero` and `claim_cancel` after correction
+(raw manifests under `<run-dir>/pending-green-i53_n1v2`). The first two safety assertions exited 1
+on the faulty 916a46f runtime paths with observation hooks only. A deliberate post-registration
+deadline reset exited 1 at the new comparison; it is a check-sensitivity control, not a newly
+found runtime reset defect. [W3 acceptance](../evidence/w3.md) and the final core/three red manifests
+record source hashes, intended assertions and successful cleanup. The final committed-source gate
+and complete seven-phase command each exited 0, with 24 controls each exiting 1 as intended.
+Versions remain PostgreSQL 18.6, rustc 1.97.1, tokio-postgres 0.7.18 and deadpool 0.12.3;
+full version identity is in the final manifests. D-6/7/8/9 remain Open.
+
+### Evidence basis for D-10 through D-15
+
+**Measured 2026-11-06.** Tested implementation `6a2511abf38d2b9cb2377f6772bb599c85b4bb46`,
+source-bundle SHA-256 `e9ac95f7c9d3b175679c3683c7f45672f3673a6973469dfe1d99c0c9dec9da1f`,
 against the unchanged specification pin. The manifests recorded no source dirt. Later edits only
 attach documentation and sanitized evidence; they do not change the tested runtime or fixtures.
 
@@ -325,7 +359,7 @@ attach documentation and sanitized evidence; they do not change the tested runti
   hashes, default-feature binary build, port unit tests and invalid-selector refusals.
 - `PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence evidence/w3-final.json`
   exited **0**, all seven phases. [Aggregate](../evidence/w3-final.json) and
-  [report](../evidence/w3.md) link every phase and each of twenty-one intended failing controls (exit 1).
+  [report](../evidence/w3.md) link every phase and each of twenty-four intended failing controls (exit 1).
   Cleanup passed for every positive and negative run. No real providers or funds were used.
 
 Fixture transport/framing corrections preserve the 250 ms acquisition budget and
