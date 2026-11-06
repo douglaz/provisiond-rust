@@ -59,14 +59,14 @@ separate real server faults from focused identity-predicate fixtures.
 Run the complete database, transactional-core and defect-control inventory from fresh private directories:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence evidence/w3-final.json
+PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence evidence/defer/w3-defer-final.json
 ```
 
 It performs bootstrap, replication loss/rebuild, physical backup/archive restore, connection and
 destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, backend crash,
 primary restart, residual-backend and bounded-process-stop fixtures, retained-object deadline
 closure, caller-runtime shutdown, constructor cancellation/deadlines, the transactional core,
-twenty-six additional defect controls, and cleanup. The parent accepts a failing control only with its
+twenty-seven additional defect controls, and cleanup. The parent accepts a failing control only with its
 exact exit code and intended assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
 non-zero. The aggregate manifest requires all seven phases (W1, checks, commits, regressions, corrections,
 core, controls);
@@ -111,7 +111,7 @@ operation scheduler. The integration fixtures invoke the same library paths dire
 
 Focused commands use `--phase corrections --case verify_cancel`, `--phase core --case migrations`,
 `--case money`, `--case claims`, `--case generation`, `--case stops` or `--case external`.
-The additional core cases are `claim_cancel`, `licensing_stop`, `outcome_stop`, `replacement_outcome`, `deadline`,
+The additional core cases are `claim_cancel`, `defer_cancel`, `licensing_stop`, `outcome_stop`, `replacement_outcome`, `deadline`,
 `lock_observers`, `terminal_zero`, `terminal_capacity`, `loss_stop`, `queued_claim`, `displaced_record`, `surface`, `predispatch` and `startup`. They exercise caller cancellation,
 licensing SQL/retry/COMMIT stops, returned outcomes, actual autonomous deadline exits, concurrent
 lock observers, terminal guard refusals and capacity reuse, user stops after detected loss,
@@ -124,10 +124,11 @@ zero-row record and B's refusal without its own result, then settles B's distinc
 Queued waits require one pending attempt with no precommit retry and actual checked-entry
 refusal. `--case queued_claim_pool --defect queued_claim_pool` isolates the pool defect;
 the canonical controls include both queued entry and pool windows.
-`--phase controls` runs all twenty-six required defects. Each defect requires its exact phase/case;
+`--phase controls` runs all twenty-seven required defects. Each defect requires its exact phase/case;
 unknown or mismatched selectors exit nonzero before setup. The canonical command includes every
 control and accepts only its intended assertion failure after activation and successful cleanup.
 ENG-05 automatic reconciliation, ENG-07's dedicated replication-freeze stop-record drill and
 DB-10 saturation remain `not run` for their later work packages.
-[Recorded W3 acceptance](evidence/w3.md) names the tested commit, exact command statuses,
-phase manifests, each negative control and cleanup results.
+[Historical W3 acceptance](evidence/w3.md) retains its original tested source. The
+[defer cancellation supplement](evidence/defer/report.md) records the current seven-phase run,
+27 negative controls, original-runtime reproduction and claim-specific capacity return.

@@ -421,6 +421,49 @@ tokio-postgres 0.7.18, deadpool 0.12.3 and tokio 1.54.1. The separate default-fe
 runtime evidence uses `store-test-hooks`. Later documentation/evidence-only commits do not alter
 these tested runtime/fixture files. D-6/7/8/9 remain Open.
 
+### D-17. Process-owned defer completion
+
+**Measured 2026-11-06.** OPS-8/6, STO-3/7/55 and OPS-49 use the existing
+`Process::submit` supervisor for `Engine::defer`'s full transaction loop, completion and
+claim-specific retirement. The waiter receives a `Result<bool>`; cancellation only drops that
+receipt. The task captures the matching component and an independent clone of its original
+worker permit before submission. Replacement of the operation-id entry cannot release that
+permit before acknowledgment. Acknowledged true and false both retire only the original claim;
+false remains a normal defer guard refusal, without settled-write fatal interpretation.
+No transaction/retry, true-stop or generation-fence policy changes.
+
+OPS-49/50 fatal completion exits independently of result delivery. A successful oneshot send is
+not proof its receiver observed the result; a cancelled or indefinitely unpolled receiver cannot
+suppress the already-required exit. The generation regression therefore observes actual exit 71,
+supersession and no retries instead of requiring an API error reply before process exit.
+The first canonical attempt on `35f8616` exited 1 when the old fixture waited for that reply;
+its cleanup also failed because the fixture had not set the expected child status. That record
+remains outside git and is summarized in [validation](../evidence/defer/validation.json).
+
+The [original-runtime red](../evidence/defer/w3-red-defer_cancel.json) used unchanged base
+`8d7e89110898ef8ad7addfc291adaa5bee7e8625`, with a fixture-only overlay. All 17
+runtime/migration/dependency hashes match the base. It built, held the attributed real COMMIT
+reply, joined caller cancellation, released the reply and observed durable queued state, then
+exited 1 at the named capacity assertion; cleanup passed. The final manifest retains its exact
+patch hash, complete source inventory, dirty state and separate log hashes alongside the final
+focused control. Raw patches, builds and logs stay outside git.
+
+Tested implementation `966751005c34721fecefedff7a210a390d657cb8`, source-bundle SHA-256
+`9b5410a0395126ab6fc9c747fd8d29c81c2aaeb5e83331fb0642bfabdd920ce2`, had no source dirt. `nix develop --command bash tools/check.sh`
+exited 0. `PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh
+--seed 20261106 --evidence <run-dir>/defer-repair/final-3/w3-defer-final.json` exited 0,
+all seven phases: 81 positive entries and 27 intended failing controls (exit 1 each), with
+successful final cleanup. Four cancelled defers reused three slots; stale true/false completion
+retained the old permit until acknowledgment and preserved the newer worker and state. Cancelled
+and live unpolled supersession receipts produced actual exit 71 with one refusal and no retry.
+[Report](../evidence/defer/report.md), [aggregate](../evidence/defer/w3-defer-final.json) and
+[validation](../evidence/defer/validation.json) preserve commands, source and stdout/stderr hashes.
+
+Versions remain PostgreSQL 18.6, rustc 1.97.1, cargo 1.97.0, Python 3.14.7, Nix 2.34.9;
+tokio-postgres 0.7.18, deadpool 0.12.3, tokio 1.54.1 and socket2 0.6.5. Runtime evidence
+uses `store-test-hooks`. Prior W3 evidence still demonstrates its original commit; this is a
+separate final supplement. ENG-05, ENG-07 and DB-10 remain not run; D-6/7/8/9 remain Open.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |

@@ -11,7 +11,7 @@ exposed as a public provisiond service, pointed at real provider accounts, or gi
 
 | Category | Contents | Status |
 |---|---|---|
-| Implemented behaviour | The two-node harness bootstraps/rebuilds a standby and restores an archived-WAL fixture. The store spike applies physical-session settings, checks a fixed flushed prefix before admission and after destination reads, discards interrupted reads/transactions, closes retained pre-COMMIT connections on deadline, and supervises sent COMMITs with warning-aware outcomes on process-owned I/O. The `migrate` binary applies offline versioned migrations through the same COMMIT owner. The engine checks compatibility, holds a lifetime lock, advances a UUID generation, fences transactions and performs ordinary restart recovery. Process-owned claims retain worker capacity after caller cancellation. Execution cancellation covers licensing through dispatch; stop records preserve returned outcomes and enforce absolute deadlines without a caller waiter. Concurrent observers share one lock-loss fan-out. Terminal stop records retire only their execution, report zero-row refusals accurately and return capacity after acknowledgment. Detection and user stops share a consistent ordering. Engine-only methods reject unfenced transactions. Typed library methods implement claims, guarded settlements, reservations and payment credits. The API checks compatibility and remains non-serving. | demonstrated subset; [W3 evidence](../evidence/w3.md) |
+| Implemented behaviour | The two-node harness bootstraps/rebuilds a standby and restores an archived-WAL fixture. The store spike applies physical-session settings, checks a fixed flushed prefix before admission and after destination reads, discards interrupted reads/transactions, closes retained pre-COMMIT connections on deadline, and supervises sent COMMITs with warning-aware outcomes on process-owned I/O. The `migrate` binary applies offline versioned migrations through the same COMMIT owner. The engine checks compatibility, holds a lifetime lock, advances a UUID generation, fences transactions and performs ordinary restart recovery. Process-owned claims and defers retain worker capacity through caller cancellation. Acknowledged defer completion retires only its claim. Execution cancellation covers licensing through dispatch; stop records preserve returned outcomes and enforce absolute deadlines without a caller waiter. Concurrent observers share one lock-loss fan-out. Terminal stop records retire only their execution, report zero-row refusals accurately and return capacity after acknowledgment. Detection and user stops share a consistent ordering. Engine-only methods reject unfenced transactions. Typed library methods implement claims, guarded settlements, reservations and payment credits. The API checks compatibility and remains non-serving. | demonstrated subset; [historical W3 evidence](../evidence/w3.md), [defer supplement](../evidence/defer/report.md) |
 | Simulator-only behaviour | Deterministic acceptance/reply pause hooks and Rust simulator entries; verified-create outcomes drive the atomic settlement primitive, without real provider/rail drivers. Simulator evidence is never substituted for provider evidence. | simulator paths implemented |
 | Unsupported behaviour | Everything in "Not supported in this profile" below, and every v1 requirement not marked implemented or demonstrated in `docs/conformance-map.md`. | by design |
 | Production work not yet attempted | Real-provider drivers, rescue installation, every operation kind beyond the first slice, a customer UI, security review, key custody, billing operations, separate-host deployment rehearsal, operator runbooks, exposure limits. | not attempted |
@@ -112,9 +112,16 @@ The engine entry is a startup/lifetime monitor, with transactional worker primit
 the integration fixture. It is not a complete customer service or provider dispatcher. The local
 profile's three workers, pool sizes, timeouts and retry/stop bounds remain provisional under D-6.
 
-[W3 acceptance](../evidence/w3.md) records the complete seven-phase run on committed source,
+[Historical W3 acceptance](../evidence/w3.md) records its complete seven-phase run on committed source,
 including the full W1/W2 inventory, 80 positive scenarios and twenty-six intended negative controls.
 Queued-entry evidence requires the original pending acquisition, one attempt, no precommit retry
 and checked refusal. Normal lock-observer evidence requires the actual post-registration read.
 Both the repository gate and canonical PostgreSQL command exited 0. Demonstration applies only to
 the explicitly traced arms; the deferred scenarios above remain not run.
+
+The [defer cancellation supplement](../evidence/defer/report.md) records fresh gate and seven-phase
+PostgreSQL exits 0 on `966751005c34721fecefedff7a210a390d657cb8`, with 81 positive entries and 27 expected negative controls.
+Four cancelled defers reuse three slots; delayed true/false completions preserve a replacement
+worker and its state. Cancelled and unpolled fatal receipts cannot suppress supersession exit.
+The earlier evidence retains its original implementation identities. These checks add no service
+conformance claim or production availability guarantee.
