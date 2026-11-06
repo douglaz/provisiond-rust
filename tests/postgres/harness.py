@@ -131,6 +131,35 @@ class Harness:
         self.versions['crates'] = {p['name']:p['version'] for p in tomllib.loads(Path('Cargo.lock').read_text())['package']}
         self.versions['postgres_path'] = str(Path(shutil.which('postgres')).resolve())
         self.versions['nixpkgs'] = 'aff8a0b28396750446e5537a96461bc4facdb287:postgresql_18'
+        # Keep currently unused server slots out of this run's outgoing client
+        # source-port selection. No socket listens or impersonates PostgreSQL.
+        self.port_reservations={}
+        try:
+            for port in self.ports:
+                self.reserve_port(port)
+        except BaseException:
+            for port in list(self.port_reservations):
+                self.release_port(port)
+            raise
+        self.event('allocation_reserved',ports=self.ports)
+
+    def reserve_port(self,port):
+        assert port in self.ports
+        if port in self.port_reservations:
+            return
+        reservation=socket.socket()
+        try:
+            reservation.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+            reservation.bind(('127.0.0.1',port))
+        except BaseException:
+            reservation.close()
+            raise
+        self.port_reservations[port]=reservation
+
+    def release_port(self,port):
+        reservation=self.port_reservations.pop(port,None)
+        if reservation:
+            reservation.close()
 
     def event(self, kind, **data):
         e = dict(event=kind, timestamp=time.time(), elapsed=time.monotonic()-self.started, **data)
@@ -227,6 +256,7 @@ tcp_keepalives_count = 2
     def start(self, name, role='administrator'):
         cap_check()
         n = self.nodes[name]
+        self.release_port(n['port'])
         free_port(n['port'])
         log = (self.root / f'{name}.log').open('ab', buffering=0)
         n['process'] = subprocess.Popen(['postgres','-D',str(n['data'])], env=self.env,
@@ -248,6 +278,8 @@ tcp_keepalives_count = 2
             status=n['process'].returncode
             n['command']['exit_status']=status
             assert status==0, f'owned server {name} exited unexpectedly: {status}'
+        if not any(other['port']==n['port'] and other.get('process') and other['process'].poll() is None for other in self.nodes.values()):
+            self.reserve_port(n['port'])
 
     def crash_backend(self, pid):
         # Harness-only deliberate crash, validated against this owned postmaster.
@@ -371,6 +403,9 @@ tcp_keepalives_count = 2
         for path in [self.pgpass,self.root/'init-password']:
             if path.exists():
                 path.unlink()
+        for port in list(self.port_reservations):
+            self.release_port(port)
+        self.event('allocation_released',ports=self.ports)
         self.event('cleanup_complete', result='fail' if errors else 'pass', errors=errors,
                    raw_evidence=str(self.root))
         return not errors

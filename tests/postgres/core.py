@@ -270,6 +270,8 @@ def claims(h,defect=None):
     h.sql(f"INSERT INTO provisiond.operations(tenant_id,idempotency_key,kind,status,machine_id,request_summary,correlation_id) VALUES('claims','power-1','power','queued','{machine}','{{\"kind\":\"power\"}}','power-1'),('claims','power-2','power','queued','{machine}','{{\"kind\":\"power\"}}','power-2')",role='migrator')
     p=core_probe(h);p.command('engine_start')
     holder=p.command('claim')['value'];assert holder['number']==1
+    p.command('execute_pending '+holder['id'],ok=False)
+    assert not any(e.get('event')=='simulator_accepted' and e.get('operation')==holder['id'] for e in p.events)
     assert p.command('claim')['value'] is None
     assert h.sql(f"SELECT count(*) FROM provisiond.operations WHERE machine_id='{machine}' AND status='queued' AND claim_number=0")=='1'
     h.sql(f"UPDATE provisiond.operations SET yielded_at=clock_timestamp() WHERE id='{holder['id']}'")

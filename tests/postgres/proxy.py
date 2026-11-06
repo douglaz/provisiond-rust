@@ -40,6 +40,7 @@ class Proxy:
     def __init__(self, harness):
         port = harness.ports[3]
         from harness import free_port
+        harness.release_port(port)
         free_port(port)
         self.h = harness
         self.listener = socket.socket()
@@ -176,4 +177,5 @@ class Proxy:
         for t in self.threads:
             t.join(timeout=3)
             assert not t.is_alive(), 'proxy worker did not stop'
+        self.h.reserve_port(self.h.ports[3])
         self.h.event('proxy_cleanup',cancel_requests=self.cancel_requests)

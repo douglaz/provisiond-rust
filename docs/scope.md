@@ -82,7 +82,8 @@ cancelled receipts and sent COMMIT completion; provider/rail/rescue instrumentat
 external entry while that component owns a transaction. A later generation cannot retract an
 already-licensed simulator call, prove a stale process dead or fence two writable histories.
 
-The schema supports the represented `create`, `refresh` and `power` primitives. Ordinary restart
+The schema supports the represented `create`, `refresh` and `power` primitives. Only create has a
+cancellable execute simulator; provider execution for other kinds is explicitly refused. Ordinary restart
 moves interrupted writes to reconciliation, fails refreshes and conditionally fails pre-order
 creates with atomic commitment/exclusion release. Existing errors and markers survive. Open
 recovery incidents stop the unsupported startup path. Parent fan-out, install/rescue workflows,

@@ -287,6 +287,10 @@ impl Engine {
             );
             (w.claim.clone(), w.component.clone())
         };
+        ensure!(
+            claim.kind == "create",
+            "provider execution for this operation kind is not implemented; only create simulator execution is supported"
+        );
         if claim.kind == "create" {
             let c = claim.clone();
             self.transaction(&component, move |tx| {
