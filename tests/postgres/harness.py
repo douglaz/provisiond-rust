@@ -37,10 +37,28 @@ def cap_check():
 
 
 def free_port(port):
-    assert 55410 <= port <= 55429
+    assert 55430 <= port <= 55479
     with socket.socket() as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('127.0.0.1', port))
+
+
+def allocation():
+    """Required private four-port allocation, validated before starting any child."""
+    raw = os.environ.get('PROVISIOND_HARNESS_PORT_BASE', '')
+    if not raw.isascii() or not raw.isdecimal():
+        raise ValueError('PROVISIOND_HARNESS_PORT_BASE must be an integer')
+    base = int(raw)
+    if not 55430 <= base <= 55476:
+        raise ValueError('four harness ports must fit within 55430..55479')
+    return list(range(base, base + 4))
+
+
+def preflight_ports():
+    ports = allocation()
+    for port in ports:
+        free_port(port)
+    return ports
 
 
 def eventually(check, seconds=20):
@@ -60,6 +78,7 @@ def eventually(check, seconds=20):
 class Harness:
     def __init__(self, phase, seed):
         cap_check()
+        self.ports = preflight_ports()
         os.umask(0o077)
         ROOT.mkdir(parents=True, exist_ok=True)
         self.root = Path(tempfile.mkdtemp(prefix=f'{phase}-', dir=ROOT))
@@ -74,7 +93,7 @@ class Harness:
         self.env = dict(os.environ, PGPASSFILE=str(self.pgpass), PGCONNECT_TIMEOUT='2')
         self.config = dict(synchronous_commit='on', synchronous_standby_names='FIRST 1 (provisiond_sync)',
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
-                           archive_mode='on', restart_after_crash='on', ports=[55410,55411,55412],
+                           archive_mode='on', restart_after_crash='on', ports=self.ports[:3],
                            authentication='scram-sha-256 loopback only', standby_role='replicator')
         if phase in ('checks','commits','regressions'):
             self.config['store'] = dict(read_pool=1,write_pool=1,statement_ms=1000,lock_ms=500,
@@ -82,7 +101,7 @@ class Harness:
                 keepalive_idle_seconds=2,keepalive_interval_seconds=1,keepalive_count=2,
                 isolation='read committed',search_path='pg_catalog,fixture',stop_fixture_ms=1000,
                 transport='direct TCP; loopback proxy for faults; sslmode=disable')
-            self.config['ports'].append(55413)
+            self.config['ports'].append(self.ports[3])
         self.archive = self.root / 'archive'
         self.archive.mkdir()
         self.event('invocation', seed=seed, specification=SPEC, phase=phase,
@@ -147,12 +166,12 @@ class Harness:
         (data / 'pg_hba.conf').write_text(
             'host replication replicator 127.0.0.1/32 scram-sha-256\n'
             'host all all 127.0.0.1/32 scram-sha-256\n')
-        self.configure(data, 55410)
-        self.nodes['primary'] = dict(data=data, port=55410)
+        self.configure(data, self.ports[0])
+        self.nodes['primary'] = dict(data=data, port=self.ports[0])
         self.start('primary')
         self.backup('standby', standby=True)
-        self.nodes['standby'] = dict(data=self.root/'standby', port=55411)
-        self.configure(self.root/'standby', 55411)
+        self.nodes['standby'] = dict(data=self.root/'standby', port=self.ports[1])
+        self.configure(self.root/'standby', self.ports[1])
         self.start('standby')
         eventually(lambda: self.sql("SELECT count(*)=1 FROM pg_stat_replication WHERE application_name='provisiond_sync' AND sync_state='sync' AND state='streaming'")=='t')
         setup = '\n'.join(f"CREATE ROLE {r} LOGIN NOSUPERUSER PASSWORD '{self.passwords[r]}';" for r in self.passwords if r not in ('replicator','administrator'))
@@ -239,7 +258,7 @@ tcp_keepalives_count = 2
     def backup(self, name, standby=False):
         dest = self.root / name
         self.event('backup_requested', destination=name, wal_mode='stream', application_name='bootstrap_backup')
-        self.run(['pg_basebackup','-d','host=127.0.0.1 port=55410 user=replicator dbname=postgres application_name=bootstrap_backup',
+        self.run(['pg_basebackup','-d',f'host=127.0.0.1 port={self.ports[0]} user=replicator dbname=postgres application_name=bootstrap_backup',
                   '-D',str(dest),'-X','stream','--checkpoint=fast','--no-password'])
         self.run(['pg_verifybackup',str(dest)])
         provenance=self.root/(name+'-backup-manifest.json')
@@ -249,7 +268,7 @@ tcp_keepalives_count = 2
             (dest/'standby.signal').touch()
             # Set the final application name and authenticated role before startup.
             (dest/'postgresql.auto.conf').write_text(
-                f"primary_conninfo = 'host=127.0.0.1 port=55410 user=replicator application_name=provisiond_sync passfile={self.pgpass}'\n")
+                f"primary_conninfo = 'host=127.0.0.1 port={self.ports[0]} user=replicator application_name=provisiond_sync passfile={self.pgpass}'\n")
         self.event('backup_complete', destination=name, verified=True)
 
     def identity(self):
@@ -273,8 +292,8 @@ tcp_keepalives_count = 2
         # Rebuild with no acknowledgement partner and without an ordinary SQL commit.
         self.backup('rebuilt', standby=True)
         self.nodes['retired'] = self.nodes.pop('standby')
-        self.nodes['standby'] = dict(data=self.root/'rebuilt',port=55411)
-        self.configure(self.root/'rebuilt',55411)
+        self.nodes['standby'] = dict(data=self.root/'rebuilt',port=self.ports[1])
+        self.configure(self.root/'rebuilt',self.ports[1])
         self.start('standby')
         self.identity()
         self.results.append(dict(test='W1-bootstrap-rebuild-replication',result='pass',
@@ -289,10 +308,10 @@ tcp_keepalives_count = 2
         restore = self.root/'restored'
         shutil.copytree(self.root/'restore-backup',restore)
         # Force archive replay for WAL produced after backup; do not use streaming.
-        self.configure(restore,55412)
+        self.configure(restore,self.ports[2])
         (restore/'postgresql.auto.conf').write_text(f"restore_command = 'cp {self.archive}/%f %p'\n")
         (restore/'standby.signal').touch()
-        self.nodes['restored'] = dict(data=restore,port=55412)
+        self.nodes['restored'] = dict(data=restore,port=self.ports[2])
         self.start('restored')
         eventually(lambda: self.sql("SELECT destination FROM fixture.destinations WHERE id=2",node='restored')=='archive-after-unique-fixture')
         self.event('archive_restore_observed', fixture='id=2 created after base backup',
@@ -393,6 +412,7 @@ def main():
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
+    preflight_ports()
     if args.case and args.phase!='regressions':
         ap.error('--case requires --phase regressions')
     if args.phase=='all':

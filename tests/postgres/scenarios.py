@@ -20,7 +20,7 @@ class Probe:
         self.events=[]
         self.queue=queue.Queue()
         self.index=len(getattr(h,'probes',[]))
-        env=dict(h.env,STORE_CONNECTION=f"host=127.0.0.1 port=55413 user={role} password={password or h.passwords[role]} dbname=postgres sslmode=disable")
+        env=dict(h.env,STORE_CONNECTION=f"host=127.0.0.1 port={h.ports[3]} user={role} password={password or h.passwords[role]} dbname=postgres sslmode=disable")
         if defect:
             env['STORE_TEST_DEFECT']=defect
         self.defect=defect
@@ -115,7 +115,7 @@ def syncrep(h):
 def fixture_write_wait(h,id):
     log=(h.root/f'fixture-{id}.log').open('w')
     cap_check()
-    p=subprocess.Popen(['psql','-XAt','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p','55410','-U','administrator','-d','postgres'],
+    p=subprocess.Popen(['psql','-XAt','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p',str(h.ports[0]),'-U','administrator','-d','postgres'],
                        stdin=subprocess.PIPE,stdout=log,stderr=log,text=True,env=h.env)
     log.close()
     h.extra.append(p)
@@ -288,7 +288,7 @@ def replication_negatives(h):
         log=(h.root/f'wal-stream-{len(h.extra)}.log').open('w')
         cap_check()
         p=subprocess.Popen(['pg_receivewal','--no-loop','--synchronous','-D',str(path),
-                            '-d',f'host=127.0.0.1 port=55410 user={role} application_name={name}'],
+                            '-d',f'host=127.0.0.1 port={h.ports[0]} user={role} application_name={name}'],
                            env=h.env,stdout=log,stderr=log)
         log.close()
         h.extra.append(p)
@@ -318,7 +318,7 @@ def replication_negatives(h):
     h.owned_extra_paths.append(backup_path)
     backup_log=(h.root/'identity-backup.log').open('w')
     cap_check()
-    backup=subprocess.Popen(['pg_basebackup','-d','host=127.0.0.1 port=55410 user=replicator application_name=bootstrap_probe',
+    backup=subprocess.Popen(['pg_basebackup','-d',f'host=127.0.0.1 port={h.ports[0]} user=replicator application_name=bootstrap_probe',
                              '-D',str(backup_path),'-X','stream','--checkpoint=fast','--max-rate=1M','--status-interval=1','--no-password'],
                             env=h.env,stdout=backup_log,stderr=backup_log)
     backup_log.close()

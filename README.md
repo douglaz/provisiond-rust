@@ -32,22 +32,22 @@ Run inside a systemd unit capped with `MemoryMax=16G`, `MemorySwapMax=0` and
 harness](tests/postgres/harness.py) checks both before it starts anything:
 
 ```sh
-nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence evidence/r2-final-w1.json
+PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence evidence/r2-final-w1.json
 ```
 
 This single foreground command creates fresh private directories under the owned harness
-root, checks ports 55410–55412 before binding, bootstraps one primary and one authenticated
+root, checks its four-port allocation within 55430–55479 before starting any server, bootstraps one primary and one authenticated
 synchronous standby, rebuilds the standby, verifies a physical backup, restores a post-backup
 fixture from archived WAL, explicitly promotes with components stopped, and tears down.
 Its exit status includes assertions and cleanup. Raw logs remain outside git; the optional
 `--evidence` path receives a sanitized manifest, with the harness root and checkout written as
-`<run-dir>` and `<repo>`. The cgroup, cap and fixed-port checks refuse execution outside an
+`<run-dir>` and `<repo>`. The cgroup, cap and required port-allocation checks refuse execution outside an
 isolated test allocation. See [scope](docs/scope.md) for limits.
 
 The store connection/destination spike is exercised with:
 
 ```sh
-nix develop --command python3 tests/postgres/harness.py --phase checks --seed 20261105 --evidence evidence/r2-final-checks.json
+PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command python3 tests/postgres/harness.py --phase checks --seed 20261105 --evidence evidence/r2-final-checks.json
 ```
 
 It uses the actual Rust client and ordinary bounded pools. The opt-in `store-probe` example is
@@ -58,7 +58,7 @@ separate real server faults from focused identity-predicate fixtures.
 Run the complete W1 then W2 inventory from fresh private directories with one foreground command:
 
 ```sh
-nix develop --command bash tools/postgres.sh --evidence evidence/r2-final.json
+PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --evidence evidence/r2-final.json
 ```
 
 It performs bootstrap, replication loss/rebuild, physical backup/archive restore, connection and

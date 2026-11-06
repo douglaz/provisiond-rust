@@ -37,7 +37,8 @@ class Gate:
 
 
 class Proxy:
-    def __init__(self, harness, port=55413):
+    def __init__(self, harness):
+        port = harness.ports[3]
         from harness import free_port
         free_port(port)
         self.h = harness
@@ -72,7 +73,7 @@ class Proxy:
                 continue
             except OSError:
                 return
-            server = socket.create_connection(('127.0.0.1',55410))
+            server = socket.create_connection(('127.0.0.1',self.h.ports[0]))
             c = dict(client=client,server=server,pid=None,query='',gate=None,closed=False)
             self.connections.append(c)
             self.spawn(self.front,c)
