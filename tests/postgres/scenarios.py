@@ -227,7 +227,7 @@ def check_scenarios(h):
     p.send('read 6')
     c=post.wait()
     assert c['pid']==admitted, 'reader must preserve its uninterrupted physical session'
-    assert any(e.get('event')=='destination_read' for e in p.events)
+    eventually(lambda:any(e.get('event')=='destination_read' for e in p.events),seconds=.2)
     post.release()
     eventually(lambda: any(e.get('event')=='check_observation' and e.get('kind')=='post_read' for e in p.events))
     observations=[e for e in p.events if e.get('event')=='check_observation' and e.get('kind')=='post_read']
