@@ -1,7 +1,6 @@
 //! STO-7 sent-COMMIT ownership; OPS-49 uncertainty. One attempt, no retry.
-use super::{Checkout, Session, Store, Transaction, process::AbortOnPanic};
+use super::{Connection, Session, Store, Transaction, process::AbortOnPanic};
 use anyhow::{Context, Result};
-use deadpool::managed::Object;
 use serde_json::json;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::oneshot;
@@ -21,12 +20,16 @@ impl CommitOutcome {
         }
     }
 }
-/// Dropping this receiver has no effect on its process-owned COMMIT task.
+/// Dropping this receiver cancels pending verification; a possibly sent COMMIT
+/// remains process-owned until completion, transport death or process exit.
 pub struct CommitReceipt {
-    receiver: oneshot::Receiver<CommitOutcome>,
+    receiver: oneshot::Receiver<(CommitOutcome, std::time::Duration)>,
 }
 impl CommitReceipt {
     pub async fn wait(self) -> Result<CommitOutcome> {
+        Ok(self.wait_accounted().await?.0)
+    }
+    pub(crate) async fn wait_accounted(self) -> Result<(CommitOutcome, std::time::Duration)> {
         self.receiver
             .await
             .context("process commit owner disappeared")
@@ -72,9 +75,12 @@ impl Store {
             (self.trace)(
                 json!({"event":"precommit_rejected","session":transaction.session_id(),"commit_not_dispatched":true}),
             );
-            let _ = sender.send(CommitOutcome::Rejected {
-                reason: "failed/cancelled pre-COMMIT statement; COMMIT not dispatched".into(),
-            });
+            let _ = sender.send((
+                CommitOutcome::Rejected {
+                    reason: "failed/cancelled pre-COMMIT statement; COMMIT not dispatched".into(),
+                },
+                std::time::Duration::ZERO,
+            ));
             return Ok(CommitReceipt { receiver });
         }
         let checkout = transaction
@@ -83,17 +89,25 @@ impl Store {
             .context("transaction consumed")?;
         static NEXT: AtomicU64 = AtomicU64::new(1);
         let owner = NEXT.fetch_add(1, Ordering::Relaxed);
-        self.process
-            .submit(own_commit(checkout, sender, owner, mode))?;
+        self.process.submit(own_commit(
+            checkout,
+            sender,
+            owner,
+            mode,
+            transaction.permit.take(),
+        ))?;
         Ok(CommitReceipt { receiver })
     }
 }
 async fn own_commit(
-    checkout: Checkout,
-    mut sender: oneshot::Sender<CommitOutcome>,
+    checkout: Connection,
+    mut sender: oneshot::Sender<(CommitOutcome, std::time::Duration)>,
     owner: u64,
     mode: Mode,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
 ) {
+    let _permit = permit;
+    let started = std::time::Instant::now();
     // This local precedes the guard, so panic aborts before it can release a slot.
     let mut checkout = Some(checkout);
     let _abort = AbortOnPanic;
@@ -103,7 +117,48 @@ async fn own_commit(
     let client = session.client.clone();
     let protocol = session.protocol.clone();
     let notices = session.notices.clone();
-    notices.lock().expect("notice lock").clear();
+    // STO-7: verify on the still-owned physical transaction before dispatch.
+    // Ownership was registered synchronously, so dropping a receipt creates no gap.
+    if !super::test_defect("commit_setting") {
+        let verification = session.scalar("SHOW synchronous_commit /* precommit verify */");
+        let verified = if super::test_defect("verify_cancel") {
+            verification.await
+        } else {
+            tokio::select! {
+                biased;
+                _ = sender.closed() => {
+                    session.close();
+                    trace(json!({"event":"precommit_cancelled","session":pid,"commit_not_dispatched":true}));
+                    return;
+                }
+                result = verification => result,
+            }
+        };
+        if !matches!(verified.as_deref(), Ok("on")) {
+            session.close();
+            trace(json!({"event":"precommit_rejected","session":pid,"commit_not_dispatched":true}));
+            let _ = sender.send((
+                CommitOutcome::Rejected {
+                    reason: "synchronous_commit verification failed; COMMIT not dispatched".into(),
+                },
+                started.elapsed(),
+            ));
+            return;
+        }
+    }
+    // Last pre-dispatch observation; no await separates this boundary from the
+    // irrevocable owner below. Cancellation beyond it cannot release the checkout.
+    if !super::test_defect("verify_cancel") && sender.is_closed() {
+        session.close();
+        trace(json!({"event":"precommit_cancelled","session":pid,"commit_not_dispatched":true}));
+        return;
+    }
+    {
+        let mut diagnostics = notices.lock().expect("notice lock");
+        diagnostics.committing = true;
+        diagnostics.commit_warning = false;
+    }
+    let verification_time = started.elapsed();
     let before = protocol.snapshot();
     trace(json!({"event":"owner_accepted","owner":owner,"session":pid}));
     trace(json!({"event":"commit_possible_dispatch","owner":owner,"session":pid}));
@@ -121,7 +176,7 @@ async fn own_commit(
             _=sender.closed()=> {
                 // Deliberate disposable defect: keep the session live, but lose
                 // the original checkout on request cancellation. Never default.
-                unpooled=Some(Object::take(checkout.take().expect("checkout")));
+                unpooled=Some(checkout.take().expect("checkout").unpool());
                 trace(json!({"event":"defect_checkout_released","session":pid,"owner":owner}));
                 execution.await
             }
@@ -131,8 +186,15 @@ async fn own_commit(
     };
     // ErrorResponse alone is insufficient: consume terminal response or death.
     let reply = protocol.complete(before.ready).await;
-    let diagnostics = notices.lock().expect("notice lock").clone();
-    let warning = diagnostics.iter().any(|n| n["severity"] == "WARNING");
+    let (diagnostics, sticky_warning) = {
+        let retained = notices.lock().expect("notice lock");
+        (retained.values.clone(), retained.commit_warning)
+    };
+    let warning = if super::test_defect("notice_sticky") {
+        diagnostics.iter().any(|n| n["severity"] == "WARNING")
+    } else {
+        sticky_warning
+    };
     #[cfg(feature = "store-test-hooks")]
     let ignore = matches!(mode, Mode::IgnoreWarning);
     #[cfg(not(feature = "store-test-hooks"))]
@@ -186,8 +248,10 @@ async fn own_commit(
     if outcome == CommitOutcome::Acknowledged {
         drop(checkout.take());
     } else if let Some(object) = checkout.take() {
-        drop(Object::take(object));
+        object.discard();
     }
     drop(unpooled);
-    let _ = sender.send(outcome);
+    drop(_permit);
+    trace(json!({"event":"commit_owner_completed","owner":owner,"session":pid}));
+    let _ = sender.send((outcome, verification_time));
 }

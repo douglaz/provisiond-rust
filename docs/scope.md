@@ -11,9 +11,9 @@ exposed as a public provisiond service, pointed at real provider accounts, or gi
 
 | Category | Contents | Status |
 |---|---|---|
-| Implemented behaviour | The two-node harness bootstraps/rebuilds a standby and restores an archived-WAL fixture. The store spike applies physical-session settings, checks a fixed flushed prefix before admission and after destination reads, discards interrupted reads/transactions, closes retained pre-COMMIT connections on deadline, and supervises sent COMMITs with warning-aware outcomes on process-owned I/O. The three product entry points (`api`, `engine`, `migrate`) print a refusal and exit non-zero. | harness demonstrated; product absent |
-| Simulator-only behaviour | Deterministic acceptance/reply pause hooks in `tests/support/`; no business workflow or real provider/rail driver. Simulator evidence is never substituted for provider evidence. | hooks only |
-| Unsupported behaviour | Everything in "Not supported in this profile" below, and every v1 requirement not marked implemented in `docs/conformance-map.md`. | by design |
+| Implemented behaviour | The two-node harness bootstraps/rebuilds a standby and restores an archived-WAL fixture. The store spike applies physical-session settings, checks a fixed flushed prefix before admission and after destination reads, discards interrupted reads/transactions, closes retained pre-COMMIT connections on deadline, and supervises sent COMMITs with warning-aware outcomes on process-owned I/O. The `migrate` binary applies offline versioned migrations through the same COMMIT owner. The engine checks compatibility, holds a lifetime lock, advances a UUID generation, fences transactions and performs ordinary restart recovery. Process-owned claims and defers retain worker capacity through caller cancellation. Acknowledged defer completion retires only its claim. Execution cancellation covers licensing through dispatch; stop records preserve returned outcomes and enforce absolute deadlines without a caller waiter. Concurrent observers share one lock-loss fan-out. Terminal stop records retire only their execution, report zero-row refusals accurately and return capacity after acknowledgment. Detection and user stops share a consistent ordering. Engine-only methods reject unfenced transactions. Typed library methods implement claims, guarded settlements, reservations and payment credits. The API checks compatibility and remains non-serving. | demonstrated subset; [historical W3 evidence](../evidence/w3.md), [defer supplement](../evidence/defer/report.md) |
+| Simulator-only behaviour | Deterministic acceptance/reply pause hooks and Rust simulator entries; verified-create outcomes drive the atomic settlement primitive, without real provider/rail drivers. Simulator evidence is never substituted for provider evidence. | simulator paths implemented |
+| Unsupported behaviour | Everything in "Not supported in this profile" below, and every v1 requirement not marked implemented or demonstrated in `docs/conformance-map.md`. | by design |
 | Production work not yet attempted | Real-provider drivers, rescue installation, every operation kind beyond the first slice, a customer UI, security review, key custody, billing operations, separate-host deployment rehearsal, operator runbooks, exposure limits. | not attempted |
 
 ## Operating assumptions
@@ -76,12 +76,52 @@ not full service conformance.
 - Lean proofs in the specification repository are model results under stated assumptions, not
   implementation tests.
 
-The store spike uses direct loopback TCP with TLS disabled in its isolated harness. It is not a
-production transport/deployment implementation. Sent-COMMIT owners and a bounded lifecycle
-subprocess do not implement product workers, Stop records, retry policy, startup generations,
-recovery incidents or alarms. DB-03 demonstrates a residual backend after client exit; DB-10 full
-saturation remains not run (W8). All three product entry points continue to refuse service use.
+The prototype uses direct loopback TCP with TLS disabled in its isolated harness. It is not a
+production transport/deployment implementation. Components retain transaction ownership through
+cancelled receipts and sent COMMIT completion; provider/rail/rescue instrumentation refuses an
+external entry while that component owns a transaction. A later generation cannot retract an
+already-licensed simulator call, prove a stale process dead or fence two writable histories.
 
-[Fresh W1/W2 acceptance](../evidence/r2.md) includes destruction of the initiating runtime during
-SyncRep, immediate local transport closure while expired pre-COMMIT objects remain retained, and
-cancelled/bounded connection construction. These are database lifecycle demonstrations only.
+The schema supports the represented `create`, `refresh` and `power` primitives. Only create has a
+cancellable execute simulator; provider execution for other kinds is explicitly refused. Ordinary restart
+moves interrupted writes to reconciliation, fails refreshes and conditionally fails pre-order
+creates with atomic commitment/exclusion release. Existing errors and markers survive. Open
+recovery incidents stop the unsupported startup path. Parent fan-out, install/rescue workflows,
+late attach, resolution, full metering/rates/solvency and operator recovery remain unimplemented.
+Unsupported kinds are refused rather than silently requeued.
+
+Lock loss refuses queued claims after their component/pool waits, before BEGIN dispatch, and
+permits shielded records for current workers. Already-dispatched claims keep bounded stop ownership.
+Active records remain visible by operation/claim even after replacement of the worker registry entry;
+expiry names the unobserved claims and later observers continue waiting for them. Existing records
+keep their original bounds; after-return outcomes retain their settlement loop. Each claim owns
+its returned outcome independently of the operation-id registry: a displaced execution retains its
+verified return for its own guarded record and cannot supply a newer claim's result. The simulator
+regression checks the stale zero-row record, the newer claim's refusal without its own result and
+its distinct verified settlement/repeat with no stale machine or money effects. A true user stop
+after loss detection takes the later-stop exit even before fan-out registration. A terminal guard
+refusal leaves the newer row and money unchanged, reports that observation and ends the stale
+worker. Completed records release capacity while captured observers retain their result. Expiry, a later
+stop, retry exhaustion and supersession require process exit, retaining uncertainty about any last
+reply. The dedicated replication-freeze stop-record drill (ENG-07) remains not run. ENG-05 automatic
+provider reconciliation and DB-10 deployment-wide saturation also remain not run. Local pool
+budgets do not guarantee observer access or bound residual backends across process lifetimes.
+
+The API has no listener: after a supported-schema check its ordinary entry explicitly exits 78.
+The engine entry is a startup/lifetime monitor, with transactional worker primitives exercised by
+the integration fixture. It is not a complete customer service or provider dispatcher. The local
+profile's three workers, pool sizes, timeouts and retry/stop bounds remain provisional under D-6.
+
+[Historical W3 acceptance](../evidence/w3.md) records its complete seven-phase run on committed source,
+including the full W1/W2 inventory, 80 positive scenarios and twenty-six intended negative controls.
+Queued-entry evidence requires the original pending acquisition, one attempt, no precommit retry
+and checked refusal. Normal lock-observer evidence requires the actual post-registration read.
+Both the repository gate and canonical PostgreSQL command exited 0. Demonstration applies only to
+the explicitly traced arms; the deferred scenarios above remain not run.
+
+The [defer cancellation supplement](../evidence/defer/report.md) records fresh gate and seven-phase
+PostgreSQL exits 0 on `966751005c34721fecefedff7a210a390d657cb8`, with 81 positive entries and 27 expected negative controls.
+Four cancelled defers reuse three slots; delayed true/false completions preserve a replacement
+worker and its state. Cancelled and unpolled fatal receipts cannot suppress supersession exit.
+The earlier evidence retains its original implementation identities. These checks add no service
+conformance claim or production availability guarantee.

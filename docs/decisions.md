@@ -138,7 +138,331 @@ associated with COMMIT is conservatively unresolved, even with that completion. 
 Only a clean complete COMMIT reply with idle status acknowledges; explicit rollback or known
 constraint/serialization/deadlock rejection with a complete idle reply is rejected. Other errors,
 missing replies and transport death are unresolved. No component cancel packet was observed.
-Eligible OPS-49 whole-transaction retries belong to future engine callers, never this owner.
+Eligible OPS-49 whole-transaction retries belong to the engine caller (D-12), never this owner.
+
+### D-10. Store boundaries and local transport measurements
+
+STO-7/STO-55 retain the existing driver, pools, protocol observer and process-owned COMMIT path.
+Raw production caller SQL is absent; typed business statements and internal migration/advance
+settings are the admitted surface. Pending setting verification observes receipt cancellation;
+possible COMMIT dispatch begins an irrevocable owner that retains the original checkout and
+component permit. The notice cap is 16 payloads per physical session, reset at BEGIN, with an
+independent sticky warning bit scoped to the actual COMMIT attempt.
+
+The provisional 250 ms whole-checkout bound remains unchanged, including cold construction,
+authentication, settings and admission. A controlled cold-admission comparison changed only both
+fixture proxy sockets' TCP_NODELAY values. The recorded first comparison retained all four samples
+per mode: off, 252.59/252.51/252.65/250.80 ms (three refusals); on,
+48.29/48.84/48.13/51.76 ms (all admitted). This supports enabling the option on the fixture sockets;
+it does not establish Nagle/delayed ACK as the underlying mechanism. The command
+`PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command python3 tests/postgres/harness.py --phase corrections --seed 20261106`
+exited 0. Its raw record is `<run-dir>/corrections-4391fq37/manifest.json`; superseded experiments
+stay outside git. The original verification-cancellation assertion ran against the pre-fix runtime
+and exited 1 at the intended closure assertion (`<run-dir>/corrections-ln6f7bqj/manifest.json`),
+then the same assertion passed after correction. The final committed-source run retained all four
+samples in each mode: off, 213.51/214.58/211.85/252.19 ms (one refusal); on,
+48.40/48.14/49.26/48.46 ms (all admitted). [Final corrections](../evidence/w3-final-corrections.json)
+and [the twenty-six controls](../evidence/w3-final-controls.json) record the integrated green/red results.
+The complete commands, statuses and source identity are below. D-6 remains Open for W8.
+
+Measured environment: PostgreSQL 18.6, rustc 1.97.1, cargo 1.97.0, Python 3.14.7, Nix 2.34.9;
+tokio-postgres 0.7.18, deadpool 0.12.3, tokio 1.54.1, socket2 0.6.5. Cargo.lock and final manifests
+retain exact versions. No production timeout or outage bound is selected by this experiment.
+
+### D-11. Offline schema and bootstrap representation
+
+STO-12/STO-13 use one transactional migration, schema/semantic version 1/1, ordinary index builds,
+no SQL splitting and no nontransactional migration. The fixed migration key is
+`0x50524f564d494752`; the distinct startup key is `0x50524f5653544152`. Deployment bootstrap owns
+the pre-migration observer boundary: `tests/postgres/privileges.sql` grants app and migrator only
+schema USAGE/function EXECUTE, with the existing pinned SECURITY DEFINER search path, no owner
+membership and no broad statistics grant. Bootstrap creates an empty schema owned by migrator.
+DDL/history completion use the ordinary synchronous COMMIT owner. Reconnect after lock-timeout
+retry is diagnosed separately from initial acquisition; a connection failure is never retried.
+
+The first-slice schema uses UUID identities, bigint signed satoshis, check-constrained text states,
+JSONB closed summaries and explicit reference columns. Partial unique indexes enforce one
+non-yielded running operation and one open commitment per machine. Ledger and deposit history
+have no tenant FK; retained triggers protect the generation, tenant identities, deposits and
+append-only ledger. Payments link one nonnull unique credit per unique rail identity. Principal
+scope alone owns request receipt uniqueness. This is not a claim of the entire logical schema.
+
+[Final core evidence](../evidence/w3-final-core.json), REL-02, records fresh, no-op and concurrent
+runners; atomic DDL failure; a lost reply after durable history completion; supported and
+unsupported schema/semantics through both real binaries; and one-attempt initial/reconnect
+refusal with distinct reasons. Complete integrated commands and statuses are below.
+
+### D-12. Engine entry and local concurrency
+
+OVR-9/OPS-15/47/50 and STO-55 use an engine handle that exposes only fenced components. Each
+component owns one semaphore permit through transaction completion, including process-owned
+COMMIT. A separate entry mutex serializes generation checks with fatal-latch observation. Every
+ordinary engine transaction begins READ WRITE, then reads the singleton FOR SHARE first; this
+also implements provider-licensing reads. PostgreSQL refuses FOR SHARE in READ ONLY mode; the
+local app role has the required generation UPDATE privilege. API components omit the fence.
+
+The generation advance has a dedicated admitted transaction containing the replacement and its
+required SET LOCAL configuration, with a client floor covering the selected startup bound. Its
+acknowledgment precedes the bounded, per-row ordinary restart pass. An open incident refuses the
+unsupported recovery path. The local profile uses three worker write slots, one compatibility
+read slot and a dedicated lock session; startup checks these limits against ordinary capacity.
+Worker count can be stated through `PROVISIOND_WORKERS`. A worker semaphore reserves capacity
+before claiming and retains it through execution and records; simultaneous callers cannot exceed
+the declared count. The regression first observed four claims for three workers (exit 1 at the
+intended assertion), then three claims and one pre-transaction refusal after the fix (exit 0).
+[Final core evidence](../evidence/w3-final-core.json) includes that overlapping four-caller check.
+The fixture startup wait is 500 ms,
+Store-retry budget 2000 ms, Stop-record bound 1000 ms, migration lock timeout 500 ms and two
+lock-timeout retries. These values extend the provisional fixture register; D-6 stays Open.
+
+Worker outcomes and after-return settlement loops are process-owned. A first stop gives an
+existing settlement its own absolute Stop-record deadline; loss does not reset an older record.
+Store errors charge whole attempts and backoff; serialization failures retry immediately without
+charging that budget. Sent-COMMIT standby waits are excluded from that budget. Stop-record expiry
+requires process exit and cannot release a sent owner while keeping the engine alive. No claim
+reply uncertainty is retried blind. Unsupported parent/install/rescue/recovery paths are not built.
+
+### D-13. Monetary slice and simulator terms
+
+LDG-35 uses transaction advisory locks on `(1347572814, hashtext(tenant_id))`, ordered by ascending
+ASCII tenant identifier, without a live tenant row. Hash collisions can reduce concurrency; they
+do not permit concurrent writes for the same tenant. LDG-70 reads indexed latest seq/balance_after;
+a separate explicit audit recomputes prefixes and durably blocks new create admission on mismatch.
+Repair/re-enable is an offline operator responsibility, not a replication-drift controller.
+
+STO-23/27 and LDG-11 compose balance authorization, conditional resource exclusion, commitment,
+operation and principal receipt. Resource claims have no expiry; known settlement releases them.
+Receipts in this local fixture use a one-day horizon, not a selected production retention value.
+STO-30/31 use payment identity rather than deposit/event identity, actual settled values and one
+atomic credit/payment transaction. No reservation entry is posted. Verified-create settlement
+repeats status, machine, setup/nonzero-unit debits, versioned commitment decrements, retained
+snapshots/references and exclusion changes as one unit. Clamp overflow records the operator's
+native-cost remainder; late attach and full metering remain unsupported. Every failed business
+method makes its transaction uncommittable.
+
+Offer and conversion inputs are simulator terms, not a first real provider/product decision.
+The retained offer/charge shapes are closed; setup/unit conversion evidence is copied into debits.
+The same component gate instruments provider, rail and rescue entries. No real providers, purchases
+or funds are involved. [Final core evidence](../evidence/w3-final-core.json) records concurrent
+payments/admissions, reverse-order tenant-lock inputs, multirow settlement replay, resource
+exclusion, retained constraints and the durable audit halt. D-7, D-8 and D-9 are unchanged.
+
+### D-14. Claim and stop ownership
+
+OPS-49 claims now run under the existing process supervisor from reservation through
+acknowledgment and worker registration. The caller holds a receipt; losing it leaves exactly one
+registered worker and its original capacity, or fatal handling for an uncertain claim. No provider
+entry follows an unlearned result. OPS-21 execution is registered before licensing, and its owner
+covers the current transaction, retry loop and provider handoff. A stop permits the current sent
+COMMIT to finish, prevents another licensing attempt/dispatch, then records. Stop registration
+and actual simulator entry arbitrate under the worker lock. Create cut-offs use that live position;
+ordinary restart alone keeps OPS-15's conservative `about_to_order_at` rule.
+
+An execution publishes its final outcome before acknowledging termination; the stop record reads
+that outcome afterward. Record deadline and observed result share one mutex. A supervisor watchdog
+owns the first absolute deadline independently of `wait_records`, and the transaction loop checks
+it before another attempt. Late completion cannot become timely acknowledgment. Expiry logs every
+record not observed landed and exits the whole process nonzero, retaining sent-COMMIT ownership
+until that exit. The Store-retry budget remains independent. Lock-loss observation alone is
+serialized through fan-out and record completion; repeated observers cannot invent a later stop,
+and an existing record keeps its first deadline. A real later stop retains its exit.
+
+OPS-22 terminal completion distinguishes acknowledgment of the guarded effect (`Ok(true)`)
+from acknowledgment of a zero-row refusal (`Ok(false)`). Both end that execution; only the former
+is reported landed. The latter emits the observed guard refusal without asserting a restart.
+Completion publishes the result and retires only the matching claim under the worker/record
+locks. Records retain their original capacity permit while pending, including when a newer claim
+replaces the registry entry; captured waiters retain their record result. Errors retain ownership
+and the existing retry/deadline/exit handling. Four stop completions can reuse three slots.
+
+OPS-21/47 detection stores its first monotonic timestamp and emits the loss log under the same
+short mutex used by user-stop registration. Fan-out uses that timestamp for new records. A user
+stop after detection exits as a later stop even before fan-out registers that worker; it never
+waits on the observation mutex or repeats a sent record. An earlier record keeps its deadline
+and identity through concurrent observers. Actual claims and the represented periodic admission
+boundary refuse new work after detection. [Core evidence](../evidence/w3-final-core.json) and
+[controls](../evidence/w3-final-controls.json) exercise both temporal orders. The three new
+assertions first exited 1 on the original faulty completion/ordering logic at `f026454`, with
+observation hooks only, then passed on final source. The red manifests retain that original
+source identity as well as each final-source defect reproduction.
+
+OPS-50's generation-first entry installs a private transaction capability only after the check.
+Public claim/defer/reacquire/licensing/settlement methods require it before business SQL. API
+admission/payment transactions remain unfenced. The exceptional held-generation fixture calls an
+internal primitive only in the opt-in hooks build.
+
+OVR-19's **Startup-lock connection keepalives** row explicitly shares the local pooled assignment:
+client/server idle 2 s, interval 1 s, count 2. `StartupKeepalives` validates positive whole seconds
+within PostgreSQL's signed range and a supported positive count before constructing the dedicated
+transport. The shared session factory verifies client socket getters; a separate lock-session
+observation checks all three server settings against that assignment. These are local-profile
+values, not independently tunable production parameters. D-6 remains Open for W8.
+
+Focused PostgreSQL commands for claim cancellation, licensing stops, returned-outcome publication,
+unpolled deadlines, concurrent lock observers, live position and unfenced methods first exited 1
+at their intended assertions on the supplied runtime logic, then exited 0 after correction.
+`nix develop --command bash tools/check.sh` exited 0. The final committed-source gate, full
+seven-phase acceptance and twenty-six targeted controls are recorded in [W3 acceptance](../evidence/w3.md).
+The final manifests replace earlier W3 manifests; earlier passing inventory did not check these
+ownership boundaries. Test-hook runtimes are identified as such; default-feature build validation
+uses a separate target directory. No production policy or timing bound changed.
+
+Concrete acceptance windows use only opt-in holds at claim registration, licensing retry/entry,
+returned-outcome publication and lock-loss registration. Simulator external identities include the
+operation ID to avoid cross-scenario collisions. Setup funding checks acknowledgment and permits
+at most three API requests for the same payment identity after a recorded cold-checkout refusal;
+this is a fixture replay, not an engine retry or an increased checkout bound. Other setup errors
+fail. Fault tests retain their own assertions and do not use that replay to hide a fault.
+
+### D-15. Claim dispatch arbitration and active record identity
+
+**Measured 2026-11-06.** OPS-47 checked claim entry shares the loss-publication mutex after the
+component-entry wait and the whole 250 ms pool acquisition. `Store::begin_checked` holds that
+short guard only for the initial poll of BEGIN, then releases it before awaiting a reply.
+Inspection of the locked tokio-postgres 0.7.18 `simple_query.rs::simple_query` and
+`client.rs::simple_query` shows submission precedes the first response wait. No extra checkout
+or blocking lock across store I/O is introduced. OPS-50's first generation statement and fatal
+mismatch remain enforced. Ordinary record/settlement transactions remain permitted after loss.
+Claims already dispatched can finish uncertain work; registration after detection attaches a
+stop using the original loss timestamp. Refused queued entry is returned without another claim
+attempt. There is still no production periodic scheduler.
+
+OPS-21 active records are keyed by `(operation id, claim number)` independently of the current
+worker map. Their results and original permits/deadlines survive worker replacement. New observers
+and expiry use that active registry; expiry names operation and claim. Terminal success/refusal
+removes the active entry, with captured observers retaining the result. Errors remain visible until
+the required exit. Lock order is worker registry, active records, record state; no new lock crosses
+an asynchronous store wait. Existing user-stop arbitration also takes the loss mutex under the
+worker registry, before record access.
+
+The focused real-PG commands `nix develop --command python3 tests/postgres/harness.py --phase core
+--case <case> --seed 20261106 --evidence <raw-manifest>` exited 0 for `queued_claim`,
+`displaced_record`, `lock_observers`, `terminal_zero` and `claim_cancel` after correction
+(raw manifests under `<run-dir>/pending-green-i53_n1v2`). The first two safety assertions exited 1
+on the faulty 916a46f runtime paths with observation hooks only. A deliberate post-registration
+deadline reset exited 1 at the new comparison; it is a check-sensitivity control, not a newly
+found runtime reset defect. [W3 acceptance](../evidence/w3.md) and the final core/three red manifests
+record source hashes, intended assertions and successful cleanup. The final committed-source gate
+and complete seven-phase command each exited 0, with 24 controls each exiting 1 as intended.
+Versions remain PostgreSQL 18.6, rustc 1.97.1, tokio-postgres 0.7.18 and deadpool 0.12.3;
+full version identity is in the final manifests. D-6/7/8/9 remain Open.
+
+### Historical evidence basis for D-10 through D-15
+
+**Measured 2026-11-06.** Tested implementation `6a2511abf38d2b9cb2377f6772bb599c85b4bb46`,
+source-bundle SHA-256 `e9ac95f7c9d3b175679c3683c7f45672f3673a6973469dfe1d99c0c9dec9da1f`,
+against the unchanged specification pin. The manifests recorded no source dirt. This historical run and its manifests remain in git
+history. D-16 and the current acceptance report record the subsequent ownership correction and
+fresh final validation; the current final manifests supersede those linked here.
+
+- `nix develop --command bash tools/check.sh` exited **0** (format, lint and all
+  unit/entry tests; no PostgreSQL started). [Gate record](../evidence/w3-gate.json) retains full-log
+  hashes, default-feature binary build, port unit tests and invalid-selector refusals.
+- `PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence evidence/w3-final.json`
+  exited **0**, all seven phases. [Aggregate](../evidence/w3-final.json) and
+  [report](../evidence/w3.md) link every phase and each of twenty-four intended failing controls (exit 1).
+  Cleanup passed for every positive and negative run. No real providers or funds were used.
+
+Fixture transport/framing corrections preserve the 250 ms acquisition budget and
+150 ms scheduling tolerance. D-14 separately records the runtime ownership corrections. The non-designated-backup test now distinguishes an
+already-admitted fixed-target check from a separate cold admission, which must still refuse at
+250 ms even with the backup sender ahead. A trace barrier precedes release of DB-06's post-read
+fault. The busy-port fixture uses the allocation's own port and the harness's socket reuse mode.
+Unused server slots remain bound without listening until needed, preventing this run's clients
+from selecting those ports as ephemeral endpoints. These are isolated fixture mechanisms, not
+host networking changes or a production connection-admission authority.
+
+### D-16. Returned outcome ownership
+
+**Measured 2026-11-06.** OPS-6/21/22 and STO-3 use one shared
+`Arc<Mutex<Option<Outcome>>>` per claimed worker. Execution registration captures its claim,
+component, termination acknowledgment and outcome cell together under the worker registry lock.
+Execution publishes to that captured cell before setting its done flag. Stop registration captures
+the same cell before a later claim can replace the worker; after termination it consumes that
+cell's actual result under the original claim guard. A replacement owns a fresh empty cell.
+The manual outcome setter checks the supplied claim, direct settlement rechecks its claim at
+record registration, and stale direct writes do not borrow the replacement's component.
+Provider handoff checks the captured execution identity under the existing stop-arbitration lock.
+No lock crosses store I/O; cells expire with their execution/worker/record owners, without a
+persistent table, execution-history registry or new supervisor. Existing deadlines and permits
+remain unchanged.
+
+`nix develop --command python3 tests/postgres/harness.py --phase core --case replacement_outcome
+--seed 20261106 --evidence <run-dir>/outcome-correction/original-red.json` exited **1** at
+`replacement claim must refuse settlement without its own outcome` on the unchanged `e9aec96`
+runtime. All 15 runtime/migration file hashes match that commit; only four test fixtures changed,
+so source dirt is recorded honestly. No runtime overlay was needed. PostgreSQL showed claim 3
+`succeeded` with claim 1's external result after one simulator acceptance. Cleanup passed.
+[The final publication control](../evidence/w3-red-replacement_outcome.json) retains that original
+reproduction and the committed-source operation-only publication control (same assertion, exit 1).
+
+Tested implementation `4f1fe6d5c40d39540ce0020a662c46bb81bd0f97`, source-bundle SHA-256
+`987fcb89a2bf454a173c08396c97e19b0c9f84a68a49d1369ea9e158e09bc680`, has no source dirt.
+`nix develop --command bash tools/check.sh` exited **0**.
+`PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence evidence/w3-final.json`
+exited **0**, all seven phases: 80 positive entries, 26 intended assertion-failing controls
+(exit 1 each), and successful cleanup in all 32 phase/control runs. The unchanged W2 negative
+observations and deferred not-run entries remain separate. [Acceptance](../evidence/w3.md),
+[aggregate](../evidence/w3-final.json), [gate](../evidence/w3-gate.json) and
+[core](../evidence/w3-final-core.json) retain exact invocations/statuses, source identity and log hashes.
+
+The new regression observes A's verified result at the actual stop-record handoff and acknowledged
+zero-row refusal, unchanged B state/money/exclusion and retained capacity. B refuses settlement
+without its own outcome, then makes its own distinguishable simulator call and atomically records
+its machine/debits/commitment exactly once. Queued entry/pool acceptance now requires one original
+pending attempt, no `claim_precommit_retry` or replacement attempt, and actual checked refusal;
+the isolated pool admission control exits 1 at the intended forbidden-BEGIN assertion. Normal
+lock-observer and deadline-reset runs require completed fan-out and a real post-registration read.
+Only the explicitly selected pre-registration control keeps its earlier-snapshot fallback; both
+observer controls exit 1 at their intended assertions. No runtime timing bound or retry policy changed.
+
+Versions: PostgreSQL 18.6, rustc 1.97.1, cargo 1.97.0, Python 3.14.7, Nix 2.34.9;
+tokio-postgres 0.7.18, deadpool 0.12.3 and tokio 1.54.1. The separate default-feature build exited 0;
+runtime evidence uses `store-test-hooks`. Later documentation/evidence-only commits do not alter
+these tested runtime/fixture files. D-6/7/8/9 remain Open.
+
+### D-17. Process-owned defer completion
+
+**Measured 2026-11-06.** OPS-8/6, STO-3/7/55 and OPS-49 use the existing
+`Process::submit` supervisor for `Engine::defer`'s full transaction loop, completion and
+claim-specific retirement. The waiter receives a `Result<bool>`; cancellation only drops that
+receipt. The task captures the matching component and an independent clone of its original
+worker permit before submission. Replacement of the operation-id entry cannot release that
+permit before acknowledgment. Acknowledged true and false both retire only the original claim;
+false remains a normal defer guard refusal, without settled-write fatal interpretation.
+No transaction/retry, true-stop or generation-fence policy changes.
+
+OPS-49/50 fatal completion exits independently of result delivery. A successful oneshot send is
+not proof its receiver observed the result; a cancelled or indefinitely unpolled receiver cannot
+suppress the already-required exit. The generation regression therefore observes actual exit 71,
+supersession and no retries instead of requiring an API error reply before process exit.
+The first canonical attempt on `35f8616` exited 1 when the old fixture waited for that reply;
+its cleanup also failed because the fixture had not set the expected child status. That record
+remains outside git and is summarized in [validation](../evidence/defer/validation.json).
+
+The [original-runtime red](../evidence/defer/w3-red-defer_cancel.json) used unchanged base
+`8d7e89110898ef8ad7addfc291adaa5bee7e8625`, with a fixture-only overlay. All 17
+runtime/migration/dependency hashes match the base. It built, held the attributed real COMMIT
+reply, joined caller cancellation, released the reply and observed durable queued state, then
+exited 1 at the named capacity assertion; cleanup passed. The final manifest retains its exact
+patch hash, complete source inventory, dirty state and separate log hashes alongside the final
+focused control. Raw patches, builds and logs stay outside git.
+
+Tested implementation `966751005c34721fecefedff7a210a390d657cb8`, source-bundle SHA-256
+`9b5410a0395126ab6fc9c747fd8d29c81c2aaeb5e83331fb0642bfabdd920ce2`, had no source dirt. `nix develop --command bash tools/check.sh`
+exited 0. `PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh
+--seed 20261106 --evidence <run-dir>/defer-repair/final-3/w3-defer-final.json` exited 0,
+all seven phases: 81 positive entries and 27 intended failing controls (exit 1 each), with
+successful final cleanup. Four cancelled defers reused three slots; stale true/false completion
+retained the old permit until acknowledgment and preserved the newer worker and state. Cancelled
+and live unpolled supersession receipts produced actual exit 71 with one refusal and no retry.
+[Report](../evidence/defer/report.md), [aggregate](../evidence/defer/w3-defer-final.json) and
+[validation](../evidence/defer/validation.json) preserve commands, source and stdout/stderr hashes.
+
+Versions remain PostgreSQL 18.6, rustc 1.97.1, cargo 1.97.0, Python 3.14.7, Nix 2.34.9;
+tokio-postgres 0.7.18, deadpool 0.12.3, tokio 1.54.1 and socket2 0.6.5. Runtime evidence
+uses `store-test-hooks`. Prior W3 evidence still demonstrates its original commit; this is a
+separate final supplement. ENG-05, ENG-07 and DB-10 remain not run; D-6/7/8/9 remain Open.
 
 ## Open
 
@@ -155,10 +479,12 @@ D-6 remains **Open for W8**. Provisional OVR-19 store-timeout rows are statement
 lock 500 ms, idle transaction 1000 ms, client pre-COMMIT call/connect 2000 ms, read-only check
 3000 ms, and checkout 250 ms. Pooled TCP keepalives are idle 2 s, interval 1 s, count 2 on
 both client and server. Isolation is read committed; search path is `pg_catalog,fixture`;
-`synchronous_commit=on`. Read and write pools each have one checkout. The local primary's
+`synchronous_commit=on`. The W2 store fixture has one read and one write checkout. The local primary's
 `max_connections=24` with three reserved slots accommodates two store sessions plus bootstrap,
-fixture/observer and replication-test headroom; it is not a product capacity budget. No engine
-worker/periodic pool, Store-retry policy, production alarm threshold or restart policy is selected.
+fixture/observer and replication-test headroom; it is not a product capacity budget. W3 adds
+three engine worker write slots, one compatibility read slot and a dedicated startup-lock session;
+no periodic scheduler is implemented. Its Store-retry bound is 2000 ms. Production capacity,
+retry policy, alarm thresholds and restart policy remain unselected.
 The lifecycle fixture uses a 1000 ms stop bound and exits unresolved at that bound; two complete
 read/check attempts are allowed for a broken destination-read session. These are test values,
 not outage guarantees.
@@ -167,9 +493,12 @@ not outage guarantees.
 |---|---|---|
 | Store timeouts | STO-7, STO-55 | statement 1000 ms; lock 500 ms; idle transaction 1000 ms |
 | API read/write concurrency | STO-55 | one checkout in each ordinary pool |
+| Engine worker concurrency | STO-55 | three retained worker permits and three write checkouts; one compatibility read checkout; startup lock outside pools |
+| Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms |
 | Pool checkout bound | STO-55 | 250 ms |
+| Startup-lock connection keepalives | OPS-47, OVR-19 | explicit local assignment sharing pooled values; client/server idle 2 s, interval 1 s, count 2; validated and observed on lock session |
 | Pooled-connection keepalives | STO-7 | client/server idle 2 s, interval 1 s, count 2 |
-| Stop-record bound | OPS-21 | 1000 ms lifecycle fixture only; product record handling absent |
+| Stop-record bound | OPS-21 | 1000 ms in lifecycle and W3 worker record fixtures |
 | Connection budget | STO-55 | local max 24, reserved 3; fixture pools/observer/replication headroom only |
 
 Client call/connect 2000 ms and check 3000 ms are implementation bounds obeying STO-7/OPS-49's

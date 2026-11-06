@@ -12,7 +12,7 @@ from proxy import Proxy
 
 
 class Probe:
-    def __init__(self,h,role='app',password=None,defect=None):
+    def __init__(self,h,role='app',password=None,defect=None,program='store-probe',extra_env=None):
         cap_check()
         self.expected_status=0
         self.finished=False
@@ -20,12 +20,15 @@ class Probe:
         self.events=[]
         self.queue=queue.Queue()
         self.index=len(getattr(h,'probes',[]))
-        env=dict(h.env,STORE_CONNECTION=f"host=127.0.0.1 port=55413 user={role} password={password or h.passwords[role]} dbname=postgres sslmode=disable")
+        env=dict(h.env,STORE_CONNECTION=f"host=127.0.0.1 port={h.ports[3]} user={role} password={password or h.passwords[role]} dbname=postgres sslmode=disable")
+        if extra_env:
+            env.update(extra_env)
         if defect:
             env['STORE_TEST_DEFECT']=defect
         self.defect=defect
+        self.program=program
         stderr=(h.root/f'client-{self.index}.stderr').open('w')
-        self.p=subprocess.Popen(['target/debug/examples/store-probe'],stdin=subprocess.PIPE,
+        self.p=subprocess.Popen(['target/debug/examples/'+program],stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE,stderr=stderr,text=True,env=env,bufsize=1)
         stderr.close()
         self.thread=threading.Thread(target=self.read)
@@ -64,13 +67,20 @@ class Probe:
         if self.finished:
             return
         if self.p.poll() is None:
-            self.send('exit')
-            self.p.stdin.close()
+            if self.expected_status==0:
+                try:
+                    self.send('exit')
+                except BrokenPipeError:
+                    pass # Status below still rejects an unexpected process exit.
+            try:
+                self.p.stdin.close()
+            except BrokenPipeError:
+                pass
             status=self.p.wait(timeout=8)
         else:
             status=self.p.returncode
         self.thread.join(timeout=3)
-        self.h.commands.append(dict(command=['target/debug/examples/store-probe'],test_defect=self.defect,exit_status=status))
+        self.h.commands.append(dict(command=['target/debug/examples/'+self.program],test_defect=self.defect,exit_status=status))
         self.finished=True
         assert status==self.expected_status,(status,(self.h.root/f'client-{self.index}.stderr').read_text())
 
@@ -115,7 +125,7 @@ def syncrep(h):
 def fixture_write_wait(h,id):
     log=(h.root/f'fixture-{id}.log').open('w')
     cap_check()
-    p=subprocess.Popen(['psql','-XAt','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p','55410','-U','administrator','-d','postgres'],
+    p=subprocess.Popen(['psql','-XAt','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p',str(h.ports[0]),'-U','administrator','-d','postgres'],
                        stdin=subprocess.PIPE,stdout=log,stderr=log,text=True,env=h.env)
     log.close()
     h.extra.append(p)
@@ -217,7 +227,7 @@ def check_scenarios(h):
     p.send('read 6')
     c=post.wait()
     assert c['pid']==admitted, 'reader must preserve its uninterrupted physical session'
-    assert any(e.get('event')=='destination_read' for e in p.events)
+    eventually(lambda:any(e.get('event')=='destination_read' for e in p.events),seconds=.2)
     post.release()
     eventually(lambda: any(e.get('event')=='check_observation' and e.get('kind')=='post_read' for e in p.events))
     observations=[e for e in p.events if e.get('event')=='check_observation' and e.get('kind')=='post_read']
@@ -288,7 +298,7 @@ def replication_negatives(h):
         log=(h.root/f'wal-stream-{len(h.extra)}.log').open('w')
         cap_check()
         p=subprocess.Popen(['pg_receivewal','--no-loop','--synchronous','-D',str(path),
-                            '-d',f'host=127.0.0.1 port=55410 user={role} application_name={name}'],
+                            '-d',f'host=127.0.0.1 port={h.ports[0]} user={role} application_name={name}'],
                            env=h.env,stdout=log,stderr=log)
         log.close()
         h.extra.append(p)
@@ -305,6 +315,11 @@ def replication_negatives(h):
     duplicate.wait(timeout=5)
     h.event('replication_protocol_negative_complete',case='duplicate name',physical_standbys=1)
     h.results.append(dict(test='DB-05-duplicate',result='pass',injection='isolated pg_receivewal protocol connection; not another physical standby'))
+    # Cold admission completes while the designated standby is healthy. The
+    # longer backup-prefix observation below exercises the same Session::check
+    # without pretending checkout can outlive its corrected 250 ms bound.
+    q=Probe(h)
+    q.command('admit')
     pause_standby(h)
     wrong=receiver('bootstrap_backup')
     eventually(lambda: h.sql("SELECT count(*) FROM pg_stat_replication WHERE application_name='bootstrap_backup' AND flush_lsn IS NOT NULL")=='1')
@@ -318,7 +333,7 @@ def replication_negatives(h):
     h.owned_extra_paths.append(backup_path)
     backup_log=(h.root/'identity-backup.log').open('w')
     cap_check()
-    backup=subprocess.Popen(['pg_basebackup','-d','host=127.0.0.1 port=55410 user=replicator application_name=bootstrap_probe',
+    backup=subprocess.Popen(['pg_basebackup','-d',f'host=127.0.0.1 port={h.ports[0]} user=replicator application_name=bootstrap_probe',
                              '-D',str(backup_path),'-X','stream','--checkpoint=fast','--max-rate=1M','--status-interval=1','--no-password'],
                             env=h.env,stdout=backup_log,stderr=backup_log)
     backup_log.close()
@@ -328,10 +343,10 @@ def replication_negatives(h):
     eventually(lambda: h.sql("SELECT count(*) FROM pg_stat_replication WHERE application_name='bootstrap_probe' AND state='streaming'")=='1')
     h.event('backup_sender_observed',observation=h.sql("SELECT application_name,state,coalesce(flush_lsn::text,'NULL') FROM pg_stat_replication WHERE application_name='bootstrap_probe'"),
             note='backup-command NULL is unknown; streaming sender is separately checked through the exact admission target')
-    q=Probe(h)
-    q.send('admit')
-    eventually(lambda:any(e.get('event')=='check_target' for e in q.events))
-    exact=next(e['target'] for e in q.events if e.get('event')=='check_target')
+    marker=len(q.events)
+    q.send('check')
+    eventually(lambda:any(e.get('event')=='check_target' and e.get('kind')=='test' for e in q.events[marker:]))
+    exact=next(e['target'] for e in q.events[marker:] if e.get('event')=='check_target' and e.get('kind')=='test')
     # Physical-backup infrastructure: finish the current WAL segment so the
     # backup's streaming sender can report a durable prefix beyond this fixed
     # target. No component row/transaction or replication setting changes.
@@ -339,13 +354,26 @@ def replication_negatives(h):
     switched=h.sql('SELECT pg_switch_wal()')
     h.event('backup_wal_segment_release_observed',target=exact,switch_lsn=switched)
     eventually(lambda:h.sql(f"SELECT flush_lsn >= '{exact}'::pg_lsn FROM pg_stat_replication WHERE application_name='bootstrap_probe' AND state='streaming'")=='t',seconds=2)
-    assert not any(e.get('event')=='result' for e in q.events),'attempt ended before the non-designated backup reached its target'
+    assert not any(e.get('event')=='result' for e in q.events[marker:]),'check ended before the non-designated backup reached its target'
     h.event('non_designated_backup_caught_up',target=exact,
             senders=h.sql("SELECT application_name,state,coalesce(flush_lsn::text,'NULL') FROM pg_stat_replication ORDER BY application_name,state"),
-            attempted_session=next(e['session'] for e in q.events if e.get('event')=='check_target'))
-    failure=q.result('admit',ok=False)
+            attempted_session=next(e['session'] for e in q.events[marker:] if e.get('event')=='check_target'))
+    # Prove the admission arm too, with its own new physical session and fixed
+    # target. Backup catch-up is already observed before beginning this checkout.
+    admission=Probe(h)
+    admission.send('admit')
+    eventually(lambda:any(e.get('event')=='check_target' for e in admission.events),seconds=.2)
+    admission_target=next(e['target'] for e in admission.events if e.get('event')=='check_target')
+    ahead=h.sql(f"SELECT flush_lsn >= '{admission_target}'::pg_lsn FROM pg_stat_replication WHERE application_name='bootstrap_probe' AND state='streaming'")
+    assert ahead=='t','backup must be ahead of the actual cold admission target'
+    h.event('non_designated_admission_prefix_observed',target=admission_target,backup_ahead=True,checkout_ms=250)
+    refusal=admission.result('admit',ok=False)
+    assert 'deadline' in refusal['error'],refusal
+    assert not any(e.get('event')=='session_admitted' for e in admission.events)
+    admission.finish()
+    failure=q.result('check',ok=False)
     assert 'deadline' in failure['error'],failure
-    assert not any(e.get('event')=='session_admitted' for e in q.events)
+    assert not any(e.get('event')=='session_admitted' for e in q.events[marker:])
     q.finish()
     wrong.terminate()
     wrong.wait(timeout=5)
@@ -355,7 +383,7 @@ def replication_negatives(h):
     assert status==0,(h.root/'identity-backup.log').read_text()
     h.run(['pg_verifybackup',str(backup_path)])
     h.results.append(dict(test='DB-05-non-designated',result='pass',
-                         injection='pg_basebackup streaming sender reached the exact admission target while its connection check remained pending; extra pg_receivewal stream; designated receiver paused',
+                         injection='pg_basebackup streaming sender reached the exact read-only check target while pending; separate fresh cold admission refused with backup ahead of its own target and designated receiver paused',
                          establishes='non-designated later flush never substitutes for designated peer'))
     # Wrong authenticated identity with the right name, using a distinct replication role.
     h.sql('ALTER ROLE observer REPLICATION')
@@ -819,7 +847,7 @@ def construction_deadline(h):
     c=gate.wait()
     assert not c['closed'] and time.monotonic()-start<1
     result=p.result('admit',ok=False)
-    assert 'connect deadline' in result['error'],result
+    assert 'whole pool checkout deadline' in result['error'],result
     eventually(lambda:c['closed'],seconds=.5)
     assert c['close_source']=='client_eof'
     assert not any(e.get('event')=='session_admitted' for e in p.events)

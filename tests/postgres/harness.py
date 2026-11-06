@@ -37,10 +37,28 @@ def cap_check():
 
 
 def free_port(port):
-    assert 55410 <= port <= 55429
+    assert 55430 <= port <= 55479
     with socket.socket() as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('127.0.0.1', port))
+
+
+def allocation():
+    """Required private four-port allocation, validated before starting any child."""
+    raw = os.environ.get('PROVISIOND_HARNESS_PORT_BASE', '')
+    if not raw.isascii() or not raw.isdecimal():
+        raise ValueError('PROVISIOND_HARNESS_PORT_BASE must be an integer')
+    base = int(raw)
+    if not 55430 <= base <= 55476:
+        raise ValueError('four harness ports must fit within 55430..55479')
+    return list(range(base, base + 4))
+
+
+def preflight_ports():
+    ports = allocation()
+    for port in ports:
+        free_port(port)
+    return ports
 
 
 def eventually(check, seconds=20):
@@ -60,6 +78,7 @@ def eventually(check, seconds=20):
 class Harness:
     def __init__(self, phase, seed):
         cap_check()
+        self.ports = preflight_ports()
         os.umask(0o077)
         ROOT.mkdir(parents=True, exist_ok=True)
         self.root = Path(tempfile.mkdtemp(prefix=f'{phase}-', dir=ROOT))
@@ -74,21 +93,28 @@ class Harness:
         self.env = dict(os.environ, PGPASSFILE=str(self.pgpass), PGCONNECT_TIMEOUT='2')
         self.config = dict(synchronous_commit='on', synchronous_standby_names='FIRST 1 (provisiond_sync)',
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
-                           archive_mode='on', restart_after_crash='on', ports=[55410,55411,55412],
+                           archive_mode='on', restart_after_crash='on', ports=self.ports[:3],
                            authentication='scram-sha-256 loopback only', standby_role='replicator')
-        if phase in ('checks','commits','regressions'):
+        if phase in ('checks','commits','regressions','corrections','core'):
             self.config['store'] = dict(read_pool=1,write_pool=1,statement_ms=1000,lock_ms=500,
                 idle_transaction_ms=1000,call_ms=2000,check_ms=3000,checkout_ms=250,
                 keepalive_idle_seconds=2,keepalive_interval_seconds=1,keepalive_count=2,
                 isolation='read committed',search_path='pg_catalog,fixture',stop_fixture_ms=1000,
                 transport='direct TCP; loopback proxy for faults; sslmode=disable')
-            self.config['ports'].append(55413)
+            self.config['ports'].append(self.ports[3])
+        if phase=='core':
+            self.config['engine']=dict(workers=3,write_pool=3,compatibility_read_pool=1,
+                startup_lock_outside_pool=True,startup_wait_ms=500,store_retry_ms=2000,stop_record_ms=1000,
+                startup_lock_keepalives=dict(idle_seconds=2,interval_seconds=1,count=2,profile_assignment="shared with pooled local values"),
+                runtime_build=dict(features=["store-test-hooks"],target_directory="target"),
+                migration_lock_ms=500,migration_lock_retries=2,schema_version=1,semantic_version=1,notice_cap=16)
         self.archive = self.root / 'archive'
         self.archive.mkdir()
         self.event('invocation', seed=seed, specification=SPEC, phase=phase,
                    configuration=json.loads(json.dumps(self.config)),
                    configuration_sha256=hashlib.sha256(json.dumps(self.config, sort_keys=True).encode()).hexdigest())
         self.source = self.run(['git', 'rev-parse', 'HEAD']).stdout.strip()
+        self.dirty = bool(self.run(['git','status','--porcelain','--','.',':(exclude)evidence/**']).stdout.strip())
         # Exact content identity, including untracked source, without hashing credentials/artifacts.
         paths = subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard'], text=True).splitlines()
         hashes = {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in paths
@@ -107,6 +133,35 @@ class Harness:
         self.versions['crates'] = {p['name']:p['version'] for p in tomllib.loads(Path('Cargo.lock').read_text())['package']}
         self.versions['postgres_path'] = str(Path(shutil.which('postgres')).resolve())
         self.versions['nixpkgs'] = 'aff8a0b28396750446e5537a96461bc4facdb287:postgresql_18'
+        # Keep currently unused server slots out of this run's outgoing client
+        # source-port selection. No socket listens or impersonates PostgreSQL.
+        self.port_reservations={}
+        try:
+            for port in self.ports:
+                self.reserve_port(port)
+        except BaseException:
+            for port in list(self.port_reservations):
+                self.release_port(port)
+            raise
+        self.event('allocation_reserved',ports=self.ports)
+
+    def reserve_port(self,port):
+        assert port in self.ports
+        if port in self.port_reservations:
+            return
+        reservation=socket.socket()
+        try:
+            reservation.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+            reservation.bind(('127.0.0.1',port))
+        except BaseException:
+            reservation.close()
+            raise
+        self.port_reservations[port]=reservation
+
+    def release_port(self,port):
+        reservation=self.port_reservations.pop(port,None)
+        if reservation:
+            reservation.close()
 
     def event(self, kind, **data):
         e = dict(event=kind, timestamp=time.time(), elapsed=time.monotonic()-self.started, **data)
@@ -147,12 +202,12 @@ class Harness:
         (data / 'pg_hba.conf').write_text(
             'host replication replicator 127.0.0.1/32 scram-sha-256\n'
             'host all all 127.0.0.1/32 scram-sha-256\n')
-        self.configure(data, 55410)
-        self.nodes['primary'] = dict(data=data, port=55410)
+        self.configure(data, self.ports[0])
+        self.nodes['primary'] = dict(data=data, port=self.ports[0])
         self.start('primary')
         self.backup('standby', standby=True)
-        self.nodes['standby'] = dict(data=self.root/'standby', port=55411)
-        self.configure(self.root/'standby', 55411)
+        self.nodes['standby'] = dict(data=self.root/'standby', port=self.ports[1])
+        self.configure(self.root/'standby', self.ports[1])
         self.start('standby')
         eventually(lambda: self.sql("SELECT count(*)=1 FROM pg_stat_replication WHERE application_name='provisiond_sync' AND sync_state='sync' AND state='streaming'")=='t')
         setup = '\n'.join(f"CREATE ROLE {r} LOGIN NOSUPERUSER PASSWORD '{self.passwords[r]}';" for r in self.passwords if r not in ('replicator','administrator'))
@@ -203,6 +258,7 @@ tcp_keepalives_count = 2
     def start(self, name, role='administrator'):
         cap_check()
         n = self.nodes[name]
+        self.release_port(n['port'])
         free_port(n['port'])
         log = (self.root / f'{name}.log').open('ab', buffering=0)
         n['process'] = subprocess.Popen(['postgres','-D',str(n['data'])], env=self.env,
@@ -224,6 +280,8 @@ tcp_keepalives_count = 2
             status=n['process'].returncode
             n['command']['exit_status']=status
             assert status==0, f'owned server {name} exited unexpectedly: {status}'
+        if not any(other['port']==n['port'] and other.get('process') and other['process'].poll() is None for other in self.nodes.values()):
+            self.reserve_port(n['port'])
 
     def crash_backend(self, pid):
         # Harness-only deliberate crash, validated against this owned postmaster.
@@ -239,7 +297,7 @@ tcp_keepalives_count = 2
     def backup(self, name, standby=False):
         dest = self.root / name
         self.event('backup_requested', destination=name, wal_mode='stream', application_name='bootstrap_backup')
-        self.run(['pg_basebackup','-d','host=127.0.0.1 port=55410 user=replicator dbname=postgres application_name=bootstrap_backup',
+        self.run(['pg_basebackup','-d',f'host=127.0.0.1 port={self.ports[0]} user=replicator dbname=postgres application_name=bootstrap_backup',
                   '-D',str(dest),'-X','stream','--checkpoint=fast','--no-password'])
         self.run(['pg_verifybackup',str(dest)])
         provenance=self.root/(name+'-backup-manifest.json')
@@ -249,7 +307,7 @@ tcp_keepalives_count = 2
             (dest/'standby.signal').touch()
             # Set the final application name and authenticated role before startup.
             (dest/'postgresql.auto.conf').write_text(
-                f"primary_conninfo = 'host=127.0.0.1 port=55410 user=replicator application_name=provisiond_sync passfile={self.pgpass}'\n")
+                f"primary_conninfo = 'host=127.0.0.1 port={self.ports[0]} user=replicator application_name=provisiond_sync passfile={self.pgpass}'\n")
         self.event('backup_complete', destination=name, verified=True)
 
     def identity(self):
@@ -273,8 +331,8 @@ tcp_keepalives_count = 2
         # Rebuild with no acknowledgement partner and without an ordinary SQL commit.
         self.backup('rebuilt', standby=True)
         self.nodes['retired'] = self.nodes.pop('standby')
-        self.nodes['standby'] = dict(data=self.root/'rebuilt',port=55411)
-        self.configure(self.root/'rebuilt',55411)
+        self.nodes['standby'] = dict(data=self.root/'rebuilt',port=self.ports[1])
+        self.configure(self.root/'rebuilt',self.ports[1])
         self.start('standby')
         self.identity()
         self.results.append(dict(test='W1-bootstrap-rebuild-replication',result='pass',
@@ -289,10 +347,10 @@ tcp_keepalives_count = 2
         restore = self.root/'restored'
         shutil.copytree(self.root/'restore-backup',restore)
         # Force archive replay for WAL produced after backup; do not use streaming.
-        self.configure(restore,55412)
+        self.configure(restore,self.ports[2])
         (restore/'postgresql.auto.conf').write_text(f"restore_command = 'cp {self.archive}/%f %p'\n")
         (restore/'standby.signal').touch()
-        self.nodes['restored'] = dict(data=restore,port=55412)
+        self.nodes['restored'] = dict(data=restore,port=self.ports[2])
         self.start('restored')
         eventually(lambda: self.sql("SELECT destination FROM fixture.destinations WHERE id=2",node='restored')=='archive-after-unique-fixture')
         self.event('archive_restore_observed', fixture='id=2 created after base backup',
@@ -347,6 +405,9 @@ tcp_keepalives_count = 2
         for path in [self.pgpass,self.root/'init-password']:
             if path.exists():
                 path.unlink()
+        for port in list(self.port_reservations):
+            self.release_port(port)
+        self.event('allocation_released',ports=self.ports)
         self.event('cleanup_complete', result='fail' if errors else 'pass', errors=errors,
                    raw_evidence=str(self.root))
         return not errors
@@ -368,37 +429,60 @@ tcp_keepalives_count = 2
             observations.append(value)
         raw=self.root/'events.jsonl'
         manifest=dict(result=status, specification_commit=SPEC, implementation_commit=self.source,
-                    tested_source_sha256=self.tree, source_files=self.source_files,
+                    tested_source_sha256=self.tree, source_files=self.source_files, source_dirty=self.dirty,
                     seed=self.seed, versions=self.versions, configuration=self.config,
                     configuration_sha256=hashlib.sha256(json.dumps(self.config,sort_keys=True).encode()).hexdigest(),
                     command=['nix','develop','--command','python3',*sys.argv], commands=self.commands,
                     scenarios=self.results, events=observations, raw_evidence=str(self.root),
                     trace=dict(path=str(raw),sha256=hashlib.sha256(raw.read_bytes()).hexdigest()),
-                    external_provider_rail_evidence='not applicable: no external effects',
+                    external_provider_rail_evidence='simulator only; no real effects' if self.phase=='core' else 'not applicable: no external effects',
                     limitations=['local processes only; no separate-host durability or fencing proof',
-                                 'no product recovery incident, engine, ledger or production alarm implementation',
+                                 'no product recovery incidents, automatic provider reconciliation, full meter or production alarms',
                                  'DB-10 full saturation: not run (W8)'])
         encoded=json.dumps(manifest)
         for password in self.passwords.values():
             encoded=encoded.replace(password,'<redacted>')
-        # Decision 38: repository evidence carries no host-local paths.
+        # Repository evidence carries no host-local paths.
         encoded=encoded.replace(str(ROOT),'<run-dir>').replace(str(Path.cwd()),'<repo>')
         return json.loads(encoded)
 
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','all'],default='all')
-    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled'],help='one focused regression; default runs all')
+    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','all'],default='all')
+    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup'],help='one focused regression; default runs all')
+    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset'])
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
-    if args.case and args.phase!='regressions':
-        ap.error('--case requires --phase regressions')
+    preflight_ports()
+    cases={
+        'regressions':{'session','transaction','runtime','cancelled'},
+        'corrections':{'execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency'},
+        'core':{'migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup'},
+    }
+    if args.case and args.case not in cases.get(args.phase,set()):
+        ap.error('--case is incompatible with the selected phase')
+    defect_cases={
+        **{d:('corrections',d) for d in ('execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel')},
+        'generation':('core','generation'),'claim_guard':('core','claims'),'payment_atomic':('core','money'),
+        **{d:('core',d) for d in ('claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch')},
+        'startup_order':('core','startup'),
+        **{d:('core',d) for d in ('terminal_zero','terminal_capacity','loss_stop')},
+        'queued_claim':('core','queued_claim'),
+        'queued_claim_pool':('core','queued_claim_pool'),
+        'displaced_record':('core','displaced_record'),
+        'lock_record_reset':('core','lock_observers'),
+    }
+    if args.defect and (args.phase,args.case)!=defect_cases[args.defect]:
+        ap.error('--defect requires its exact compatible phase and case')
+    if args.phase=='controls':
+        from controls import controls
+        return controls(args.seed,args.evidence)
     if args.phase=='all':
         cap_check()
         records=[]
-        for phase in ['w1','checks','commits','regressions']:
+        for phase in ['w1','checks','commits','regressions','corrections','core','controls']:
             command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed)]
             # Explicit evidence names; every child command remains foreground.
             if args.evidence:
@@ -409,7 +493,7 @@ def main():
                                 result='pass' if result.returncode==0 else 'fail'))
             if result.returncode!=0:
                 break
-        status=0 if len(records)==4 and all(r['exit_status']==0 for r in records) else 1
+        status=0 if len(records)==7 and all(r['exit_status']==0 for r in records) else 1
         if args.evidence:
             args.evidence.write_text(json.dumps(dict(result='pass' if status==0 else 'fail',phases=records),indent=2)+'\n')
         return status
@@ -426,6 +510,14 @@ def main():
             from scenarios import regression_scenarios
             h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
             regression_scenarios(h,args.case)
+        elif args.phase=='corrections':
+            from corrections import corrections
+            h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
+            corrections(h,args.case,args.defect)
+        elif args.phase=='core':
+            from core import core_scenarios
+            h.run(['cargo','build','--bins','--examples','--features','store-test-hooks','--locked'],timeout=120)
+            core_scenarios(h,args.case,args.defect)
         elif args.phase=='commits':
             from scenarios import commit_scenarios
             h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)
@@ -435,6 +527,7 @@ def main():
         status='pass'
     except BaseException as e:
         h.event('failure',type=type(e).__name__,message=str(e))
+        h.results.append(dict(test=args.case or args.phase,result='fail',reason=str(e)))
         traceback.print_exc()
     finally:
         if not h.cleanup():

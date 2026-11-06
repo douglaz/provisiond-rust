@@ -37,8 +37,10 @@ class Gate:
 
 
 class Proxy:
-    def __init__(self, harness, port=55413):
+    def __init__(self, harness):
+        port = harness.ports[3]
         from harness import free_port
+        harness.release_port(port)
         free_port(port)
         self.h = harness
         self.listener = socket.socket()
@@ -50,6 +52,8 @@ class Proxy:
         self.connections, self.threads, self.gates = [], [], []
         self.lock = threading.Lock()
         self.cancel_requests = 0
+        self.nodelay = True
+        self.refuse_after = None
         self.spawn(self.accept)
 
     def spawn(self, fn, *args):
@@ -72,9 +76,15 @@ class Proxy:
                 continue
             except OSError:
                 return
-            server = socket.create_connection(('127.0.0.1',55410))
+            server = socket.create_connection(('127.0.0.1',self.h.ports[0]))
+            for transport in (client, server):
+                transport.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, int(self.nodelay))
             c = dict(client=client,server=server,pid=None,query='',gate=None,closed=False)
             self.connections.append(c)
+            if self.refuse_after is not None and len(self.connections)>self.refuse_after:
+                self.h.event('fault_activated',fault='connection_refused',connection=len(self.connections))
+                self.close_connection(c,'refused_connection_fixture')
+                continue
             self.spawn(self.front,c)
 
     def close_connection(self,c,source='harness'):
@@ -167,4 +177,5 @@ class Proxy:
         for t in self.threads:
             t.join(timeout=3)
             assert not t.is_alive(), 'proxy worker did not stop'
+        self.h.reserve_port(self.h.ports[3])
         self.h.event('proxy_cleanup',cancel_requests=self.cancel_requests)

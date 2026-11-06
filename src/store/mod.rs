@@ -1,5 +1,12 @@
-//! Database lifecycle spike for pinned STO-7/STO-55. No product engine or schema.
+//! OVR-9/STO-7/STO-55: sole transaction entry, admission, pools and COMMIT ownership.
+mod business;
 mod commit;
+mod component;
+pub use business::{Claim, CreateRequest, Payment};
+pub use component::{
+    Component, EngineDatabase, ExternalCall, ExternalKind, FatalEngine, startup_milliseconds,
+};
+pub mod migration;
 mod process;
 mod transport;
 use anyhow::{Context, Result, bail, ensure};
@@ -94,6 +101,7 @@ pub struct Store {
     settings: Settings,
     trace: Trace,
     process: Arc<Process>,
+    manager: Manager,
 }
 impl Store {
     pub fn new(
@@ -115,7 +123,7 @@ impl Store {
             .wait_timeout(Some(settings.checkout_bound))
             .runtime(deadpool::Runtime::Tokio1)
             .build()?;
-        let write = Pool::builder(manager)
+        let write = Pool::builder(manager.clone())
             .max_size(write_limit)
             .wait_timeout(Some(settings.checkout_bound))
             .runtime(deadpool::Runtime::Tokio1)
@@ -123,15 +131,29 @@ impl Store {
         Ok(Self {
             read,
             write,
+            manager,
             settings,
             trace,
             process,
         })
     }
     async fn checkout(&self, pool: &Pool) -> Result<Checkout> {
-        pool.get()
+        #[cfg(feature = "store-test-hooks")]
+        if pool.status().available == 0 && pool.status().size == pool.status().max_size {
+            (self.trace)(json!({"event":"pool_checkout_waiting"}));
+        }
+        let acquisition = async {
+            pool.get()
+                .await
+                .map_err(|e| anyhow::anyhow!("pool checkout/create/check: {e}"))
+        };
+        if test_defect("checkout") {
+            return acquisition.await;
+        }
+        // STO-55: one bound includes waiting, recycling, construction and admission.
+        tokio::time::timeout(self.settings.checkout_bound, acquisition)
             .await
-            .map_err(|e| anyhow::anyhow!("pool checkout/create/check: {e}"))
+            .context("whole pool checkout deadline (waiting/create/admission)")?
     }
     pub async fn read_session(&self) -> Result<Checkout> {
         self.checkout(&self.read).await
@@ -188,7 +210,7 @@ pub struct Session {
     pub pid: i32,
     settings: Settings,
     trace: Trace,
-    notices: Arc<Mutex<Vec<Value>>>,
+    notices: Arc<Mutex<Diagnostics>>,
     close_driver: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     tainted: AtomicBool,
 }
@@ -255,7 +277,7 @@ impl managed::Manager for Manager {
                 .context("connect deadline")?
             })
             .await??;
-        let notices = Arc::new(Mutex::new(Vec::new()));
+        let notices = Arc::new(Mutex::new(Diagnostics::default()));
         let diagnostics = notices.clone();
         let trace = self.trace.clone();
         let driver_protocol = protocol.clone();
@@ -269,7 +291,14 @@ impl managed::Manager for Manager {
                 match message {
                     Some(Ok(AsyncMessage::Notice(n))) => {
                         let diagnostic=json!({"event":"driver_notice","severity":n.severity(),"sqlstate":n.code().code(),"message":n.message(),"detail":n.detail()});
-                        diagnostics.lock().expect("notice lock").push(diagnostic.clone());
+                        let mut retained = diagnostics.lock().expect("notice lock");
+                        if retained.committing && n.severity() == "WARNING" {
+                            retained.commit_warning = true;
+                        }
+                        if retained.values.len() < NOTICE_CAP || test_defect("notices") {
+                            retained.values.push(diagnostic.clone());
+                        }
+                        drop(retained);
                         trace(diagnostic);
                     }
                     Some(Ok(_)) => {},
@@ -353,7 +382,7 @@ impl Session {
         Ok(())
     }
     pub fn diagnostics(&self) -> Vec<Value> {
-        self.notices.lock().expect("notice lock").clone()
+        self.notices.lock().expect("notice lock").values.clone()
     }
     pub async fn settings(&mut self) -> Result<Vec<String>> {
         let mut result = Vec::new();
@@ -454,22 +483,57 @@ impl Drop for DiscardUnlessFinished {
 /// STO-7: pre-COMMIT cancellation or failure closes the physical session before
 /// another checkout can use it. This guard never sends a PostgreSQL cancel packet.
 pub struct Transaction {
-    checkout: Option<Checkout>,
+    checkout: Option<Connection>,
     failed: bool,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    pub(crate) tenants: Vec<String>,
+    engine_fenced: bool,
 }
 impl Store {
     pub async fn begin(&self) -> Result<Transaction> {
+        self.begin_checked(|| Ok(())).await
+    }
+    /// OPS-47/50: arbitrate dispatch after every acquisition wait. The returned
+    /// short guard covers only the first poll, which submits tokio-postgres's
+    /// simple query before waiting for its reply; never hold it across I/O.
+    async fn begin_checked<G>(&self, admission: impl FnOnce() -> Result<G>) -> Result<Transaction> {
         let checkout = self.write_session().await?;
         let transaction = Transaction {
-            checkout: Some(checkout),
+            checkout: Some(Connection::Pooled(checkout)),
             failed: false,
+            permit: None,
+            tenants: Vec::new(),
+            engine_fenced: false,
         };
         transaction
             .checkout
             .as_ref()
             .expect("checkout")
-            .query("BEGIN READ WRITE")
+            .notices
+            .lock()
+            .expect("notice lock")
+            .reset();
+        {
+            let query = transaction
+                .checkout
+                .as_ref()
+                .expect("checkout")
+                .query("BEGIN READ WRITE");
+            tokio::pin!(query);
+            let mut admission = Some(admission);
+            std::future::poll_fn(|cx| {
+                if let Some(check) = admission.take() {
+                    let _guard = match check() {
+                        Ok(guard) => guard,
+                        Err(error) => return std::task::Poll::Ready(Err(error)),
+                    };
+                    query.as_mut().poll(cx)
+                } else {
+                    query.as_mut().poll(cx)
+                }
+            })
             .await?;
+        }
         Ok(transaction)
     }
 }
@@ -477,17 +541,28 @@ impl Transaction {
     pub fn session_id(&self) -> i32 {
         self.checkout.as_ref().expect("live transaction").pid
     }
-    /// Trusted application SQL: one statement, with transaction control reserved
-    /// for this module. The product schema/caller policy is not implemented yet.
+    /// Trusted fixture SQL is absent from production builds. Business statements
+    /// are private constants with parameters; callers cannot supply SQL (STO-7).
+    #[cfg(feature = "store-test-hooks")]
     pub async fn execute(&mut self, statement: &str) -> Result<u64> {
+        self.execute_internal(statement).await
+    }
+    #[cfg(feature = "store-test-hooks")]
+    async fn execute_internal(&mut self, statement: &str) -> Result<u64> {
         ensure!(!self.failed, "transaction has a failed/cancelled statement");
         self.failed = true;
         let session = self.checkout.as_ref().context("transaction consumed")?;
+        let mut in_flight = CloseUnlessFinished(if test_defect("execute_cancel") {
+            None
+        } else {
+            Some(session)
+        });
         let result = tokio::time::timeout(
             session.settings.call_bound,
             session.client.execute(statement, &[]),
         )
         .await;
+        in_flight.0 = None;
         match result {
             Ok(Ok(rows)) => {
                 self.failed = false;
@@ -504,6 +579,28 @@ impl Transaction {
             }
         }
     }
+    /// No production caller-SQL surface exists. This hook demonstrates refusal
+    /// without parsing or executing even indirect settings functions (STO-7).
+    #[cfg(feature = "store-test-hooks")]
+    pub async fn test_caller_sql(&mut self, sql: &str) -> Result<()> {
+        if test_defect("caller_sql") {
+            self.execute(sql).await?;
+            return Ok(());
+        }
+        bail!("caller SQL is not an admitted business statement")
+    }
+    #[cfg(feature = "store-test-hooks")]
+    pub async fn test_scalar(&self, sql: &str) -> Result<String> {
+        self.checkout
+            .as_ref()
+            .context("transaction consumed")?
+            .scalar(sql)
+            .await
+    }
+    #[cfg(feature = "store-test-hooks")]
+    pub fn test_diagnostics(&self) -> Vec<Value> {
+        self.checkout.as_ref().expect("checkout").diagnostics()
+    }
     pub async fn rollback(mut self) -> Result<()> {
         self.checkout
             .as_ref()
@@ -518,7 +615,147 @@ impl Drop for Transaction {
     fn drop(&mut self) {
         if let Some(checkout) = self.checkout.take() {
             (checkout.trace)(json!({"event":"precommit_session_discarded","session":checkout.pid}));
-            drop(managed::Object::take(checkout));
+            checkout.discard();
         }
+    }
+}
+
+// STO-7: diagnostic payload retention is bounded independently of warning safety.
+const NOTICE_CAP: usize = 16;
+#[derive(Default)]
+struct Diagnostics {
+    values: Vec<Value>,
+    committing: bool,
+    commit_warning: bool,
+}
+impl Diagnostics {
+    fn reset(&mut self) {
+        self.values.clear();
+        self.committing = false;
+        self.commit_warning = false;
+    }
+}
+pub(crate) fn test_defect(name: &str) -> bool {
+    #[cfg(feature = "store-test-hooks")]
+    {
+        std::env::var("STORE_TEST_DEFECT").as_deref() == Ok(name)
+    }
+    #[cfg(not(feature = "store-test-hooks"))]
+    {
+        let _ = name;
+        false
+    }
+}
+
+/// Dedicated adapters share the same transaction and COMMIT owner (STO-7/12/51).
+enum Connection {
+    Pooled(Checkout),
+    Dedicated(Session),
+}
+impl std::ops::Deref for Connection {
+    type Target = Session;
+    fn deref(&self) -> &Session {
+        match self {
+            Self::Pooled(c) => c,
+            Self::Dedicated(s) => s,
+        }
+    }
+}
+impl Connection {
+    fn unpool(self) -> Session {
+        match self {
+            Self::Pooled(c) => managed::Object::take(c),
+            Self::Dedicated(s) => s,
+        }
+    }
+    fn discard(self) {
+        drop(self.unpool());
+    }
+}
+impl Store {
+    /// CNF-368/369 isolated fault holder, outside ordinary pools. This deliberately
+    /// disables server timeouts only for the test's independently owned session.
+    #[cfg(feature = "store-test-hooks")]
+    pub async fn test_generation_holder(&self) -> Result<(Transaction, Option<Claim>)> {
+        let session = self.dedicated().await?;
+        session
+            .query("SET statement_timeout=0; SET idle_in_transaction_session_timeout=0")
+            .await?;
+        let mut tx = self.begin_dedicated(session).await?;
+        tx.rows(
+            "SELECT generation FROM provisiond.startup_generation WHERE singleton FOR SHARE",
+            &[],
+        )
+        .await?;
+        let claim = tx.claim_inner().await?;
+        Ok((tx, claim))
+    }
+    async fn dedicated(&self) -> Result<Session> {
+        use deadpool::managed::Manager as _;
+        self.manager.create().await
+    }
+    async fn begin_dedicated(&self, session: Session) -> Result<Transaction> {
+        let tx = Transaction {
+            checkout: Some(Connection::Dedicated(session)),
+            failed: false,
+            permit: None,
+            tenants: Vec::new(),
+            engine_fenced: false,
+        };
+        let session = tx.checkout.as_ref().expect("checkout");
+        session.notices.lock().expect("notice lock").reset();
+        session.query("BEGIN READ WRITE").await?;
+        Ok(tx)
+    }
+}
+impl Transaction {
+    /// Internal parameterized statements only; never a production caller-SQL API.
+    pub(crate) async fn rows(
+        &mut self,
+        sql: &str,
+        params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+    ) -> Result<Vec<tokio_postgres::Row>> {
+        let bound = self
+            .checkout
+            .as_ref()
+            .context("transaction consumed")?
+            .settings
+            .call_bound;
+        self.rows_bound(sql, params, bound).await
+    }
+    async fn rows_bound(
+        &mut self,
+        sql: &str,
+        params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+        bound: Duration,
+    ) -> Result<Vec<tokio_postgres::Row>> {
+        ensure!(!self.failed, "transaction has a failed/cancelled statement");
+        self.failed = true;
+        let session = self.checkout.as_ref().context("transaction consumed")?;
+        let mut in_flight = CloseUnlessFinished(Some(session));
+        let outcome = tokio::time::timeout(bound, session.client.query(sql, params)).await;
+        in_flight.0 = None;
+        match outcome {
+            Ok(Ok(rows)) => {
+                self.failed = false;
+                Ok(rows)
+            }
+            Ok(Err(e)) => Err(e).context("transaction statement"),
+            Err(e) => {
+                session.close();
+                Err(e).context("pre-COMMIT transaction deadline")
+            }
+        }
+    }
+    async fn batch(&mut self, sql: &str) -> Result<()> {
+        ensure!(!self.failed, "transaction has a failed/cancelled statement");
+        self.failed = true;
+        self.checkout
+            .as_ref()
+            .context("transaction consumed")?
+            .query(sql)
+            .await?;
+        self.failed = false;
+        Ok(())
     }
 }

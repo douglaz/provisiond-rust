@@ -132,6 +132,36 @@ fn main() -> anyhow::Result<()> {
                     pending_transaction.as_mut().unwrap().execute("INSERT INTO fixture.destinations VALUES (1800,'deadline-uncommitted')").await?;
                     Ok(json!({}))
                 }
+                "tx_cancel_execute" => {
+                    let tx=pending_transaction.as_mut().unwrap();
+                    anyhow::ensure!(tokio::time::timeout(Duration::from_millis(300),tx.execute("INSERT INTO fixture.destinations VALUES (1802,'cancel-retained')")).await.is_err(),"execute was not in flight");
+                    Ok(json!({"retained":true}))
+                }
+                "setting_attack" => {
+                    let mut tx=store.begin().await?;
+                    let sql=line.split_once(' ').unwrap().1;
+                    let refused=tx.test_caller_sql(sql).await.is_err();
+                    let mode=tx.test_scalar("SHOW synchronous_commit").await?;
+                    drop(tx);
+                    Ok(json!({"refused":refused,"observed_synchronous_commit":mode}))
+                }
+                "corrupt_setting" | "corrupt_session_setting" => {
+                    let mut tx=store.begin().await?;
+                    let local=command=="corrupt_setting";
+                    tx.execute(if local {"SET LOCAL synchronous_commit=off"}else{"SET synchronous_commit=off"}).await?;
+                    tx.execute(if local {"INSERT INTO fixture.destinations VALUES (1803,'must-not-commit')"}else{"INSERT INTO fixture.destinations VALUES (1805,'must-not-commit')"}).await?;
+                    let outcome=store.commit(tx)?.wait().await?;
+                    Ok(json!({"outcome":outcome.label()}))
+                }
+                "notice_flood" | "notice_warning" => {
+                    let mut tx=store.begin().await?;
+                    let initial=tx.test_diagnostics().len();
+                    tx.execute("DO $$ BEGIN FOR i IN 1..80 LOOP RAISE NOTICE 'fixture notice %',i; END LOOP; END $$").await?;
+                    let retained=tx.test_diagnostics().len();
+                    if command=="notice_warning" { tx.execute("INSERT INTO fixture.warn VALUES (1)").await?; }
+                    let outcome=store.commit(tx)?.wait().await?;
+                    Ok(json!({"initial":initial,"retained":retained,"outcome":outcome.label()}))
+                }
                 "tx_drop" => { drop(pending_transaction.take()); Ok(json!({})) }
                 "write_admit" => {
                     let session=store.write_session().await?;
