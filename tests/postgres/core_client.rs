@@ -26,6 +26,8 @@ async fn main() -> Result<()> {
     let mut tx = None;
     let mut receipt = None;
     let mut pending_claim = None;
+    let mut pending_defer: Option<tokio::task::JoinHandle<Result<bool>>> = None;
+    let mut unpolled_defer: Option<futures_util::future::BoxFuture<'static, Result<bool>>> = None;
     let mut pending_execute = None;
     let mut pending_observe = None;
     let mut pending_wait = None;
@@ -113,7 +115,9 @@ async fn main() -> Result<()> {
                     Ok(json!({"claims":values}))
                 }
                 "claim"=> {let c=engine.as_ref().context("no engine")?.claim().await?;Ok(match c {Some(c)=>json!({"id":c.id,"tenant":c.tenant,"kind":c.kind,"number":c.number}),None=>Value::Null})}
-                "defer"|"reacquire"|"settle"|"verified"|"license"|"outcome"=> {
+                "defer_join"=> {let affected: bool=pending_defer.take().context("no defer")?.await??;Ok(json!({"affected":affected}))}
+                "defer_cancel"=> {let t=pending_defer.take().context("no defer")?;t.abort();let cancelled=t.await.unwrap_err().is_cancelled();anyhow::ensure!(cancelled,"defer waiter completed before cancellation");Ok(json!({"cancelled":cancelled}))}
+                "defer_unpolled"|"defer_start"|"defer"|"reacquire"|"settle"|"verified"|"license"|"outcome"=> {
                     let v:Value=serde_json::from_str(arg)?;
                     let c=Claim {id:v["id"].as_str().context("id")?.into(),tenant:v["tenant"].as_str().context("tenant")?.into(),kind:v["kind"].as_str().unwrap_or("create").into(),number:v["number"].as_i64().context("claim number")?};
                     let outcome=if v.get("external_id").is_some() {Outcome::VerifiedCreate {external_id:v["external_id"].as_str().unwrap().into(),earliest_date:None}}else {Outcome::Settled {status:v["status"].as_str().unwrap_or("failed").into(),result:Value::Null,error:json!({"kind":"conflict","retryable":true})}};
@@ -121,6 +125,8 @@ async fn main() -> Result<()> {
                     match cmd {
                         "reacquire"=> {let mut t=component.begin().await?;let affected=t.reacquire(&c).await?;let outcome=component.commit(t)?.wait().await?;Ok(json!({"affected":affected,"outcome":outcome.label()}))}
                         "defer"=>Ok(json!({"affected":e.defer(&c).await?})),
+                        "defer_start"=> {let e=e.clone();pending_defer=Some(tokio::spawn(async move {e.defer(&c).await}));Ok(json!({}))}
+                        "defer_unpolled"=> {let e=e.clone();let mut waiter: futures_util::future::BoxFuture<'static,Result<bool>>=Box::pin(async move {e.defer(&c).await});anyhow::ensure!(futures_util::poll!(&mut waiter).is_pending(),"defer unexpectedly completed on first poll");unpolled_defer=Some(waiter);Ok(json!({}))}
                         "settle"|"verified"=>Ok(json!({"affected":e.settle(&c,&outcome).await?})),
                         "outcome"=> {e.outcome(&c,outcome)?;Ok(json!({}))}
                         "license"=> {let mut t=component.begin().await?;let affected=t.license_create(&c).await?;let outcome=component.commit(t)?.wait().await?;Ok(json!({"affected":affected,"outcome":outcome.label()}))}
@@ -157,6 +163,7 @@ async fn main() -> Result<()> {
     }
     drop(tx);
     drop(receipt);
+    drop(unpolled_defer);
     drop(component);
     drop(engine);
     drop(api);

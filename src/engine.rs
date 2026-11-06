@@ -588,18 +588,42 @@ impl Engine {
             workers.remove(id);
         }
     }
-    pub async fn defer(&self, c: &Claim) -> Result<bool> {
-        let component = self
+    /// OPS-8/49, STO-7/55: the process owns the transaction and retirement;
+    /// cancelling its result waiter is not an OPS-21 user stop.
+    pub async fn defer(self: &Arc<Self>, c: &Claim) -> Result<bool> {
+        let (component, slot) = self
             .workers
             .lock()
             .expect("workers")
             .get(&c.id)
             .filter(|w| w.claim.number == c.number)
-            .map(|w| w.component.clone())
-            .unwrap_or_else(|| self.component());
+            .map(|w| (w.component.clone(), Some(w.slot.clone())))
+            .unwrap_or_else(|| (self.component(), None));
+        if crate::store::test_defect("defer_cancel") {
+            return self.defer_owned(c.clone(), component, None).await;
+        }
+        let engine = self.clone();
+        let c = c.clone();
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        self.process.submit(async move {
+            let result = engine.defer_owned(c, component, slot).await;
+            let _ = sender.send(result);
+            // OPS-49/50: delivery is not observation; even a successful send
+            // can race cancellation before the waiter polls its fatal result.
+            if engine.is_fatal() {
+                std::process::exit(71);
+            }
+        })?;
+        receiver.await.context("defer owner disappeared")?
+    }
+    async fn defer_owned(
+        &self,
+        c: Claim,
+        component: Component,
+        slot: Option<Arc<tokio::sync::OwnedSemaphorePermit>>,
+    ) -> Result<bool> {
         let id = c.id.clone();
         let number = c.number;
-        let c = c.clone();
         let affected = self
             .transaction(&component, move |tx| {
                 let c = c.clone();
@@ -607,6 +631,10 @@ impl Engine {
             })
             .await?;
         self.retire(&id, number);
+        // OPS-6/STO-55: replacement of the registry entry cannot release this
+        // execution's permit before acknowledgment, or retire the newer claim.
+        drop(slot);
+        component.trace(json!({"event":"defer_finished","operation":id,"claim_number":number,"affected":affected}));
         Ok(affected)
     }
     /// Retain the after-return outcome and its entire settlement loop even if a

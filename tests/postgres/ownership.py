@@ -14,6 +14,90 @@ def accepted(p,op):
     return [e for e in p.events if e.get('event')=='simulator_accepted' and e.get('operation')==op]
 
 
+def defer_cancel(h,defect=None):
+    # OPS-8/6, STO-3/7/55: receipt cancellation cannot own defer retirement.
+    empty_queue(h)
+    ids=[enqueue(h,'defer-cancel-'+str(i),'defer-cancel-'+str(i),resource=True,offer='defer-cancel-'+str(i)) for i in range(4)]
+    p=core_probe(h,defect);p.command('engine_start')
+    def snapshot(op):
+        return h.sql(f"SELECT jsonb_build_object('operation',(SELECT to_jsonb(o) FROM provisiond.operations o WHERE id='{op}'),'commitment',(SELECT to_jsonb(c) FROM provisiond.commitments c WHERE operation_id='{op}'),'exclusion',(SELECT to_jsonb(e) FROM provisiond.resource_exclusions e WHERE operation_id='{op}'),'ledger',(SELECT count(*) FROM provisiond.ledger_entries WHERE operation_id='{op}'),'machines',(SELECT count(*) FROM provisiond.machines))")
+    def completion(session,marker):
+        return any(e.get('event')=='commit_owner_completed' and e.get('session')==session for e in p.events[marker:])
+    for index,op in enumerate(ids):
+        c=p.command('claim')['value'];assert c['id']==op
+        marker=len(p.events);wire_marker=len(h.events)
+        gate=h.proxy.arm('store COMMIT','commit_reply')
+        command(p,'defer_start',c);connection=gate.wait();session=connection['pid']
+        assert any(e.get('event')=='bytes_transmitted' and e.get('session')==session and 'store COMMIT' in e.get('query','') for e in h.events[wire_marker:])
+        assert h.sql(f"SELECT status||':'||claim_number FROM provisiond.operations WHERE id='{op}'")==f"queued:{c['number']}"
+        held_owners=p.command('owners')['value'];assert held_owners==dict(workers=1,available_slots=2)
+        cancelled=p.command('defer_cancel')['value']['cancelled']
+        after_cancel=p.command('owners')['value']
+        assert cancelled and p.p.poll() is None and not gate.released.is_set()
+        assert after_cancel==held_owners and not completion(session,marker)
+        assert p.command('record_state '+op)['value'] is None
+        before=snapshot(op)
+        gate.release();h.proxy.gates.remove(gate)
+        eventually(lambda:completion(session,marker))
+        # Observe capacity, including on the original runtime which has no defer
+        # completion trace. A bounded poll ends at the named regression assertion.
+        end=time.monotonic()+1
+        while True:
+            owners=p.command('owners')['value']
+            if owners==dict(workers=0,available_slots=3) or time.monotonic()>=end:break
+        no_effects=not any(e.get('event') in ('simulator_accepted','simulator_effect','stop_record_started','worker_zero_row') for e in p.events[marker:])
+        h.event('defer_cancellation_observed',operation=op,claim_number=c['number'],session=session,iteration=index+1,configured_workers=3,held_owners=held_owners,cancelled=cancelled,after_cancel=after_cancel,completed_owners=owners,commit_completion_observed=True,process_survived=p.p.poll() is None,durable_state=h.sql(f"SELECT status||':'||claim_number FROM provisiond.operations WHERE id='{op}'"),row_money_exclusion_unchanged=snapshot(op)==before,no_stop_or_simulator_effect=no_effects)
+        if owners!=dict(workers=0,available_slots=3):p.finish()
+        assert owners==dict(workers=0,available_slots=3), 'acknowledged cancelled defer must retire original worker capacity'
+        assert snapshot(op)==before and no_effects and h.proxy.cancel_requests==0
+        # Exclude the acknowledged queued row from later fixture claims.
+        h.sql(f"UPDATE provisiond.operations SET available_at=clock_timestamp()+interval '1 hour' WHERE id='{op}'")
+    assert len(ids)==4>3
+    p.finish()
+    # OPS-6/8: late true and false completions must preserve a replacement,
+    # retaining A's own permit even after the operation-id map contains B.
+    for affected in (True,False):
+        empty_queue(h);op=enqueue(h,'defer-stale-'+str(affected),'defer-stale-'+str(affected),resource=True,offer='defer-stale-'+str(affected))
+        p=core_probe(h,defect);p.command('engine_start');a=p.command('claim')['value']
+        if not affected:h.sql(f"UPDATE provisiond.operations SET status='queued' WHERE id='{op}'")
+        gate=h.proxy.arm('store COMMIT','commit_reply');command(p,'defer_start',a);gate.wait()
+        assert p.command('owners')['value']==dict(workers=1,available_slots=2)
+        eventually(lambda:h.sql(f"SELECT available_at<=clock_timestamp() FROM provisiond.operations WHERE id='{op}'")=='t')
+        b=p.command('claim')['value'];assert b['id']==op and b['number']>a['number']
+        held_owners=p.command('owners')['value'];assert held_owners==dict(workers=1,available_slots=1), 'pending defer must retain displaced claim permit'
+        before=snapshot(op);marker=len(p.events)
+        gate.release();h.proxy.gates.remove(gate)
+        reply=p.command('defer_join')['value'];owners=p.command('owners')['value']
+        unchanged=snapshot(op)==before
+        h.event('defer_stale_completion_observed',operation=op,original_claim=a['number'],replacement_claim=b['number'],affected=reply['affected'],pending_owners=held_owners,completed_owners=owners,row_money_exclusion_unchanged=unchanged)
+        assert reply['affected'] is affected and unchanged
+        assert owners==dict(workers=1,available_slots=2), 'late defer must retire only original claim capacity'
+        assert h.sql(f"SELECT status||':'||claim_number FROM provisiond.operations WHERE id='{op}'")==f"running:{b['number']}"
+        assert not any(e.get('event') in ('worker_zero_row','engine_fatal','stop_record_started','simulator_accepted','simulator_effect','whole_transaction_retry') for e in p.events[marker:])
+        assert command(p,'defer',a)['value']['affected'] is False
+        assert p.command('owners')['value']==owners and snapshot(op)==before
+        assert command(p,'defer',b)['value']['affected'] is True
+        assert p.command('owners')['value']==dict(workers=0,available_slots=3)
+        p.finish()
+    # OPS-49/50: neither absent nor live/unpolled receipts can hide fatal exit.
+    for waiter in ('cancelled','unpolled'):
+        empty_queue(h);op=enqueue(h,'defer-superseded-'+waiter,'defer-superseded-'+waiter)
+        p=core_probe(h);p.command('engine_start');c=p.command('claim')['value']
+        h.sql('UPDATE provisiond.startup_generation SET generation=gen_random_uuid()')
+        before=snapshot(op);marker=len(p.events)
+        gate=h.proxy.arm('OPS-50 first statement','execute_reply')
+        command(p,'defer_start' if waiter=='cancelled' else 'defer_unpolled',c);gate.wait()
+        if waiter=='cancelled':assert p.command('defer_cancel')['value']['cancelled']
+        assert p.p.poll() is None and not gate.released.is_set()
+        gate.release();h.proxy.gates.remove(gate)
+        status=p.p.wait(timeout=3);p.expected_status=71;p.finish()
+        refused=sum(e.get('event')=='engine_superseded' for e in p.events[marker:])
+        retries=[e for e in p.events[marker:] if e.get('event')=='whole_transaction_retry']
+        h.event('defer_cancelled_fatal_observed',operation=op,waiter=waiter,exit_status=status,generation_refusals=refused,retries=retries,row_money_exclusion_unchanged=snapshot(op)==before)
+        assert status==71 and refused==1 and not retries and snapshot(op)==before
+    h.results.append(dict(test='defer-caller-cancellation',result='pass',arms='four cancelled defers with three slots; real sent COMMIT hold; joined waiter cancellation; true/false completion across replacement and stale guard refusal; autonomous supersession exit'))
+
+
 def terminal_zero(h,defect=None):
     # OPS-22/STO-3: an acknowledged transaction can refuse the stale guard.
     for newer in (False,True):

@@ -214,7 +214,7 @@ def core_scenarios(h,case=None,defect=None):
         schema_constraints(h)
     else: binary(h,'migrate',role='migrator')
     import ownership
-    for name in ('claim_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','displaced_record','surface','predispatch','startup'):
+    for name in ('claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','displaced_record','surface','predispatch','startup'):
         if case in (None,name): getattr(ownership,name)(h,defect)
     if case=='queued_claim_pool': ownership.queued_claim(h,defect,only='pool')
     if case in (None,'money'): money(h,defect)

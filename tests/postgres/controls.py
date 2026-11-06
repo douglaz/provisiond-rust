@@ -17,6 +17,7 @@ CONTROLS=[
     ('claim_guard','core','claims','stale claim must affect zero rows','stale_claim_guard_observed'),
     ('payment_atomic','core','money','payment and credit must be atomic','payment_split_intermediate_observed'),
     ('claim_cancel','core','claim_cancel','cancelled claim must retain a registered worker owner','claim_cancellation_observed'),
+    ('defer_cancel','core','defer_cancel','acknowledged cancelled defer must retire original worker capacity','defer_cancellation_observed'),
     ('licensing_stop','core','licensing_stop','stopped licensing must not enter provider execution','licensing_stop_observed'),
     ('outcome_stop','core','outcome_stop','returned outcome must win over stale cancellation snapshot','outcome_stop_observed'),
     ('deadline','core','deadline','record deadline must exit without a polled waiter','record_deadline_observed'),
@@ -54,6 +55,10 @@ def controls(seed,evidence):
         if defect=='caller_sql':valid=valid and observed[-1].get('observed_synchronous_commit')=='off'
         if defect=='payment_atomic':valid=valid and observed[-1].get('counts')=='0:1'
         if defect=='claim_guard':valid=valid and observed[-1].get('affected') is True
+        if defect=='defer_cancel':
+            activation=observed[-1] if observed else {}
+            valid=valid and activation.get('cancelled') is True and activation.get('process_survived') is True and activation.get('commit_completion_observed') is True and activation.get('durable_state')=='queued:1' and activation.get('held_owners')==dict(workers=1,available_slots=2) and activation.get('after_cancel')==activation.get('held_owners') and activation.get('completed_owners')==activation.get('held_owners') and activation.get('no_stop_or_simulator_effect') is True
+            valid=valid and any(e['event']=='fault_activated' and e.get('direction')=='commit_reply' and e.get('session')==activation.get('session') for e in events)
         if defect=='generation':valid=valid and observed[-1].get('refused') is False
         if defect=='queued_claim_pool':valid=valid and observed[-1].get('window')=='pool' and observed[-1].get('forbidden_entry') is True
         if defect=='replacement_outcome':valid=valid and observed[-1].get('simulator_calls_before_release')==1 and observed[-1].get('replacement_settlement_reply',{}).get('ok') is True and observed[-1].get('unchanged_after_attempt') is False
