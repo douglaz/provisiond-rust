@@ -268,8 +268,16 @@ def claims(h,defect=None):
     # Per-machine uniqueness: two queued operations, one running winner. The losing
     # atomic claim rolls back its number and short-defers instead of failing it.
     h.sql(f"INSERT INTO provisiond.operations(tenant_id,idempotency_key,kind,status,machine_id,request_summary,correlation_id) VALUES('claims','power-1','power','queued','{machine}','{{\"kind\":\"power\"}}','power-1'),('claims','power-2','power','queued','{machine}','{{\"kind\":\"power\"}}','power-2')",role='migrator')
+    h.sql("CREATE FUNCTION fixture.pause_machine_claim() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF OLD.kind='power' AND OLD.status='queued' AND NEW.status='running' THEN PERFORM pg_sleep(0.1); END IF; RETURN NEW; END $$; CREATE TRIGGER pause_claim BEFORE UPDATE OF status ON provisiond.operations FOR EACH ROW EXECUTE FUNCTION fixture.pause_machine_claim()",role='migrator')
     p=core_probe(h);p.command('engine_start')
-    holder=p.command('claim')['value'];assert holder['number']==1
+    p.send('claim_race')
+    eventually(lambda:h.sql("SELECT count(*) FROM pg_stat_activity WHERE usename='app' AND wait_event='PgSleep' AND query LIKE 'UPDATE provisiond.operations SET status=%'")=='2',seconds=1)
+    h.event('concurrent_claims_observed',active_postgresql_claim_transactions=2,driver='actual Rust Engine::claim',pause_ms=100)
+    raced=p.result('claim_race')['value']['claims']
+    winners=[c for c in raced if c is not None]
+    assert len(winners)==1 and sum(c is None for c in raced)==1
+    holder=winners[0];assert holder['number']==1
+    h.sql('DROP TRIGGER pause_claim ON provisiond.operations; DROP FUNCTION fixture.pause_machine_claim()',role='migrator')
     p.command('execute_pending '+holder['id'],ok=False)
     assert not any(e.get('event')=='simulator_accepted' and e.get('operation')==holder['id'] for e in p.events)
     assert p.command('claim')['value'] is None
@@ -281,7 +289,7 @@ def claims(h,defect=None):
     assert h.sql(f"SELECT status||':'||claim_number FROM provisiond.operations WHERE id='{holder['id']}'")=='queued:1'
     assert h.sql(f"SELECT status FROM provisiond.operations WHERE id='{other['id']}'")=='running'
     p.finish()
-    h.results.append(dict(test='atomic-claim-machine-index',result='pass',arms='concurrent holds and refused yielded reacquire'))
+    h.results.append(dict(test='atomic-claim-machine-index',result='pass',arms='two overlapping Rust/PostgreSQL claims and refused yielded reacquire'))
 
 
 def settlement_loss(h):
