@@ -24,6 +24,7 @@ class Ports(unittest.TestCase):
     def test_busy_refused(self):
         ports = allocation()
         with socket.socket() as listener:
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listener.bind(('127.0.0.1', ports[-1]))
             listener.listen()
             with self.assertRaises(OSError):
