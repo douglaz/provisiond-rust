@@ -160,9 +160,8 @@ exited 0. Its raw record is `<run-dir>/corrections-4391fq37/manifest.json`; supe
 stay outside git. The original verification-cancellation assertion ran against the pre-fix runtime
 and exited 1 at the intended closure assertion (`<run-dir>/corrections-ln6f7bqj/manifest.json`),
 then the same assertion passed after correction. The final committed-source run retained all four
-samples in each mode: off, 216.45/215.91/217.00/215.35 ms; on,
-51.41/51.50/58.73/53.33 ms (all admitted). [Final corrections](../evidence/w3-final-corrections.json)
-and [the ten controls](../evidence/w3-final-controls.json) record the integrated green/red results.
+samples in each mode: off, 226.03/224.22/216.22/215.43 ms; on, 52.81/56.29/54.45/53.18 ms (all admitted). [Final corrections](../evidence/w3-final-corrections.json)
+and [the eighteen controls](../evidence/w3-final-controls.json) record the integrated green/red results.
 The complete commands, statuses and source identity are below. D-6 remains Open for W8.
 
 Measured environment: PostgreSQL 18.6, rustc 1.97.1, cargo 1.97.0, Python 3.14.7, Nix 2.34.9;
@@ -247,73 +246,6 @@ or funds are involved. [Final core evidence](../evidence/w3-final-core.json) rec
 payments/admissions, reverse-order tenant-lock inputs, multirow settlement replay, resource
 exclusion, retained constraints and the durable audit halt. D-7, D-8 and D-9 are unchanged.
 
-### Evidence basis for D-10 through D-13
-
-**Measured 2026-11-06.** Tested implementation `f70e58b1636828852460090743194b5863deb3b9`,
-source-bundle SHA-256 `894c5967e29d7fe32f911c16d09602834d7cebbb915af6d6ae48793b6ad1da7e`,
-against the unchanged specification pin. The manifests recorded no source dirt. Later edits only
-attach documentation and sanitized evidence; they do not change the tested runtime or fixtures.
-
-- `nix develop --command bash tools/check.sh` exited **0** (format, lint and all
-  unit/entry tests; no PostgreSQL started). [Gate record](../evidence/w3-gate.json) retains full-log
-  hashes, default-feature binary build, port unit tests and invalid-selector refusals.
-- `PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence evidence/w3-final.json`
-  exited **0**, all seven phases. [Aggregate](../evidence/w3-final.json) and
-  [report](../evidence/w3.md) link every phase and each of ten intended failing controls (exit 1).
-  Cleanup passed for every positive and negative run. No real providers or funds were used.
-
-Only fixture transport/framing and scenario-specific timing changed; the 250 ms budget and
-150 ms scheduling tolerance did not. The non-designated-backup test now distinguishes an
-already-admitted fixed-target check from a separate cold admission, which must still refuse at
-250 ms even with the backup sender ahead. A trace barrier precedes release of DB-06's post-read
-fault. The busy-port fixture uses the allocation's own port and the harness's socket reuse mode.
-Unused server slots remain bound without listening until needed, preventing this run's clients
-from selecting those ports as ephemeral endpoints. These are isolated fixture mechanisms, not
-host networking changes or a production connection-admission authority.
-
-## Open
-
-| ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
-|---|---|---|---|---|
-| D-6 | Fixed pool, timeout, and retry values | W2/W8 | "OVR-19 constraints, measured behavior, and deployment phase." | open |
-| D-7 | Promotion/fencing and standby replacement procedure | W7 | "Rehearsed operational mechanism, not a prose assurance." | open |
-| D-8 | First real provider path and spending limit | W10/W11 | "Current provider evidence and explicit operator approval." | open; needs the owner |
-| D-9 | Fleet/exposure limits | W11 | "Stated assumptions and measured recovery, not arbitrary defaults." | open |
-
-### D-6 provisional W2 parameters (Open for W8)
-
-D-6 remains **Open for W8**. Provisional OVR-19 store-timeout rows are statement 1000 ms,
-lock 500 ms, idle transaction 1000 ms, client pre-COMMIT call/connect 2000 ms, read-only check
-3000 ms, and checkout 250 ms. Pooled TCP keepalives are idle 2 s, interval 1 s, count 2 on
-both client and server. Isolation is read committed; search path is `pg_catalog,fixture`;
-`synchronous_commit=on`. The W2 store fixture has one read and one write checkout. The local primary's
-`max_connections=24` with three reserved slots accommodates two store sessions plus bootstrap,
-fixture/observer and replication-test headroom; it is not a product capacity budget. W3 adds
-three engine worker write slots, one compatibility read slot and a dedicated startup-lock session;
-no periodic scheduler is implemented. Its Store-retry bound is 2000 ms. Production capacity,
-retry policy, alarm thresholds and restart policy remain unselected.
-The lifecycle fixture uses a 1000 ms stop bound and exits unresolved at that bound; two complete
-read/check attempts are allowed for a broken destination-read session. These are test values,
-not outage guarantees.
-
-| OVR-19 owning row | Requirement | Provisional local fixture value |
-|---|---|---|
-| Store timeouts | STO-7, STO-55 | statement 1000 ms; lock 500 ms; idle transaction 1000 ms |
-| API read/write concurrency | STO-55 | one checkout in each ordinary pool |
-| Engine worker concurrency | STO-55 | three retained worker permits and three write checkouts; one compatibility read checkout; startup lock outside pools |
-| Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms |
-| Pool checkout bound | STO-55 | 250 ms |
-| Pooled-connection keepalives | STO-7 | client/server idle 2 s, interval 1 s, count 2 |
-| Stop-record bound | OPS-21 | 1000 ms in lifecycle and W3 worker record fixtures |
-| Connection budget | STO-55 | local max 24, reserved 3; fixture pools/observer/replication headroom only |
-
-Client call/connect 2000 ms and check 3000 ms are implementation bounds obeying STO-7/OPS-49's
-server-timeout floor. The store owner has no commit deadline. D-6 selects no production retry,
-reconnect or alarm policy; full capacity and recovery evidence belongs to W8.
-
-When an open entry is settled, move it to "Settled" with the exact versions, commands, exit statuses
-and evidence paths that meet its basis. Preference, scope and cost questions go to the owner.
-
 ### D-14. Claim and stop ownership
 
 OPS-49 claims now run under the existing process supervisor from reservation through
@@ -361,3 +293,71 @@ operation ID to avoid cross-scenario collisions. Setup funding checks acknowledg
 at most three API requests for the same payment identity after a recorded cold-checkout refusal;
 this is a fixture replay, not an engine retry or an increased checkout bound. Other setup errors
 fail. Fault tests retain their own assertions and do not use that replay to hide a fault.
+
+### Evidence basis for D-10 through D-14
+
+**Measured 2026-11-06.** Tested implementation `26bf739e48e3434dcb0ba23d291b41f7e19720b7`,
+source-bundle SHA-256 `c6ed1ea75c80817e14b26297f8af86ef6c49491942e1e3c8d93233d7076f0213`,
+against the unchanged specification pin. The manifests recorded no source dirt. Later edits only
+attach documentation and sanitized evidence; they do not change the tested runtime or fixtures.
+
+- `nix develop --command bash tools/check.sh` exited **0** (format, lint and all
+  unit/entry tests; no PostgreSQL started). [Gate record](../evidence/w3-gate.json) retains full-log
+  hashes, default-feature binary build, port unit tests and invalid-selector refusals.
+- `PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence evidence/w3-final.json`
+  exited **0**, all seven phases. [Aggregate](../evidence/w3-final.json) and
+  [report](../evidence/w3.md) link every phase and each of eighteen intended failing controls (exit 1).
+  Cleanup passed for every positive and negative run. No real providers or funds were used.
+
+Fixture transport/framing corrections preserve the 250 ms acquisition budget and
+150 ms scheduling tolerance. D-14 separately records the runtime ownership corrections. The non-designated-backup test now distinguishes an
+already-admitted fixed-target check from a separate cold admission, which must still refuse at
+250 ms even with the backup sender ahead. A trace barrier precedes release of DB-06's post-read
+fault. The busy-port fixture uses the allocation's own port and the harness's socket reuse mode.
+Unused server slots remain bound without listening until needed, preventing this run's clients
+from selecting those ports as ephemeral endpoints. These are isolated fixture mechanisms, not
+host networking changes or a production connection-admission authority.
+
+## Open
+
+| ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
+|---|---|---|---|---|
+| D-6 | Fixed pool, timeout, and retry values | W2/W8 | "OVR-19 constraints, measured behavior, and deployment phase." | open |
+| D-7 | Promotion/fencing and standby replacement procedure | W7 | "Rehearsed operational mechanism, not a prose assurance." | open |
+| D-8 | First real provider path and spending limit | W10/W11 | "Current provider evidence and explicit operator approval." | open; needs the owner |
+| D-9 | Fleet/exposure limits | W11 | "Stated assumptions and measured recovery, not arbitrary defaults." | open |
+
+### D-6 provisional W2 parameters (Open for W8)
+
+D-6 remains **Open for W8**. Provisional OVR-19 store-timeout rows are statement 1000 ms,
+lock 500 ms, idle transaction 1000 ms, client pre-COMMIT call/connect 2000 ms, read-only check
+3000 ms, and checkout 250 ms. Pooled TCP keepalives are idle 2 s, interval 1 s, count 2 on
+both client and server. Isolation is read committed; search path is `pg_catalog,fixture`;
+`synchronous_commit=on`. The W2 store fixture has one read and one write checkout. The local primary's
+`max_connections=24` with three reserved slots accommodates two store sessions plus bootstrap,
+fixture/observer and replication-test headroom; it is not a product capacity budget. W3 adds
+three engine worker write slots, one compatibility read slot and a dedicated startup-lock session;
+no periodic scheduler is implemented. Its Store-retry bound is 2000 ms. Production capacity,
+retry policy, alarm thresholds and restart policy remain unselected.
+The lifecycle fixture uses a 1000 ms stop bound and exits unresolved at that bound; two complete
+read/check attempts are allowed for a broken destination-read session. These are test values,
+not outage guarantees.
+
+| OVR-19 owning row | Requirement | Provisional local fixture value |
+|---|---|---|
+| Store timeouts | STO-7, STO-55 | statement 1000 ms; lock 500 ms; idle transaction 1000 ms |
+| API read/write concurrency | STO-55 | one checkout in each ordinary pool |
+| Engine worker concurrency | STO-55 | three retained worker permits and three write checkouts; one compatibility read checkout; startup lock outside pools |
+| Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms |
+| Pool checkout bound | STO-55 | 250 ms |
+| Startup-lock connection keepalives | OPS-47, OVR-19 | explicit local assignment sharing pooled values; client/server idle 2 s, interval 1 s, count 2; validated and observed on lock session |
+| Pooled-connection keepalives | STO-7 | client/server idle 2 s, interval 1 s, count 2 |
+| Stop-record bound | OPS-21 | 1000 ms in lifecycle and W3 worker record fixtures |
+| Connection budget | STO-55 | local max 24, reserved 3; fixture pools/observer/replication headroom only |
+
+Client call/connect 2000 ms and check 3000 ms are implementation bounds obeying STO-7/OPS-49's
+server-timeout floor. The store owner has no commit deadline. D-6 selects no production retry,
+reconnect or alarm policy; full capacity and recovery evidence belongs to W8.
+
+When an open entry is settled, move it to "Settled" with the exact versions, commands, exit statuses
+and evidence paths that meet its basis. Preference, scope and cost questions go to the owner.

@@ -1,0 +1,2707 @@
+{
+  "result": "expected negative demonstration",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "implementation_commit": "26bf739e48e3434dcb0ba23d291b41f7e19720b7",
+  "tested_source_sha256": "c6ed1ea75c80817e14b26297f8af86ef6c49491942e1e3c8d93233d7076f0213",
+  "source_files": {
+    ".github/workflows/ci.yml": "3b7354c0b47c9895b2520af620939673a4dcaf50cae40ad5f8aeb9d4eaee3ce7",
+    ".gitignore": "82dd166414c2a273a88cefa590813388148c2e97765d1e14d4c49827701c1f72",
+    "AGENTS.md": "3d31f1fc55bac309e2fac72b2cbcc67137b3da0353d5e2f39d096bab0e612032",
+    "Cargo.lock": "8910aaa7e4ba5f6836f19e5846b2f36493443a5ac69cd1aeaca7b14713b90887",
+    "Cargo.toml": "87d19ce2db670408bfd1cc7d37279fdd5bcba24af95f4ea395e879341fa8bd50",
+    "README.md": "145a5b3c77496978b6b2eee66230e6160f3ffb33404ecab5deb2237b96159f62",
+    "docs/conformance-map.md": "a7ac36bc747cf393d15dafc91585aaba96321da51ca2fb4bb2b125065edc3076",
+    "docs/decisions.md": "09c1f5e967fabf1172004e76c390209f0508e5347ad05a18913bcfca83059cf6",
+    "docs/scope.md": "130b196736a00bb6c5e58efbe8da9d4af56c6fbcfd99566b339770073b9d1982",
+    "flake.lock": "859b34962b11f1e85bdb97add8c34f37a74262cb689ff78a9501a0b7d067eb13",
+    "flake.nix": "db3d0e22fd444ed2ecf666ad3b3de447334c265cadb5475eae4f84c762b0f2ee",
+    "migrations/0001-core.sql": "857e69cfe049b230f3441f9b547e8ed3ee0fd65d6ec0b7f58893be097ecbba89",
+    "spec-lock.json": "7a65f0e88a21b9861dc7735a5a505f0be66098a996bfbfe28009266372561370",
+    "src/bin/api.rs": "83bc0a9cd43f5fae1a6c644800dc25ba26c3d86cf61357a05290ab0b5afe9bb1",
+    "src/bin/engine.rs": "f439ff71e4c235caccb5817f3dd4c3d39fa9bd32b2368a1fa3ca08f0162d252f",
+    "src/bin/migrate.rs": "86cf838f72854c7af2fa34cc28eb7a94634052e88594d84fc5724545fcad9c7f",
+    "src/engine.rs": "189b103d16b335129201f513a4fb004dc3429ab389ac97d79ad40b1f5dfca84f",
+    "src/entry.rs": "0ae44900f726f81ace6a4f6c8b1cca5ed028e6ca85c7ba3a7cd0171c1c78e7a7",
+    "src/ledger.rs": "3b0c6b55ef466d7597eafe58c4d54fef139b28b971b976ee05b30775ee1bffc1",
+    "src/lib.rs": "0ae7eda63534e96db5121a6df06c2810595d63703a9b9a5f56e5772a6fa33344",
+    "src/store/business.rs": "90188fbc796baf93a6b65157466fda7d94179d66595033ce8805e555273b3cfa",
+    "src/store/commit.rs": "7c7ad971c7255975988537b90a9af1dba4e0d87bd5ca88148a3bd26d848489c2",
+    "src/store/component.rs": "2b0170e1de2b287147ff3b55232e2985879339ea745d9ee48127e51243b48d36",
+    "src/store/migration.rs": "2a8c5e1d0864dc63973726cbe6c66d13212abf1d9c2c0301fdf913ef4359694f",
+    "src/store/mod.rs": "4f7c4127e55bb0272f8e5a30c59e92c1d2cd45661bc641b337ad3e6844594a1c",
+    "src/store/process.rs": "88604efc765fd9138e7f9bb674cf627cf30f98942c038e8b7eb962ae38f6c4ee",
+    "src/store/transport.rs": "9b364e704ab09744fa5aaa75373d5e3d01c625d3842defc565c0d1c37fa36e88",
+    "tests/entry_points.rs": "667993b20f87bd29525ba768c8e7791e4d2091cd5ec9ccd748fbc0d3bb70cc1a",
+    "tests/postgres/client.rs": "18030b18226207ca2698007d4426fcd75c791c6a9d41667061a8340463dc0272",
+    "tests/postgres/controls.py": "91ca3451226531716ad108fcf5e5596b8c8659a540a27ed2788a582a1343538e",
+    "tests/postgres/core.py": "0a57d893a0fbee751bcdf6aaa4dc7c09d498d806e694cfddd09e9b7e8b6b568b",
+    "tests/postgres/core_client.rs": "3a5b9bb78919a1060296155d77466ca4d0f11e4c4608d204cfce9c933c3e52f1",
+    "tests/postgres/corrections.py": "5784caca0927d48a81ab111e566fca16c467e966b2437a2d588b61d89ed7f588",
+    "tests/postgres/harness.py": "a3418358a41c5c63fbacad12c1f3e38c75b764b336bf592010260e8ae686cce3",
+    "tests/postgres/ownership.py": "eb79d61febe7b977040936e5a603f23940c0f4a43c6e885c9a5de36048d3557c",
+    "tests/postgres/privileges.sql": "928d5046e9e8e7f42cb0c339f6624320e2ac73cbf08490de1647ccaf75c14be4",
+    "tests/postgres/proxy.py": "24a54650fd90a47004b4b42faefbf094c989fdc6505a6bff7cb1895259118a20",
+    "tests/postgres/scenarios.py": "60b95c04f4ea32445184a5ac7eca191ecbd2d720797b8cd66073a38114b946b2",
+    "tests/postgres/test_ports.py": "462a468b80241f324c7e652154d096099ac4350f43738866c4a8edf7faaeea66",
+    "tests/support/pause.py": "12d95b008fb86fd73513bb513a4ecefea0598d0d0ea5a377b48664fefa4700e8",
+    "tools/check.sh": "eb6fc0f8f3386de84a0abddba2585ec64617117f8bdc460a4e92f4bc20cd7200",
+    "tools/postgres.sh": "7f2256c81544d8151d5820671bae2102781bf44ecb4f582fead975a93bc5dc4b"
+  },
+  "source_dirty": false,
+  "seed": 20261106,
+  "versions": {
+    "postgres": "postgres (PostgreSQL) 18.6",
+    "pg_ctl": "pg_ctl (PostgreSQL) 18.6",
+    "pg_basebackup": "pg_basebackup (PostgreSQL) 18.6",
+    "psql": "psql (PostgreSQL) 18.6",
+    "pg_verifybackup": "pg_verifybackup (PostgreSQL) 18.6",
+    "initdb": "initdb (PostgreSQL) 18.6",
+    "nix": "nix (Nix) 2.34.9",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14) (built from a source tarball)",
+    "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",
+    "python": "Python 3.14.7",
+    "os": "Linux x86_64",
+    "crates": {
+      "anyhow": "1.0.104",
+      "async-trait": "0.1.92",
+      "base64": "0.22.1",
+      "bitflags": "2.13.2",
+      "block-buffer": "0.12.1",
+      "bumpalo": "3.20.3",
+      "byteorder": "1.5.0",
+      "bytes": "1.12.1",
+      "cfg-if": "1.0.5",
+      "chacha20": "0.10.2",
+      "cmov": "0.5.4",
+      "const-oid": "0.10.2",
+      "cpufeatures": "0.3.1",
+      "crypto-common": "0.2.2",
+      "ctutils": "0.4.2",
+      "deadpool": "0.12.3",
+      "deadpool-runtime": "0.1.4",
+      "digest": "0.11.3",
+      "fallible-iterator": "0.2.0",
+      "futures-channel": "0.3.34",
+      "futures-core": "0.3.34",
+      "futures-macro": "0.3.34",
+      "futures-sink": "0.3.34",
+      "futures-task": "0.3.34",
+      "futures-util": "0.3.34",
+      "getrandom": "0.4.3",
+      "hermit-abi": "0.5.3",
+      "hmac": "0.13.0",
+      "hybrid-array": "0.4.15",
+      "itoa": "1.0.18",
+      "js-sys": "0.3.107",
+      "lazy_static": "1.5.1",
+      "libc": "0.2.191",
+      "libredox": "0.1.25",
+      "lock_api": "0.4.14",
+      "log": "0.4.35",
+      "md-5": "0.11.0",
+      "memchr": "2.8.3",
+      "mio": "1.2.4",
+      "num_cpus": "1.17.0",
+      "objc2-core-foundation": "0.3.2",
+      "objc2-system-configuration": "0.3.2",
+      "parking_lot": "0.12.5",
+      "parking_lot_core": "0.9.12",
+      "percent-encoding": "2.3.2",
+      "phf": "0.13.1",
+      "phf_shared": "0.13.1",
+      "pin-project-lite": "0.2.17",
+      "postgres-protocol": "0.6.12",
+      "postgres-types": "0.2.14",
+      "proc-macro2": "1.0.107",
+      "provisiond": "0.0.0",
+      "quote": "1.0.47",
+      "r-efi": "6.0.0",
+      "rand": "0.10.3",
+      "rand_core": "0.10.1",
+      "redox_syscall": "0.5.18",
+      "rustversion": "1.0.23",
+      "scopeguard": "1.2.0",
+      "serde": "1.0.229",
+      "serde_core": "1.0.229",
+      "serde_derive": "1.0.229",
+      "serde_json": "1.0.154",
+      "sha2": "0.11.0",
+      "siphasher": "1.0.4",
+      "slab": "0.4.12",
+      "smallvec": "1.16.4",
+      "socket2": "0.6.5",
+      "stringprep": "0.1.5",
+      "syn": "3.0.9",
+      "tinyvec": "1.13.3",
+      "tokio": "1.54.1",
+      "tokio-macros": "2.7.2",
+      "tokio-postgres": "0.7.18",
+      "tokio-util": "0.7.20",
+      "typenum": "1.20.1",
+      "unicode-bidi": "0.3.18",
+      "unicode-ident": "1.0.27",
+      "unicode-normalization": "0.1.26",
+      "unicode-properties": "0.1.5",
+      "wasi": "0.14.7+wasi-0.2.4",
+      "wasip2": "1.0.1+wasi-0.2.4",
+      "wasite": "1.0.2",
+      "wasm-bindgen": "0.2.130",
+      "wasm-bindgen-macro": "0.2.130",
+      "wasm-bindgen-macro-support": "0.2.130",
+      "wasm-bindgen-shared": "0.2.130",
+      "web-sys": "0.3.107",
+      "whoami": "2.1.3",
+      "windows-link": "0.2.1",
+      "windows-sys": "0.61.2",
+      "wit-bindgen": "0.46.0",
+      "zmij": "1.0.23"
+    },
+    "postgres_path": "/nix/store/h9aczmrkpcmm9z47648m5n9sg67vi5gw-postgresql-18.6/bin/postgres",
+    "nixpkgs": "aff8a0b28396750446e5537a96461bc4facdb287:postgresql_18"
+  },
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55430,
+      55431,
+      55432,
+      55433
+    ],
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "engine": {
+      "workers": 3,
+      "write_pool": 3,
+      "compatibility_read_pool": 1,
+      "startup_lock_outside_pool": true,
+      "startup_wait_ms": 500,
+      "store_retry_ms": 2000,
+      "stop_record_ms": 1000,
+      "startup_lock_keepalives": {
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "count": 2,
+        "profile_assignment": "shared with pooled local values"
+      },
+      "runtime_build": {
+        "features": [
+          "store-test-hooks"
+        ],
+        "target_directory": "target"
+      },
+      "migration_lock_ms": 500,
+      "migration_lock_retries": 2,
+      "schema_version": 1,
+      "semantic_version": 1,
+      "notice_cap": 16
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55430",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    }
+  },
+  "configuration_sha256": "532eedb9ce25f603db5d94cc5936a4402f6de5b69a763c11c897da4c3be2f8a0",
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "core",
+    "--case",
+    "licensing_stop",
+    "--defect",
+    "licensing_stop",
+    "--seed",
+    "20261106",
+    "--evidence",
+    "<run-dir>/control-manifest.json"
+  ],
+  "commands": [
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "git",
+        "status",
+        "--porcelain",
+        "--",
+        ".",
+        ":(exclude)evidence/**"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "postgres",
+        "--version"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "pg_ctl",
+        "--version"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "pg_basebackup",
+        "--version"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "--version"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "pg_verifybackup",
+        "--version"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "initdb",
+        "--version"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "nix",
+        "--version"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "rustc",
+        "--version"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "cargo",
+        "--version"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "python3",
+        "--version"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "uname",
+        "-sm"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--bins",
+        "--examples",
+        "--features",
+        "store-test-hooks",
+        "--locked"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "initdb",
+        "-D",
+        "<run-dir>/core-xd_czk7z/primary",
+        "-U",
+        "administrator",
+        "--pwfile=<run-dir>/core-xd_czk7z/init-password",
+        "--auth=scram-sha-256",
+        "--no-locale",
+        "--encoding=UTF8"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "postgres",
+        "--single",
+        "-D",
+        "<run-dir>/core-xd_czk7z/primary",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "postgres",
+        "-D",
+        "<run-dir>/core-xd_czk7z/primary"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "pg_basebackup",
+        "-d",
+        "host=127.0.0.1 port=55430 user=replicator dbname=postgres application_name=bootstrap_backup",
+        "-D",
+        "<run-dir>/core-xd_czk7z/standby",
+        "-X",
+        "stream",
+        "--checkpoint=fast",
+        "--no-password"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "pg_verifybackup",
+        "<run-dir>/core-xd_czk7z/standby"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "postgres",
+        "-D",
+        "<run-dir>/core-xd_czk7z/standby"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55431",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "migrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "migrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "target/debug/migrate"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "migrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "target/debug/examples/core-probe"
+      ],
+      "test_defect": null,
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "target/debug/examples/core-probe"
+      ],
+      "test_defect": null,
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        "55430",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "target/debug/examples/core-probe"
+      ],
+      "test_defect": "licensing_stop",
+      "exit_status": 71
+    },
+    {
+      "command": [
+        "pg_ctl",
+        "-D",
+        "<run-dir>/core-xd_czk7z/primary",
+        "stop",
+        "-m",
+        "fast",
+        "-w",
+        "-t",
+        "15"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "pg_ctl",
+        "-D",
+        "<run-dir>/core-xd_czk7z/standby",
+        "stop",
+        "-m",
+        "fast",
+        "-w",
+        "-t",
+        "15"
+      ],
+      "exit_status": 0
+    }
+  ],
+  "scenarios": [
+    {
+      "test": "licensing_stop",
+      "result": "expected negative demonstration",
+      "reason": "stopped licensing must not enter provider execution"
+    }
+  ],
+  "events": [
+    {
+      "event": "invocation",
+      "timestamp": 1793938271.7893977,
+      "elapsed": 0.0003524069907143712,
+      "seed": 20261106,
+      "specification": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+      "phase": "core",
+      "configuration": {
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "max_connections": 24,
+        "shared_buffers": "32MB",
+        "wal_level": "replica",
+        "archive_mode": "on",
+        "restart_after_crash": "on",
+        "ports": [
+          55430,
+          55431,
+          55432,
+          55433
+        ],
+        "authentication": "scram-sha-256 loopback only",
+        "standby_role": "replicator",
+        "store": {
+          "read_pool": 1,
+          "write_pool": 1,
+          "statement_ms": 1000,
+          "lock_ms": 500,
+          "idle_transaction_ms": 1000,
+          "call_ms": 2000,
+          "check_ms": 3000,
+          "checkout_ms": 250,
+          "keepalive_idle_seconds": 2,
+          "keepalive_interval_seconds": 1,
+          "keepalive_count": 2,
+          "isolation": "read committed",
+          "search_path": "pg_catalog,fixture",
+          "stop_fixture_ms": 1000,
+          "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+        },
+        "engine": {
+          "workers": 3,
+          "write_pool": 3,
+          "compatibility_read_pool": 1,
+          "startup_lock_outside_pool": true,
+          "startup_wait_ms": 500,
+          "store_retry_ms": 2000,
+          "stop_record_ms": 1000,
+          "startup_lock_keepalives": {
+            "idle_seconds": 2,
+            "interval_seconds": 1,
+            "count": 2,
+            "profile_assignment": "shared with pooled local values"
+          },
+          "runtime_build": {
+            "features": [
+              "store-test-hooks"
+            ],
+            "target_directory": "target"
+          },
+          "migration_lock_ms": 500,
+          "migration_lock_retries": 2,
+          "schema_version": 1,
+          "semantic_version": 1,
+          "notice_cap": 16
+        }
+      },
+      "configuration_sha256": "cd8385fc3affb373bc227f9903ae84d16055b3fef3ef4b4609457f1b152d9c5f"
+    },
+    {
+      "event": "allocation_reserved",
+      "timestamp": 1793938271.8695316,
+      "elapsed": 0.0804861179785803,
+      "ports": [
+        55430,
+        55431,
+        55432,
+        55433
+      ]
+    },
+    {
+      "event": "server_started",
+      "timestamp": 1793938275.2583408,
+      "elapsed": 3.4692953039193526,
+      "node": "primary",
+      "pid": 979195,
+      "port": 55430
+    },
+    {
+      "event": "backup_requested",
+      "timestamp": 1793938275.2583847,
+      "elapsed": 3.4693388749146834,
+      "destination": "standby",
+      "wal_mode": "stream",
+      "application_name": "bootstrap_backup"
+    },
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1793938276.1574926,
+      "elapsed": 4.3684472179738805,
+      "path": "<run-dir>/core-xd_czk7z/standby-backup-manifest.json",
+      "sha256": "5393229489b687f530a602e62b5b77e920a53f7c001771eb1a0f79250efc7fdc"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1793938276.1576848,
+      "elapsed": 4.368639255990274,
+      "destination": "standby",
+      "verified": true
+    },
+    {
+      "event": "server_started",
+      "timestamp": 1793938276.8483424,
+      "elapsed": 5.059296970954165,
+      "node": "standby",
+      "pid": 979282,
+      "port": 55431
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1793938277.1019886,
+      "elapsed": 5.31294330698438,
+      "system_identifier": "7704906209900007238",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7704906209900007238",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1793938277.1129062,
+      "elapsed": 5.323860739939846,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55430",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "4609b40b2f45e2613afa48b46a5d591504bccbacbb56b6e5e1d00155fa0e2d98"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1793938277.171991,
+      "elapsed": 5.382945389952511,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938277.4727483,
+      "elapsed": 5.683703235001303,
+      "tag": "C",
+      "session": 979444,
+      "command_tag": "COMMIT",
+      "ready_status": null,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938277.4729607,
+      "elapsed": 5.683915179921314,
+      "tag": "Z",
+      "session": 979444,
+      "command_tag": null,
+      "ready_status": "I",
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938277.4732351,
+      "elapsed": 5.684189640916884,
+      "session": 979444,
+      "source": "client_eof"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938277.4757447,
+      "elapsed": 5.686699250014499,
+      "session": 979444,
+      "source": "server_eof_or_error"
+    },
+    {
+      "event": "client_process_started",
+      "timestamp": 1793938277.5246027,
+      "elapsed": 5.735557294916362,
+      "pid": 979483,
+      "probe": 0,
+      "test_defect": null
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.5269876,
+      "elapsed": 5.737941889907233,
+      "probe": 0,
+      "message": {
+        "count": 2,
+        "event": "client_keepalives_observed",
+        "idle_seconds": 2,
+        "interval_seconds": 1
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.57601,
+      "elapsed": 5.786964491941035,
+      "probe": 0,
+      "message": {
+        "event": "check_target",
+        "kind": "admission",
+        "session": 979504,
+        "target": "0/30FDFB8"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.578277,
+      "elapsed": 5.78923145798035,
+      "probe": 0,
+      "message": {
+        "event": "check_observation",
+        "kind": "admission",
+        "observed": [
+          "979354",
+          "replicator",
+          "provisiond_sync",
+          "127.0.0.1",
+          "streaming",
+          "sync",
+          "0/30FDFB8"
+        ],
+        "session": 979504,
+        "target": "0/30FDFB8"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.5783505,
+      "elapsed": 5.789305074955337,
+      "probe": 0,
+      "message": {
+        "event": "session_admitted",
+        "session": 979504
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.5844457,
+      "elapsed": 5.795400147908367,
+      "probe": 0,
+      "message": {
+        "event": "owner_accepted",
+        "owner": 1,
+        "session": 979504
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.5845942,
+      "elapsed": 5.795548685011454,
+      "probe": 0,
+      "message": {
+        "event": "commit_possible_dispatch",
+        "owner": 1,
+        "session": 979504
+      }
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938277.5913415,
+      "elapsed": 5.802296504960395,
+      "tag": "C",
+      "session": 979504,
+      "command_tag": "COMMIT",
+      "ready_status": null,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938277.5915284,
+      "elapsed": 5.802483013016172,
+      "tag": "Z",
+      "session": 979504,
+      "command_tag": null,
+      "ready_status": "I",
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.5916295,
+      "elapsed": 5.802583880955353,
+      "probe": 0,
+      "message": {
+        "command_tag": "COMMIT",
+        "diagnostics": [],
+        "event": "commit_classified",
+        "outcome": "acknowledged",
+        "owner": 1,
+        "ready_status": 73,
+        "reason": "Acknowledged",
+        "session": 979504,
+        "transport_dead": false
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.59171,
+      "elapsed": 5.802664570976049,
+      "probe": 0,
+      "message": {
+        "event": "commit_owner_completed",
+        "owner": 1,
+        "session": 979504
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.5917745,
+      "elapsed": 5.802728730952367,
+      "probe": 0,
+      "message": {
+        "command": "payment",
+        "event": "result",
+        "ok": true,
+        "value": {
+          "id": "30f420f9-9fe4-4525-ac1a-536e1bc96cc1"
+        }
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.5919201,
+      "elapsed": 5.802874412969686,
+      "probe": 0,
+      "message": {
+        "event": "driver_closed"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.59197,
+      "elapsed": 5.802924345945939,
+      "probe": 0,
+      "message": {
+        "event": "supervisor_drained"
+      }
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938277.5920105,
+      "elapsed": 5.802965111914091,
+      "session": 979504,
+      "source": "client_eof"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938277.5920548,
+      "elapsed": 5.8030092739500105,
+      "session": 979504,
+      "source": "server_eof_or_error"
+    },
+    {
+      "event": "client_process_started",
+      "timestamp": 1793938277.608915,
+      "elapsed": 5.819869896979071,
+      "pid": 979511,
+      "probe": 1,
+      "test_defect": null
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.6119194,
+      "elapsed": 5.822873916942626,
+      "probe": 1,
+      "message": {
+        "count": 2,
+        "event": "client_keepalives_observed",
+        "idle_seconds": 2,
+        "interval_seconds": 1
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.6622286,
+      "elapsed": 5.873183036921546,
+      "probe": 1,
+      "message": {
+        "event": "check_target",
+        "kind": "admission",
+        "session": 979532,
+        "target": "0/30FE7D0"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.6641026,
+      "elapsed": 5.875057210912928,
+      "probe": 1,
+      "message": {
+        "event": "check_observation",
+        "kind": "admission",
+        "observed": [
+          "979354",
+          "replicator",
+          "provisiond_sync",
+          "127.0.0.1",
+          "streaming",
+          "sync",
+          "0/30FE7D0"
+        ],
+        "session": 979532,
+        "target": "0/30FE7D0"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.6642215,
+      "elapsed": 5.875175761990249,
+      "probe": 1,
+      "message": {
+        "event": "session_admitted",
+        "session": 979532
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.6712713,
+      "elapsed": 5.88222594500985,
+      "probe": 1,
+      "message": {
+        "event": "owner_accepted",
+        "owner": 1,
+        "session": 979532
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.671371,
+      "elapsed": 5.88232552097179,
+      "probe": 1,
+      "message": {
+        "event": "commit_possible_dispatch",
+        "owner": 1,
+        "session": 979532
+      }
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938277.6781611,
+      "elapsed": 5.889116390957497,
+      "tag": "C",
+      "session": 979532,
+      "command_tag": "COMMIT",
+      "ready_status": null,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938277.678344,
+      "elapsed": 5.889298309921287,
+      "tag": "Z",
+      "session": 979532,
+      "command_tag": null,
+      "ready_status": "I",
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.678457,
+      "elapsed": 5.8894114409340546,
+      "probe": 1,
+      "message": {
+        "command_tag": "COMMIT",
+        "diagnostics": [],
+        "event": "commit_classified",
+        "outcome": "acknowledged",
+        "owner": 1,
+        "ready_status": 73,
+        "reason": "Acknowledged",
+        "session": 979532,
+        "transport_dead": false
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.678559,
+      "elapsed": 5.8895133109763265,
+      "probe": 1,
+      "message": {
+        "event": "commit_owner_completed",
+        "owner": 1,
+        "session": 979532
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.6786463,
+      "elapsed": 5.889600693946704,
+      "probe": 1,
+      "message": {
+        "command": "admit",
+        "event": "result",
+        "ok": true,
+        "value": {
+          "id": "0aa83d0c-7f8a-4d87-95ba-294ae3f61835"
+        }
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.6788166,
+      "elapsed": 5.889770961017348,
+      "probe": 1,
+      "message": {
+        "event": "driver_closed_unused"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.6788957,
+      "elapsed": 5.889850058942102,
+      "probe": 1,
+      "message": {
+        "event": "supervisor_drained"
+      }
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938277.678949,
+      "elapsed": 5.889903497998603,
+      "session": 979532,
+      "source": "client_eof"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938277.6790009,
+      "elapsed": 5.889955274993554,
+      "session": 979532,
+      "source": "server_eof_or_error"
+    },
+    {
+      "event": "client_process_started",
+      "timestamp": 1793938277.7052197,
+      "elapsed": 5.9161748349433765,
+      "pid": 979553,
+      "probe": 2,
+      "test_defect": "licensing_stop"
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.708277,
+      "elapsed": 5.9192316139815375,
+      "probe": 2,
+      "message": {
+        "count": 2,
+        "event": "client_keepalives_observed",
+        "idle_seconds": 2,
+        "interval_seconds": 1
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.766444,
+      "elapsed": 5.977398452931084,
+      "probe": 2,
+      "message": {
+        "event": "check_target",
+        "kind": "admission",
+        "session": 979585,
+        "target": "0/30FF560"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.7685986,
+      "elapsed": 5.979553079931065,
+      "probe": 2,
+      "message": {
+        "event": "check_observation",
+        "kind": "admission",
+        "observed": [
+          "979354",
+          "replicator",
+          "provisiond_sync",
+          "127.0.0.1",
+          "streaming",
+          "sync",
+          "0/30FF560"
+        ],
+        "session": 979585,
+        "target": "0/30FF560"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.7687573,
+      "elapsed": 5.979711634921841,
+      "probe": 2,
+      "message": {
+        "event": "session_admitted",
+        "session": 979585
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.7696576,
+      "elapsed": 5.980611864011735,
+      "probe": 2,
+      "message": {
+        "event": "schema_compatible",
+        "semantics": 1,
+        "version": 1
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.7698185,
+      "elapsed": 5.980772963957861,
+      "probe": 2,
+      "message": {
+        "count": 2,
+        "event": "client_keepalives_observed",
+        "idle_seconds": 2,
+        "interval_seconds": 1
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.832618,
+      "elapsed": 6.043572549941018,
+      "probe": 2,
+      "message": {
+        "event": "check_target",
+        "kind": "admission",
+        "session": 979608,
+        "target": "0/30FF560"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.8330681,
+      "elapsed": 6.044022548012435,
+      "probe": 2,
+      "message": {
+        "event": "check_observation",
+        "kind": "admission",
+        "observed": [
+          "979354",
+          "replicator",
+          "provisiond_sync",
+          "127.0.0.1",
+          "streaming",
+          "sync",
+          "0/30FF560"
+        ],
+        "session": 979608,
+        "target": "0/30FF560"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.833188,
+      "elapsed": 6.044142451952212,
+      "probe": 2,
+      "message": {
+        "event": "session_admitted",
+        "session": 979608
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.83402,
+      "elapsed": 6.044974372955039,
+      "probe": 2,
+      "message": {
+        "client_getters_verified": true,
+        "count": 2,
+        "event": "startup_lock_keepalives_observed",
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "profile_assignment": "shared with pooled local values",
+        "server": "2:1:2",
+        "session": 979608
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.8351803,
+      "elapsed": 6.046134785981849,
+      "probe": 2,
+      "message": {
+        "event": "startup_lock_acquired",
+        "session": 979608
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.8353646,
+      "elapsed": 6.0463189400034025,
+      "probe": 2,
+      "message": {
+        "count": 2,
+        "event": "client_keepalives_observed",
+        "idle_seconds": 2,
+        "interval_seconds": 1
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.889379,
+      "elapsed": 6.100333528011106,
+      "probe": 2,
+      "message": {
+        "event": "check_target",
+        "kind": "admission",
+        "session": 979663,
+        "target": "0/30FF5A8"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.891232,
+      "elapsed": 6.102186461910605,
+      "probe": 2,
+      "message": {
+        "event": "check_observation",
+        "kind": "admission",
+        "observed": [
+          "979354",
+          "replicator",
+          "provisiond_sync",
+          "127.0.0.1",
+          "streaming",
+          "sync",
+          "0/30FF5A8"
+        ],
+        "session": 979663,
+        "target": "0/30FF5A8"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.8913538,
+      "elapsed": 6.102308169007301,
+      "probe": 2,
+      "message": {
+        "event": "session_admitted",
+        "session": 979663
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.8925118,
+      "elapsed": 6.10346634790767,
+      "probe": 2,
+      "message": {
+        "event": "advance_timeout_settings_applied",
+        "lock_ms": 500,
+        "server_set_acknowledged": true,
+        "statement_ms": 500
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.8934343,
+      "elapsed": 6.104388837935403,
+      "probe": 2,
+      "message": {
+        "event": "advance_timeouts_observed",
+        "lock": "500ms",
+        "statement": "500ms"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.8937674,
+      "elapsed": 6.1047218079911545,
+      "probe": 2,
+      "message": {
+        "event": "owner_accepted",
+        "owner": 1,
+        "session": 979663
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.893909,
+      "elapsed": 6.1048633919563144,
+      "probe": 2,
+      "message": {
+        "event": "commit_possible_dispatch",
+        "owner": 1,
+        "session": 979663
+      }
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938277.9011483,
+      "elapsed": 6.112103700987063,
+      "tag": "C",
+      "session": 979663,
+      "command_tag": "COMMIT",
+      "ready_status": null,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938277.9013515,
+      "elapsed": 6.112305746995844,
+      "tag": "Z",
+      "session": 979663,
+      "command_tag": null,
+      "ready_status": "I",
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9016094,
+      "elapsed": 6.112563958973624,
+      "probe": 2,
+      "message": {
+        "command_tag": "COMMIT",
+        "diagnostics": [],
+        "event": "commit_classified",
+        "outcome": "acknowledged",
+        "owner": 1,
+        "ready_status": 73,
+        "reason": "Acknowledged",
+        "session": 979663,
+        "transport_dead": false
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.901724,
+      "elapsed": 6.112678461940959,
+      "probe": 2,
+      "message": {
+        "event": "commit_owner_completed",
+        "owner": 1,
+        "session": 979663
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9017768,
+      "elapsed": 6.112731199944392,
+      "probe": 2,
+      "message": {
+        "event": "generation_advanced",
+        "generation": "459d7906-33b7-43f4-99d3-e2748603f04b"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9018128,
+      "elapsed": 6.112767037004232,
+      "probe": 2,
+      "message": {
+        "event": "driver_closed"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.901937,
+      "elapsed": 6.112891388940625,
+      "probe": 2,
+      "message": {
+        "count": 2,
+        "event": "client_keepalives_observed",
+        "idle_seconds": 2,
+        "interval_seconds": 1
+      }
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938277.9024494,
+      "elapsed": 6.113403873983771,
+      "session": 979663,
+      "source": "client_eof"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938277.902496,
+      "elapsed": 6.113450460950844,
+      "session": 979663,
+      "source": "server_eof_or_error"
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9523687,
+      "elapsed": 6.163323136977851,
+      "probe": 2,
+      "message": {
+        "event": "check_target",
+        "kind": "admission",
+        "session": 979697,
+        "target": "0/30FF628"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9543178,
+      "elapsed": 6.165272330981679,
+      "probe": 2,
+      "message": {
+        "event": "check_observation",
+        "kind": "admission",
+        "observed": [
+          "979354",
+          "replicator",
+          "provisiond_sync",
+          "127.0.0.1",
+          "streaming",
+          "sync",
+          "0/30FF628"
+        ],
+        "session": 979697,
+        "target": "0/30FF628"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9544206,
+      "elapsed": 6.165374882984906,
+      "probe": 2,
+      "message": {
+        "event": "session_admitted",
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.955349,
+      "elapsed": 6.16630358400289,
+      "probe": 2,
+      "message": {
+        "equal": true,
+        "event": "generation_checked",
+        "generation": "459d7906-33b7-43f4-99d3-e2748603f04b",
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.957062,
+      "elapsed": 6.168016236973926,
+      "probe": 2,
+      "message": {
+        "event": "owner_accepted",
+        "owner": 2,
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9571514,
+      "elapsed": 6.168105973978527,
+      "probe": 2,
+      "message": {
+        "event": "commit_possible_dispatch",
+        "owner": 2,
+        "session": 979697
+      }
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938277.9633248,
+      "elapsed": 6.1742791519500315,
+      "tag": "C",
+      "session": 979697,
+      "command_tag": "COMMIT",
+      "ready_status": null,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938277.9634256,
+      "elapsed": 6.174379859934561,
+      "tag": "Z",
+      "session": 979697,
+      "command_tag": null,
+      "ready_status": "I",
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9635272,
+      "elapsed": 6.174481669906527,
+      "probe": 2,
+      "message": {
+        "command_tag": "COMMIT",
+        "diagnostics": [],
+        "event": "commit_classified",
+        "outcome": "acknowledged",
+        "owner": 2,
+        "ready_status": 73,
+        "reason": "Acknowledged",
+        "session": 979697,
+        "transport_dead": false
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.963597,
+      "elapsed": 6.174551579984836,
+      "probe": 2,
+      "message": {
+        "event": "commit_owner_completed",
+        "owner": 2,
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.963663,
+      "elapsed": 6.17461743298918,
+      "probe": 2,
+      "message": {
+        "event": "restart_pass_complete",
+        "running_found": 0
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.963745,
+      "elapsed": 6.174699435941875,
+      "probe": 2,
+      "message": {
+        "command": "engine_start",
+        "event": "result",
+        "ok": true,
+        "value": {
+          "generation": "459d7906-33b7-43f4-99d3-e2748603f04b",
+          "lock_pid": 979608
+        }
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.964776,
+      "elapsed": 6.175730368006043,
+      "probe": 2,
+      "message": {
+        "equal": true,
+        "event": "generation_checked",
+        "generation": "459d7906-33b7-43f4-99d3-e2748603f04b",
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9673972,
+      "elapsed": 6.178351494949311,
+      "probe": 2,
+      "message": {
+        "event": "owner_accepted",
+        "owner": 3,
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9675083,
+      "elapsed": 6.178462611977011,
+      "probe": 2,
+      "message": {
+        "event": "commit_possible_dispatch",
+        "owner": 3,
+        "session": 979697
+      }
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938277.9737296,
+      "elapsed": 6.184684720938094,
+      "tag": "C",
+      "session": 979697,
+      "command_tag": "COMMIT",
+      "ready_status": null,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938277.9738588,
+      "elapsed": 6.184813341009431,
+      "tag": "Z",
+      "session": 979697,
+      "command_tag": null,
+      "ready_status": "I",
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.97394,
+      "elapsed": 6.184894441976212,
+      "probe": 2,
+      "message": {
+        "command_tag": "COMMIT",
+        "diagnostics": [],
+        "event": "commit_classified",
+        "outcome": "acknowledged",
+        "owner": 3,
+        "ready_status": 73,
+        "reason": "Acknowledged",
+        "session": 979697,
+        "transport_dead": false
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9740143,
+      "elapsed": 6.184968619956635,
+      "probe": 2,
+      "message": {
+        "event": "commit_owner_completed",
+        "owner": 3,
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9740546,
+      "elapsed": 6.185008924920112,
+      "probe": 2,
+      "message": {
+        "event": "claim_registered",
+        "number": 1,
+        "operation": "0aa83d0c-7f8a-4d87-95ba-294ae3f61835"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9741077,
+      "elapsed": 6.185062053962611,
+      "probe": 2,
+      "message": {
+        "command": "claim",
+        "event": "result",
+        "ok": true,
+        "value": {
+          "id": "0aa83d0c-7f8a-4d87-95ba-294ae3f61835",
+          "kind": "create",
+          "number": 1,
+          "tenant": "license-reply"
+        }
+      }
+    },
+    {
+      "event": "fault_requested",
+      "timestamp": 1793938277.9741726,
+      "elapsed": 6.18512712593656,
+      "fault": "transport_gate",
+      "pattern": "store COMMIT",
+      "direction": "commit_reply"
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9743018,
+      "elapsed": 6.185256155906245,
+      "probe": 2,
+      "message": {
+        "command": "execute_start",
+        "event": "result",
+        "ok": true,
+        "value": {}
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9753227,
+      "elapsed": 6.186277039931156,
+      "probe": 2,
+      "message": {
+        "equal": true,
+        "event": "generation_checked",
+        "generation": "459d7906-33b7-43f4-99d3-e2748603f04b",
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9765882,
+      "elapsed": 6.1875428589992225,
+      "probe": 2,
+      "message": {
+        "event": "owner_accepted",
+        "owner": 4,
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9768114,
+      "elapsed": 6.187765984912403,
+      "probe": 2,
+      "message": {
+        "event": "commit_possible_dispatch",
+        "owner": 4,
+        "session": 979697
+      }
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1793938277.9901357,
+      "elapsed": 6.2010905359638855,
+      "fault": "transport_gate",
+      "direction": "commit_reply",
+      "session": 979697,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9997327,
+      "elapsed": 6.210687146987766,
+      "probe": 2,
+      "message": {
+        "bound_ms": 1000,
+        "event": "stop_record_started",
+        "operation": "0aa83d0c-7f8a-4d87-95ba-294ae3f61835"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9998202,
+      "elapsed": 6.210774619947188,
+      "probe": 2,
+      "message": {
+        "command": "record_stop",
+        "event": "result",
+        "ok": true,
+        "value": {}
+      }
+    },
+    {
+      "event": "fault_released",
+      "timestamp": 1793938277.9998908,
+      "elapsed": 6.210845160996541,
+      "fault": "transport_gate",
+      "pattern": "store COMMIT",
+      "direction": "commit_reply",
+      "activated": true
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938277.9999943,
+      "elapsed": 6.210948935011402,
+      "probe": 2,
+      "message": {
+        "command": "execute_join",
+        "event": "result",
+        "ok": true,
+        "value": {}
+      }
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938278.0000162,
+      "elapsed": 6.210970624932088,
+      "tag": "C",
+      "session": 979697,
+      "command_tag": "COMMIT",
+      "ready_status": null,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938278.0001569,
+      "elapsed": 6.211111387936398,
+      "tag": "Z",
+      "session": 979697,
+      "command_tag": null,
+      "ready_status": "I",
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.0002255,
+      "elapsed": 6.211179964942858,
+      "probe": 2,
+      "message": {
+        "command_tag": "COMMIT",
+        "diagnostics": [],
+        "event": "commit_classified",
+        "outcome": "acknowledged",
+        "owner": 4,
+        "ready_status": 73,
+        "reason": "Acknowledged",
+        "session": 979697,
+        "transport_dead": false
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.0003018,
+      "elapsed": 6.211256298003718,
+      "probe": 2,
+      "message": {
+        "event": "commit_owner_completed",
+        "owner": 4,
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.0003307,
+      "elapsed": 6.21128519193735,
+      "probe": 2,
+      "message": {
+        "event": "external_entry",
+        "kind": "Provider",
+        "simulator": true
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.0003543,
+      "elapsed": 6.2113085449673235,
+      "probe": 2,
+      "message": {
+        "event": "simulator_accepted",
+        "operation": "0aa83d0c-7f8a-4d87-95ba-294ae3f61835",
+        "simulator": true
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.002301,
+      "elapsed": 6.213255434995517,
+      "probe": 2,
+      "message": {
+        "equal": true,
+        "event": "generation_checked",
+        "generation": "459d7906-33b7-43f4-99d3-e2748603f04b",
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.0048778,
+      "elapsed": 6.215832308982499,
+      "probe": 2,
+      "message": {
+        "event": "owner_accepted",
+        "owner": 5,
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.004976,
+      "elapsed": 6.215930641978048,
+      "probe": 2,
+      "message": {
+        "event": "commit_possible_dispatch",
+        "owner": 5,
+        "session": 979697
+      }
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938278.0113454,
+      "elapsed": 6.222299905959517,
+      "tag": "C",
+      "session": 979697,
+      "command_tag": "COMMIT",
+      "ready_status": null,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "protocol_response",
+      "timestamp": 1793938278.0114765,
+      "elapsed": 6.222431270987727,
+      "tag": "Z",
+      "session": 979697,
+      "command_tag": null,
+      "ready_status": "I",
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.0115888,
+      "elapsed": 6.222543359966949,
+      "probe": 2,
+      "message": {
+        "command_tag": "COMMIT",
+        "diagnostics": [],
+        "event": "commit_classified",
+        "outcome": "acknowledged",
+        "owner": 5,
+        "ready_status": 73,
+        "reason": "Acknowledged",
+        "session": 979697,
+        "transport_dead": false
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.0116892,
+      "elapsed": 6.222643536981195,
+      "probe": 2,
+      "message": {
+        "event": "commit_owner_completed",
+        "owner": 5,
+        "session": 979697
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.0117652,
+      "elapsed": 6.222719789016992,
+      "probe": 2,
+      "message": {
+        "detail": null,
+        "event": "stop_record_finished",
+        "landed": true,
+        "operation": "0aa83d0c-7f8a-4d87-95ba-294ae3f61835"
+      }
+    },
+    {
+      "event": "licensing_stop_observed",
+      "timestamp": 1793938278.0401947,
+      "elapsed": 6.2511496499646455,
+      "window": "reply",
+      "operation": "0aa83d0c-7f8a-4d87-95ba-294ae3f61835",
+      "external_entries": 1
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.0404665,
+      "elapsed": 6.251421005930752,
+      "probe": 2,
+      "message": {
+        "event": "engine_fatal",
+        "reason": "later stop: exit without repeating pending records"
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.040561,
+      "elapsed": 6.251515371957794,
+      "probe": 2,
+      "message": {
+        "command": "later_stop",
+        "error": "later stop: exit without repeating pending records",
+        "event": "result",
+        "ok": false
+      }
+    },
+    {
+      "event": "client_observation",
+      "timestamp": 1793938278.0406258,
+      "elapsed": 6.251580202952027,
+      "probe": 2,
+      "message": {
+        "event": "fatal_process_exit",
+        "new_transaction_permitted": false
+      }
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.0415883,
+      "elapsed": 6.252542816917412,
+      "session": 979697,
+      "source": "client_eof"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.0416393,
+      "elapsed": 6.2525940029881895,
+      "session": 979697,
+      "source": "server_eof_or_error"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.0418735,
+      "elapsed": 6.252827778924257,
+      "session": 979608,
+      "source": "server_eof_or_error"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.041904,
+      "elapsed": 6.252858576015569,
+      "session": 979608,
+      "source": "client_eof"
+    },
+    {
+      "event": "failure",
+      "timestamp": 1793938278.041961,
+      "elapsed": 6.25291539193131,
+      "type": "AssertionError",
+      "message": "stopped licensing must not enter provider execution"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.0423946,
+      "elapsed": 6.253349039936438,
+      "session": 979585,
+      "source": "client_eof"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.0424614,
+      "elapsed": 6.253415865008719,
+      "session": 979585,
+      "source": "server_eof_or_error"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.0435002,
+      "elapsed": 6.2544546709395945,
+      "session": 979444,
+      "source": "harness"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.0435517,
+      "elapsed": 6.254506157012656,
+      "session": 979504,
+      "source": "harness"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.0435858,
+      "elapsed": 6.254540130961686,
+      "session": 979532,
+      "source": "harness"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.0436132,
+      "elapsed": 6.254567562020384,
+      "session": 979585,
+      "source": "harness"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.043639,
+      "elapsed": 6.25459340994712,
+      "session": 979608,
+      "source": "harness"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.0436645,
+      "elapsed": 6.254618766950443,
+      "session": 979663,
+      "source": "harness"
+    },
+    {
+      "event": "transport_closed",
+      "timestamp": 1793938278.0437057,
+      "elapsed": 6.254659943981096,
+      "session": 979697,
+      "source": "harness"
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1793938278.1027079,
+      "elapsed": 6.313662671018392,
+      "cancel_requests": 0
+    },
+    {
+      "event": "server_stopped",
+      "timestamp": 1793938278.7046487,
+      "elapsed": 6.915603272966109,
+      "node": "primary",
+      "mode": "fast",
+      "exit_status": 0
+    },
+    {
+      "event": "server_stopped",
+      "timestamp": 1793938279.0062704,
+      "elapsed": 7.217224887921475,
+      "node": "standby",
+      "mode": "fast",
+      "exit_status": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1793938279.0351768,
+      "elapsed": 7.24613159801811,
+      "path": "<run-dir>/core-xd_czk7z/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1793938279.0611997,
+      "elapsed": 7.272154230973683,
+      "path": "<run-dir>/core-xd_czk7z/standby"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1793938279.0613954,
+      "elapsed": 7.272349905921146,
+      "ports": [
+        55430,
+        55431,
+        55432,
+        55433
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1793938279.0614398,
+      "elapsed": 7.272394228959456,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<run-dir>/core-xd_czk7z"
+    }
+  ],
+  "raw_evidence": "<run-dir>/core-xd_czk7z",
+  "trace": {
+    "path": "<run-dir>/core-xd_czk7z/events.jsonl",
+    "sha256": "46e9e26170b714456326cf717562c817ddd7ca6d6ea2107736dbf8dbd9706e00"
+  },
+  "external_provider_rail_evidence": "simulator only; no real effects",
+  "limitations": [
+    "local processes only; no separate-host durability or fencing proof",
+    "no product recovery incidents, automatic provider reconciliation, full meter or production alarms",
+    "DB-10 full saturation: not run (W8)"
+  ],
+  "negative_command_exit_status": 1,
+  "intended_assertion": "stopped licensing must not enter provider execution"
+}
