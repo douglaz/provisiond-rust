@@ -315,6 +315,11 @@ def replication_negatives(h):
     duplicate.wait(timeout=5)
     h.event('replication_protocol_negative_complete',case='duplicate name',physical_standbys=1)
     h.results.append(dict(test='DB-05-duplicate',result='pass',injection='isolated pg_receivewal protocol connection; not another physical standby'))
+    # Cold admission completes while the designated standby is healthy. The
+    # longer backup-prefix observation below exercises the same Session::check
+    # without pretending checkout can outlive its corrected 250 ms bound.
+    q=Probe(h)
+    q.command('admit')
     pause_standby(h)
     wrong=receiver('bootstrap_backup')
     eventually(lambda: h.sql("SELECT count(*) FROM pg_stat_replication WHERE application_name='bootstrap_backup' AND flush_lsn IS NOT NULL")=='1')
@@ -338,10 +343,10 @@ def replication_negatives(h):
     eventually(lambda: h.sql("SELECT count(*) FROM pg_stat_replication WHERE application_name='bootstrap_probe' AND state='streaming'")=='1')
     h.event('backup_sender_observed',observation=h.sql("SELECT application_name,state,coalesce(flush_lsn::text,'NULL') FROM pg_stat_replication WHERE application_name='bootstrap_probe'"),
             note='backup-command NULL is unknown; streaming sender is separately checked through the exact admission target')
-    q=Probe(h)
-    q.send('admit')
-    eventually(lambda:any(e.get('event')=='check_target' for e in q.events))
-    exact=next(e['target'] for e in q.events if e.get('event')=='check_target')
+    marker=len(q.events)
+    q.send('check')
+    eventually(lambda:any(e.get('event')=='check_target' and e.get('kind')=='test' for e in q.events[marker:]))
+    exact=next(e['target'] for e in q.events[marker:] if e.get('event')=='check_target' and e.get('kind')=='test')
     # Physical-backup infrastructure: finish the current WAL segment so the
     # backup's streaming sender can report a durable prefix beyond this fixed
     # target. No component row/transaction or replication setting changes.
@@ -349,13 +354,26 @@ def replication_negatives(h):
     switched=h.sql('SELECT pg_switch_wal()')
     h.event('backup_wal_segment_release_observed',target=exact,switch_lsn=switched)
     eventually(lambda:h.sql(f"SELECT flush_lsn >= '{exact}'::pg_lsn FROM pg_stat_replication WHERE application_name='bootstrap_probe' AND state='streaming'")=='t',seconds=2)
-    assert not any(e.get('event')=='result' for e in q.events),'attempt ended before the non-designated backup reached its target'
+    assert not any(e.get('event')=='result' for e in q.events[marker:]),'check ended before the non-designated backup reached its target'
     h.event('non_designated_backup_caught_up',target=exact,
             senders=h.sql("SELECT application_name,state,coalesce(flush_lsn::text,'NULL') FROM pg_stat_replication ORDER BY application_name,state"),
-            attempted_session=next(e['session'] for e in q.events if e.get('event')=='check_target'))
-    failure=q.result('admit',ok=False)
+            attempted_session=next(e['session'] for e in q.events[marker:] if e.get('event')=='check_target'))
+    # Prove the admission arm too, with its own new physical session and fixed
+    # target. Backup catch-up is already observed before beginning this checkout.
+    admission=Probe(h)
+    admission.send('admit')
+    eventually(lambda:any(e.get('event')=='check_target' for e in admission.events),seconds=.2)
+    admission_target=next(e['target'] for e in admission.events if e.get('event')=='check_target')
+    ahead=h.sql(f"SELECT flush_lsn >= '{admission_target}'::pg_lsn FROM pg_stat_replication WHERE application_name='bootstrap_probe' AND state='streaming'")
+    assert ahead=='t','backup must be ahead of the actual cold admission target'
+    h.event('non_designated_admission_prefix_observed',target=admission_target,backup_ahead=True,checkout_ms=250)
+    refusal=admission.result('admit',ok=False)
+    assert 'deadline' in refusal['error'],refusal
+    assert not any(e.get('event')=='session_admitted' for e in admission.events)
+    admission.finish()
+    failure=q.result('check',ok=False)
     assert 'deadline' in failure['error'],failure
-    assert not any(e.get('event')=='session_admitted' for e in q.events)
+    assert not any(e.get('event')=='session_admitted' for e in q.events[marker:])
     q.finish()
     wrong.terminate()
     wrong.wait(timeout=5)
@@ -365,7 +383,7 @@ def replication_negatives(h):
     assert status==0,(h.root/'identity-backup.log').read_text()
     h.run(['pg_verifybackup',str(backup_path)])
     h.results.append(dict(test='DB-05-non-designated',result='pass',
-                         injection='pg_basebackup streaming sender reached the exact admission target while its connection check remained pending; extra pg_receivewal stream; designated receiver paused',
+                         injection='pg_basebackup streaming sender reached the exact read-only check target while pending; separate fresh cold admission refused with backup ahead of its own target and designated receiver paused',
                          establishes='non-designated later flush never substitutes for designated peer'))
     # Wrong authenticated identity with the right name, using a distinct replication role.
     h.sql('ALTER ROLE observer REPLICATION')
