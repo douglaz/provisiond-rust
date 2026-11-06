@@ -144,7 +144,9 @@ pub fn calculate(o: &Value, d: &Value, r: &Value, runway: i64) -> Result<Price> 
         .map(|v| minor(v, scale))
         .transpose()?
         .unwrap_or(0);
-    let margin = r["margin_bps"]
+    let margin = d
+        .get("margin_bps")
+        .unwrap_or(&r["margin_bps"])
         .as_i64()
         .filter(|v| (0..=10000).contains(v))
         .context("invalid margin")?;
@@ -208,6 +210,54 @@ pub fn calculate(o: &Value, d: &Value, r: &Value, runway: i64) -> Result<Price> 
         per_second_den: i64::try_from(per_second.d)?,
     })
 }
+/// PRV-44/OVR-19: this profile accepts one explicit simulator ordering channel.
+pub(crate) fn validate_descriptor(d: &Value) -> Result<()> {
+    ensure!(
+        d["kind"] == "local_simulator"
+            && d["channels"]
+                .as_array()
+                .is_some_and(|a| a.len() == 1 && a[0] == d["channel"])
+            && d["channel"].is_string(),
+        "unsupported local ordering-channel declaration"
+    );
+    ensure!(
+        d["correlator"] == "operation_id"
+            && d["temporary_keys"].is_boolean()
+            && d["offer_is_resource"].is_boolean(),
+        "unsupported correlator/key declaration"
+    );
+    ensure!(
+        d["order_budget"]["limit"].as_i64().is_some_and(|n| n > 0)
+            && d["order_budget"]["per_seconds"]
+                .as_i64()
+                .is_some_and(|n| n > 0),
+        "missing positive channel order-budget declaration"
+    );
+    ensure!(
+        d["capabilities"]
+            .as_array()
+            .is_some_and(|a| a.iter().all(|v| matches!(
+                v.as_str(),
+                Some("provision_virtual" | "list_offers" | "delete_machine")
+            )))
+            && d["allow_orders"].is_boolean(),
+        "unsupported local capability"
+    );
+    ensure!(
+        d["allow_orders"] == true || !has(d, "provision_virtual"),
+        "ordering capability requires allow_orders"
+    );
+    ensure!(
+        d["margin_bps"]
+            .as_i64()
+            .is_some_and(|n| (0..=10000).contains(&n))
+            && d["max_rate_outage_seconds"].as_i64().is_some_and(|n| n > 0),
+        "invalid margin/outage configuration"
+    );
+    wind_seconds(d)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

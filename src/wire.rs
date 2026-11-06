@@ -119,7 +119,31 @@ pub fn parse(bytes: &[u8]) -> Result<Value, Error> {
             d.deserialize_any(V)
         }
     }
-    let mut d = serde_json::Deserializer::from_slice(bytes);
+    // serde_json represents the integer spelling -0 as a float. Normalize only
+    // that token; fraction/exponent spellings still reach the rejecting visitor.
+    let mut normalized = bytes.to_vec();
+    let (mut quoted, mut escaped) = (false, false);
+    for i in 0..bytes.len() {
+        if quoted {
+            if escaped {
+                escaped = false;
+            } else if bytes[i] == b'\\' {
+                escaped = true;
+            } else if bytes[i] == b'"' {
+                quoted = false;
+            }
+        } else if bytes[i] == b'"' {
+            quoted = true;
+        } else if bytes[i] == b'-'
+            && bytes.get(i + 1) == Some(&b'0')
+            && bytes
+                .get(i + 2)
+                .is_none_or(|b| b.is_ascii_whitespace() || b",]}".contains(b))
+        {
+            normalized[i] = b' ';
+        }
+    }
+    let mut d = serde_json::Deserializer::from_slice(&normalized);
     let value = Strict::deserialize(&mut d).and_then(|v| d.end().map(|()| v.0));
     value.map_err(|_| {
         Error::new(
@@ -155,7 +179,14 @@ pub fn fingerprint(method: &str, target: &str, body: &Value) -> String {
         format!(
             "{}\n{}\n{}",
             method.to_uppercase(),
-            target.trim_end_matches('?'),
+            if target
+                .split_once('?')
+                .is_some_and(|(_, query)| query.is_empty())
+            {
+                &target[..target.len() - 1]
+            } else {
+                target
+            },
             digest(canonical(body).as_bytes())
         )
         .as_bytes(),
@@ -284,6 +315,21 @@ mod tests {
             assert!(parse(s.as_bytes()).is_err(), "{s}");
         }
         assert!(parse(&[255]).is_err());
+    }
+    #[test]
+    fn integer_negative_zero() {
+        assert_eq!(
+            parse(b"-0").expect("integer negative zero is permitted"),
+            json!(0)
+        );
+    }
+    #[test]
+    fn nonempty_question_query_is_part_of_target() {
+        assert_ne!(
+            fingerprint("POST", "/v1/machines??", &json!({})),
+            fingerprint("POST", "/v1/machines", &json!({})),
+            "nonempty query must remain in the fingerprint"
+        );
     }
     #[test]
     fn jcs_and_fingerprint() {

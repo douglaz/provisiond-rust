@@ -41,8 +41,8 @@ def main():
         def reply(self,value):
             data=json.dumps(value).encode()
             self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(data)));self.send_header('Connection','close');self.end_headers()
-            try:self.wfile.write(data)
-            except (BrokenPipeError,ConnectionResetError):pass
+            try:self.wfile.write(data);self.wfile.flush();return True
+            except (BrokenPipeError,ConnectionResetError):return False
         def dispatch(self):
             body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or b'{}')
             if self.path=='/control':
@@ -63,10 +63,17 @@ def main():
             mode=state['mode']
             if self.path=='/offers':record('read_only',**identity);self.reply(state['offers'].get(body['account'],[]));return
             if self.path=='/keys':
-                state['keys'][operation]={'name':operation,'owner':operation};record('key_registered',**identity);self.reply({'id':operation,'owned':True});return
+                if mode=='duplicate_key':
+                    self.reply({'error':{'kind':'conflict','message':'duplicate simulator key','retryable':False,'details':{'reason':'state','accepted':False}}});return
+                state['keys'][operation]={'name':operation,'owner':operation};record('key_registered',**identity)
+                if mode=='drop_key_reply':
+                    self.close_connection=True;self.connection.shutdown(2);self.connection.close();return
+                self.reply({'id':operation,'owned':True});return
             if self.path=='/keys/delete':
                 state['keys'].pop(operation,None);record('key_deleted',**identity);self.reply({'ok':True});return
             if self.path=='/order':
+                if mode=='reject_order':
+                    self.reply({'error':{'kind':'authentication','message':'controlled order rejection','retryable':False,'details':{'accepted':False}}});return
                 record('accepted',**identity)
                 external='SIMULATOR-RESOURCE-'+str(sequence)
                 resource={'external_id':external,'account':body['account'],'correlator':body['correlator'],'channel':body['channel'],'name':body['request']['hostname'],'region':body['request'].get('region'),'state':'running','public_ips':[],'present':True}
@@ -77,9 +84,12 @@ def main():
                 while after.exists():time.sleep(.002)
                 if mode=='drop_reply':
                     record('reply_dropped',resource=external,**identity);self.close_connection=True;self.connection.shutdown(2);self.connection.close();return
-                record('response_returned',resource=external,**identity);self.reply({'accepted':True,'external_id':external});return
+                if self.reply({'accepted':True,'external_id':external}):record('response_returned',resource=external,**identity)
+                return
             if self.path=='/search':
                 record('read_only',**identity)
+                if mode=='search_throttle':
+                    self.reply({'error':{'kind':'rate_limited','message':'controlled verification throttle','retryable':True,'details':{'accepted':False,'retry_after_ms':1000}}});return
                 found=[r for r in state['resources'].values() if r['account']==body['account'] and r['channel']==body['channel'] and r['correlator']==body['correlator']]
                 self.reply({'authoritative':True,'resources':found});return
             if self.path in ['/get','/constraints']:

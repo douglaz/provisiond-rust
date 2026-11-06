@@ -925,6 +925,13 @@ pub async fn serve(store: Store, trace: Trace) -> Result<()> {
     let store = Arc::new(store);
     let p = Parameters::load()?;
     let descriptors=store.value("SELECT COALESCE(jsonb_object_agg(account,descriptor),'{}'::jsonb)::text FROM provisiond.provider_accounts",&[]).await?;
+    for descriptor in descriptors
+        .as_object()
+        .context("configured descriptors")?
+        .values()
+    {
+        pricing::validate_descriptor(descriptor)?;
+    }
     let catalog = descriptors
         .as_object()
         .context("catalog")?

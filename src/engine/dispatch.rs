@@ -12,6 +12,9 @@ pub struct Dispatcher {
 impl Dispatcher {
     pub async fn load(engine: &Arc<Engine>) -> Result<Self> {
         let v=engine.component().value("SELECT COALESCE(jsonb_object_agg(account,descriptor),'{}'::jsonb)::text FROM provisiond.provider_accounts",&[]).await?;
+        for descriptor in v.as_object().context("configured descriptors")?.values() {
+            pricing::validate_descriptor(descriptor)?;
+        }
         let catalog = v
             .as_object()
             .context("configured descriptors")?
@@ -77,7 +80,9 @@ impl Engine {
     Err(error)=>{
      let mut error=error.downcast_ref::<Error>().cloned().unwrap_or_else(||Error::new("internal","worker could not complete",true,json!({"accepted":null})));
      let dispatched=execution.dispatched.load(Ordering::Acquire);
-     let ambiguous=dispatched&&(matches!(error.0["kind"].as_str(),Some("network"|"timeout"|"internal"|"provider"))||error.0["details"]["accepted"]==true);
+     let uncertain_kind=matches!(error.0["kind"].as_str(),Some("network"|"timeout"|"internal")) || error.0["kind"]=="provider" && error.0["details"]["upstream_status"].as_u64().is_none_or(|code|code>=500) || error.0["kind"]=="conflict" && error.0["details"]["reason"]=="cut_off";
+     let ambiguous=dispatched&&(uncertain_kind||error.0["details"]["accepted"]==true);
+     if !dispatched && uncertain_kind {error.0["retryable"]=json!(true);}
      if ambiguous{error.0["retryable"]=json!(false);error.0["details"]["attempted"]=json!("create_machine");}
      *outcome.lock().expect("outcome")=Some(Outcome::Settled{status:if ambiguous{"needs_reconciliation"}else{"failed"}.into(),result:Value::Null,error:error.0});
     }
@@ -136,11 +141,12 @@ impl Engine {
         d: &Dispatcher,
     ) -> Result<Option<Outcome>> {
         self.order_step(c, component, e, 1).await?;
-        let data=component.value("SELECT jsonb_build_object('request',o.request,'summary',o.request_summary,'account',o.provider_account,'status',s.status,'tenant_status',t.status)::text FROM provisiond.operations o LEFT JOIN provisiond.provider_account_status s ON s.provider_account=o.provider_account LEFT JOIN provisiond.tenants t ON t.id=o.tenant_id WHERE o.id::text=$1",&[&c.id]).await?;
+        let data=component.value("SELECT jsonb_build_object('request',o.request,'summary',o.request_summary,'account',o.provider_account,'status',s.status)::text FROM provisiond.operations o LEFT JOIN provisiond.provider_account_status s ON s.provider_account=o.provider_account WHERE o.id::text=$1",&[&c.id]).await?;
         if data["status"] != "healthy" {
             return Err(Error::new("conflict","provider account unavailable",data["status"]!="terminated",json!({"reason":if data["status"]=="terminated"{"account_terminated"}else{"state"}})).into());
         }
-        if data["tenant_status"] == "suspended" {
+        let tenant_status=component.value("SELECT COALESCE((SELECT to_jsonb(status) FROM provisiond.tenants WHERE id=$1),'null'::jsonb)::text",&[&c.tenant]).await?;
+        if tenant_status == "suspended" {
             return Err(Error::conflict("tenant_suspended").into());
         }
         let account = data["account"].as_str().context("account")?;
@@ -277,13 +283,29 @@ impl Engine {
         };
         let command = json!({"account":account,"operation":c.id,"correlator":c.id,"channel":descriptor["channel"],"request":r});
         // PRV-9 temporary-key mode is a real branch; it is separately exercised.
-        if descriptor["temporary_keys"] == true {
-            d.client.call_entered(descriptor, "/keys", &command).await?;
-        }
-        let reply = d
-            .client
-            .call_entered(descriptor, "/order", &command)
-            .await?;
+        let owned_key = if descriptor["temporary_keys"] == true {
+            d.client.call_entered(descriptor, "/keys", &command).await?["owned"] == true
+        } else {
+            false
+        };
+        let reply = match d.client.call_entered(descriptor, "/order", &command).await {
+            Ok(reply) => reply,
+            Err(error) => {
+                if owned_key
+                    && error.0["details"]["accepted"] == false
+                    && !matches!(
+                        error.0["kind"].as_str(),
+                        Some("network" | "timeout" | "internal")
+                    )
+                {
+                    let _ = d
+                        .client
+                        .call_entered(descriptor, "/keys/delete", &command)
+                        .await;
+                }
+                return Err(error.into());
+            }
+        };
         drop(permit);
         ensure!(reply["accepted"] == true, "order acceptance absent");
         let mut resources = BTreeMap::new();
@@ -291,7 +313,7 @@ impl Engine {
             .as_array()
             .context("reachable ordering channels")?
         {
-            let found=d.client.call(component,descriptor,"/search",&json!({"account":account,"operation":c.id,"correlator":c.id,"channel":channel})).await?;
+            let found=d.client.call(component,descriptor,"/search",&json!({"account":account,"operation":c.id,"correlator":c.id,"channel":channel})).await.map_err(|mut error| {error.0["details"]["accepted"]=json!(true);error})?;
             if found["authoritative"] != true {
                 return Err(Error::new(
                     "provider",

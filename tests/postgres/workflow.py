@@ -43,7 +43,7 @@ class Workflow:
         self.control=h.root/'worker-control';self.control.mkdir()
         self.descriptor=dict(account='sim-a',kind='local_simulator',capabilities=['provision_virtual','list_offers','delete_machine'],
             channel='orders',channels=['orders'],offer_is_resource=False,temporary_keys=False,
-            currency='USD',stop_cost=True,cancellation_bound=time.strftime('%Y-%m-%d',time.gmtime()),
+            currency='USD',stop_cost=True,allow_orders=True,correlator='operation_id',margin_bps=1000,order_budget={'limit':20,'per_seconds':86400},cancellation_bound=time.strftime('%Y-%m-%d',time.gmtime()),
             meter_seconds=1,call_seconds=1,visibility_seconds=1,resolution_seconds=1,read_seconds=1,hold_seconds=1,margin_seconds=1,
             max_correlator_bytes=128,max_rate_outage_seconds=600)
         self.offer=dict(id='test-small',name='Nonpayable simulator virtual machine',kind='virtual',regions=['test'],
@@ -79,6 +79,11 @@ class Workflow:
             p=subprocess.Popen([str(h.target/'debug'/name)],env=dict(h.env,**environment(h),**(extra or {})),stdout=out,stderr=errors,text=True)
         p.name=name;p.log=log;p.error=err;self.children.append(p);h.extra.append(p)
         return p
+    def restart_api(self,parameters=None):
+        if self.api.poll() is None:self.api.terminate();self.api.wait(timeout=5)
+        self.parameters.write_text(json.dumps(parameters or PARAMETERS))
+        self.api=self.start('api',dict(PROVISIOND_API_LISTEN=f'127.0.0.1:{self.h.ports[4]}',PROVISIOND_RAIL_SIMULATOR=f'127.0.0.1:{self.h.ports[6]}',PROVISIOND_LOCAL_PARAMETERS=str(self.parameters),PROVISIOND_TEST_CONTROL=str(self.control)))
+        eventually(lambda:'api_listening' in self.api.log.read_text())
     def start_engine(self):
         self.engine=self.start('engine',dict(PROVISIOND_TEST_CONTROL=str(self.control)))
         eventually(lambda:self.events('engine','restart_pass_complete'))
@@ -109,7 +114,7 @@ class Workflow:
         tenant=self.request('POST','/v1/enrol',{'admission_token':token['admission_token']},key='ignored-header')
         self.private.extend([token['admission_token'],tenant['spending_token'],tenant['recovery_credential']])
         return tenant
-    def fund(self,tenant,suffix):
+    def fund(self,tenant,suffix,assignment=True):
         deposit=self.request('POST','/v1/deposits',{'amount_sats':60},tenant,'deposit-'+suffix)
         assert deposit['lightning']['invoice'].startswith('TEST/SIMULATOR/NONPAYABLE/')
         assert deposit['onchain']['address'].startswith('TEST/SIMULATOR/NONPAYABLE/')
@@ -130,8 +135,9 @@ class Workflow:
         assert self.request('GET','/v1/deposits/'+deposit['id'],tenant=tenant)['credited_sats']==115
         assert self.request('POST','/v1/deposits',{'amount_sats':60},tenant,'deposit-'+suffix)==deposit
         self.settlement(lightning);self.settlement(onchain)
-        account=self.request('GET','/v1/providers',tenant=tenant)['providers'][0]['account']
-        tenant['account']=account
+        providers=self.request('GET','/v1/providers',tenant=tenant)['providers']
+        if assignment:tenant['account']=providers[0]['account']
+        else:assert providers==[]
         return deposit,lightning,onchain
     def settlement(self,v):return http(self.h.ports[6],'POST','/control',{'settlement':v})
     def create_body(self,t,**changes):
@@ -151,6 +157,9 @@ class Workflow:
 def workflow(h,case=None,defect=None):
     w=Workflow(h,defect='payment_atomic' if defect=='w4_atomic' else defect)
     try:
+        if case=='w4_search_error':
+            accepted_verification_error(w)
+            return
         if case=='w4_atomic':
             payment_atomic(w)
             return
@@ -193,13 +202,22 @@ def workflow(h,case=None,defect=None):
         dropped_reply(w,t)
         overload(w,t)
         worker_refusals(w,other)
+        page=w.request('GET','/v1/operations?limit=1',tenant=other)
+        assert page['next_cursor']
+        assert w.request('GET','/v1/operations?limit=1&cursor='+page['next_cursor'],tenant=t,status=400)['error']['kind']=='invalid_request'
         # Fresh funding retains the acceptance rule while providing independent test budgets.
         extra=w.enrol();w.fund(extra,'licensing-tenant');w.provider_control(offers={'sim-a':[w.offer],'sim-b':[w.offer]});licensing(w,extra)
         settlement_loss(w,extra)
         destinations(w,t,deposit)
         payment_atomic(w)
+        accepted_verification_error(w)
         guards=w.enrol();w.fund(guards,'guard-tenant');licensing_guards_and_crash(w,guards)
         tail=w.enrol();w.fund(tail,'tail-tenant');admission_refusals(w,tail)
+        temporary_keys(w)
+        concurrency_and_resource(w)
+        unavailable_activation(w)
+        lost_ack_refusals(w)
+        ceiling_restart(w)
     finally:w.close()
 
 
@@ -214,6 +232,8 @@ def wire_auth(w,t,other,op,body):
     value=dict(body,acknowledge_purchase=False,z_unknown=True)
     assert w.request('POST','/v1/machines',value,t,'least-pointer-test',status=400)['error']['details']['field']=='/acknowledge_purchase'
     w.request('OPTIONS','/v1/machines',status=200)
+    first=w.request('POST','/v1/deposits',{'amount_sats':5},t,'principal-collision-key');second=w.request('POST','/v1/deposits',{'amount_sats':6},other,'principal-collision-key')
+    assert first['id']!=second['id']
     # Ignore customer tenant override. Assignment remains the bearer principal's.
     assert w.request('GET','/v1/providers',tenant=t,headers={'X-Provisiond-Tenant':other['tenant_id']})['providers'][0]['account']==t['account']
     w.h.sql(f"UPDATE provisiond.tenants SET status='suspended' WHERE id='{t['tenant_id']}'")
@@ -482,3 +502,124 @@ def admission_refusals(w,t):
     w.request('GET','/v1/operations?limit=nope',tenant=t,status=400)
     h.event('rich_admission_refusal_observed',ordered_refusals=5,not_checked_reasons=6,no_refusal_receipt=True,stale_listing_refused=True,same_key_after_clear=True)
     h.results.append(dict(test='W4-rich-admission-tail',result='pass'))
+
+
+def accepted_verification_error(w):
+    t=w.enrol();w.fund(t,'accepted-verification');w.provider_control(mode='search_throttle')
+    op=w.request('POST','/v1/machines',w.create_body(t),t,'accepted-search-error',status=202)['id']
+    w.start_engine();eventually(lambda:w.status(op) in ['failed','needs_reconciliation']);w.stop_engine()
+    observed=w.status(op);w.h.event('accepted_verification_error_observed',operation=op,classification=observed,accepted_effect=True,verification_throttle=True)
+    assert observed=='needs_reconciliation','accepted create verification failure must retain uncertainty'
+    view=w.request('GET','/v1/operations/'+op,tenant=t)
+    assert view['retryable'] is False and view['error']['retryable'] is False
+    assert view['error']['details']['retry_after_ms']==1000 and view['error']['details']['accepted'] is True
+    assert w.h.sql(f"SELECT reserved_sats||':'||state FROM provisiond.commitments WHERE operation_id='{op}'")=='43:open'
+    assert w.h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE operation_id='{op}'")=='0'
+    w.provider_control(mode='normal')
+    w.h.results.append(dict(test='W4-accepted-verification-error',result='pass'))
+
+
+def temporary_keys(w):
+    w.stop_engine();t=w.enrol();w.fund(t,'temporary-keys');h=w.h;account=t['account']
+    d=dict(w.descriptor,account=account,temporary_keys=True)
+    h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(d),account))
+    w.provider_control(offers={'sim-a':[w.offer],'sim-b':[w.offer]})
+    for mode in ['reject_order','duplicate_key','normal','drop_key_reply']:
+        w.provider_control(mode=mode)
+        op=w.request('POST','/v1/machines',w.create_body(t),t,'temporary-key-'+mode,status=202)['id']
+        w.start_engine();w.wait_status(op,'succeeded' if mode=='normal' else 'needs_reconciliation' if mode=='drop_key_reply' else 'failed');w.stop_engine()
+        records=[e for e in w.external()['events'] if e.get('command')==op]
+        paths=[e['path'] for e in records if e['stage']=='request_received']
+        assert paths[0]=='/offers' and paths[1]=='/keys'
+        if mode=='reject_order':assert paths==['/offers','/keys','/order','/keys/delete'] and op not in w.external()['keys']
+        if mode=='duplicate_key':assert paths==['/offers','/keys'] and not [e for e in records if e['stage']=='key_deleted']
+        if mode=='normal':assert paths[:3]==['/offers','/keys','/order'] and w.external()['keys'][op]['name']==op
+        if mode=='drop_key_reply':assert paths==['/offers','/keys'] and op in w.external()['keys'] and not [e for e in records if e['stage']=='key_deleted']
+        h.event('temporary_key_observed',mode=mode,operation=op,requests=paths,owns_only_acknowledged_registration=True,sweep_cleanup='not run')
+    h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(dict(w.descriptor,account=account)),account))
+    w.provider_control(mode='normal')
+    h.results.append(dict(test='W4-temporary-key-ownership',result='pass',limits='settled-key sweep cleanup not run'))
+
+
+def concurrency_and_resource(w):
+    h=w.h;w.stop_engine();w.provider_control(offers={'sim-a':[w.offer],'sim-b':[w.offer]})
+    t=w.enrol();w.fund(t,'concurrent-balance');body=w.create_body(t);body['runway_seconds']=16000
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        requests=[pool.submit(http,h.ports[4],'POST','/v1/machines',body,t['spending_token'],'balance-race-'+str(i)) for i in range(2)]
+        responses=[f.result(timeout=8) for f in requests]
+    assert sorted(r[0] for r in responses)==[202,402],responses
+    op=next(r[1]['id'] for r in responses if r[0]==202)
+    assert h.sql(f"SELECT sum(reserved_sats) FROM provisiond.commitments WHERE tenant_id='{t['tenant_id']}' AND state='open'")=='80'
+    w.start_engine();w.wait_status(op,'succeeded');w.stop_engine()
+    # Configure exactly one healthy account, so both new assignments are automatic.
+    h.sql("UPDATE provisiond.provider_account_status SET status='account_unreachable' WHERE provider_account='sim-b'")
+    a=w.enrol();w.fund(a,'resource-race-a');b=w.enrol();w.fund(b,'resource-race-b')
+    assert a['account']==b['account']=='sim-a'
+    descriptor=dict(w.descriptor,account='sim-a',offer_is_resource=True)
+    h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='sim-a'"%json.dumps(descriptor));w.restart_api()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        requests=[pool.submit(http,h.ports[4],'POST','/v1/machines',w.create_body(tenant),tenant['spending_token'],'resource-race-key') for tenant in [a,b]]
+        responses=[f.result(timeout=8) for f in requests]
+    assert sorted(r[0] for r in responses)==[202,409],responses
+    loser=next(r[1]['error'] for r in responses if r[0]==409)
+    assert loser['details']=={'reason':'state'} and loser['retryable'] is False
+    assert h.sql("SELECT count(*) FROM provisiond.resource_exclusions WHERE provider_account='sim-a'")=='1'
+    op=next(r[1]['id'] for r in responses if r[0]==202);w.start_engine();w.wait_status(op,'succeeded');w.stop_engine()
+    assert h.sql("SELECT count(*) FROM provisiond.resource_exclusions WHERE provider_account='sim-a'")=='0'
+    h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='sim-a'"%json.dumps(dict(w.descriptor,account='sim-a')))
+    h.sql("UPDATE provisiond.provider_account_status SET status='healthy' WHERE provider_account='sim-b'");w.restart_api()
+    # Cursor identity and every filter are part of the sealed principal-scoped cursor.
+    owner=w.request('GET','/v1/operations?limit=1',tenant=a)
+    assert all(v['tenant']==a['tenant_id'] for v in owner['operations'])
+    h.event('http_concurrent_admission_observed',same_balance_admitted=1,same_balance_refused=1,reserved_sats=80,resource_offer_admitted=1,resource_offer_conflict=1,assignments_automatic=True)
+    h.results.append(dict(test='W4-HTTP-concurrent-admission',result='pass'))
+
+
+def unavailable_activation(w):
+    h=w.h;h.sql("UPDATE provisiond.provider_account_status SET status='account_unreachable'")
+    t=w.enrol();w.fund(t,'unavailable-activation',assignment=False)
+    assert w.request('GET','/v1/enrol/'+t['handle'])=={'status':'active'}
+    assert any(e.get('tenant')==t['tenant_id'] for e in w.events('api','activation_without_healthy_assignment'))
+    h.sql("UPDATE provisiond.provider_account_status SET status='healthy'")
+    assert h.sql(f"SELECT count(*) FROM provisiond.tenant_provider_accounts WHERE tenant_id='{t['tenant_id']}'")=='0'
+    h.event('no_healthy_activation_observed',activated=True,assigned=False,monitorable_event=True,later_assignment_sweep='not run')
+    h.results.append(dict(test='W4-no-healthy-activation',result='pass',limits='later assignment sweep not run'))
+
+
+def lost_ack_refusals(w):
+    h=w.h;w.stop_engine();t=w.enrol();w.fund(t,'lost-ack-refusal');account=t['account']
+    w.provider_control(offers={'sim-a':[w.offer],'sim-b':[w.offer]})
+    for target in ['account','tenant']:
+        op=w.request('POST','/v1/machines',w.create_body(t),t,'lost-ack-refusal-'+target,status=202)['id']
+        statement=h.proxy.arm('SET correlator_kind=COALESCE','send');w.start_engine();connection=statement.wait()
+        reply=h.proxy.arm('store COMMIT','commit_reply',session=connection['pid']);statement.release();reply.wait()
+        marker=h.sql(f"SELECT correlator_value||':'||about_to_order_at FROM provisiond.operations WHERE id='{op}'")
+        if target=='account':h.sql(f"UPDATE provisiond.provider_account_status SET status='account_unreachable' WHERE provider_account='{account}'")
+        else:h.sql(f"UPDATE provisiond.tenants SET status='suspended' WHERE id='{t['tenant_id']}'")
+        h.proxy.close_connection(connection,'lost_step8_ack_then_guard_refusal');reply.release();w.wait_status(op,'failed');w.stop_engine()
+        assert h.sql(f"SELECT correlator_value||':'||about_to_order_at FROM provisiond.operations WHERE id='{op}'")==marker
+        assert h.sql(f"SELECT reserved_sats||':'||state FROM provisiond.commitments WHERE operation_id='{op}'")=='0:closed'
+        assert not [e for e in w.external()['events'] if e.get('command')==op and e.get('path') in ['/keys','/order']]
+        error=json.loads(h.sql(f"SELECT error::text FROM provisiond.operations WHERE id='{op}'"))
+        assert error['details']['reason']==('state' if target=='account' else 'tenant_suspended')
+        h.sql(f"UPDATE provisiond.provider_account_status SET status='healthy' WHERE provider_account='{account}'")
+        h.sql(f"UPDATE provisiond.tenants SET status='active' WHERE id='{t['tenant_id']}'")
+        h.event('lost_ack_guard_refusal_observed',target_type=target,operation=op,prior_marker_preserved=True,recorded_failure=True,mutation=False)
+    h.results.append(dict(test='W4-lost-step8-ack-guard-refusal',result='pass'))
+
+
+def ceiling_restart(w):
+    h=w.h;t=w.enrol();w.fund(t,'ceiling-restart');w.stop_engine()
+    parameters=dict(PARAMETERS,created_limit=1,ceiling_seconds=86400)
+    w.restart_api(parameters)
+    body=w.create_body(t);op=w.request('POST','/v1/machines',body,t,'ceiling-first-key',status=202)['id']
+    assert w.request('POST','/v1/machines',body,t,'ceiling-first-key',status=202)['id']==op
+    error=w.request('POST','/v1/machines',body,t,'ceiling-second-key',status=429)['error']
+    assert error['kind']=='ceiling_exceeded' and error['details']['ceiling']=='machines_created'
+    w.restart_api(parameters)
+    assert w.request('POST','/v1/machines',body,t,'ceiling-second-key',status=429)['error']['kind']=='ceiling_exceeded'
+    assert h.sql(f"SELECT used FROM provisiond.ceiling_counters WHERE principal='{t['tenant_id']}' AND ceiling='machines_created'")=='1'
+    assert h.sql(f"SELECT count(*) FROM provisiond.idempotency_records WHERE scope_id='{t['tenant_id']}' AND key='ceiling-second-key'")=='0'
+    w.provider_control(offers={'sim-a':[w.offer],'sim-b':[w.offer]});w.start_engine();w.wait_status(op,'succeeded');w.stop_engine();w.restart_api()
+    h.event('durable_ceiling_observed',used=1,limit=1,interval_seconds=86400,replays_spend_slot=False,retained_across_restart=True)
+    h.results.append(dict(test='W4-durable-ceiling-restart',result='pass'))
