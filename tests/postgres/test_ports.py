@@ -1,10 +1,11 @@
 """Port preflight tests; never launch PostgreSQL or any subprocess."""
 import os
+from pathlib import Path
 import socket
 import unittest
 from unittest.mock import patch
 
-with patch.dict(os.environ, PROVISIOND_HARNESS_ROOT='/var/tmp/port-test',
+with patch.dict(os.environ, PROVISIOND_HARNESS_ROOT=str(Path.cwd() / 'target' / 'port-test'),
                 PROVISIOND_HARNESS_UNIT='port-test.service'):
     from harness import allocation, preflight_ports
 
