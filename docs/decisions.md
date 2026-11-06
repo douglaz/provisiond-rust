@@ -227,7 +227,7 @@ reply uncertainty is retried blind. Unsupported parent/install/rescue/recovery p
 LDG-35 uses transaction advisory locks on `(1347572814, hashtext(tenant_id))`, ordered by ascending
 ASCII tenant identifier, without a live tenant row. Hash collisions can reduce concurrency; they
 do not permit concurrent writes for the same tenant. LDG-70 reads indexed latest seq/balance_after;
-a separate explicit audit recomputes prefixes and durably latches spending closed on mismatch.
+a separate explicit audit recomputes prefixes and durably blocks new create admission on mismatch.
 Repair/re-enable is an offline operator responsibility, not a replication-drift controller.
 
 STO-23/27 and LDG-11 compose balance authorization, conditional resource exclusion, commitment,
