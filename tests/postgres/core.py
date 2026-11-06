@@ -397,7 +397,7 @@ def generation(h,defect=None):
         elif path=='defer':
             # OPS-50: defer's process owner exits even with a live unpolled
             # receipt. Observe that exit rather than requiring API delivery.
-            command(p,'defer_unpolled',c)
+            p.send('defer_unpolled '+json.dumps(c,separators=(',',':')))
             refused=p.p.wait(timeout=3)==71
         elif path in ('settle','verified','license'):
             c['external_id']='stale-external';r=command(p,path,c,ok=None)
