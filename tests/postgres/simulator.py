@@ -16,6 +16,8 @@ def main():
     ap.add_argument('--kind',choices=['provider','rail'],required=True)
     ap.add_argument('--concurrent-order-barrier',action='store_true',
                     help='test-only: overlap two acceptances and allocations')
+    ap.add_argument('--search-read-barrier',action='store_true',
+                    help='test-only: pause an active search iterator for a concurrent order')
     args=ap.parse_args()
     args.root.mkdir(exist_ok=True)
     events=args.root/'effects.jsonl'
@@ -42,6 +44,16 @@ def main():
     # No lock is held while waiting; ordinary simulator invocations have no barrier.
     accepted_pair=threading.Barrier(2,timeout=5,action=lambda:record('acceptance_overlap',parties=2))
     allocated_pair=threading.Barrier(2,timeout=5,action=lambda:record('allocation_overlap',parties=2))
+    def search_values(resources,identity):
+        # PRV-26/OPS-27 tooling regression: pause after the iterator has yielded
+        # its first value. The writer can finish while the detached read waits.
+        for resource in resources:
+            hold=args.root/'hold-search-iteration'
+            if args.search_read_barrier and hold.exists():
+                record('search_iterator_held',resource=resource['external_id'],**identity)
+                while hold.exists():time.sleep(.002)
+                record('search_iterator_resumed',resource=resource['external_id'],**identity)
+            yield resource
     class Handler(BaseHTTPRequestHandler):
         protocol_version='HTTP/1.1'
         def log_message(self,*_):pass
@@ -131,7 +143,10 @@ def main():
                 record('read_only',**identity)
                 if mode=='search_throttle':
                     self.reply({'error':{'kind':'rate_limited','message':'controlled verification throttle','retryable':True,'details':{'accepted':False,'retry_after_ms':1000}}});return
-                found=[r for r in state['resources'].values() if r['account']==body['account'] and r['channel']==body['channel'] and r['correlator']==body['correlator']]
+                # PRV-26/OPS-27: concurrent orders must not invalidate a search
+                # iterator. Resources are replaced, not mutated, after insertion.
+                with lock:resources=tuple(state['resources'].values())
+                found=[r for r in search_values(resources,identity) if r['account']==body['account'] and r['channel']==body['channel'] and r['correlator']==body['correlator']]
                 self.reply({'authoritative':True,'resources':found});return
             if self.path in ['/get','/constraints']:
                 record('read_only',**identity)

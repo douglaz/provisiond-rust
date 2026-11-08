@@ -256,8 +256,9 @@ class Workflow:
 
 def workflow(h,case=None,defect=None):
     if case in (None,'w4_simulator'):
-        from w4_simulator import concurrent_orders
+        from w4_simulator import concurrent_orders, search_during_create
         concurrent_orders(h)
+        search_during_create(h)
         if case=='w4_simulator':return
     w=Workflow(h,defect='w4_ack' if case=='w4_default' else 'payment_atomic' if defect=='w4_atomic' else defect,default_build=case=='w4_default')
     w.case=case or 'w4_workflow'
