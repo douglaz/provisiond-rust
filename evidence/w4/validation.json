@@ -2,7 +2,7 @@
   "result": "pass",
   "gate_exit_status": 0,
   "canonical_exit_status": 0,
-  "implementation_commit": "e4b7a3c8b2595cc8e8d9a1687d16fb2000e1cba8",
+  "implementation_commit": "36c9142a6870c10bac055b64d41f423d3f39cc99",
   "seed": 20261106,
   "phase_results": [
     {
@@ -60,7 +60,7 @@
       "phase": "workflow",
       "result": "pass",
       "scenarios": {
-        "pass": 51
+        "pass": 56
       },
       "cleanup": "pass"
     },
@@ -85,12 +85,12 @@
   },
   "canonical_logs": {
     "stdout": {
-      "path": "<run-dir>/round3-fyovtgvm/postgres.stdout",
-      "sha256": "9f6d67e0abd9bb189fe31974fe31bad24fc112ce2ac9ae7da4b8fe912f696e3a"
+      "path": "<run-dir>/round4-2cdt51w9/postgres.stdout",
+      "sha256": "0d8223e80e9580f748d773e75941b4ccdb743be67ea98c6b8522736b096a6c85"
     },
     "stderr": {
-      "path": "<run-dir>/round3-fyovtgvm/postgres.stderr",
-      "sha256": "2de9c3611e43ffe5e274ca656935b6c53b4bf49d6072b826daefe19e78b8c92e"
+      "path": "<run-dir>/round4-2cdt51w9/postgres.stderr",
+      "sha256": "5b1a740167632819daf544c4304d9748ce57d025b0769c2ac7f1824ccca78072"
     }
   },
   "earlier_unsuccessful_attempts": [
@@ -2872,22 +2872,40 @@
     }
   ],
   "previous_acceptance": {
-    "implementation_commit": "62333c64032bf256c1318801ec64ecfc465aa819",
+    "implementation_commit": "e4b7a3c8b2595cc8e8d9a1687d16fb2000e1cba8",
     "gate_exit_status": 0,
     "canonical_exit_status": 0,
-    "gate_record_sha256": "6435b1617ae1735ff89b13ab7856fbf413a38c7ce951cbdb2ccdbbaec18a5185",
-    "validation_record_sha256": "3e556bd9fd844e8dd28094ae587ee675ebd4e1772af4c2a64034d206444d954f",
+    "gate_record_sha256": "4a7f070a0321c98fe0c87702fc781dab08d06b85fff1af77e6e4d6d2352f5bb0",
+    "validation_record_sha256": "4148174fc95f44e4ea02cd93df7733956b65ed6ba792108cb7ae747881ea5b9d",
     "canonical_logs": {
       "stdout": {
-        "path": "<run-dir>/final-committed-mm72yg1b/postgres.stdout",
-        "sha256": "76dc9908463c54d6df7167820552c3681738e13e2e8c8587739cca5d2add3566"
+        "path": "<run-dir>/round3-fyovtgvm/postgres.stdout",
+        "sha256": "9f6d67e0abd9bb189fe31974fe31bad24fc112ce2ac9ae7da4b8fe912f696e3a"
       },
       "stderr": {
-        "path": "<run-dir>/final-committed-mm72yg1b/postgres.stderr",
-        "sha256": "6db49086b57d4db0aebca8d399cbd6e2d0f0e2a9f9df469b9fbad87c44a08d58"
+        "path": "<run-dir>/round3-fyovtgvm/postgres.stderr",
+        "sha256": "2de9c3611e43ffe5e274ca656935b6c53b4bf49d6072b826daefe19e78b8c92e"
       }
     },
-    "build_mode_limitation": "Prior startup reused the hook target directory for its default API rebuild; the final workflow feature field did not describe later lifecycle API modes. Current evidence uses separate outputs and per-invocation binary hashes."
+    "earlier_acceptance": {
+      "implementation_commit": "62333c64032bf256c1318801ec64ecfc465aa819",
+      "gate_exit_status": 0,
+      "canonical_exit_status": 0,
+      "gate_record_sha256": "6435b1617ae1735ff89b13ab7856fbf413a38c7ce951cbdb2ccdbbaec18a5185",
+      "validation_record_sha256": "3e556bd9fd844e8dd28094ae587ee675ebd4e1772af4c2a64034d206444d954f",
+      "canonical_logs": {
+        "stdout": {
+          "path": "<run-dir>/final-committed-mm72yg1b/postgres.stdout",
+          "sha256": "76dc9908463c54d6df7167820552c3681738e13e2e8c8587739cca5d2add3566"
+        },
+        "stderr": {
+          "path": "<run-dir>/final-committed-mm72yg1b/postgres.stderr",
+          "sha256": "6db49086b57d4db0aebca8d399cbd6e2d0f0e2a9f9df469b9fbad87c44a08d58"
+        }
+      },
+      "build_mode_limitation": "Prior startup reused the hook target directory for its default API rebuild; the final workflow feature field did not describe later lifecycle API modes. Current evidence uses separate outputs and per-invocation binary hashes."
+    },
+    "cleanup_limitation": "Earlier cleanup passed only registered resources; the separate default startup target was unregistered and survived. Current evidence checks both targets explicitly."
   },
   "focused_verification": [
     {
@@ -2961,10 +2979,86 @@
         }
       },
       "identity_note": "Pre-commit focused run of corrected runtime/fixtures; final committed source is independently tested by the canonical suite."
+    },
+    {
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "workflow",
+        "--case",
+        "w4_preflight",
+        "--seed",
+        "20261106",
+        "--evidence",
+        "<run-dir>/round4-2cdt51w9/focused-preflight-final.json"
+      ],
+      "exit_status": 0,
+      "result": "pass",
+      "implementation_commit": "ca36547551f5d0d1d14ca3180656ec362f8f985c",
+      "source_dirty": true,
+      "tested_source_sha256": "dcf7c27747884fc23e42e37bee99b1148692c5a7db35c6abe6b581fbaaa9d024",
+      "scenarios": 5,
+      "cleanup": "pass",
+      "raw_manifest_sha256": "6e27db925ee5ec4342150cbe05ee2cc3b44597438f5aae12b2c235a18ff2513e",
+      "logs": {
+        "stdout": {
+          "path": "<run-dir>/round4-2cdt51w9/focused-preflight-final.stdout",
+          "sha256": "fdeb43756a533e13494b41208857bb654f206e5be34f924bb85e5fa5f266ff9c"
+        },
+        "stderr": {
+          "path": "<run-dir>/round4-2cdt51w9/focused-preflight-final.stderr",
+          "sha256": "5d723501d130792eef252fdd88a78c28efd7e6fc00f34cd58eb510abe461afc7"
+        }
+      },
+      "identity_note": "Pre-commit focused run; final committed source independently tested by complete canonical suite."
+    },
+    {
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "workflow",
+        "--case",
+        "w4_api_startup",
+        "--seed",
+        "20261106",
+        "--evidence",
+        "<run-dir>/round4-2cdt51w9/focused-startup.json"
+      ],
+      "exit_status": 0,
+      "result": "pass",
+      "implementation_commit": "ca36547551f5d0d1d14ca3180656ec362f8f985c",
+      "source_dirty": true,
+      "tested_source_sha256": "dcf7c27747884fc23e42e37bee99b1148692c5a7db35c6abe6b581fbaaa9d024",
+      "scenarios": 1,
+      "cleanup": "pass",
+      "raw_manifest_sha256": "cddb4eb692fa46c38ea3023363756e967d5a27ce40071f58c50e01d16991efab",
+      "logs": {
+        "stdout": {
+          "path": "<run-dir>/round4-2cdt51w9/focused-startup.stdout",
+          "sha256": "91658a694c8ba7589b2bc8d1965f610f22dd7bb338c0adce09c1a35182087634"
+        },
+        "stderr": {
+          "path": "<run-dir>/round4-2cdt51w9/focused-startup.stderr",
+          "sha256": "5d723501d130792eef252fdd88a78c28efd7e6fc00f34cd58eb510abe461afc7"
+        }
+      },
+      "identity_note": "Pre-commit focused run; final committed source independently tested by complete canonical suite."
     }
   ],
   "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-  "tested_source_sha256": "ed59c95d1cdf00887825d8b1ed5eefef19f31739e6cb1b0e6511fb97f1f1ac7b",
+  "tested_source_sha256": "dcf7c27747884fc23e42e37bee99b1148692c5a7db35c6abe6b581fbaaa9d024",
   "source_dirty": false,
-  "tested_source_evidence": "tested-source.json"
+  "tested_source_evidence": "tested-source.json",
+  "positive_results": 139,
+  "expected_negative_controls": 30,
+  "tooling_regression": "red-startup-cleanup.json",
+  "runtime_regression": "red-preflight-store.json"
 }

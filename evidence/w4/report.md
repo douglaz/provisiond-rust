@@ -1,7 +1,7 @@
 # Local funding-to-provisioning evidence
 
 Recorded 2026-11-08. The loopback simulator workflow is implemented and demonstrated on committed
-runtime/fixtures `e4b7a3c8b2595cc8e8d9a1687d16fb2000e1cba8`, against specification
+runtime/fixtures `36c9142a6870c10bac055b64d41f423d3f39cc99`, against specification
 `ac37c7cae5d3ff746515137774a4cdd5a3531375`. This remains a pre-conformance prototype.
 
 The HTTP path obtains a delayed admission token, enrols a pending tenant, requests one deposit,
@@ -31,8 +31,8 @@ every final phase;
 every runtime, migration, fixture, dependency and tool hash matches the commit. The
 [tested source](tested-source.json) records the clean verification tree and exact tested files. Later
 documentation/evidence edits preserve the tested runtime, migrations, fixtures, dependencies and tooling.
-The [publication audit](publication-audit.json), command `python3 <run-dir>/round3-fyovtgvm/audit-publication.py`,
-exited 0 after checking all 53 runtime/fixture hashes against the commit, result inventories, cleanup,
+The [publication audit](publication-audit.json), command `python3 <run-dir>/round4-2cdt51w9/audit-publication.py`,
+exited 0 after checking all 54 runtime/fixture hashes against the commit, result inventories, cleanup,
 local links and credential/private-path/name leakage.
 
 The final commands used the default Nix daemon with NIX_REMOTE and NIX_CONFIG unset, with
@@ -48,7 +48,7 @@ changed, and these tool-mode observations establish no cause for application che
 | regressions | 9 pass | 0 |
 | corrections | 8 pass | 0 |
 | core | 35 pass; 3 not run | 0 |
-| workflow | 51 pass | 0 |
+| workflow | 56 pass | 0 |
 | default-workflow | 2 pass | 0 |
 | controls | 30 expected negative demonstration | 0 |
 
@@ -56,6 +56,43 @@ PostgreSQL tools 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9 w
 The nixpkgs pin is `aff8a0b28396750446e5537a96461bc4facdb287`; manifests contain all dependency
 versions and configuration. This is one primary and one synchronous physical standby on one host,
 not evidence of separate failure domains or production fencing/capacity.
+
+## Worker preflight and startup cleanup
+
+OPS-49 now covers each worker preflight SELECT at the account/request, tenant-status and
+channel-closure sites. Each attempt includes checkout/new-connection checks/query and releases
+its session before backoff, within the existing 2000 ms budget. Serialization remains uncharged;
+constraint/generation exceptions remain distinct. OPS-43 first-refusal order is unchanged and
+provider calls are outside the retry unit. Stop cancellation closes an in-flight read and uses the
+existing bounded shielded record. API components do not inherit the loop.
+
+Five final HTTP-funded/admitted cases prove the fault activates on the intended read transport.
+Two or more failed transports leave the same claim running, 43 sats reserved, no marker/debit
+and no provider request. Recovery at each site completes steps 1–9 once and makes exactly one
+order before normal atomic settlement and keyed replay. The sustained account-read fault produces
+34 failed transports and real engine exit 1, with the exhaustion diagnostic and 2023 ms accounted
+against its 2000 ms bound. The operation remains running until ordinary restart classifies it
+under OPS-15's null-marker exception, releasing the commitment without any debit or provider call.
+A survived stop during tenant-read retry records failed/cut_off under the existing 1000 ms bound,
+with full release and no further read attempt or provider dispatch.
+
+[The original-runtime red](red-preflight-store.json) uses all 31 unchanged runtime/migration/
+dependency/pin files from `ca36547551f5d0d1d14ca3180656ec362f8f985c` in a private source archive.
+Five exact fixture overlays provide the new test and transport observation. It exits 1 at the
+intended live-claim assertion after one real failure: the original runtime instead settled internal
+and released its commitment. Cleanup passed. This is a runtime regression, separate from the 30
+sensitivity controls. The pre-commit focused corrected case also exits 0; final committed-source
+verification independently exercises all five arms.
+
+[The tooling red](red-startup-cleanup.json) leaves the original startup fixture unchanged in that
+same private source. Startup assertions pass and its nine invocations use the separate default
+binary, but cleanup exits 1 at the intended missing-directory-removal check. The normal target is
+gone while `default-startup-target` remains. After all children were reaped and assertions finished,
+only this reproducer's exact leftover target and private source copy were removed; the original
+cleanup result remains fail. The corrected focused startup command exits 0. In the final full
+workflow, both outputs were created/used and explicitly observed absent after child completion.
+Earlier cleanup passes covered registered resources only; they never proved the missing startup
+output was removed. No historical invocation data was deleted.
 
 ## Provider observation and fixture modes
 
@@ -80,7 +117,8 @@ All 30 runtime/migration/dependency hashes match `d62e1f4` (runtime-equivalent t
 six fixture-only overlays supply observation/testing. It ran in the unchanged handoff runtime before
 the correction. The pre-commit focused observation and regression-sequence commands then each
 exited 0; [validation](validation.json) retains their distinct dirty-source identities and log hashes.
-Together with the preserved 23 earlier reds, there are 24 original-runtime regressions.
+Together with the preserved 23 earlier reds and the preflight-store red, there are 25 original-runtime
+regressions.
 
 The default API startup check now builds into a separate target directory. Effective configuration
 records API/engine/migrator executable hashes and feature lists; invocation events identify the

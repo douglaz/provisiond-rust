@@ -89,7 +89,9 @@ Sent COMMITs retain their existing process ownership through reply, transport de
 The [W4 evidence](evidence/w4/report.md) records actual-value funding, operator hiding, startup and
 lifecycle regressions alongside the complete local workflow. Verified creates retain the confirming
 provider read time across later constraint I/O and settlement retries; their billing seed still uses
-the billable creation instant. Automatic reconciliation remains deferred.
+the billable creation instant. Worker preflight reads retry store failures within the existing bound,
+retain their running claim and reserve, and exit nonzero on exhaustion. Automatic reconciliation
+remains deferred.
 
 The named `local-simulator` profile uses D-6's provisional settings. Configure
 `PROVISIOND_PROFILE=local-simulator`, `PROVISIOND_DATABASE_URL` (private, never committed),
@@ -167,5 +169,6 @@ DB-10 saturation remain `not run` for their later work packages.
 27 negative controls, original-runtime reproduction and claim-specific capacity return.
 
 [W4 local workflow evidence](evidence/w4/report.md) records the nine-phase acceptance run,
-30 activated sensitivity controls and 24 original-runtime regressions. This is a simulator-only
+30 activated sensitivity controls, 25 original-runtime regressions and one startup-cleanup tooling
+regression. The focused preflight case is `--phase workflow --case w4_preflight`. This is a simulator-only
 pre-conformance subset; the report identifies the tested source and remaining limits.

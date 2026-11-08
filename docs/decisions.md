@@ -644,6 +644,49 @@ Earlier evidence's mixed API modes are recorded as a historical metadata limitat
 the earlier lifecycle results are not reclassified as application failures. No application timing,
 pricing, runway or accepted deployment policy changed; D-6/7/8/9 remain Open.
 
+### D-23. Worker preflight retries and startup build ownership
+
+**Measured 2026-11-08.** OPS-49 applies to the account/request, tenant-status and channel-closure
+reads in OPS-43 steps 1–2. `Engine::preflight_value` repeats each complete autocommit SELECT,
+including acquisition and new-session admission, releasing the session before backoff. It uses the
+existing 2000 ms Store-retry budget. Serialization retries immediately without charging that budget;
+constraint and fatal-generation errors retain their existing exception paths. OPS-21 cancellation
+closes an in-flight read and prevents another attempt or later dispatch; the existing shielded
+record classifies the pre-step-9 cut-off. Exhaustion logs the operation, claim, site and accounted
+time and exits nonzero without producing a settled worker outcome. Provider calls, API semantics,
+uncertain claims and the transaction/sent-COMMIT owners are unchanged. The supported dispatch path
+has no other direct worker store reads after these checks; descriptor loading is startup work.
+
+The independent PostgreSQL proxy closes only transports preparing the selected SELECT. Five
+HTTP-enrolled/funded/admitted cases demonstrate recovery at all three sites, real engine exhaustion
+and ordinary null-marker restart classification, and a survived stop during retry. While faulted,
+the original running claim and 43-sat reserve persist with no provider request. Recovery performs
+steps 1–9 once, one order, atomic settlement and unchanged keyed replay. The final exhaustion arm
+observed 34 failed read transports, 2023 ms accounted against the 2000 ms bound and process exit 1,
+with no debit or worker classification. These are local measurements, not an outage guarantee.
+
+The separate default startup target is registered through `owned_extra_paths` before Cargo runs.
+After child completion cleanup verifies the default executable was used and both targets are gone.
+The original fixture fails that check with its startup target still present; earlier cleanup passes
+covered only registered paths. Only the newly created reproducer's exact leftover target and private
+source copy were removed after assertions. Historical invocation data was not cleaned.
+
+**Recorded basis:** runtime/fixtures `36c9142a6870c10bac055b64d41f423d3f39cc99`, unchanged specification
+pin; PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and tokio-postgres 0.7.18.
+`nix develop --command bash tools/check.sh` exited 0.
+`PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
+--evidence <run-dir>/final.json` exited 0 across all nine phases, with 139 pass results and
+30 recognized intended-negative controls; cleanup passed. The pre-commit focused commands
+`nix develop --command python3 tests/postgres/harness.py --phase workflow --case w4_preflight
+--seed 20261106 --evidence <run-dir>/focused-preflight-final.json` and the same command with
+`--case w4_api_startup --evidence <run-dir>/focused-startup.json` each exited 0.
+The same two cases on an unchanged private `ca36547` runtime with five fixture-only overlays
+each exited 1 at its intended assertion. [Runtime red](../evidence/w4/red-preflight-store.json),
+[tooling red](../evidence/w4/red-startup-cleanup.json), [workflow](../evidence/w4/final-workflow.json),
+[source](../evidence/w4/tested-source.json) and [validation](../evidence/w4/validation.json)
+record exact identities, versions, commands/statuses and cleanup. All 54 operational paths match
+the clean tested commit. D-6/7/8/9 remain Open; no production timing or deployment policy changed.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |

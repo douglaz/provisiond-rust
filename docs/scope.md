@@ -126,7 +126,13 @@ restart after the underlying capacity/configuration problem is addressed, follow
 request or adapter replay. This is bounded failure handling, not an availability guarantee.
 The engine dispatches queued creates after its acknowledged startup generation and ordinary restart
 pass, retaining the existing lock-loss, claim and stop ownership. Unsupported operation kinds are
-refused. This is a reduced customer service, with no real provider or rail adapter. The local
+refused. OPS-49 also covers each worker preflight account, tenant and channel SELECT as a complete
+autocommit read. Checkout, connection, check, query and backoff consume the existing 2000 ms
+store-retry budget; sessions are released before backoff. Transient errors retain the running claim
+and commitment. Exhaustion exits nonzero without worker classification, leaving ordinary restart
+to classify the null-marker create. A survived stop cancels the read/retry and uses the existing
+shielded cut-off record. No provider call is inside this retry loop; API reads keep their semantics.
+This is a reduced customer service, with no real provider or rail adapter. The local
 profile's three workers, pool sizes, timeouts and retry/stop bounds remain provisional under D-6.
 
 [Historical W3 acceptance](../evidence/w3.md) records its complete seven-phase run on committed source,
@@ -221,6 +227,9 @@ and every API/engine invocation, plus the observation fixture's probe. Later lif
 the original hook-enabled API; the independent default workflow uses no test features. The delayed
 observation cases use the independent simulator's attributed constraint hold. The existing
 default-build defect-environment check remains part of acceptance.
+The separate startup target is registered before building. Cleanup explicitly checks that its
+default API was used and that both build directories were removed after child completion. Earlier
+cleanup results covered registered resources only and did not cover the unregistered startup target.
 
 The local fixtures have observed cold API/engine setup refusals at the unchanged 250 ms checkout
 bound. Their underlying cause is not established. The application process exits on that refusal.
