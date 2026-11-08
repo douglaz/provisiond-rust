@@ -1,5 +1,5 @@
 //! OPS-15/16/21/47/49/50: prototype startup, claims and bounded shielded records.
-//! Provider execution/reconciliation and later operation kinds remain unimplemented.
+//! Independent local create dispatch is in dispatch; automatic reconciliation and later kinds remain unsupported.
 mod dispatch;
 use crate::store::{
     Claim, CommitOutcome, Component, EngineDatabase, FatalEngine, Store, Transaction,
@@ -1046,3 +1046,28 @@ impl Enqueue for Queue {
 }
 
 pub use dispatch::Dispatcher;
+
+/// Test tooling only; no customer route or production cancellation workflow.
+#[cfg(feature = "store-test-hooks")]
+pub async fn test_simulator_stop_cost(store: Store, account: &str, external: &str) -> Result<bool> {
+    let component = Arc::new(store).component();
+    let descriptor = component
+        .value(
+            "SELECT descriptor::text FROM provisiond.provider_accounts WHERE account=$1",
+            &[&account],
+        )
+        .await?;
+    ensure!(
+        crate::pricing::has(&descriptor, "delete_machine"),
+        "stop-cost capability absent"
+    );
+    let response = crate::provider::Client::configured()?
+        .call(
+            &component,
+            &descriptor,
+            "/delete",
+            &json!({"account":account,"external_id":external,"operation":"stop-cost-fixture"}),
+        )
+        .await?;
+    Ok(response["gone"] == true && response["confirmed"] == true)
+}

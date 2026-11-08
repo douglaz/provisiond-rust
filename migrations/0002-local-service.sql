@@ -71,3 +71,12 @@ CREATE TABLE provisiond.meter_totals(subject_kind text NOT NULL,subject_id uuid 
 GRANT SELECT,INSERT,UPDATE ON provisiond.meter_totals TO app;
 ALTER TABLE provisiond.operations DROP CONSTRAINT operations_kind_check;
 ALTER TABLE provisiond.operations ADD CHECK(kind IN ('create','refresh','power','delete'));
+-- STO-37/LDG-66: the represented clamp producer records its durable machine
+-- subject and zero absorbed time; other deficiency producers remain unsupported.
+ALTER TABLE provisiond.operator_deficiencies
+ ADD COLUMN subject_kind text NOT NULL DEFAULT 'machine' CHECK(subject_kind='machine'),
+ ADD COLUMN subject_id uuid,
+ ADD COLUMN absorbed_seconds bigint NOT NULL DEFAULT 0 CHECK(absorbed_seconds=0);
+UPDATE provisiond.operator_deficiencies SET subject_id=machine_id;
+ALTER TABLE provisiond.operator_deficiencies ALTER COLUMN subject_id SET NOT NULL;
+ALTER TABLE provisiond.operator_deficiencies RENAME COLUMN created_at TO opened_at;

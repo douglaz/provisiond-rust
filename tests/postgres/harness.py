@@ -96,19 +96,19 @@ class Harness:
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
                            archive_mode='on', restart_after_crash='on', ports=self.ports[:3],
                            authentication='scram-sha-256 loopback only', standby_role='replicator')
-        if phase in ('checks','commits','regressions','corrections','core'):
+        if phase in ('checks','commits','regressions','corrections','core','workflow','default-workflow'):
             self.config['store'] = dict(read_pool=1,write_pool=1,statement_ms=1000,lock_ms=500,
                 idle_transaction_ms=1000,call_ms=2000,check_ms=3000,checkout_ms=250,
                 keepalive_idle_seconds=2,keepalive_interval_seconds=1,keepalive_count=2,
                 isolation='read committed',search_path='pg_catalog,fixture',stop_fixture_ms=1000,
                 transport='direct TCP; loopback proxy for faults; sslmode=disable')
             self.config['ports'].append(self.ports[3])
-        if phase=='core':
+        if phase in ('core','workflow','default-workflow'):
             self.config['engine']=dict(workers=3,write_pool=3,compatibility_read_pool=1,
                 startup_lock_outside_pool=True,startup_wait_ms=500,store_retry_ms=2000,stop_record_ms=1000,
                 startup_lock_keepalives=dict(idle_seconds=2,interval_seconds=1,count=2,profile_assignment="shared with pooled local values"),
-                runtime_build=dict(features=["store-test-hooks"],target_directory="target"),
-                migration_lock_ms=500,migration_lock_retries=2,schema_version=1,semantic_version=1,notice_cap=16)
+                runtime_build=dict(features=["store-test-hooks"],target_directory=str(self.target)),
+                migration_lock_ms=500,migration_lock_retries=2,schema_version=2,semantic_version=2,notice_cap=16)
         self.archive = self.root / 'archive'
         self.archive.mkdir()
         self.event('invocation', seed=seed, specification=SPEC, phase=phase,
@@ -437,7 +437,7 @@ tcp_keepalives_count = 2
                     command=['nix','develop','--command','python3',*sys.argv], commands=self.commands,
                     scenarios=self.results, events=observations, raw_evidence=str(self.root),
                     trace=dict(path=str(raw),sha256=hashlib.sha256(raw.read_bytes()).hexdigest()),
-                    external_provider_rail_evidence='simulator only; no real effects' if self.phase=='core' else 'not applicable: no external effects',
+                    external_provider_rail_evidence='simulator only; no real effects' if self.phase in ('core','workflow','default-workflow') else 'not applicable: no external effects',
                     limitations=['local processes only; no separate-host durability or fencing proof',
                                  'no product recovery incidents, automatic provider reconciliation, full meter or production alarms',
                                  'DB-10 full saturation: not run (W8)'])
@@ -451,15 +451,15 @@ tcp_keepalives_count = 2
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','all'],default='all')
-    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error'],help='one focused regression; default runs all')
+    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','default-workflow','all'],default='all')
+    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions'],help='one focused regression; default runs all')
     ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset','w4_atomic','w4_ack','w4_overload'])
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
     preflight_ports()
     cases={
-        'workflow':{'w4_atomic','w4_ack','w4_overload','w4_search_error'},
+        'workflow':{'w4_atomic','w4_ack','w4_overload','w4_search_error','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions'},
         'regressions':{'session','transaction','runtime','cancelled'},
         'corrections':{'execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency'},
         'core':{'migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup'},
@@ -486,7 +486,7 @@ def main():
     if args.phase=='all':
         cap_check()
         records=[]
-        for phase in ['w1','checks','commits','regressions','corrections','core','workflow','controls']:
+        for phase in ['w1','checks','commits','regressions','corrections','core','workflow','default-workflow','controls']:
             command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed)]
             # Explicit evidence names; every child command remains foreground.
             if args.evidence:
@@ -497,7 +497,7 @@ def main():
                                 result='pass' if result.returncode==0 else 'fail'))
             if result.returncode!=0:
                 break
-        status=0 if len(records)==8 and all(r['exit_status']==0 for r in records) else 1
+        status=0 if len(records)==9 and all(r['exit_status']==0 for r in records) else 1
         if args.evidence:
             args.evidence.write_text(json.dumps(dict(result='pass' if status==0 else 'fail',phases=records),indent=2)+'\n')
         return status
@@ -522,6 +522,9 @@ def main():
             from core import core_scenarios
             h.run(['cargo','build','--bins','--examples','--features','store-test-hooks','--locked'],timeout=120)
             core_scenarios(h,args.case,args.defect)
+        elif args.phase=='default-workflow':
+            from workflow import workflow
+            workflow(h,'w4_default')
         elif args.phase=='workflow':
             from workflow import workflow
             workflow(h,args.case,args.defect)

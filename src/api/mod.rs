@@ -73,6 +73,9 @@ fn as_error(e: anyhow::Error) -> Error {
 }
 impl State {
     fn rate(&self, principal: &str, write: bool) -> Result<()> {
+        self.rate_allowance(principal, write, true)
+    }
+    fn rate_allowance(&self, principal: &str, write: bool, consume: bool) -> Result<()> {
         let mut rates = self.rates.lock().expect("rates");
         let interval = Duration::from_millis(self.p.n("rate_interval_ms") as u64);
         rates.retain(|_, (start, _)| start.elapsed() < interval);
@@ -91,7 +94,9 @@ impl State {
         if entry.1 >= limit {
             return Err(Error::new("rate_limited","request pacing",true,json!({"retry_after_ms":(interval-entry.0.elapsed().min(interval)).as_millis().max(1) as u64})).into());
         }
-        entry.1 += 1;
+        if consume {
+            entry.1 += 1;
+        }
         Ok(())
     }
     async fn authenticate(&self, r: &Request) -> Result<Value> {
@@ -200,13 +205,16 @@ impl State {
                     "rate_limited",
                     "too many held admission requests",
                     true,
-                    json!({"retry_after_ms":self.p.n("admission_delay_ms")}),
+                    // API-49/WIR-49: constant unrelated to admission/remaining delay.
+                    json!({"retry_after_ms":1000}),
                 )
             })?;
             let v = wire::parse(&r.body)?;
             wire::least(wire::unknown(&v, &[]))?;
+            (self.trace)(json!({"event":"token_request_held","correlation_id":correlation}));
             tokio::time::sleep(Duration::from_millis(self.admission.delay_ms)).await;
             let (token, expiry) = self.admission.issue()?;
+            (self.trace)(json!({"event":"token_issued","correlation_id":correlation}));
             return Ok((
                 200,
                 json!({"admission_token":token,"expires_at":auth::time(expiry)}),
@@ -279,7 +287,25 @@ impl State {
         {
             return Err(Error::missing().into());
         }
-        let tenant = self.authenticate(r).await?;
+        // API-29: bound unauthenticated work by source, before its database
+        // lookup. Bearer spelling cannot create fresh buckets; no source persists.
+        // Valid principals retain their independent read/write budgets below.
+        let source_key = format!("source:{source}");
+        self.rate_allowance(&source_key, write, false)?;
+        let tenant = match self.authenticate(r).await {
+            Ok(tenant) => tenant,
+            Err(error) => {
+                // Only a credential refusal spends the abuse allowance. Successful
+                // callers sharing an address retain their own API-50 budgets.
+                if error
+                    .downcast_ref::<Error>()
+                    .is_some_and(|e| e.0["kind"] == "authentication")
+                {
+                    self.rate(&source_key, write)?;
+                }
+                return Err(error);
+            }
+        };
         let id = tenant["id"].as_str().context("tenant")?;
         if tenant["status"] == "pending"
             && !(path == "/v1/deposits" && r.method == "POST"
@@ -459,7 +485,10 @@ impl State {
         let interval = self.p.n("ceiling_seconds");
         let start = auth::now() / interval * interval;
         let used:i64=tx.rows("SELECT COALESCE((SELECT used FROM provisiond.ceiling_counters WHERE principal=$1 AND ceiling=$2 AND interval_start=$3),0)",&[&tenant,&name,&start]).await?[0].get(0);
-        let refused = used.checked_add(amount).is_none_or(|n| n > limit);
+        // API-7 step 5c: the zero-amount availability probe must refuse an
+        // exhausted allowance before capability/tail reads price the new spend.
+        let refused =
+            (amount == 0 && used >= limit) || used.checked_add(amount).is_none_or(|n| n > limit);
         let error = || {
             Error::new(
                 "ceiling_exceeded",
@@ -648,7 +677,7 @@ impl State {
             reserved_sats: price.reserve,
             setup: price.setup.clone(),
             first_unit: price.unit.clone(),
-            offer_snapshot: json!({"offer_id":offer_id,"machine_kind":o["kind"],"install_strategies":o["install_strategies"],"recurring_price":o["recurring_price"],"currency":o["currency"],"recurring_period":"hour","declared_cancellation_bound":declared,"billing_unit_seconds":o["billing_unit"]["seconds"],"accepted_terms":{"offer":o,"rate":snapshot["rate"],"wind_sats":price.wind_sats,"customer_num":price.per_second_num,"customer_den":price.per_second_den,"channel":descriptor["channel"]}}),
+            offer_snapshot: json!({"offer_id":offer_id,"machine_kind":o["kind"],"install_strategies":o["install_strategies"],"recurring_price":o["recurring_price"],"currency":o["currency"],"recurring_period":"hour","declared_cancellation_bound":declared,"billing_unit_seconds":o["billing_unit"]["seconds"],"accepted_terms":{"offer":o,"rate":snapshot["rate"],"pricing_descriptor":descriptor,"wind_sats":price.wind_sats,"customer_num":price.per_second_num,"customer_den":price.per_second_den,"channel":descriptor["channel"]}}),
         };
         let id = self.queue.enqueue(tx, &request).await.map_err(|e| {
             if e.to_string().contains("resource offer already") {
@@ -790,9 +819,21 @@ impl State {
             },
         )
         .unwrap_or_default();
-        let requested = query(&r.target, "requested_by").unwrap_or_default();
-        let reason = query(&r.target, "system_reason").unwrap_or_default();
-        let terminal = query(&r.target, "terminal").unwrap_or_default();
+        let filter = if collection == "commitments" {
+            String::new()
+        } else {
+            filter
+        };
+        let operation_query = |key| {
+            if collection == "operations" {
+                query(&r.target, key).unwrap_or_default()
+            } else {
+                String::new()
+            }
+        };
+        let requested = operation_query("requested_by");
+        let reason = operation_query("system_reason");
+        let terminal = operation_query("terminal");
         for (value, allowed, field) in [
             (
                 &filter,
@@ -917,8 +958,27 @@ impl State {
 fn query(target: &str, key: &str) -> Option<String> {
     target.split_once('?')?.1.split('&').find_map(|p| {
         let (k, v) = p.split_once('=').unwrap_or((p, ""));
-        (k == key).then(|| v.to_owned())
+        (decode_query(k).as_deref() == Some(key))
+            .then(|| decode_query(v))
+            .flatten()
     })
+}
+// WIR-2/3/5a: decode query semantics without changing the fingerprint's raw target.
+fn decode_query(s: &str) -> Option<String> {
+    let mut value = Vec::with_capacity(s.len());
+    let mut bytes = s.bytes();
+    while let Some(b) = bytes.next() {
+        value.push(match b {
+            b'%' => {
+                let a = char::from(bytes.next()?).to_digit(16)?;
+                let b = char::from(bytes.next()?).to_digit(16)?;
+                (a * 16 + b) as u8
+            }
+            b'+' => b' ',
+            other => other,
+        });
+    }
+    String::from_utf8(value).ok()
 }
 pub async fn serve(store: Store, trace: Trace) -> Result<()> {
     store.compatible_schema().await?;
@@ -1009,9 +1069,10 @@ async fn connection(mut socket: TcpStream, peer: SocketAddr, state: Arc<State>) 
         (200, json!({}))
     } else {
         // WIR-49: dropping the held caller cancels issuance and frees its source slot.
-        let result = if r.target == "/v1/enrol/token" && r.method == "POST" {
+        let result = if r.target.split('?').next() == Some("/v1/enrol/token") && r.method == "POST"
+        {
             let mut peek = [0];
-            tokio::select! {result=state.handle(&r,peer.ip(),&correlation)=>result,_=socket.peek(&mut peek)=>return Ok(())}
+            tokio::select! {result=state.handle(&r,peer.ip(),&correlation)=>result,_=socket.peek(&mut peek)=>{(state.trace)(json!({"event":"token_request_abandoned","correlation_id":correlation}));return Ok(());}}
         } else {
             state.handle(&r, peer.ip(), &correlation).await
         };

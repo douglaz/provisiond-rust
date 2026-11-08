@@ -1,4 +1,4 @@
-//! STO-13: schema check precedes the deliberately non-serving prototype path.
+//! STO-13: schema compatibility precedes the explicit local HTTP service.
 use provisiond::{
     entry,
     store::{Process, Trace},

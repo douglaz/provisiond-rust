@@ -93,6 +93,10 @@ impl super::Transaction {
 impl super::Transaction {
     /// OPS-27/LDG-38/39/72: the verified observation and paid-first-unit seed share settlement.
     pub(crate) async fn attach_details(&mut self, c: &super::Claim, machine: &Value) -> Result<()> {
+        if !self.engine_fenced {
+            self.failed = true;
+            anyhow::bail!("engine-only transaction requires generation fence");
+        }
         let rows=self.rows("SELECT o.machine_id::text,o.request_summary::text,m.first_unit_debit_id IS NOT NULL,m.state_observed_at IS NOT NULL,COALESCE(t.status,'active') FROM provisiond.operations o JOIN provisiond.machines m ON m.id=o.machine_id LEFT JOIN provisiond.tenants t ON t.id=o.tenant_id WHERE o.id=$1::text::uuid AND o.claim_number=$2 AND o.status='succeeded'",&[&c.id,&c.number]).await?;
         let Some(row) = rows.first() else {
             return Ok(());
@@ -107,7 +111,7 @@ impl super::Transaction {
         let rate: Value = serde_json::from_str(
             &self
                 .rows(
-                    "SELECT value::text FROM provisiond.rates WHERE currency=$1",
+                    "SELECT COALESCE((SELECT jsonb_build_object('value',value,'available',available) FROM provisiond.rates WHERE currency=$1),'null'::jsonb)::text",
                     &[&offer["currency"].as_str()],
                 )
                 .await?[0]
@@ -122,19 +126,30 @@ impl super::Transaction {
                 .await?[0]
                 .get::<_, String>(0),
         )?;
-        let price = crate::pricing::calculate(
-            offer,
-            &descriptor,
-            &rate,
-            crate::pricing::wind_seconds(&descriptor)?,
-        )?;
+        // LDG-33/40: settle the accepted effect even without a current rate,
+        // but halt re-derivation rather than publishing a stale-rate runway.
+        let price = (rate["available"] == true)
+            .then(|| {
+                crate::pricing::calculate(
+                    offer,
+                    &descriptor,
+                    &rate["value"],
+                    crate::pricing::wind_seconds(&descriptor)?,
+                )
+            })
+            .transpose()?;
+        let customer_num = price.as_ref().map(|p| p.per_second_num);
+        let customer_den = price.as_ref().map(|p| p.per_second_den);
+        let protected = price.as_ref().map(|p| p.wind_sats);
         let seconds = summary["offer"]["billing_unit_seconds"]
             .as_i64()
             .context("unit seconds")?;
         let seed_seconds = if row.get::<_, bool>(2) { seconds } else { 0 };
-        self.rows("UPDATE provisiond.machines SET name=$2,region=$3,public_ips=$4::text::jsonb,state=$5,state_observed_at=transaction_timestamp(),correlator_kind='operation_uuid',correlator_value=$6,customer_rate_num=$7,customer_rate_den=$8,protected_sats=$9,meter_seed_at=transaction_timestamp()+$10::bigint*interval '1 second' WHERE id=$1::text::uuid AND state_observed_at IS NULL RETURNING id",&[&id,&machine["name"].as_str(),&machine["region"].as_str(),&machine["public_ips"].to_string(),&machine["state"].as_str().unwrap_or("unknown"),&c.id,&price.per_second_num,&price.per_second_den,&price.wind_sats,&seed_seconds]).await?;
+        self.rows("UPDATE provisiond.machines SET name=$2,region=$3,public_ips=$4::text::jsonb,state=$5,state_observed_at=transaction_timestamp(),correlator_kind='operation_uuid',correlator_value=$6,customer_rate_num=$7,customer_rate_den=$8,protected_sats=$9,meter_seed_at=transaction_timestamp()+$10::bigint*interval '1 second' WHERE id=$1::text::uuid AND state_observed_at IS NULL RETURNING id",&[&id,&machine["name"].as_str(),&machine["region"].as_str(),&machine["public_ips"].to_string(),&machine["state"].as_str().unwrap_or("unknown"),&c.id,&customer_num,&customer_den,&protected,&seed_seconds]).await?;
         self.rows("INSERT INTO provisiond.meter_totals(subject_kind,subject_id,billing_period,high_water_mark) SELECT 'machine',id,to_char(transaction_timestamp() AT TIME ZONE 'UTC','YYYY-MM'),meter_seed_at FROM provisiond.machines WHERE id=$1::text::uuid ON CONFLICT DO NOTHING RETURNING subject_id",&[&id]).await?;
-        self.rows("UPDATE provisiond.machines m SET runway_until=greatest(transaction_timestamp(),meter_seed_at)+CASE WHEN customer_rate_num>0 THEN floor(greatest(0,c.reserved_sats-protected_sats)::numeric*customer_rate_den/customer_rate_num)::bigint ELSE 0 END*interval '1 second' FROM provisiond.commitments c WHERE m.id=$1::text::uuid AND c.machine_id=m.id AND c.state='open' RETURNING m.id",&[&id]).await?;
+        if price.is_some() {
+            self.rows("UPDATE provisiond.machines m SET runway_until=greatest(transaction_timestamp(),meter_seed_at)+CASE WHEN customer_rate_num>0 THEN floor(greatest(0,c.reserved_sats-protected_sats)::numeric*customer_rate_den/customer_rate_num)::bigint ELSE 0 END*interval '1 second' FROM provisiond.commitments c WHERE m.id=$1::text::uuid AND c.machine_id=m.id AND c.state='open' RETURNING m.id",&[&id]).await?;
+        }
         if row.get::<_, String>(4) == "suspended" {
             let episode:String=self.rows("INSERT INTO provisiond.episodes(machine_id,key,reasons,state) VALUES($1::text::uuid,'delete','[\"tenant_suspended\"]','open') ON CONFLICT(machine_id,key) WHERE state='open' DO UPDATE SET reasons=EXCLUDED.reasons RETURNING id::text",&[&id]).await?[0].get(0);
             self.rows("INSERT INTO provisiond.operations(tenant_id,idempotency_key,kind,status,machine_id,provider_account,request,request_summary,correlation_id,requested_by,system_reason,episode_id) VALUES($1,$2,'delete','queued',$3::text::uuid,$4,'{}','{}',$5,'system','tenant_suspended',$6::text::uuid) RETURNING id",&[&c.tenant,&format!("suspension:{episode}"),&id,&summary["provider_account"].as_str(),&c.id,&episode]).await?;

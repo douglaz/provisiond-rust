@@ -1,5 +1,6 @@
 """Independent loopback test provider/rail process. Durable effects live outside PG."""
 import argparse
+import calendar
 import json
 import os
 from pathlib import Path
@@ -17,7 +18,7 @@ def main():
     args.root.mkdir(exist_ok=True)
     events=args.root/'effects.jsonl'
     lock=threading.RLock()
-    state=dict(mode='normal',offers={},settlements=[],resources={},keys={})
+    state=dict(mode='normal',offers={},settlements=[],resources={},keys={},cancelled=[])
     sequence=0
     if events.exists():
         for line in events.read_text().splitlines():
@@ -25,6 +26,7 @@ def main():
             if e['stage']=='resource_created':state['resources'][e['resource']]=e['value']
             if e['stage']=='resource_deleted':state['resources'].pop(e['resource'],None)
             if e['stage']=='rail_observation':state['settlements'].append(e['value'])
+            if e['stage']=='invoice_cancelled':state['cancelled'].append(e['destination'])
     def record(stage,**value):
         nonlocal sequence
         with lock:
@@ -48,12 +50,27 @@ def main():
             if self.path=='/control':
                 with lock:
                     if body.get('clear'):state['settlements']=[]
+                    if 'fixture_resource' in body:
+                        resource=body['fixture_resource'];state['resources'][resource['external_id']]=resource
+                        record('resource_created',resource=resource['external_id'],value=resource,test_fixture=True)
                     if 'offers' in body:state['offers']=body['offers']
                     if 'mode' in body:state['mode']=body['mode']
                     if 'settlement' in body:
-                        state['settlements'].append(body['settlement']);record('rail_observation',value=body['settlement'])
+                        value=body['settlement']
+                        if value.get('rail')=='lightning' and value.get('settled'):
+                            expiry=int(value['destination'].rsplit('/',1)[1])
+                            settled=calendar.timegm(time.strptime(value['settled_at'],'%Y-%m-%dT%H:%M:%SZ'))
+                            if value['destination'] in state['cancelled'] or settled>expiry:
+                                self.reply({'refused':'simulator invoice is not payable'});return
+                        state['settlements'].append(value);record('rail_observation',value=value)
                 self.reply({'ok':True});return
             if self.path=='/inspect':self.reply({'events':list(map(json.loads,events.read_text().splitlines())) if events.exists() else [],'resources':state['resources'],'keys':state['keys']});return
+            if self.path=='/cancel':
+                invoice=body['invoice']
+                settled=any(v.get('destination')==invoice and v.get('rail')=='lightning' and v.get('settled') and v.get('preimage_known') for v in state['settlements'])
+                if not settled:
+                    if invoice not in state['cancelled']:state['cancelled'].append(invoice);record('invoice_cancelled',destination=invoice)
+                self.reply({'cancelled':not settled});return
             if self.path=='/settlements':self.reply(state['settlements']);return
             operation=body.get('operation')
             identity=dict(command=operation,account=body.get('account'),correlator=body.get('correlator'),path=self.path)
@@ -72,6 +89,8 @@ def main():
             if self.path=='/keys/delete':
                 state['keys'].pop(operation,None);record('key_deleted',**identity);self.reply({'ok':True});return
             if self.path=='/order':
+                if mode=='secret_error':
+                    self.reply({'error':{'kind':'authentication','message':'TEST_ONLY_SECRET_MARKER','retryable':False,'details':{'accepted':False,'api_key':'TEST_ONLY_SECRET_MARKER','nested':[{'password':'TEST_ONLY_SECRET_MARKER'}]}}});return
                 if mode=='reject_order':
                     self.reply({'error':{'kind':'authentication','message':'controlled order rejection','retryable':False,'details':{'accepted':False}}});return
                 record('accepted',**identity)

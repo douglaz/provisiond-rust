@@ -56,7 +56,7 @@ def controls(seed,evidence):
         valid=(child.returncode==1 and len(failures)==1 and failures[0].get('type')=='AssertionError'
             and failures[0].get('message')==assertion and cleanup and cleanup[-1]['result']=='pass' and observed)
         if defect=='caller_sql':valid=valid and observed[-1].get('observed_synchronous_commit')=='off'
-        if defect=='payment_atomic':valid=valid and observed[-1].get('counts')=='0:1'
+        if defect in ('payment_atomic','w4_atomic'):valid=valid and observed[-1].get('counts')=='0:1'
         if defect=='claim_guard':valid=valid and observed[-1].get('affected') is True
         if defect=='defer_cancel':
             activation=observed[-1] if observed else {}

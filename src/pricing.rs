@@ -9,7 +9,11 @@ struct Q {
 impl Q {
     fn new(n: i128, d: i128) -> Result<Self> {
         ensure!(n >= 0 && d > 0, "invalid rational");
-        Ok(Self { n, d })
+        let (mut a, mut b) = (n, d);
+        while b != 0 {
+            (a, b) = (b, a % b);
+        }
+        Ok(Self { n: n / a, d: d / a })
     }
     fn add(self, b: Self) -> Result<Self> {
         Self::new(
@@ -67,6 +71,7 @@ pub struct Price {
     pub wind_sats: i64,
     pub per_second_num: i64,
     pub per_second_den: i64,
+    required_native: Q,
 }
 /// The seven sequential waits are descriptor/configuration inputs, never max().
 pub fn wind_seconds(d: &Value) -> Result<i64> {
@@ -92,9 +97,11 @@ pub fn wind_seconds(d: &Value) -> Result<i64> {
 }
 pub fn sellable(o: &Value, d: &Value) -> bool {
     let today = chrono::Utc::now().date_naive();
-    o["traffic_bound"] == "unlimited"
+    o["period_seconds"] == 3600
+        && o["traffic_bound"] == "unlimited"
         && o["attachments"].as_array().is_some_and(|a| a.is_empty())
         && d["stop_cost"] == true
+        && has(d, "delete_machine")
         && o["sellable"] == true
         && [o.get("cancellation_bound"), d.get("cancellation_bound")]
             .iter()
@@ -182,17 +189,16 @@ pub fn calculate(o: &Value, d: &Value, r: &Value, runway: i64) -> Result<Price> 
             .mul((10000 + haircut).into(), 10000)?
             .ceil()
     };
-    let reserve = convert(
-        Q::new(setup.into(), 1)?.add(unit)?.add(
-            customer.mul(
-                runway
-                    .checked_add(wind)
-                    .context("duration overflow")?
-                    .into(),
-                1,
-            )?,
+    let required_native = Q::new(setup.into(), 1)?.add(unit)?.add(
+        customer.mul(
+            runway
+                .checked_add(wind)
+                .context("duration overflow")?
+                .into(),
+            1,
         )?,
     )?;
+    let reserve = convert(required_native)?;
     let evidence = |sats: i64, native: i64| json!({"sats":sats,"native_minor":native,"currency":o["currency"],"rate_num":num,"rate_den":den,"rate_source":r["source"],"rate_observed_at":r["observed_at"],"haircut_bps":haircut,"rounding_rule_version":"ceil-v1"});
     let unit_sats = convert(unit)?;
     let mut unit_evidence = evidence(unit_sats, unit_native.ceil()?);
@@ -208,7 +214,51 @@ pub fn calculate(o: &Value, d: &Value, r: &Value, runway: i64) -> Result<Price> 
         wind_sats: convert(customer.mul(wind.into(), 1)?)?,
         per_second_num: i64::try_from(per_second.n)?,
         per_second_den: i64::try_from(per_second.d)?,
+        required_native,
     })
+}
+/// OPS-43: measure coverage at the accepted conversion basis, including offsets
+/// between native components and the rounding headroom in the admitted reserve.
+pub(crate) fn native_coverage_shortfall(
+    offer: &Value,
+    descriptor: &Value,
+    rate: &Value,
+    runway: i64,
+    admitted_sats: i64,
+) -> Result<i64> {
+    ensure!(admitted_sats > 0, "invalid admitted reserve");
+    let price = calculate(offer, descriptor, rate, runway)?;
+    if price.reserve <= admitted_sats {
+        return Ok(0);
+    }
+    let coverage = Q::new(i128::from(admitted_sats), 1)?
+        .mul(
+            i128::from(rate["rate_den"].as_i64().context("rate denominator")?),
+            i128::from(rate["rate_num"].as_i64().context("rate numerator")?),
+        )?
+        .mul(
+            10000,
+            i128::from(10000 + rate["haircut_bps"].as_i64().context("haircut")?),
+        )?;
+    let required = price.required_native;
+    let deficit = required
+        .n
+        .checked_mul(coverage.d)
+        .and_then(|n| {
+            coverage
+                .n
+                .checked_mul(required.d)
+                .and_then(|c| n.checked_sub(c))
+        })
+        .context("native shortfall overflow")?;
+    Q::new(
+        deficit,
+        required
+            .d
+            .checked_mul(coverage.d)
+            .context("native shortfall overflow")?,
+    )?
+    .ceil()
 }
 /// PRV-44/OVR-19: this profile accepts one explicit simulator ordering channel.
 pub(crate) fn validate_descriptor(d: &Value) -> Result<()> {

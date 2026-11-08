@@ -33,11 +33,12 @@ def http(port,method,path,body=None,token=None,key=None,raw=None,headers=None):
 
 
 class Workflow:
-    def __init__(self,h,defect=None):
+    def __init__(self,h,defect=None,default_build=False):
         self.defect=defect
+        self.default_build=default_build
         self.h=h;self.children=[];self.engine=None;self.private=[]
         prepare(h)
-        h.run(['cargo','build','--bins','--features','store-test-hooks','--locked'],timeout=120)
+        h.run(['cargo','build','--bins',*(['--features','store-test-hooks'] if not default_build else []),'--locked'],timeout=120)
         binary(h,'migrate',role='migrator')
         self.parameters=h.root/'local-parameters.json';self.parameters.write_text(json.dumps(PARAMETERS))
         self.control=h.root/'worker-control';self.control.mkdir()
@@ -60,9 +61,10 @@ class Workflow:
         self.provider=self.simulator('provider',5)
         self.rail=self.simulator('rail',6)
         self.provider_control(offers={'sim-a':[self.offer],'sim-b':[self.offer]})
+        h.config['workflow']=dict(parameters=PARAMETERS,descriptor=self.descriptor,offer=self.offer,rate=self.rate,listeners=dict(api=h.ports[4],provider=h.ports[5],rail=h.ports[6]),test_build_features=[] if default_build else ['store-test-hooks'])
+        if default_build:h.config['engine']['runtime_build']['features']=[]
         h.release_port(h.ports[4])
-        self.api=self.start('api',dict(PROVISIOND_API_LISTEN=f'127.0.0.1:{h.ports[4]}',PROVISIOND_RAIL_SIMULATOR=f'127.0.0.1:{h.ports[6]}',PROVISIOND_LOCAL_PARAMETERS=str(self.parameters),PROVISIOND_TEST_CONTROL=str(self.control)))
-        eventually(lambda:self.events('api','api_listening'))
+        self.launch_api()
     def simulator(self,kind,offset):
         h=self.h;h.release_port(h.ports[offset]);root=h.root/kind;root.mkdir()
         log=(h.root/(kind+'.stdout')).open('w');err=(h.root/(kind+'.stderr')).open('w')
@@ -82,11 +84,27 @@ class Workflow:
     def restart_api(self,parameters=None):
         if self.api.poll() is None:self.api.terminate();self.api.wait(timeout=5)
         self.parameters.write_text(json.dumps(parameters or PARAMETERS))
-        self.api=self.start('api',dict(PROVISIOND_API_LISTEN=f'127.0.0.1:{self.h.ports[4]}',PROVISIOND_RAIL_SIMULATOR=f'127.0.0.1:{self.h.ports[6]}',PROVISIOND_LOCAL_PARAMETERS=str(self.parameters),PROVISIOND_TEST_CONTROL=str(self.control)))
-        eventually(lambda:'api_listening' in self.api.log.read_text())
+        self.h.event('api_parameters_applied',parameters=parameters or PARAMETERS)
+        self.launch_api()
+    def launch_api(self):
+        # Each binary immediately fails a cold checkout refusal. Only fixture
+        # deployment may make another recorded, read-only pre-listener attempt.
+        for attempt in range(1,4):
+            self.api=self.start('api',dict(PROVISIOND_API_LISTEN=f'127.0.0.1:{self.h.ports[4]}',PROVISIOND_RAIL_SIMULATOR=f'127.0.0.1:{self.h.ports[6]}',PROVISIOND_LOCAL_PARAMETERS=str(self.parameters),PROVISIOND_TEST_CONTROL=str(self.control)))
+            eventually(lambda:'api_listening' in self.api.log.read_text() or self.api.poll() is not None)
+            if self.api.poll() is None:return
+            events=[json.loads(line) for line in self.api.log.read_text().splitlines() if line.startswith('{')]
+            forbidden=any(e.get('event') in ['api_listening','external_entry'] or e.get('event','').startswith(('http_','rail_','funding_','invoice_')) for e in events)
+            armed=any(not g.released.is_set() for g in self.h.proxy.gates)
+            checkout_refusal='whole pool checkout deadline' in self.api.error.read_text()
+            eligible=(self.api.returncode!=0 and checkout_refusal and not forbidden and not armed and self.defect is None)
+            self.h.event('api_fixture_deployment_exit',attempt=attempt,exit_status=self.api.returncode,result='fail',pre_listener=not any(e.get('event')=='api_listening' for e in events),business_begin_count=sum(e.get('event')=='http_business_begin' for e in events),funding_or_external_events=sum(e.get('event')=='external_entry' or e.get('event','').startswith(('rail_','funding_','invoice_')) for e in events),armed_transport_fault=armed,checkout_refusal=checkout_refusal,retry_eligible=eligible,stdout_sha256=hashlib.sha256(self.api.log.read_bytes()).hexdigest(),stderr_sha256=hashlib.sha256(self.api.error.read_bytes()).hexdigest())
+            assert eligible and attempt<3,'current API startup failed before readiness: '+self.api.error.read_text()
+            self.h.event('api_fixture_deployment_repeated',failed_attempt=attempt,previous_process_exited=True,read_only_before_listener=True,checkout_ms=250)
     def start_engine(self):
         self.engine=self.start('engine',dict(PROVISIOND_TEST_CONTROL=str(self.control)))
-        eventually(lambda:self.events('engine','restart_pass_complete'))
+        eventually(lambda:'restart_pass_complete' in self.engine.log.read_text() or self.engine.poll() is not None)
+        assert self.engine.poll() is None,'current engine startup failed before readiness: '+self.engine.error.read_text()
         return self.engine
     def stop_engine(self):
         if self.engine and self.engine.poll() is None:self.engine.terminate();self.engine.wait(timeout=5)
@@ -121,25 +139,46 @@ class Workflow:
         payment_hash=self.h.sql(f"SELECT payment_hash FROM provisiond.deposits WHERE id='{deposit['id']}'")
         lightning=dict(rail='lightning',destination=deposit['lightning']['invoice'],payment_hash=payment_hash,amount_sats=60,settled=False,preimage_known=False,settled_at=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()))
         self.settlement(lightning)
-        # Poll observation entry, then independent SQL: a held HTLC credits nothing.
-        eventually(lambda:self.events('api','external_entry'))
+        # Attribute a completed ingestion decision to this exact nonfinal value.
+        self.processed(lightning,False)
         assert self.h.sql(f"SELECT count(*) FROM provisiond.payments WHERE deposit_id='{deposit['id']}'")=='0'
-        lightning.update(settled=True,preimage_known=True);self.settlement(lightning)
+        assert self.h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE deposit_id='{deposit['id']}'")=='0'
+        assert self.request('GET','/v1/enrol/'+tenant['handle'])=={'status':'pending'}
+        lightning.update(settled=True,preimage_known=True);self.settlement(lightning);self.processed(lightning,True)
         eventually(lambda:self.request('GET','/v1/deposits/'+deposit['id'],tenant=tenant)['credited_sats']==60)
         assert self.request('GET','/v1/enrol/'+tenant['handle'])=={'status':'pending'}
         onchain=dict(rail='onchain',destination=deposit['onchain']['address'],txid=hashlib.sha256(suffix.encode()).hexdigest(),vout=0,confirmations=1,amount_sats=55,settled_at=lightning['settled_at'])
         self.settlement(onchain)
+        self.processed(onchain,False)
         assert self.h.sql(f"SELECT count(*) FROM provisiond.payments WHERE deposit_id='{deposit['id']}'")=='1'
-        onchain['confirmations']=2;self.settlement(onchain)
+        assert self.h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE deposit_id='{deposit['id']}'")=='1'
+        assert self.request('GET','/v1/enrol/'+tenant['handle'])=={'status':'pending'}
+        assert self.h.sql(f"SELECT count(*) FROM provisiond.tenant_provider_accounts WHERE tenant_id='{tenant['tenant_id']}'")=='0'
+        onchain['confirmations']=2;self.settlement(onchain);self.processed(onchain,True)
         eventually(lambda:self.request('GET','/v1/enrol/'+tenant['handle'])=={'status':'active'})
         assert self.request('GET','/v1/deposits/'+deposit['id'],tenant=tenant)['credited_sats']==115
         assert self.request('POST','/v1/deposits',{'amount_sats':60},tenant,'deposit-'+suffix)==deposit
-        self.settlement(lightning);self.settlement(onchain)
+        # Distinct concurrent deliveries of each same payment identity all reach
+        # the common adapter, and still leave exactly one credit per identity.
+        replays=[dict(value,event_id='replay-'+str(i)) for i,value in enumerate([lightning,lightning,onchain,onchain])]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(self.settlement,replays))
+        for value in replays:self.processed(value,True)
+        assert self.h.sql(f"SELECT count(*) FROM provisiond.payments WHERE deposit_id='{deposit['id']}'")=='2'
+        assert self.h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE deposit_id='{deposit['id']}'")=='2'
         providers=self.request('GET','/v1/providers',tenant=tenant)['providers']
         if assignment:tenant['account']=providers[0]['account']
         else:assert providers==[]
+        # All exact ingestion decisions/replays above completed. Stop resending
+        # this fixture's settled history during unrelated later fault windows.
+        http(self.h.ports[6],'POST','/control',{'clear':True})
         return deposit,lightning,onchain
     def settlement(self,v):return http(self.h.ports[6],'POST','/control',{'settlement':v})
+    def processed(self,v,credit_path):
+        digest=hashlib.sha256(json.dumps(v,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
+        eventually(lambda:any(e.get('observation_digest')==digest and e.get('credit_path')==credit_path for e in self.events('api','rail_observation_processed')))
+        self.h.event('exact_rail_decision_observed',observation_digest=digest,rail=v['rail'],credit_path=credit_path)
+
     def create_body(self,t,**changes):
         return dict(provider_account=t['account'],offer='test-small',hostname='worker-test',region='test',image=None,
             ssh_public_keys=['ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'],
@@ -151,12 +190,50 @@ class Workflow:
             if p.poll() is None:p.terminate()
             p.wait(timeout=5)
         assert all(p.poll() is not None for p in self.children)
+        selected={'api_listening','http_business_begin','http_response','dispatch_step','dispatch_step_held','dispatch_license_acknowledged','provider_verified','execute_returned','settlement_finished','external_entry','rail_credit_acknowledged','rail_observation_processed','activation_without_healthy_assignment','whole_transaction_retry','generation_checked','worker_zero_row','destination_read','destination_exposed','token_request_held','token_issued','token_request_abandoned','funding_held'}
+        for child in self.children:
+            if getattr(child,'name',None) in ['api','engine']:
+                trace=[json.loads(line) for line in child.log.read_text().splitlines() if line.startswith('{')]
+                self.h.event('application_trace',component=child.name,path=str(child.log),sha256=hashlib.sha256(child.log.read_bytes()).hexdigest(),events=[e for e in trace if e.get('event') in selected])
+        for kind in ['provider','rail']:
+            path=self.h.root/kind/'effects.jsonl'
+            self.h.event('independent_simulator_evidence',simulator_kind=kind,sha256=hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None,records=[json.loads(s) for s in path.read_text().splitlines()] if path.exists() else [])
         self.h.event('workflow_children_reaped',count=len(self.children))
 
 
 def workflow(h,case=None,defect=None):
-    w=Workflow(h,defect='payment_atomic' if defect=='w4_atomic' else defect)
+    w=Workflow(h,defect='w4_ack' if case=='w4_default' else 'payment_atomic' if defect=='w4_atomic' else defect,default_build=case=='w4_default')
     try:
+        from w4_regressions import CASES
+        if case=='w4_regressions':
+            for regression in CASES.values():regression(w)
+            return
+        if case in CASES:
+            CASES[case](w)
+            return
+        if case=='w4_default':
+            t=w.enrol();w.fund(t,'default-feature-tenant');licensing(w,t)
+            assert not w.events('engine','defect_ack_boundary_bypassed')
+            h.results.append(dict(test='W4-default-binaries-refuse-defect-environment',result='pass'))
+            return
+        if case=='w4_live_stop':
+            live_provider_stop(w)
+            return
+        if case=='w4_forward':
+            forwarded_validation(w)
+            return
+        if case=='w4_halt':
+            halt_invoice(w)
+            return
+        if case=='w4_redaction':
+            error_redaction(w)
+            return
+        if case=='w4_record':
+            admission_field_repetition(w)
+            return
+        if case=='w4_query':
+            query_leniency(w)
+            return
         if case=='w4_search_error':
             accepted_verification_error(w)
             return
@@ -211,6 +288,8 @@ def workflow(h,case=None,defect=None):
         destinations(w,t,deposit)
         payment_atomic(w)
         accepted_verification_error(w)
+        query_leniency(w)
+        admission_field_repetition(w)
         guards=w.enrol();w.fund(guards,'guard-tenant');licensing_guards_and_crash(w,guards)
         tail=w.enrol();w.fund(tail,'tail-tenant');admission_refusals(w,tail)
         temporary_keys(w)
@@ -218,6 +297,12 @@ def workflow(h,case=None,defect=None):
         unavailable_activation(w)
         lost_ack_refusals(w)
         ceiling_restart(w)
+        token_limits_and_expiry(w)
+        error_redaction(w)
+        halt_invoice(w)
+        forwarded_validation(w)
+        live_provider_stop(w)
+        for regression in CASES.values():regression(w)
     finally:w.close()
 
 
@@ -270,40 +355,55 @@ def dropped_reply(w,t):
 
 
 def overload(w,t):
-    # Withhold a real API sent-COMMIT reply. The physical write checkout stays held.
-    w.stop_engine()
-    # Empty the rail stream through its test controller so no unrelated credit COMMIT takes this gate.
+    # CNF-299: a new key plus lost first reply -> refused old-key resend -> same operation.
+    from w4_regressions import funded
+    w.stop_engine();t=funded(w,'overload-isolated');body=w.create_body(t)
     http(w.h.ports[6],'POST','/control',{'clear':True})
-    hold=w.control/'hold-funding';hold.touch()
-    eventually(lambda:w.events('api','funding_held'))
+    hold=w.control/'hold-funding';hold.touch();eventually(lambda:w.events('api','funding_held'))
     gate=w.h.proxy.arm('store COMMIT','commit_reply')
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        pending=pool.submit(http,w.h.ports[4],'POST','/v1/deposits',{'amount_sats':61},t['spending_token'],'overload-old-key')
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        pending=pool.submit(http,w.h.ports[4],'POST','/v1/machines',body,t['spending_token'],'overload-old-key')
         connection=gate.wait()
-        old_count=w.h.sql(f"SELECT count(*) FROM provisiond.idempotency_records WHERE scope_id='{t['tenant_id']}' AND key='overload-old-key'")
-        assert old_count=='1'
-        marker='overload-never-used'
-        before=len([e for e in w.events('api','http_business_begin') if e.get('key_digest')==hashlib.sha256(marker.encode()).hexdigest()])
+        op=w.h.sql(f"SELECT resource_id FROM provisiond.idempotency_records WHERE scope_id='{t['tenant_id']}' AND key='overload-old-key'")
+        assert op and w.status(op)=='queued'
+        marker='overload-never-used';digest=hashlib.sha256(marker.encode()).hexdigest()
+        before=len([e for e in w.events('api','http_business_begin') if e.get('key_digest')==digest])
+        mutations=len([e for e in w.external()['events'] if e['stage']=='accepted'])
+        transmitted_begins=lambda:sum(e['event']=='bytes_transmitted' and e.get('query','').startswith('BEGIN') for e in w.h.events)
+        new_begin_before=transmitted_begins()
         refusal=w.request('POST','/v1/deposits',{'amount_sats':62},t,marker,status=503)
         assert refusal['error']['kind']=='overloaded' and refusal['error']['retryable'] and refusal['error']['details']['retry_after_ms']==250
-        after=len([e for e in w.events('api','http_business_begin') if e.get('key_digest')==hashlib.sha256(marker.encode()).hexdigest()])
+        after=len([e for e in w.events('api','http_business_begin') if e.get('key_digest')==digest])
+        new_begin_after=transmitted_begins()
         w.h.event('defect_overload_entry_observed',business_entries=after-before)
-        assert before==after==0,'overload must precede request business BEGIN'
+        assert before==after==0 and new_begin_before==new_begin_after,'overload must precede request business BEGIN'
         assert w.h.sql(f"SELECT count(*) FROM provisiond.idempotency_records WHERE scope_id='{t['tenant_id']}' AND key='{marker}'")=='0'
-        w.request('GET','/v1/balance',tenant=t)
-        # An earlier committed request can also be refused at checkout without a new receipt.
-        # The receipt lookup uses the read budget, so this already-known replay can succeed.
-        old=w.request('POST','/v1/deposits',{'amount_sats':61},t,'overload-old-key')
+        w.request('GET','/v1/balance',tenant=t) # separately unexhausted read budget
         w.h.proxy.close_connection(connection,'lost_http_commit_reply');gate.release()
         failed_status,failed,_=pending.result(timeout=8)
-        assert failed_status==500
-        # Its application outcome is unresolved; the durable receipt is authoritative.
-        assert failed['id']==old['id'] if 'id' in failed else True
-    assert w.request('POST','/v1/deposits',{'amount_sats':61},t,'overload-old-key')['id']==old['id']
+        assert failed_status==500 and failed['error']['kind']=='internal'
+        w.h.event('old_key_first_reply_lost',operation=op,observed_http_status=failed_status)
+        # Saturate the read checkout used by authentication/receipt discovery only
+        # after the first caller has observed its lost acknowledgement.
+        read_gate=w.h.proxy.arm("SELECT jsonb_build_object('balance_sats'",'reply')
+        reading=pool.submit(http,w.h.ports[4],'GET','/v1/balance',None,t['spending_token'])
+        read_gate.wait()
+        snapshot_sql=f"SELECT jsonb_build_object('operations',(SELECT count(*) FROM provisiond.operations WHERE tenant_id='{t['tenant_id']}'),'commitments',(SELECT count(*) FROM provisiond.commitments WHERE tenant_id='{t['tenant_id']}'),'receipts',(SELECT count(*) FROM provisiond.idempotency_records WHERE scope_id='{t['tenant_id']}'),'reserved',(SELECT sum(reserved_sats) FROM provisiond.commitments WHERE tenant_id='{t['tenant_id']}'),'money',(SELECT sum(amount_sats) FROM provisiond.ledger_entries WHERE tenant_id='{t['tenant_id']}'))::text"
+        snapshot=w.h.sql(snapshot_sql);begins=len(w.events('api','http_business_begin'));old_begin_before=transmitted_begins()
+        refusal=w.request('POST','/v1/machines',body,t,'overload-old-key',status=503)
+        assert refusal['error']['kind']=='overloaded' and refusal['error']['details']['retry_after_ms']==250
+        old_begin_after=transmitted_begins()
+        assert len(w.events('api','http_business_begin'))==begins and w.h.sql(snapshot_sql)==snapshot and old_begin_after==old_begin_before
+        assert len([e for e in w.external()['events'] if e['stage']=='accepted'])==mutations
+        read_gate.release();assert reading.result(timeout=8)[0]==200
+    old=w.request('POST','/v1/machines',body,t,'overload-old-key',status=202)
+    assert old['id']==op
     w.request('POST','/v1/deposits',{'amount_sats':62},t,marker)
+    assert w.h.sql(f"SELECT count(*) FROM provisiond.operations WHERE tenant_id='{t['tenant_id']}'")=='1'
+    assert w.h.sql(f"SELECT count(*) FROM provisiond.idempotency_records WHERE scope_id='{t['tenant_id']}' AND key='overload-old-key'")=='1'
     hold.unlink()
-    w.h.event('http_overload_observed',actual_sent_commit_held=True,new_key_business_begin=False,new_receipt=False,separate_read_budget=True,old_receipt_recovered=True)
-    w.h.results.append(dict(test='W4-overload',result='pass'))
+    w.h.event('http_overload_observed',actual_sent_commit_held=True,new_key_business_begin=False,new_receipt=False,separate_read_budget=True,old_first_reply_lost_before_refusal=True,old_refused_before_business_begin=True,old_receipt_recovered=True,operation=op,provider_mutations=0,new_key_actual_begin_counts=[new_begin_before,new_begin_after],old_key_actual_begin_counts=[old_begin_before,old_begin_after])
+    w.h.results.append(dict(test='W4-overload-new-and-lost-reply-old-key',result='pass'))
 
 
 def worker_refusals(w,t):
@@ -623,3 +723,152 @@ def ceiling_restart(w):
     w.provider_control(offers={'sim-a':[w.offer],'sim-b':[w.offer]});w.start_engine();w.wait_status(op,'succeeded');w.stop_engine();w.restart_api()
     h.event('durable_ceiling_observed',used=1,limit=1,interval_seconds=86400,replays_spend_slot=False,retained_across_restart=True)
     h.results.append(dict(test='W4-durable-ceiling-restart',result='pass'))
+
+
+def query_leniency(w):
+    from w4_regressions import funded
+    w.stop_engine();t=funded(w,'query-leniency')
+    op=w.request('POST','/v1/machines',w.create_body(t),t,'query-leniency-create',status=202)['id']
+    view=w.request('GET','/v1/balance?commitments=true&terminal=false&requested_by=caller',tenant=t)
+    w.h.event('query_leniency_observed',commitments=len(view['commitments']),expected_operation=op)
+    assert len(view['commitments'])==1,'unknown balance query parameters must not filter commitments'
+    assert view['commitments'][0]['operation_id']==op
+    code,value,_=http(w.h.ports[4],'GET','/v1/operations?status=queued%2Crunning',token=t['spending_token'])
+    w.h.event('decoded_query_observed',encoded_status=code)
+    assert code==200,'encoded valid query values must be decoded'
+    assert any(v['id']==op for v in value['operations'])
+    assert w.request('GET','/v1/operations?%73tatus=succeeded%2Cfailed',tenant=t)['operations']==[]
+    assert w.request('GET','/v1/balance?%63ommitments=%74rue',tenant=t)['commitments'][0]['operation_id']==op
+    key='raw-target-fingerprint';body=w.create_body(t)
+    # A raw target change remains a fingerprint change despite query equivalence.
+    w.request('POST','/v1/deposits?ignored=%31',{'amount_sats':10},t,key)
+    assert w.request('POST','/v1/deposits?ignored=1',{'amount_sats':10},t,key,status=409)['error']['details']['reason']=='idempotency_mismatch'
+    w.h.results.append(dict(test='W4-decoded-query-and-raw-fingerprint',result='pass'))
+
+
+def admission_field_repetition(w):
+    t=w.enrol();w.fund(t,'admission-record-validation')
+    op=w.request('POST','/v1/machines',w.create_body(t),t,'admission-record-validation',status=202)['id']
+    w.h.sql(f"UPDATE provisiond.operations SET request_summary=jsonb_set(request_summary,'{{offer,accepted_terms,offer,currency}}','null') WHERE id='{op}'")
+    w.start_engine();w.wait_status(op,'failed');w.stop_engine()
+    error=w.request('GET','/v1/operations/'+op,tenant=t)['error']
+    requests=[e['path'] for e in w.external()['events'] if e.get('command')==op and e['stage']=='request_received']
+    w.h.event('admission_field_repetition_observed',reason=error['details'].get('reason'),provider_requests=requests)
+    assert error['details'].get('reason')=='incomplete_record' and requests==[],'invalid admission fields must fail before List offers'
+    w.h.results.append(dict(test='W4-admission-field-repetition',result='pass'))
+
+
+def token_limits_and_expiry(w):
+    h=w.h;w.stop_engine();parameters=dict(PARAMETERS,admission_delay_ms=500)
+    w.restart_api(parameters)
+    before=len(w.events('api','token_request_held'));issued=len(w.events('api','token_issued'));abandoned=len(w.events('api','token_request_abandoned'))
+    count=h.sql('SELECT count(*) FROM provisiond.tenants')
+    callers=[socket.create_connection(('127.0.0.1',h.ports[4])) for _ in range(2)]
+    for caller in callers:caller.sendall(b'POST /v1/enrol/token HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}')
+    eventually(lambda:len(w.events('api','token_request_held'))==before+2)
+    refusal=w.request('POST','/v1/enrol/token',{},status=429)
+    assert refusal['error']['kind']=='rate_limited'
+    for caller in callers:caller.close()
+    eventually(lambda:len(w.events('api','token_request_abandoned'))==abandoned+2)
+    assert len(w.events('api','token_issued'))==issued and h.sql('SELECT count(*) FROM provisiond.tenants')==count
+    pending=int(h.sql("SELECT count(*) FROM provisiond.tenants WHERE status='pending'"))
+    w.restart_api(dict(PARAMETERS,pending_limit=pending+1))
+    w.enrol();token=w.request('POST','/v1/enrol/token',{})
+    assert w.request('POST','/v1/enrol',{'admission_token':token['admission_token']},status=429)['error']['kind']=='rate_limited'
+    w.restart_api(dict(PARAMETERS,deposit_seconds=2,finality_seconds=3,tenant_seconds=6))
+    t=w.enrol();deposit=w.request('POST','/v1/deposits',{'amount_sats':60},t,'expiry-deposit')
+    payment_hash=h.sql(f"SELECT payment_hash FROM provisiond.deposits WHERE id='{deposit['id']}'")
+    instant=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())
+    w.settlement(dict(rail='lightning',destination=deposit['lightning']['invoice'],payment_hash=payment_hash,amount_sats=60,settled=True,preimage_known=True,settled_at=instant))
+    eventually(lambda:h.sql(f"SELECT count(*) FROM provisiond.payments WHERE deposit_id='{deposit['id']}'")=='1')
+    eventually(lambda:h.sql(f"SELECT expires_at-clock_timestamp()<interval '2.5 seconds' FROM provisiond.enrolments WHERE tenant_id='{t['tenant_id']}'")=='t')
+    assert w.request('POST','/v1/deposits',{'amount_sats':60},t,'closed-signup-window',status=409)['error']['details']['reason']=='signup_window_closed'
+    eventually(lambda:h.sql(f"SELECT count(*) FROM provisiond.tenants WHERE id='{t['tenant_id']}'")=='0')
+    assert w.request('GET','/v1/enrol/'+t['handle'],status=404)['error']['kind']=='not_found'
+    w.settlement(dict(rail='onchain',destination=deposit['onchain']['address'],txid=hashlib.sha256(b'orphan-credit').hexdigest(),vout=0,confirmations=2,amount_sats=55,settled_at=instant))
+    eventually(lambda:h.sql(f"SELECT count(*) FROM provisiond.payments WHERE deposit_id='{deposit['id']}'")=='2')
+    assert h.sql(f"SELECT balance_after FROM provisiond.ledger_entries WHERE tenant_id='{t['tenant_id']}' ORDER BY seq DESC LIMIT 1")=='115'
+    w.restart_api()
+    h.event('enrolment_limits_and_expiry_observed',held_requests_abandoned=2,tokens_left_after_abandonment=0,pending_ceiling_refused=True,closed_signup_refused=True,expired_credentials_removed=True,orphan_credit_retained=True)
+    h.results.append(dict(test='W4-enrolment-limits-TTL-orphan',result='pass'))
+
+
+def error_redaction(w):
+    t=w.enrol();w.fund(t,'error-redaction');w.provider_control(mode='secret_error')
+    op=w.request('POST','/v1/machines',w.create_body(t),t,'redacted-provider-error',status=202)['id']
+    w.start_engine();w.wait_status(op,'failed');w.stop_engine()
+    stored=w.h.sql(f"SELECT error::text FROM provisiond.operations WHERE id='{op}'")
+    rendered=json.dumps(w.request('GET','/v1/operations/'+op,tenant=t))
+    leaked='TEST_ONLY_SECRET_MARKER' in stored or 'TEST_ONLY_SECRET_MARKER' in rendered
+    w.h.event('provider_error_redaction_observed',operation=op,controlled_marker_leaked=leaked)
+    assert not leaked,'provider error secrets must be redacted before persistence'
+    w.provider_control(mode='normal')
+    w.h.results.append(dict(test='W4-provider-error-redaction',result='pass'))
+
+
+def halt_invoice(w):
+    t=w.enrol();deposit=w.request('POST','/v1/deposits',{'amount_sats':60},t,'halt-invoice-deposit')
+    before=len(w.events('api','external_entry'))
+    w.h.sql('UPDATE provisiond.funding_health SET solvency_halt=true')
+    eventually(lambda:len(w.events('api','external_entry'))>=before+2)
+    eventually(lambda:w.request('GET','/v1/deposits/'+deposit['id'],tenant=t)['lightning']['cancelled'])
+    view=w.request('GET','/v1/deposits/'+deposit['id'],tenant=t)
+    w.h.event('halt_invoice_cancellation_observed',gate=view['gate'],cancelled=view['lightning']['cancelled'])
+    assert view['gate']=='solvency' and view['lightning']['cancelled'],'solvency halt must cancel an unsettled invoice'
+    assert w.request('POST','/v1/deposits',{'amount_sats':60},t,'halt-refused-deposit',status=503)['error']['details']['gate']=='solvency'
+    w.settlement(dict(rail='onchain',destination=deposit['onchain']['address'],txid=hashlib.sha256(b'halt-under-floor').hexdigest(),vout=0,confirmations=2,amount_sats=5,settled_at=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())))
+    eventually(lambda:w.request('GET','/v1/deposits/'+deposit['id'],tenant=t)['credited_sats']==5)
+    w.h.sql('UPDATE provisiond.funding_health SET solvency_halt=false')
+    view=w.request('GET','/v1/deposits/'+deposit['id'],tenant=t)
+    assert view['gate'] is None and view['lightning']['cancelled'] and not view['expired']
+    w.h.results.append(dict(test='W4-halt-cancellation-and-under-floor-chain-credit',result='pass'))
+
+
+def stop_cost_adapter(w):
+    w.stop_engine();resource=dict(external_id='TEST-STOP-COST-PROBE',account='sim-a',channel='orders',correlator='test-fixture',name='stop-cost-fixture',region='test',state='running',public_ips=[],present=True)
+    w.provider_control(fixture_resource=resource)
+    w.h.run(['cargo','build','--example','provider-probe','--features','store-test-hooks','--locked'],timeout=120)
+    previous_env=w.h.env
+    w.h.env=dict(previous_env,**environment(w.h))
+    try:result=w.h.run([str(w.h.target/'debug/examples/provider-probe'),'sim-a',resource['external_id']],timeout=12)
+    finally:w.h.env=previous_env
+    assert resource['external_id'] not in w.external()['resources']
+    calls=[e['path'] for e in w.external()['events'] if e.get('command')=='stop-cost-fixture' and e['stage']=='request_received']
+    assert calls==['/delete','/get']
+    assert 'external_entry' in result.stdout
+    w.h.event('stop_cost_adapter_observed',independent_fixture=True,requests=calls,absence_confirmed=True,production_cancellation_workflow='not run')
+    w.h.results.append(dict(test='W4-stop-cost-driver-adapter',result='pass'))
+
+
+def forwarded_validation(w):
+    t=w.enrol();w.fund(t,'forwarded-validation');body=w.create_body(t);body['ssh_public_keys']=['ssh-ed25519 invalid-key-material']
+    op=w.request('POST','/v1/machines',body,t,'forwarded-key-validation',status=202)['id']
+    w.start_engine();eventually(lambda:w.status(op) in ['succeeded','failed','needs_reconciliation']);w.stop_engine()
+    view=w.request('GET','/v1/operations/'+op,tenant=t)
+    w.h.event('forwarded_value_validation_observed',operation=op,state=view['status'],driver_field=view['error']['details'].get('field') if view['error'] else None)
+    assert view['status']=='failed' and view['error']['details'].get('field')=='/ssh_public_keys/0','invalid forwarded key must be rejected before provider mutation'
+    assert not [e for e in w.external()['events'] if e.get('command')==op and e.get('path') in ['/keys','/order']]
+    w.h.results.append(dict(test='W4-forwarded-key-validation',result='pass'))
+
+
+def live_provider_stop(w):
+    from core import core_probe
+    h=w.h;w.stop_engine();t=w.enrol();w.fund(t,'live-provider-stop');account=t['account']
+    descriptor=dict(w.descriptor,account=account,call_seconds=5)
+    h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(descriptor),account))
+    op=w.request('POST','/v1/machines',w.create_body(t),t,'live-provider-stop-create',status=202)['id']
+    h.run(['cargo','build','--example','core-probe','--features','store-test-hooks','--locked'],timeout=120)
+    hold=h.root/'provider/hold-after-create';hold.touch()
+    p=core_probe(h);p.command('engine_start');p.command('dispatch_provider')
+    eventually(lambda:any(e.get('command')==op and e['stage']=='resource_created' for e in w.external()['events']))
+    p.command('record_stop '+op);p.send('wait_records')
+    eventually(lambda:p.p.poll() is not None or any(e.get('event')=='stop_record_finished' and e.get('operation')==op for e in p.events),seconds=5)
+    observed=w.status(op);exited=p.p.poll()
+    h.event('live_provider_stop_observed',operation=op,state=observed,exit_status=exited,provider_effect_retained=True)
+    if exited is not None:p.expected_status=exited
+    p.finish();hold.unlink()
+    assert exited is None and observed=='needs_reconciliation','live provider I/O must cancel before the stop-record bound'
+    assert h.sql(f"SELECT reserved_sats||':'||state FROM provisiond.commitments WHERE operation_id='{op}'")=='43:open'
+    assert h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE operation_id='{op}'")=='0'
+    h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(dict(w.descriptor,account=account)),account))
+    h.results.append(dict(test='W4-live-provider-stop',result='pass'))

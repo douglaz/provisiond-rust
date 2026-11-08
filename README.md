@@ -9,7 +9,8 @@ PostgreSQL.
 
 **Status: not a conforming service.** The local prototype has an admitted database client,
 offline migrations, fenced engine transactions and atomic money primitives. The API checks schema
-compatibility but has no HTTP service. Provider execution is simulator-only; automatic reconciliation,
+compatibility before serving a loopback customer HTTP subset. The engine dispatches local simulated
+creates through acknowledged licensing and verified settlement. Provider execution is simulator-only; automatic reconciliation,
 metering and recovery incidents remain unimplemented. No real provider accounts or funds may be used.
 
 ## Where to start
@@ -33,11 +34,11 @@ Run inside a systemd unit capped with `MemoryMax=16G`, `MemorySwapMax=0` and
 harness](tests/postgres/harness.py) checks both before it starts anything:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence evidence/r2-final-w1.json
+PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence "$PROVISIOND_HARNESS_ROOT/w1.json"
 ```
 
 This single foreground command creates fresh private directories under the owned harness
-root, checks its four-port allocation within 55430–55479 before starting any server, bootstraps one primary and one authenticated
+root, checks its entire ten-port slot within 55500–55559 before starting any server, bootstraps one primary and one authenticated
 synchronous standby, rebuilds the standby, verifies a physical backup, restores a post-backup
 fixture from archived WAL, explicitly promotes with components stopped, and tears down.
 Its exit status includes assertions and cleanup. Raw logs remain outside git; the optional
@@ -48,7 +49,7 @@ isolated test allocation. See [scope](docs/scope.md) for limits.
 The store connection/destination spike is exercised with:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command python3 tests/postgres/harness.py --phase checks --seed 20261105 --evidence evidence/r2-final-checks.json
+PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command python3 tests/postgres/harness.py --phase checks --seed 20261105 --evidence "$PROVISIOND_HARNESS_ROOT/checks.json"
 ```
 
 It uses the actual Rust client and ordinary bounded pools. The opt-in `store-probe` example is
@@ -59,17 +60,17 @@ separate real server faults from focused identity-predicate fixtures.
 Run the complete database, transactional-core and defect-control inventory from fresh private directories:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence evidence/defer/w3-defer-final.json
+PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence "$PROVISIOND_HARNESS_ROOT/acceptance.json"
 ```
 
 It performs bootstrap, replication loss/rebuild, physical backup/archive restore, connection and
 destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, backend crash,
 primary restart, residual-backend and bounded-process-stop fixtures, retained-object deadline
 closure, caller-runtime shutdown, constructor cancellation/deadlines, the transactional core,
-twenty-seven additional defect controls, and cleanup. The parent accepts a failing control only with its
+the complete HTTP funding/create workflow, a default-feature workflow, thirty defect controls, and cleanup. The parent accepts a failing control only with its
 exact exit code and intended assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
-non-zero. The aggregate manifest requires all seven phases (W1, checks, commits, regressions, corrections,
-core, controls);
+non-zero. The aggregate manifest requires all nine phases (W1, checks, commits, regressions, corrections,
+core, workflow, default-workflow, controls);
 each writes its own sanitized manifest and retains raw evidence under the private harness root.
 
 The `commits` and `regressions` phases can also run alone with the same harness options.
@@ -99,15 +100,39 @@ preparatory database command. This bootstrap fixture is not a production deploym
 
 For an offline release, first stop old components, prevent their restart, and establish that their
 sessions cannot write. Run `nix develop --command cargo run --bin migrate`; only an acknowledged
-migration permits new components to start. Release/schema/semantic version 1/1 is supported exactly;
+migration permits new components to start. Schema/semantic history must be exactly 1/1 followed by 2/2;
 there is no down-migration. Lock-timeout retries are bounded; failed initial/reconnect acquisition
 exits immediately. Uncertain completion requires a later invocation to inspect durable history.
 
 `api --check-schema` and `engine --check-schema` perform the real compatibility check and exit 0
-only for a supported database. Ordinary `api` exits 78 after a successful check and explicitly
-reports that HTTP service is unimplemented. Ordinary `engine` advances the generation, performs
-the ordinary restart pass and monitors its lifetime lock; it has no provider dispatcher or full
-operation scheduler. The integration fixtures invoke the same library paths directly.
+only for a supported database. Ordinary `api` also requires a local parameter file
+(`PROVISIOND_LOCAL_PARAMETERS`), an explicit loopback listener (`PROVISIOND_API_LISTEN`) and
+the independent rail simulator (`PROVISIOND_RAIL_SIMULATOR`). Ordinary `engine` requires the
+independent provider simulator (`PROVISIOND_PROVIDER_SIMULATOR`), advances the generation,
+performs the ordinary restart pass, dispatches queued creates and monitors its lifetime lock.
+Missing local configuration refuses startup. Only the isolated test profile is supported.
+
+The customer subset supports enrolment token issuance, enrolment and status; deposit creation and
+detail; assigned providers and offers; create; machine and operation list/detail; balance and optional
+commitments; and unauthenticated OPTIONS. All other mutations, recovery and operator endpoints are
+unsupported. Fleet callers should poll `GET /v1/operations?terminal=false`, plus balance and machines,
+at the server's advertised cadence. Use the same idempotency key after a lost reply. A fresh key
+creates a fresh operation and can buy a second machine; `needs_reconciliation` is never an invitation
+to buy again. Automatic reconciliation remains deferred.
+
+Deposits expose only literal `TEST/SIMULATOR/NONPAYABLE` destinations. They are not Bitcoin
+addresses or Lightning invoices and must never receive real funds. Both simulated destinations can
+credit one deposit, each by its own payment identity and actual settled value. Credits below the
+cumulative activation threshold leave enrolment pending. There are no refunds; orphan recovery
+requires an operator workflow outside this prototype. Lightning expiry/cancellation and the continued
+payability of an on-chain destination are distinct; the local disclosures describe watching and halt
+limits. Healthy account assignment occurs atomically at activation; later assignment sweeps are deferred.
+
+The complete local parameter and descriptor fixtures live in
+[workflow.py](tests/postgres/workflow.py). They disclose admission delay, expiry/finality, pending
+capacity, traffic budgets, durable principal ceilings, retention, floors, confirmation depth, margin,
+conversion and sequential wind-down inputs. Configuration validation admits the three fleet reads at
+the finest advertised cadence. These fixture settings do not settle production capacities or D-6.
 
 Focused commands use `--phase corrections --case verify_cancel`, `--phase core --case migrations`,
 `--case money`, `--case claims`, `--case generation`, `--case stops` or `--case external`.
@@ -124,7 +149,7 @@ zero-row record and B's refusal without its own result, then settles B's distinc
 Queued waits require one pending attempt with no precommit retry and actual checked-entry
 refusal. `--case queued_claim_pool --defect queued_claim_pool` isolates the pool defect;
 the canonical controls include both queued entry and pool windows.
-`--phase controls` runs all twenty-seven required defects. Each defect requires its exact phase/case;
+`--phase controls` runs all thirty required defects. Each defect requires its exact phase/case;
 unknown or mismatched selectors exit nonzero before setup. The canonical command includes every
 control and accepts only its intended assertion failure after activation and successful cleanup.
 ENG-05 automatic reconciliation, ENG-07's dedicated replication-freeze stop-record drill and

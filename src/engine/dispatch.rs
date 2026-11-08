@@ -59,7 +59,7 @@ impl Engine {
         self.observe_lock().await?;
         self.database.ensure_new_work()?;
         let execution = Arc::new(Execution::default());
-        let (claim, component, outcome) = {
+        let (claim, component, outcome, slot) = {
             let mut workers = self.workers.lock().expect("workers");
             let w = workers.get_mut(id).context("worker")?;
             ensure!(
@@ -67,10 +67,16 @@ impl Engine {
                 "worker already executing"
             );
             w.execution = Some(execution.clone());
-            (w.claim.clone(), w.component.clone(), w.outcome.clone())
+            (
+                w.claim.clone(),
+                w.component.clone(),
+                w.outcome.clone(),
+                w.slot.clone(),
+            )
         };
         let engine = self.clone();
         self.process.submit(async move{
+   let _execution_slot=slot;
    let returned=engine.run_order(&claim,&component,&execution,&dispatcher).await;
    match returned{
     Ok(Some(value))=>{*outcome.lock().expect("outcome")=Some(value);component.trace(json!({"event":"execute_returned","operation":claim.id,"claim_number":claim.number}));}
@@ -141,7 +147,7 @@ impl Engine {
         d: &Dispatcher,
     ) -> Result<Option<Outcome>> {
         self.order_step(c, component, e, 1).await?;
-        let data=component.value("SELECT jsonb_build_object('request',o.request,'summary',o.request_summary,'account',o.provider_account,'status',s.status)::text FROM provisiond.operations o LEFT JOIN provisiond.provider_account_status s ON s.provider_account=o.provider_account WHERE o.id::text=$1",&[&c.id]).await?;
+        let data=component.value("SELECT jsonb_build_object('request',o.request,'summary',o.request_summary,'account',o.provider_account,'status',s.status,'admitted_sats',o.admitted_sats)::text FROM provisiond.operations o LEFT JOIN provisiond.provider_account_status s ON s.provider_account=o.provider_account WHERE o.id::text=$1",&[&c.id]).await?;
         if data["status"] != "healthy" {
             return Err(Error::new("conflict","provider account unavailable",data["status"]!="terminated",json!({"reason":if data["status"]=="terminated"{"account_terminated"}else{"state"}})).into());
         }
@@ -166,6 +172,14 @@ impl Engine {
         let r = &data["request"];
         let summary = &data["summary"];
         wire::validate_create(r, pricing::wind_seconds(descriptor)?)?;
+        validate_admission_fields(summary, r, account).map_err(|_| {
+            Error::new(
+                "conflict",
+                "incomplete admission record",
+                true,
+                json!({"reason":"incomplete_record"}),
+            )
+        })?;
         let accepted = &summary["offer"]["accepted_terms"]["offer"];
         let kind = summary["offer"]["machine_kind"]
             .as_str()
@@ -207,15 +221,16 @@ impl Engine {
             )
             .into());
         }
-        let offers = d
-            .client
-            .call(
+        let offers = provider_io(
+            e,
+            d.client.call(
                 component,
                 descriptor,
                 "/offers",
                 &json!({"account":account,"operation":c.id}),
-            )
-            .await?;
+            ),
+        )
+        .await?;
         self.order_step(c, component, e, 5).await?;
         let current = offers
             .as_array()
@@ -233,10 +248,15 @@ impl Engine {
         }
         let current = current.context("current offer")?;
         self.order_step(c, component, e, 6).await?;
-        let scale = data["summary"]["offer"]["accepted_terms"]["rate"]["minor_scale"]
-            .as_u64()
-            .context("accepted currency scale")? as u32;
-        if let Some(error) = Client::price_moved(current, accepted, scale)? {
+        let terms = &summary["offer"]["accepted_terms"];
+        if let Some(error) = Client::price_moved(
+            current,
+            accepted,
+            &terms["pricing_descriptor"],
+            &terms["rate"],
+            r["runway_seconds"].as_i64().context("accepted runway")?,
+            data["admitted_sats"].as_i64().context("admitted reserve")?,
+        )? {
             return Err(error.into());
         }
         self.order_step(c, component, e, 7).await?;
@@ -259,6 +279,7 @@ impl Engine {
             )
             .await?;
         if !licensed {
+            component.trace(json!({"event":"dispatch_license_refused","operation":c.id,"claim_number":c.number}));
             return Ok(None);
         }
         component.trace(json!({"event":"dispatch_license_acknowledged","operation":c.id,"claim_number":c.number}));
@@ -281,31 +302,49 @@ impl Engine {
             e.dispatched.store(true, Ordering::Release);
             permit
         };
-        let command = json!({"account":account,"operation":c.id,"correlator":c.id,"channel":descriptor["channel"],"request":r});
+        let forwarded: serde_json::Map<String, Value> = [
+            "offer",
+            "hostname",
+            "region",
+            "image",
+            "ssh_public_keys",
+            "user_data",
+            "labels",
+            "provider_options",
+        ]
+        .into_iter()
+        .filter_map(|key| r.get(key).map(|value| (key.to_owned(), value.clone())))
+        .collect();
+        let command = json!({"account":account,"operation":c.id,"correlator":c.id,"channel":descriptor["channel"],"request":forwarded});
         // PRV-9 temporary-key mode is a real branch; it is separately exercised.
         let owned_key = if descriptor["temporary_keys"] == true {
-            d.client.call_entered(descriptor, "/keys", &command).await?["owned"] == true
+            provider_io(e, d.client.call_entered(descriptor, "/keys", &command)).await?["owned"]
+                == true
         } else {
             false
         };
-        let reply = match d.client.call_entered(descriptor, "/order", &command).await {
-            Ok(reply) => reply,
-            Err(error) => {
-                if owned_key
-                    && error.0["details"]["accepted"] == false
-                    && !matches!(
-                        error.0["kind"].as_str(),
-                        Some("network" | "timeout" | "internal")
-                    )
-                {
-                    let _ = d
-                        .client
-                        .call_entered(descriptor, "/keys/delete", &command)
+        let reply =
+            match provider_io(e, d.client.call_entered(descriptor, "/order", &command)).await {
+                Ok(reply) => reply,
+                Err(error) => {
+                    if owned_key
+                        && error.downcast_ref::<Error>().is_some_and(|error| {
+                            error.0["details"]["accepted"] == false
+                                && !matches!(
+                                    error.0["kind"].as_str(),
+                                    Some("network" | "timeout" | "internal")
+                                )
+                        })
+                    {
+                        let _ = provider_io(
+                            e,
+                            d.client.call_entered(descriptor, "/keys/delete", &command),
+                        )
                         .await;
+                    }
+                    return Err(error);
                 }
-                return Err(error.into());
-            }
-        };
+            };
         drop(permit);
         ensure!(reply["accepted"] == true, "order acceptance absent");
         let mut resources = BTreeMap::new();
@@ -313,7 +352,7 @@ impl Engine {
             .as_array()
             .context("reachable ordering channels")?
         {
-            let found=d.client.call(component,descriptor,"/search",&json!({"account":account,"operation":c.id,"correlator":c.id,"channel":channel})).await.map_err(|mut error| {error.0["details"]["accepted"]=json!(true);error})?;
+            let found=provider_io(e,async {d.client.call(component,descriptor,"/search",&json!({"account":account,"operation":c.id,"correlator":c.id,"channel":channel})).await.map_err(|mut error| {error.0["details"]["accepted"]=json!(true);error})}).await?;
             if found["authoritative"] != true {
                 return Err(Error::new(
                     "provider",
@@ -343,19 +382,21 @@ impl Engine {
             .into());
         }
         let external = resources.keys().next().context("resource")?;
-        let machine = d
-            .client
-            .call(
-                component,
-                descriptor,
-                "/get",
-                &json!({"account":account,"operation":c.id,"external_id":external}),
-            )
-            .await
-            .map_err(|mut error| {
-                error.0["details"]["accepted"] = json!(true);
-                error
-            })?;
+        let machine = provider_io(e, async {
+            d.client
+                .call(
+                    component,
+                    descriptor,
+                    "/get",
+                    &json!({"account":account,"operation":c.id,"external_id":external}),
+                )
+                .await
+                .map_err(|mut error| {
+                    error.0["details"]["accepted"] = json!(true);
+                    error
+                })
+        })
+        .await?;
         if machine["present"] != true {
             return Err(Error::new(
                 "provider",
@@ -366,22 +407,134 @@ impl Engine {
             .into());
         }
         // PRV-13c: one post-confirmation read. Failure leaves null, never reclassifies success.
-        let date = d
-            .client
-            .call(
+        let date = provider_io(
+            e,
+            d.client.call(
                 component,
                 descriptor,
                 "/constraints",
                 &json!({"account":account,"operation":c.id,"external_id":external}),
-            )
-            .await
-            .ok()
-            .and_then(|v| v["earliest_cancellation_date"].as_str().map(str::to_owned));
+            ),
+        )
+        .await
+        .ok()
+        .and_then(|v| v["earliest_cancellation_date"].as_str().map(str::to_owned));
         component.trace(json!({"event":"provider_verified","operation":c.id,"matches":1,"direct_read":true,"post_order_read":date.is_some()}));
         Ok(Some(Outcome::VerifiedCreateDetails {
             external_id: external.clone(),
             earliest_date: date,
             machine,
         }))
+    }
+}
+
+// OPS-23: validate every persisted admission field before the first driver read.
+fn validate_admission_fields(s: &Value, r: &Value, account: &str) -> Result<()> {
+    let snapshot = &s["offer"];
+    let accepted = &snapshot["accepted_terms"]["offer"];
+    let rate = &snapshot["accepted_terms"]["rate"];
+    pricing::validate_descriptor(&snapshot["accepted_terms"]["pricing_descriptor"])?;
+    ensure!(
+        s["kind"] == "create"
+            && s["provider_account"] == account
+            && r["provider_account"] == account
+            && snapshot["offer_id"] == r["offer"]
+            && accepted["id"] == r["offer"],
+        "admission identity"
+    );
+    ensure!(
+        snapshot["machine_kind"] == accepted["kind"]
+            && matches!(
+                snapshot["machine_kind"].as_str(),
+                Some("virtual" | "bare_metal")
+            )
+            && snapshot["install_strategies"].is_array(),
+        "admitted product kind/strategies"
+    );
+    ensure!(
+        snapshot["currency"].is_string()
+            && snapshot["currency"] == accepted["currency"]
+            && accepted["currency"] == rate["currency"]
+            && snapshot["recurring_price"] == accepted["recurring_price"]
+            && snapshot["recurring_period"] == "hour",
+        "accepted native currency/price/period"
+    );
+    let scale = u32::try_from(rate["minor_scale"].as_u64().context("native precision")?)?;
+    let recurring = pricing::minor(
+        accepted["recurring_price"]
+            .as_str()
+            .context("recurring price")?,
+        scale,
+    )?;
+    let setup = pricing::minor(
+        accepted["setup_fee"].as_str().context("setup price")?,
+        scale,
+    )?;
+    let period = accepted["period_seconds"]
+        .as_i64()
+        .filter(|n| *n > 0)
+        .context("native period")?;
+    let seconds = accepted["billing_unit"]["seconds"]
+        .as_i64()
+        .filter(|n| *n >= 0)
+        .context("billing duration")?;
+    ensure!(
+        snapshot["billing_unit_seconds"].as_i64() == Some(seconds),
+        "copied duration"
+    );
+    let floor = accepted["billing_unit"]["native_floor"]
+        .as_str()
+        .map(|v| pricing::minor(v, scale))
+        .transpose()?
+        .unwrap_or(0);
+    crate::store::validate_charge(&s["setup_fee"])?;
+    ensure!(
+        s["setup_fee"]["currency"] == accepted["currency"]
+            && s["setup_fee"]["native_minor"].as_i64() == Some(setup),
+        "accepted setup evidence"
+    );
+    let unit_native =
+        (i128::from(recurring) * i128::from(seconds) + i128::from(period) - 1) / i128::from(period);
+    let unit_native = i64::try_from(unit_native.max(floor.into()))?;
+    ensure!(
+        s.get("first_unit").is_some() == (unit_native > 0),
+        "first-unit presence"
+    );
+    if unit_native > 0 {
+        crate::store::validate_charge(&s["first_unit"])?;
+        ensure!(
+            s["first_unit"]["sats"].as_i64().is_some_and(|n| n > 0)
+                && s["first_unit"]["native_minor"].as_i64() == Some(unit_native)
+                && s["first_unit"]["seconds"].as_i64() == Some(seconds)
+                && s["first_unit"]["currency"] == accepted["currency"],
+            "first-unit evidence"
+        );
+    }
+    for charge in [Some(&s["setup_fee"]), s.get("first_unit")]
+        .into_iter()
+        .flatten()
+    {
+        chrono::DateTime::parse_from_rfc3339(
+            charge["rate_observed_at"]
+                .as_str()
+                .context("conversion observation")?,
+        )?;
+    }
+    if let Some(bound) = snapshot["declared_cancellation_bound"].as_str() {
+        chrono::DateTime::parse_from_rfc3339(bound)?;
+    }
+    Ok(())
+}
+
+// OPS-21: cancel external I/O only. Licensing/sent-COMMIT ownership stays in its
+// existing transaction future. A ready provider return wins over a concurrent stop.
+async fn provider_io<T>(
+    execution: &Execution,
+    call: impl std::future::Future<Output = std::result::Result<T, Error>>,
+) -> Result<T> {
+    tokio::select! {
+        biased;
+        result=call=>result.map_err(Into::into),
+        _=async {while !execution.stopped.load(Ordering::Acquire) {tokio::time::sleep(Duration::from_millis(1)).await;}}=>Err(ExecutionStopped.into()),
     }
 }

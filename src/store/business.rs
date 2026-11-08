@@ -387,12 +387,12 @@ impl Transaction {
         let result = if result.is_null() {
             None
         } else {
-            Some(result.to_string())
+            Some(crate::wire::redact(result.clone()).to_string())
         };
         let error = if error.is_null() {
             None
         } else {
-            Some(error.to_string())
+            Some(crate::wire::redact(error.clone()).to_string())
         };
         let rows=self.rows("UPDATE provisiond.operations SET status=$3,result=$4::text::jsonb,error=$5::text::jsonb,request=NULL,revision=CASE WHEN status='running' THEN revision+1 ELSE revision END,updated_at=CASE WHEN status='running' THEN clock_timestamp() ELSE updated_at END WHERE id=$1::text::uuid AND tenant_id=$7 AND kind=$8 AND (claim_number=$2 OR $6) AND (status='running' OR (status=$3 AND result IS NOT DISTINCT FROM $4::text::jsonb AND error IS NOT DISTINCT FROM $5::text::jsonb AND request IS NULL)) RETURNING kind,commitment_id::text",&[&c.id,&guard,&target,&result,&error,&bypass,&c.tenant,&c.kind]).await?;
         let Some(row) = rows.first() else {
@@ -511,7 +511,9 @@ impl Transaction {
                 }
             }
             if debit < requested {
-                self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) VALUES($1,$2::text::uuid,$3::text::uuid,'clamp_overflow',$4,$5,$6,$7,$8,$9) ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&machine,&c.id,&(native-customer_native),&charge["currency"].as_str(),&(requested-debit),&charge["rate_num"].as_i64(),&charge["rate_den"].as_i64(),&key]).await?;
+                // LDG-66: opening evidence is independent of the debit's accepted
+                // conversion. An unavailable opening rate remains null on repeats.
+                self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,absorbed_seconds,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) SELECT $1,$2::text::uuid,'machine',$2::text::uuid,0,$3::text::uuid,'clamp_overflow',$4,$5,$6,(r.value->>'rate_num')::bigint,(r.value->>'rate_den')::bigint,$7 FROM (VALUES(1)) AS one(n) LEFT JOIN provisiond.rates r ON r.currency=$5 AND r.available ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&machine,&c.id,&(native-customer_native),&charge["currency"].as_str(),&(requested-debit),&key]).await?;
             }
         }
         self.rows("DELETE FROM provisiond.resource_exclusions WHERE operation_id=$1::text::uuid RETURNING operation_id",&[&c.id]).await?;
@@ -519,7 +521,7 @@ impl Transaction {
         Ok(true)
     }
 }
-fn validate_charge(c: &Value) -> Result<()> {
+pub(crate) fn validate_charge(c: &Value) -> Result<()> {
     ensure!(
         c.as_object().is_some_and(|o| o.keys().all(|k| matches!(
             k.as_str(),

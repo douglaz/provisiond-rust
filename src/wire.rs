@@ -271,11 +271,17 @@ pub fn validate_create(v: &Value, min_runway: i64) -> Result<(), Error> {
         }
         _ => bad.push(pointer("ssh_public_keys")),
     }
-    for (k, max) in [("image", 256), ("user_data", 1_048_576), ("region", 256)] {
+    for (k, max) in [("image", 256), ("region", 256)] {
         if let Some(x) = v.get(k) {
             if !x.is_null() && !x.as_str().is_some_and(|s| !s.is_empty() && s.len() <= max) {
                 bad.push(pointer(k));
             }
+        }
+    }
+    // API-13/WIR-17: user data has a size limit, including the valid empty string.
+    if let Some(x) = v.get("user_data") {
+        if !x.is_null() && !x.as_str().is_some_and(|s| s.len() <= 1_048_576) {
+            bad.push(pointer("user_data"));
         }
     }
     if let Some(labels) = v.get("labels") {
@@ -301,6 +307,33 @@ pub fn validate_create(v: &Value, min_runway: i64) -> Result<(), Error> {
         e
     })
 }
+/// DOM-6/18, SEC-3/4: scrub metadata/error objects before persistence or exposure.
+pub fn redact(mut value: Value) -> Value {
+    match &mut value {
+        Value::Object(m) => {
+            for (key, value) in m.iter_mut() {
+                let key = key.to_lowercase();
+                if ["password", "secret", "private_key"]
+                    .iter()
+                    .any(|part| key.contains(part))
+                    || ["token", "api_key", "authorization", "credential"].contains(&key.as_str())
+                {
+                    *value = json!("[redacted]");
+                } else {
+                    *value = redact(value.take());
+                }
+            }
+        }
+        Value::Array(a) => {
+            for value in a {
+                *value = redact(value.take());
+            }
+        }
+        _ => {}
+    }
+    value
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

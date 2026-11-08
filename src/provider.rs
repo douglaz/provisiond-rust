@@ -40,6 +40,7 @@ impl Client {
         v: &Value,
     ) -> Result<Value, Error> {
         let bound = Duration::from_secs(d["call_seconds"].as_u64().unwrap_or(1));
+        let deletion_read = (path == "/delete").then(|| v.clone());
         let v = http::call(
             self.address,
             if ["/offers", "/search", "/get", "/constraints"].contains(&path) {
@@ -65,7 +66,68 @@ impl Client {
             )
         })?;
         if v["error"].is_object() {
-            return Err(Error(v["error"].clone()));
+            let mut error = wire::redact(v["error"].clone());
+            if !matches!(
+                error["kind"].as_str(),
+                Some(
+                    "invalid_request"
+                        | "not_found"
+                        | "conflict"
+                        | "unsupported"
+                        | "authentication"
+                        | "rate_limited"
+                        | "provider"
+                        | "network"
+                        | "timeout"
+                        | "integrity"
+                        | "internal"
+                )
+            ) || !error["retryable"].is_boolean()
+                || !error["details"].is_object()
+            {
+                return Err(Error::new(
+                    "internal",
+                    "invalid simulator error response",
+                    true,
+                    json!({"accepted":null}),
+                ));
+            }
+            // Provider prose is never a customer-safe message, even on a failed read.
+            if error["kind"] == "authentication" && error["details"]["reason"].is_null() {
+                error["details"]["reason"] = json!("token");
+            }
+            if error["details"].get("accepted").is_none() {
+                error["details"]["accepted"] = Value::Null;
+            }
+            return Err(Error::new(
+                error["kind"].as_str().expect("validated kind"),
+                "simulator request refused",
+                error["retryable"]
+                    .as_bool()
+                    .expect("validated retryability"),
+                error["details"].clone(),
+            ));
+        }
+        if let Some(request) = deletion_read {
+            let observed = http::call(self.address, "GET", "/get", &request, bound)
+                .await
+                .map_err(|_| {
+                    Error::new(
+                        "network",
+                        "stop-cost read unavailable",
+                        false,
+                        json!({"accepted":true}),
+                    )
+                })?;
+            if !observed.is_null() && observed["present"] != false {
+                return Err(Error::new(
+                    "provider",
+                    "stop-cost absence unconfirmed",
+                    false,
+                    json!({"accepted":true}),
+                ));
+            }
+            return Ok(json!({"gone":true,"confirmed":true}));
         }
         Ok(v)
     }
@@ -94,6 +156,47 @@ impl Client {
         }
         if !r["image"].is_null() && r["image"] != "test-image" {
             bad.push("/image".into());
+        }
+        use base64::{
+            Engine as _,
+            engine::general_purpose::{STANDARD, STANDARD_NO_PAD},
+        };
+        if let Some(keys) = r["ssh_public_keys"].as_array() {
+            for (index, key) in keys.iter().enumerate() {
+                let valid = key.as_str().is_some_and(|text| {
+                    let mut words = text.split_whitespace();
+                    words.next() == Some("ssh-ed25519")
+                        && !text.contains(['\r', '\n'])
+                        && words
+                            .next()
+                            .and_then(|v| {
+                                STANDARD
+                                    .decode(v)
+                                    .or_else(|_| STANDARD_NO_PAD.decode(v))
+                                    .ok()
+                            })
+                            .is_some_and(|blob| {
+                                blob.len() == 51
+                                    && blob.starts_with(b"\0\0\0\x0bssh-ed25519\0\0\0\x20")
+                            })
+                });
+                if !valid {
+                    bad.push(format!("/ssh_public_keys/{index}"));
+                }
+            }
+        }
+        if let Some(labels) = r["labels"].as_object() {
+            for (key, value) in labels {
+                if key.is_empty()
+                    || key.len() > 63
+                    || !key
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+                    || !value.as_str().is_some_and(|s| s.len() <= 256)
+                {
+                    bad.push(format!("/labels{}", wire::pointer(key)));
+                }
+            }
         }
         if let Some(options) = r["provider_options"].as_object() {
             for (k, v) in options {
@@ -124,59 +227,26 @@ impl Client {
     pub(crate) fn price_moved(
         current: &Value,
         accepted: &Value,
-        scale: u32,
+        descriptor: &Value,
+        rate: &Value,
+        runway: i64,
+        admitted_sats: i64,
     ) -> anyhow::Result<Option<Error>> {
-        let mut shortfall = 0_i64;
-        for k in ["recurring_price", "setup_fee"] {
-            let a = pricing::minor(
-                accepted[k]
-                    .as_str()
-                    .ok_or_else(|| anyhow::anyhow!("accepted price"))?,
-                scale,
-            )?;
-            let c = pricing::minor(
-                current[k]
-                    .as_str()
-                    .ok_or_else(|| anyhow::anyhow!("current price"))?,
-                scale,
-            )?;
-            shortfall = shortfall
-                .checked_add((c - a).max(0))
-                .ok_or_else(|| anyhow::anyhow!("price overflow"))?;
-        }
-        let unit = |v: &Value| -> anyhow::Result<i64> {
-            let seconds = v["billing_unit"]["seconds"]
-                .as_i64()
-                .ok_or_else(|| anyhow::anyhow!("unit"))?;
-            let recurring = pricing::minor(
-                v["recurring_price"]
-                    .as_str()
-                    .ok_or_else(|| anyhow::anyhow!("recurring"))?,
-                scale,
-            )?;
-            let period = v["period_seconds"]
-                .as_i64()
-                .filter(|n| *n > 0)
-                .ok_or_else(|| anyhow::anyhow!("period"))?;
-            let floor = v["billing_unit"]["native_floor"]
-                .as_str()
-                .map(|s| pricing::minor(s, scale))
-                .transpose()?
-                .unwrap_or(0);
-            let value = i128::from(recurring) * i128::from(seconds);
-            Ok(i64::try_from(
-                (value / i128::from(period) + i128::from(value % i128::from(period) != 0))
-                    .max(floor.into()),
-            )?)
-        };
-        shortfall = shortfall
-            .checked_add((unit(current)? - unit(accepted)?).max(0))
-            .ok_or_else(|| anyhow::anyhow!("price overflow"))?;
         if current["currency"] != accepted["currency"]
             || current["period_seconds"] != accepted["period_seconds"]
         {
-            shortfall = shortfall.max(1);
+            return Ok(Some(Error::new(
+                "unsupported",
+                "native price terms changed",
+                false,
+                json!({"provider_account":null,"capability":"native_price_terms"}),
+            )));
         }
-        Ok((shortfall>0).then(||Error::new("conflict","native price moved",true,json!({"reason":"price_moved","shortfall_native":shortfall,"currency":current["currency"]}))))
+        let shortfall =
+            pricing::native_coverage_shortfall(current, descriptor, rate, runway, admitted_sats)?;
+        Ok((shortfall > 0).then(|| Error::new(
+            "conflict", "native price moved", true,
+            json!({"reason":"price_moved","shortfall_native":shortfall,"currency":current["currency"]}),
+        )))
     }
 }

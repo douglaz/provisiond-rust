@@ -116,6 +116,12 @@ pub(super) async fn watch(store: Arc<Store>, p: Parameters) -> Result<()> {
                 }
             }
         }
+        if cancel_halted_invoices(&store, &component, address)
+            .await
+            .is_err()
+        {
+            component.trace(json!({"event":"invoice_cancellation_pending"}));
+        }
         let observations = {
             let _call = component.external(crate::store::ExternalKind::Rail)?;
             http::call(
@@ -130,8 +136,9 @@ pub(super) async fn watch(store: Arc<Store>, p: Parameters) -> Result<()> {
         match observations {
             Ok(v) => {
                 for v in v.as_array().context("rail observation array")? {
-                    if let Err(e) = credit(&component, &store, &p, v).await {
-                        component.trace(json!({"event":"rail_credit_retry_pending","store_refusal":e.downcast_ref::<Error>().is_some(),"error_contexts":e.chain().take(2).map(ToString::to_string).collect::<Vec<_>>()}));
+                    match credit(&component, &store, &p, v).await {
+                        Ok(credited) => component.trace(json!({"event":"rail_observation_processed","observation_digest":crate::wire::digest(v.to_string().as_bytes()),"credit_path":credited})),
+                        Err(e) => component.trace(json!({"event":"rail_credit_retry_pending","store_refusal":e.downcast_ref::<Error>().is_some(),"error_contexts":e.chain().take(2).map(ToString::to_string).collect::<Vec<_>>()})),
                     }
                 }
             }
@@ -139,4 +146,38 @@ pub(super) async fn watch(store: Arc<Store>, p: Parameters) -> Result<()> {
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+}
+
+// LDG-20/54/55: closing the simulator invoice cannot close an on-chain address.
+async fn cancel_halted_invoices(
+    store: &Arc<Store>,
+    component: &Component,
+    address: std::net::SocketAddr,
+) -> Result<()> {
+    let invoices=store.value("SELECT COALESCE(jsonb_agg(jsonb_build_object('id',d.id,'invoice',d.invoice) ORDER BY d.created_at,d.id),'[]'::jsonb)::text FROM provisiond.deposits d CROSS JOIN provisiond.funding_health h WHERE h.solvency_halt AND d.expires_at>clock_timestamp() AND NOT d.lightning_cancelled AND d.invoice IS NOT NULL AND NOT EXISTS(SELECT 1 FROM provisiond.payments p WHERE p.deposit_id=d.id AND p.rail='lightning')",&[]).await?;
+    for invoice in invoices.as_array().context("cancellable invoices")? {
+        let reply = {
+            let _call = component.external(crate::store::ExternalKind::Rail)?;
+            http::call(
+                address,
+                "POST",
+                "/cancel",
+                &json!({"invoice":invoice["invoice"]}),
+                Duration::from_secs(2),
+            )
+            .await?
+        };
+        if reply["cancelled"] != true {
+            continue;
+        }
+        let mut tx = component.begin().await?;
+        tx.rows("UPDATE provisiond.deposits SET lightning_cancelled=true WHERE id=$1::text::uuid AND NOT lightning_cancelled RETURNING id",&[&invoice["id"].as_str()]).await?;
+        ensure!(
+            component.commit(tx)?.wait().await? == CommitOutcome::Acknowledged,
+            "invoice cancellation flag unacknowledged"
+        );
+        component
+            .trace(json!({"event":"invoice_cancellation_acknowledged","deposit":invoice["id"]}));
+    }
+    Ok(())
 }
