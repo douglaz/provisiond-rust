@@ -1,7 +1,7 @@
 # Local funding-to-provisioning evidence
 
 Recorded 2026-11-08. The loopback simulator workflow is implemented and demonstrated on committed
-runtime/fixtures `9f47805bbfabe3c2f0defb070ca2ff9edeb1c03c`, against specification
+runtime/fixtures `6410302aef1b96cc2d83e9c0caad5fd6c404ff4b`, against specification
 `ac37c7cae5d3ff746515137774a4cdd5a3531375`. This remains a pre-conformance prototype.
 
 The HTTP path obtains a delayed admission token, enrols a pending tenant, requests one deposit,
@@ -25,7 +25,7 @@ The earlier `nix develop --command python3 tests/postgres/test_ports.py` exited 
 busy-port refusal at every offset); [unit evidence](port-unit.json) retains its separate stdout/stderr hashes.
 
 `PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
---evidence <run-dir>/final-acceptance-2/final-complete.json` exited **0**, covering all nine required phases. Whole stdout and
+--evidence <run-dir>/order-evidence-t2_p9xbu/final-complete.json` exited **0**, covering all nine required phases. Whole stdout and
 stderr were captured separately before their saved statuses were read. [Aggregate](final.json) and
 [validation](validation.json) record statuses; each non-control phase and every control child records
 successful cleanup after its assertions. All phase inventories match. Source was clean throughout
@@ -67,7 +67,7 @@ while an original record remains pending. Readiness and one represented active w
 fault. The idle advisory-lock backend alone is terminated, with forwarded 57P01 and a new client
 driver-death event attributing loss. The claim transport is separate. Each fixed executable logs
 loss, stops the active worker and exits 71 under its original 1000 ms record bound. Final observed
-intervals from the fixture's driver-death observation were 1015/1011/967 ms. No guaranteed detection
+intervals from the fixture's driver-death observation were 1026/1030/1036 ms. No guaranteed detection
 time is selected. In the SyncRep arm the original claim owner has not completed when the process
 exits; no new claim attempt follows detection. Late registration receives the original loss bound.
 Reply completion does not bypass the older drain. Existing core tests retain the earlier exact
@@ -131,32 +131,44 @@ all application startup, checkout, store-call and retry bounds remain unchanged.
 For the get window, selected search IDs are durably recorded before the response that can license
 get. The real held get proves receipt; selection alone claims no successful delivery. This removes
 the source-visible response-before-record race without HTTP I/O under the simulator lock, general
-scheduling machinery or a weakened causal assertion. No dynamically reproduced scheduling failure
-is claimed. Extra records remain restricted to explicit fixture holds.
+scheduling machinery or a weakened causal assertion. No dynamic reproduction of that search/get
+scheduling failure is claimed. Extra records remain restricted to explicit fixture holds.
+
+The order handler records `resource_created` before replying and `response_returned` only after
+successful delivery. Verification can arrive before that final bookkeeping record. The stop
+fixture independently waits for the truthful completion record, checks all four exact order stages
+and their resource association, and compares pre-reply creation with the actual held verification
+request. It imposes no order between post-reply bookkeeping and verification. A controlled
+in-process probe ran the actual handler methods with stubbed reply delivery and extracted old/new
+assertions: creation sequence 3, held search 5, later completion 6. Both old missing/late-record
+assertions failed; the revised wait and causal assertions passed (probe command exit 0). This was
+not a real HTTP, executable or PostgreSQL regression run and establishes no new runtime defect.
+[Validation](validation.json) records its exact scope, source and log hashes. The search-selection
+and actual held-get proof above is unchanged.
 
 The final-byte combined focused command exited 0 before the fixture commit, and both windows passed
 again in the committed canonical workflow. Final observed intervals from lock termination through
-exit and stored/HTTP error inspection were 95 ms for search and 93 ms for get; both engines exited 1.
+exit and stored/HTTP error inspection were 130 ms for search and 97 ms for get; both engines exited 1.
 These local observations are not a detection guarantee. [The original-runtime stop reds](red-verification-stop.json)
 retain two independent intended exit-1 executions on unchanged `eace82c`, after acknowledged durable
 cut-off and autonomous exit. They fail the stored-ID assertion before accepted/attempted checks.
 All 31 original runtime inputs and five exact fixture overlays are checked against Git objects and
 reconstructed diffs. Their historical driver/simulator hashes differ from final fixtures; the exact
-comparison discloses later read-completion, record narrowing and selection-order changes. These
+comparison discloses later read-completion, record narrowing, selection-order and order-bookkeeping changes. These
 are added checks of the existing identifier correction, with no new runtime defect established.
 
-The current gate and complete command identify the new execution commit above. All 31 runtime
+The current gate and complete command identify the fixture-repair execution commit above. All 31 runtime
 inputs remain byte-identical to `03516ef`; all 56 operational hashes match the tested commit.
 [Validation](validation.json) retains earlier stop attempts with their exact source/command/status
-identities. In this continuation, the first focused invocation passed search but failed the required
+identities. In the preceding coverage run, the first focused invocation passed search but failed the required
 get successor startup; the next combined invocation passed both windows. The first canonical attempt
 passed W1, then failed checks at an ordinary admission checkout; cleanup passed. The second complete
 attempt passed every phase. Neither failure is an earned negative demonstration or a new runtime bug.
 
-A first post-commit gate exited 101 because its reused entry-point test executable embedded a
+That preceding run's first post-commit gate exited 101 because its reused entry-point test executable embedded a
 removed precommit target path. That exact path was observed in the cached executable. The final
 gate used a fresh isolated standard target with `CARGO_BUILD_BUILD_DIR` unset and exited 0. The
-canonical command used a private sequential copy of Cargo intermediates, with fresh invocation-owned
+canonical command used newly created private sequential Cargo intermediates, with fresh invocation-owned
 targets and recorded executable hashes; its cache was removed after every command and assertion
 finished. The transferred historical cache was untouched. Complete stdout/stderr hashes, cleanup
 and build modes remain in validation; no host configuration changed.
@@ -347,7 +359,8 @@ the correction. The pre-commit focused observation and regression-sequence comma
 exited 0; [validation](validation.json) retains their distinct dirty-source identities and log hashes.
 Together with the preserved 23 earlier reds, the preflight-store red, the two operation-error
 shape reds and the restart retryability red, that earlier stage had 28 original-runtime regressions.
-The two publication-repair reds above bring the current portfolio to 30.
+At that historical stage, the two publication-repair reds above brought the portfolio to 30;
+the current portfolio includes 32 original-runtime regression arms.
 
 The default API startup check now builds into a separate target directory. Effective configuration
 records API/engine/migrator executable hashes and feature lists; invocation events identify the

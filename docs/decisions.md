@@ -914,17 +914,27 @@ produces no second purchase. This exercises `ProviderIdentifiers::failure`'s exi
 
 The simulator records selected search IDs before sending the response that permits get. The real
 held get then proves receipt. Recording after the response allowed a source-visible event-order
-race; no dynamic reproduction of that scheduling failure is claimed. The short evidence write
+race; no dynamic reproduction of that search/get scheduling failure is claimed. The short evidence write
 finishes before HTTP I/O, and additional records remain limited to explicit holds. The per-account
 simulator `call_seconds=5` allowance is finite and restored by fixture cleanup. The 1000 ms record,
 startup/checkout/store/retry bounds, runtime and ownership remain unchanged.
 
+The order-reply bookkeeping correction independently awaits the truthful `response_returned`
+record, retaining all four exact order stages and matching resource IDs. Its causal comparison uses
+`resource_created`, published before reply delivery, and the subsequent actual held verification
+request. Post-reply bookkeeping may follow that request. A controlled in-process probe of actual
+handler methods with stubbed reply delivery and extracted assertion blocks produced creation 3,
+held search 5 and completion 6: both old snapshot/sequence assertions failed, revised assertions
+passed (command exit 0). This is a fixture scheduling observation, not a real HTTP/executable/PG
+runtime regression. [Validation](../evidence/w4/validation.json) records command, hashes and scope.
+No simulator or runtime edit was needed; the selected-search-ID to actual held-get proof remains.
+
 On final fixture bytes, `nix develop --command python3 tests/postgres/harness.py --phase workflow
---case w4_verify_stop --seed 20261106 --evidence <run-dir>/focused-verify-stop-2.json` exited 0
+--case w4_verify_stop --seed 20261106 --evidence <run-dir>/order-evidence-t2_p9xbu/focused-verify-stop.json` exited 0
 with slot 55500 and both windows passing. On committed runtime/fixtures
-`9f47805bbfabe3c2f0defb070ca2ff9edeb1c03c`, `nix develop --command bash tools/check.sh` exited 0
+`6410302aef1b96cc2d83e9c0caad5fd6c404ff4b`, `nix develop --command bash tools/check.sh` exited 0
 (12 Rust tests, fmt, clippy, spec-lock). `PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command
-bash tools/postgres.sh --seed 20261106 --evidence <run-dir>/final-acceptance-2/final-complete.json`
+bash tools/postgres.sh --seed 20261106 --evidence <run-dir>/order-evidence-t2_p9xbu/final-complete.json`
 exited 0 across all nine phases: 152 pass results, 30 recognized sensitivity controls, two other
 expected negative demonstrations and four declared not-run entries; cleanup passed. Versions remain
 PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9. All 31 runtime inputs
@@ -933,11 +943,11 @@ match `03516ef`; all 56 operational hashes match the new clean execution commit.
 The two [historical original-runtime stop reds](../evidence/w4/red-verification-stop.json) each
 exited 1 at the intended stored-ID assertion after acknowledged cut-off, autonomous exit and
 successful cleanup on unchanged `eace82c`. Their exact earlier fixture overlays are reconstructable;
-the final simulator ordering/read-completion differences are disclosed rather than relabeling those
+the final simulator and driver ordering/read-completion differences are disclosed rather than relabeling those
 executions. [Validation](../evidence/w4/validation.json) retains unsuccessful attempts, including
 a cached gate test executable that embedded a removed target path. The final gate used a fresh
-isolated target with `CARGO_BUILD_BUILD_DIR` unset. The canonical command used private sequential
-Cargo intermediates, fresh per-invocation targets and recorded executable hashes; the copied cache
+isolated target with `CARGO_BUILD_BUILD_DIR` unset. The canonical command used newly created private sequential
+Cargo intermediates, fresh per-invocation targets and recorded executable hashes; the owned cache
 was removed after all assertions. [Source](../evidence/w4/tested-source.json) and
 [workflow](../evidence/w4/final-workflow.json) identify the final executions. No production choice
 is settled; D-6 remains Open and the rail-history bounded-delivery limit remains deferred.

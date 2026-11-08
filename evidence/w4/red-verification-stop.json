@@ -78,7 +78,8 @@
     "original_driver_sha256": "936e2b6c12c143b87a89fb2b8e7f5e2111846da2ea62896599d1c97b3fd3665c",
     "current_driver_sha256": "2445fafeb1b28b45369af0e2c6857dd745e4a3c4adb918945359dcdb020fbae8",
     "prefix_through_target_assertion_unchanged": true,
-    "change_after_assertion": "Wait for independent simulator read completion before restart snapshot."
+    "change_after_assertion": "Wait for independent simulator read completion before restart snapshot.",
+    "comparison_context": "Historical comparison against the round-2 handoff driver named by current_driver_sha256 (2445faf...), not the final driver. Only that earlier prefix comparison is unchanged; later selection and order-bookkeeping fixture changes precede the target assertion and are disclosed in final_fixture_comparison."
   },
   "final_fixture_comparison": {
     "result": "pass",
@@ -95,11 +96,19 @@
       },
       "tests/postgres/w4_publication.py": {
         "historical_sha256": "936e2b6c12c143b87a89fb2b8e7f5e2111846da2ea62896599d1c97b3fd3665c",
-        "final_sha256": "6db888540ed9d21bac787e28646fbc92d281f66470c7ebf069d062ff6d31a92d",
-        "diff": "--- historical/tests/postgres/w4_publication.py\n+++ final/tests/postgres/w4_publication.py\n@@ -59,9 +59,11 @@\n             assert any(e.get('operation')==op for e in current('dispatch_license_acknowledged'))\n             assert state(w,op)['status']=='running' and state(w,op)['claim']==1\n             expected={'order_reply':[created]}\n-            reads=[e for e in records if e['stage']=='verification_identifiers_returned']\n+            reads=[e for e in records if e['stage']=='verification_identifiers_selected']\n             if path=='get':\n                 assert len(reads)==1 and reads[0]['source']=='search'\n+                # Selection precedes the response that licenses this real get;\n+                # receipt is established by get, not by the selection event alone.\n                 assert reads[0]['sequence']<held['sequence']\n                 expected['search']=reads[0]['identifiers']\n                 assert expected['search']==[created]\n@@ -124,7 +126,9 @@\n             assert h.sql(f\"SELECT count(*) FROM provisiond.machines WHERE provider_account='{account}' AND external_id='{created}'\")=='0'\n             count=h.sql('SELECT count(*) FROM provisiond.operations')\n             hold.unlink()\n-            eventually(lambda:any(e['path']=='/'+path and e['stage']=='request_released' for e in operation_events(w,op)))\n+            # request_released precedes the handler's remaining durable writes.\n+            # Snapshot independent effects only after that exact read finishes.\n+            eventually(lambda:any(e['path']=='/'+path and e['stage']=='verification_read_finished' for e in operation_events(w,op)))\n             records=operation_events(w,op)\n             w.start_engine()\n             assert state(w,op)==stored and w.operation_reads(t,op,'conflict',False)==view\n"
+        "final_sha256": "603f3d739fcd1124f4115b81ced39c7590c39a0d3e2728f2813cceedc3c312d0",
+        "diff": "--- historical/tests/postgres/w4_publication.py\n+++ final/tests/postgres/w4_publication.py\n@@ -50,18 +50,24 @@\n                 return [e for e in rows if event is None or e.get('event')==event]\n             # Setup readiness precedes this operation-attributed provider window.\n             eventually(lambda:any(e['path']=='/'+path and e['stage']=='request_held' for e in operation_events(w,op)))\n+            # OPS-21/PRV-26: reply delivery permits verification before the order\n+            # handler finishes its post-reply evidence write. Await that truthful\n+            # record independently; only creation must precede the held request.\n+            eventually(lambda:any(e['path']=='/order' and e['stage']=='response_returned' for e in operation_events(w,op)))\n             records=operation_events(w,op)\n             held=next(e for e in records if e['path']=='/'+path and e['stage']=='request_held')\n             order=[e for e in records if e['path']=='/order']\n             assert [e['stage'] for e in order]==['request_received','accepted','resource_created','response_returned']\n             created=order[2]['resource'];assert order[3]['resource']==created\n-            assert order[-1]['sequence']<held['sequence']\n+            assert order[2]['sequence']<held['sequence']\n             assert any(e.get('operation')==op for e in current('dispatch_license_acknowledged'))\n             assert state(w,op)['status']=='running' and state(w,op)['claim']==1\n             expected={'order_reply':[created]}\n-            reads=[e for e in records if e['stage']=='verification_identifiers_returned']\n+            reads=[e for e in records if e['stage']=='verification_identifiers_selected']\n             if path=='get':\n                 assert len(reads)==1 and reads[0]['source']=='search'\n+                # Selection precedes the response that licenses this real get;\n+                # receipt is established by get, not by the selection event alone.\n                 assert reads[0]['sequence']<held['sequence']\n                 expected['search']=reads[0]['identifiers']\n                 assert expected['search']==[created]\n@@ -124,7 +130,9 @@\n             assert h.sql(f\"SELECT count(*) FROM provisiond.machines WHERE provider_account='{account}' AND external_id='{created}'\")=='0'\n             count=h.sql('SELECT count(*) FROM provisiond.operations')\n             hold.unlink()\n-            eventually(lambda:any(e['path']=='/'+path and e['stage']=='request_released' for e in operation_events(w,op)))\n+            # request_released precedes the handler's remaining durable writes.\n+            # Snapshot independent effects only after that exact read finishes.\n+            eventually(lambda:any(e['path']=='/'+path and e['stage']=='verification_read_finished' for e in operation_events(w,op)))\n             records=operation_events(w,op)\n             w.start_engine()\n             assert state(w,op)==stored and w.operation_reads(t,op,'conflict',False)==view\n"
       }
     },
-    "historical_root": "<run-dir>/historical-stop"
+    "historical_root": "<run-dir>/historical-stop",
+    "order_bookkeeping_repair": {
+      "implementation_commit": "6410302aef1b96cc2d83e9c0caad5fd6c404ff4b",
+      "previous_driver_sha256": "6db888540ed9d21bac787e28646fbc92d281f66470c7ebf069d062ff6d31a92d",
+      "final_driver_sha256": "603f3d739fcd1124f4115b81ced39c7590c39a0d3e2728f2813cceedc3c312d0",
+      "source_order": "resource_created is recorded before reply; successful reply precedes response_returned. Verification can arrive between delivery and that post-reply record.",
+      "assertions": "Await response_returned independently; require all four exact order stages and matching resource ID. Compare resource_created with the actual held verification request. Selected-search-ID to held-get comparison unchanged.",
+      "probe_evidence": "validation.json#fixture_scheduling_probe"
+    }
   },
   "arms": [
     {
@@ -1292,7 +1301,7 @@
     "fixture_overlays_verified": 5
   },
   "green": {
-    "implementation_commit": "9f47805bbfabe3c2f0defb070ca2ff9edeb1c03c",
+    "implementation_commit": "6410302aef1b96cc2d83e9c0caad5fd6c404ff4b",
     "evidence": "final-workflow.json",
     "canonical_exit_status": 0,
     "cases": [
