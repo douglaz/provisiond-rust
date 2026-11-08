@@ -794,6 +794,48 @@ the checkout refusal is unestablished; pg_receivewal wait hardening remains defe
 [Tested source](../evidence/w4/tested-source.json) and [report](../evidence/w4/report.md) retain
 identities and limits. D-6/7/8/9 remain Open.
 
+### D-27. Coherent simulator search during creation
+
+**Measured 2026-11-08.** PRV-26/OPS-27's supported verification path reads the independent
+simulator while other orders can create resources. Search now copies resource values under the
+existing lock and filters that detached tuple with the same account/channel/correlator predicate
+and authoritative result. The resource values are never mutated after insertion. The lock covers
+only the copy; it does not cover HTTP I/O or the test barrier. No application runtime, classifier,
+provider retry, accounting, dependency, deployment profile or timing policy changed; all 31
+runtime/migration/dependency/pin hashes match the preceding implementation.
+
+The explicit test-only `--search-read-barrier` holds the iterator after its first value. A second
+real loopback HTTP order accepts, creates and returns before that read resumes. Both calls then
+complete within the existing finite test bounds, with exactly A returned by A's search, B found
+by its own search/get, two distinct four-stage durable resources, no handler stderr and exact replay
+after owned-process restart. Negative account/channel/correlator searches and the intentional
+`search_throttle` reply remain exercised. The existing concurrent-order/replay and application
+accepted/create/drop-reply arms remain in the complete runner.
+
+Against `5c5124d1a24d2e4383ce6f052c9c20f964192d38`'s simulator with only the iterator scheduling
+hooks overlaid, `nix develop --command python3 <run-dir>/search-probe.py
+<run-dir>/original-with-search-barrier.py <run-dir>/red-search.json` exited 1 at the intended
+HTTP-completion assertion, after observed iterator hold, B creation/return and resume.
+`RemoteDisconnected` and `RuntimeError: dictionary changed size during iteration` were captured;
+both resources survived live reads and replay, and cleanup passed. Original acceptance, allocation
+and effect logic are unchanged. [The red](../evidence/w4/red-search-simulator.json) records exact
+source/overlay/fixture/driver hashes, versions, commands and observations. This is a third tooling
+regression, separate from the 28 application-runtime reds and 30 sensitivity controls.
+
+With slot 55500, `nix develop --command python3 tests/postgres/harness.py --phase workflow
+--case w4_simulator --seed 20261106 --evidence <run-dir>/focused.json` exited 0 before commit
+on the final operational bytes. On committed runtime/fixtures
+`01ccfab0bff3126289529a80caf83f870740eb12`, `nix develop --command bash tools/check.sh` exited 0
+(12 Rust tests, fmt, clippy, spec-lock). `PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command
+bash tools/postgres.sh --seed 20261106 --evidence <run-dir>/final-complete.json` exited 0 across
+all nine phases: 141 pass results, 30 recognized intended-negative controls and successful cleanup.
+The port unit command exited 0 with three tests. Versions were PostgreSQL 18.6, Rust 1.97.1,
+Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9. All 55 operational hashes match the clean tested commit.
+[Search evidence](../evidence/w4/simulator-search.json), [validation](../evidence/w4/validation.json),
+[tested source](../evidence/w4/tested-source.json) and [report](../evidence/w4/report.md) retain
+identities, statuses and limits. Historical failed attempts remain fail; automatic reconciliation,
+W3-E/pg_receivewal hardening and W5–W11 remain deferred. D-6/7/8/9 remain Open.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |

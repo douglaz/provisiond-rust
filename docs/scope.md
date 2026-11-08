@@ -195,6 +195,10 @@ fsync'd acceptance event. A separate-process HTTP regression forces overlapping 
 checks two distinct commands and resources with their account/correlator/channel associations, and
 checks inspection, search and direct reads before and after replay of the same durable store. This
 is simulator evidence for the supported channel, without an automatic reconciliation claim.
+Search copies the resource values under the existing lock before filtering, so concurrent creation
+cannot invalidate its iterator. A separate-process HTTP case holds that iterator after its first
+value while another order accepts, creates and returns, then checks the completed response, both
+resources and replay. The explicit test-only barrier is absent from ordinary invocations.
 Verification searches the configured channel and directly reads the resource before the post-order
 cancellation-constraint read and atomic settlement.
 The successful confirming read captures `state_observed_at` in its retained outcome. Later constraint

@@ -1,7 +1,7 @@
 # Local funding-to-provisioning evidence
 
 Recorded 2026-11-08. The loopback simulator workflow is implemented and demonstrated on committed
-runtime/fixtures `ddd28b18aec830287ede2b5939d95b3d00d5e169`, against specification
+runtime/fixtures `01ccfab0bff3126289529a80caf83f870740eb12`, against specification
 `ac37c7cae5d3ff746515137774a4cdd5a3531375`. This remains a pre-conformance prototype.
 
 The HTTP path obtains a delayed admission token, enrols a pending tenant, requests one deposit,
@@ -33,7 +33,7 @@ every final phase;
 every runtime, migration, fixture, dependency and tool hash matches the commit. The
 [tested source](tested-source.json) records the clean verification tree and exact tested files. Later
 documentation/evidence edits preserve the tested runtime, migrations, fixtures, dependencies and tooling.
-The [publication audit](publication-audit.json), command `python3 <run-dir>/round7-_sq5ow10/audit-publication.py`,
+The [publication audit](publication-audit.json), command `python3 <run-dir>/round8-seljrlv3/audit-publication.py`,
 exited 0 after checking all 55 runtime/fixture hashes against the commit, result inventories, cleanup,
 local links and credential/private-path/name leakage.
 
@@ -50,7 +50,7 @@ changed, and these tool-mode observations establish no cause for application che
 | regressions | 9 pass | 0 |
 | corrections | 8 pass | 0 |
 | core | 35 pass; 3 not run | 0 |
-| workflow | 57 pass | 0 |
+| workflow | 58 pass | 0 |
 | default-workflow | 2 pass | 0 |
 | controls | 30 expected negative demonstration | 0 |
 
@@ -58,6 +58,36 @@ PostgreSQL tools 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9 w
 The nixpkgs pin is `aff8a0b28396750446e5537a96461bc4facdb287`; manifests contain all dependency
 versions and configuration. This is one primary and one synchronous physical standby on one host,
 not evidence of separate failure domains or production fencing/capacity.
+
+## Coherent search during simulator creation
+
+Search now filters a resource tuple copied under the existing simulator lock. The copy preserves
+the account/channel/correlator predicate and authoritative flag while allowing another order to
+insert without invalidating the active iterator. Resource dictionaries are never changed after
+insertion. Application runtime, conservative unresolved classification, provider retry behavior,
+accounting and deadlines remain unchanged.
+
+The existing `--phase workflow --case w4_simulator` selector now includes this separate-process
+HTTP interleaving as well as the original concurrent-order regression. With A already created,
+the explicit test-only `--search-read-barrier` pauses A's iterator after its first value.
+Independent fsync'd events show B's acceptance, creation and returned response before A resumes.
+A then returns exactly A within the existing finite HTTP bound; B remains searchable/directly
+readable, unmatched account/channel/correlator filters remain empty and both four-stage resources
+survive restart and exact durable replay. Both owned child processes are terminated/reaped,
+handler stderr is empty and the port is returned to its reservation. Ordinary invocations do not
+arm the barrier. The intentional throttle reply is also checked. The complete canonical workflow
+retains the full funded HTTP create and partial accepted/create/drop-reply demonstration.
+
+[The original search red](red-search-simulator.json) uses unchanged `5c5124d` simulator behavior
+with scheduling hooks only. Its source matches `ddd28b1`; acceptance, ID allocation and effects
+are unchanged. The held live dictionary iterator overlaps B's real creation/return, then raises
+`RuntimeError: dictionary changed size during iteration`, closing A's HTTP request with
+`RemoteDisconnected`. The driver still verifies both durable resources live and after replay,
+then exits 1 at the intended HTTP-completion assertion; cleanup passes. Exact original/overlay,
+fixture and driver hashes, the small scheduling diff, versions, command/status and independent
+events are retained. This is a tooling regression; it is separate from the application-runtime reds
+and sensitivity controls. [Corrected evidence](simulator-search.json) records the pre-commit focused
+exit 0 on identical operational bytes and the fresh canonical pass on the committed source above.
 
 ## Distinct concurrent simulator resources
 
@@ -82,11 +112,11 @@ logic is unchanged; only the two scheduling barriers and coherent inspection sna
 The manifest identifies original, overlay, corrected simulator and fixture hashes, versions,
 commands, observed events and cleanup pass. The corrected pre-commit focused command exited 0;
 [committed-source evidence](simulator-concurrency.json) independently records the canonical pass.
-There are 28 original-runtime regressions and two tooling regressions (startup cleanup and concurrent
-simulator retention), separate from 30 activated sensitivity controls. Earlier original reds and
+There are 28 original-runtime regressions and three tooling regressions (startup cleanup, concurrent
+simulator retention and search during creation), separate from 30 activated sensitivity controls. Earlier original reds and
 historical W3 evidence retain their identities.
 
-Two earlier complete-command attempts on this same commit remain fail: the first passed six phases
+Two earlier complete-command attempts on the preceding simulator commit `ddd28b1` remain fail: the first passed six phases
 and the new concurrency, funded HTTP and dropped-reply arms before the existing resource-admission
 concurrency assertion received 202/503 instead of 202/409; the second stopped in checks when a
 duplicate pg_receivewal process exceeded its existing 5-second shutdown wait. Both cleanups passed.
@@ -166,7 +196,7 @@ Five final HTTP-funded/admitted cases prove the fault activates on the intended 
 Two or more failed transports leave the same claim running, 43 sats reserved, no marker/debit
 and no provider request. Recovery at each site completes steps 1–9 once and makes exactly one
 order before normal atomic settlement and keyed replay. The sustained account-read fault produces
-34 failed transports and real engine exit 1, with the exhaustion diagnostic and 2033 ms accounted
+35 failed transports and real engine exit 1, with the exhaustion diagnostic and 2018 ms accounted
 against its 2000 ms bound. The operation remains running until ordinary restart classifies it
 under OPS-15's null-marker exception, releasing the commitment without any debit or provider call.
 A survived stop during tenant-read retry records failed/cut_off under the existing 1000 ms bound,
@@ -357,7 +387,9 @@ Only sanitized manifests and summaries are committed. Raw protocol/application l
 backups and private responses remain in the isolated owned test area; each published trace/log has
 its retained hash. Historical W3 evidence keeps its original identity.
 
-Optional suggestions left unchanged: an explicit expected HTTP status in operation_reads; one
+Optional suggestions left unchanged: the older overlay diff could be embedded alongside its hash;
+the older focused D-26 prose could include the port environment; the simulator row label could name
+tooling more explicitly; an explicit expected HTTP status in operation_reads; one
 expression for refresh status/retryability or an explicit untested-refresh label; distinct human
 restart messages; an explicit successful-result check in the null-error helper; separate documentation hash lists; fixture
 clock-domain/default-feature labels; operator trace provenance; the invalid-settlement mode name;
