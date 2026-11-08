@@ -94,7 +94,7 @@ class Harness:
         self.env = dict(os.environ, PGPASSFILE=str(self.pgpass), PGCONNECT_TIMEOUT='2', CARGO_TARGET_DIR=str(self.target))
         self.config = dict(synchronous_commit='on', synchronous_standby_names='FIRST 1 (provisiond_sync)',
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
-                           archive_mode='on', restart_after_crash='on', ports=self.ports[:3],bootstrap_readiness_seconds=60,postgres_stop_wait_seconds=60,
+                           archive_mode='on', restart_after_crash='on', ports=self.ports[:3],bootstrap_readiness_seconds=60,postgres_stop_wait_seconds=60,bootstrap_command_seconds=180,
                            authentication='scram-sha-256 loopback only', standby_role='replicator')
         if phase in ('checks','commits','regressions','corrections','core','workflow','default-workflow'):
             self.config['store'] = dict(read_pool=1,write_pool=1,statement_ms=1000,lock_ms=500,
@@ -194,12 +194,12 @@ class Harness:
         pw = self.root / 'init-password'
         pw.write_text(self.passwords['administrator'])
         self.run(['initdb','-D',str(data),'-U','administrator','--pwfile='+str(pw),
-                  '--auth=scram-sha-256','--no-locale','--encoding=UTF8'])
+                  '--auth=scram-sha-256','--no-locale','--encoding=UTF8'],timeout=self.config['bootstrap_command_seconds'])
         # Offline cluster initialization, before any server accepts connections.
         # Like initdb's catalog initialization, this creates only the replication
         # identity. synchronous_commit stays on; no component or migration exists.
         self.run(['postgres','--single','-D',str(data),'postgres'],
-                 sql=f"CREATE ROLE replicator LOGIN REPLICATION PASSWORD '{self.passwords['replicator']}';\n")
+                 sql=f"CREATE ROLE replicator LOGIN REPLICATION PASSWORD '{self.passwords['replicator']}';\n",timeout=self.config['bootstrap_command_seconds'])
         (data / 'pg_hba.conf').write_text(
             'host replication replicator 127.0.0.1/32 scram-sha-256\n'
             'host all all 127.0.0.1/32 scram-sha-256\n')
@@ -298,10 +298,11 @@ tcp_keepalives_count = 2
 
     def backup(self, name, standby=False):
         dest = self.root / name
-        self.event('backup_requested', destination=name, wal_mode='stream', application_name='bootstrap_backup')
+        started=time.monotonic()
+        self.event('backup_requested', destination=name, wal_mode='stream', application_name='bootstrap_backup',command_bound_seconds=self.config['bootstrap_command_seconds'])
         self.run(['pg_basebackup','-d',f'host=127.0.0.1 port={self.ports[0]} user=replicator dbname=postgres application_name=bootstrap_backup',
-                  '-D',str(dest),'-X','stream','--checkpoint=fast','--no-password'])
-        self.run(['pg_verifybackup',str(dest)])
+                  '-D',str(dest),'-X','stream','--checkpoint=fast','--no-password'],timeout=self.config['bootstrap_command_seconds'])
+        self.run(['pg_verifybackup',str(dest)],timeout=self.config['bootstrap_command_seconds'])
         provenance=self.root/(name+'-backup-manifest.json')
         provenance.write_bytes((dest/'backup_manifest').read_bytes())
         self.event('backup_provenance_retained',path=str(provenance),sha256=hashlib.sha256(provenance.read_bytes()).hexdigest())
@@ -310,7 +311,7 @@ tcp_keepalives_count = 2
             # Set the final application name and authenticated role before startup.
             (dest/'postgresql.auto.conf').write_text(
                 f"primary_conninfo = 'host=127.0.0.1 port={self.ports[0]} user=replicator application_name=provisiond_sync passfile={self.pgpass}'\n")
-        self.event('backup_complete', destination=name, verified=True)
+        self.event('backup_complete', destination=name, verified=True,elapsed_seconds=time.monotonic()-started)
 
     def identity(self):
         target = self.sql('SELECT pg_current_wal_flush_lsn()')
