@@ -110,6 +110,8 @@ def startup(w):
     # Default binary, no retry for negative startup. Schema-only needs no service values.
     w.api.terminate();w.api.wait(timeout=5)
     target=w.h.root/'default-startup-target'
+    assert not target.exists(),'startup target must belong to this invocation'
+    w.h.owned_extra_paths=getattr(w.h,'owned_extra_paths',[])+[target]
     w.h.run(['cargo','build','--bin','api','--locked','--target-dir',str(target)],timeout=120)
     executable=target/'debug/api'
     identity=w.build_identity(executable,[])

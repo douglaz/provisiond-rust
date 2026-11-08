@@ -54,6 +54,8 @@ class Proxy:
         self.cancel_requests = 0
         self.nodelay = True
         self.refuse_after = None
+        # Focused worker preflight regression: kill only matching read transports.
+        self.fail_query = None
         self.spawn(self.accept)
 
     def spawn(self, fn, *args):
@@ -130,6 +132,10 @@ class Proxy:
                     c['query']=(body.rstrip(b'\0') if tag==b'Q' else body.split(b'\0',2)[1]).decode()
                     self.h.event('send_requested',query=c['query'],session=c['pid'],protocol=tag.decode())
                     self.gate(c,'send')
+                    if self.fail_query and self.fail_query in c['query']:
+                        self.h.event('fault_activated',fault='preflight_read_transport',query=c['query'],session=c['pid'])
+                        self.close_connection(c,'preflight_read_transport')
+                        return
                 try:
                     c['server'].sendall(tag+length+body)
                 except OSError:

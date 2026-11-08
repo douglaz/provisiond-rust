@@ -28,6 +28,64 @@ impl Dispatcher {
     }
 }
 impl Engine {
+    /// OPS-49: each preflight SELECT is a complete autocommit store unit.
+    /// Release its session before backoff; never repeat any provider I/O here.
+    /// OPS-21: cancelling a read is safe (unlike a sent COMMIT) and stops dispatch.
+    async fn preflight_value(
+        &self,
+        c: &Claim,
+        component: &Component,
+        e: &Execution,
+        site: &str,
+        sql: &str,
+        params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+    ) -> Result<Value> {
+        let mut spent = Duration::ZERO;
+        loop {
+            if e.stopped.load(Ordering::Acquire) {
+                return Err(ExecutionStopped.into());
+            }
+            let started = Instant::now();
+            let result = tokio::select! {
+                biased;
+                _ = async {while !e.stopped.load(Ordering::Acquire) {tokio::time::sleep(Duration::from_millis(1)).await;}} => return Err(ExecutionStopped.into()),
+                result = component.value(sql, params) => result,
+            };
+            if e.stopped.load(Ordering::Acquire) {
+                return Err(ExecutionStopped.into());
+            }
+            let error = match result {
+                Ok(value) => return Ok(value),
+                Err(error) => error,
+            };
+            let code = error
+                .downcast_ref::<tokio_postgres::Error>()
+                .and_then(|error| error.code())
+                .map(|code| code.code());
+            if error.downcast_ref::<FatalEngine>().is_some()
+                || code.is_some_and(|code| code.starts_with("23"))
+            {
+                return Err(error);
+            }
+            let serialization = code == Some("40001");
+            if !serialization {
+                spent += started.elapsed();
+            }
+            component.trace(json!({"event":"preflight_read_retry","operation":c.id,"claim_number":c.number,"site":site,"spent_ms":spent.as_millis(),"serialization":serialization,"external_call_repeated":false}));
+            if spent < self.retry_bound && !serialization {
+                let backoff = Instant::now();
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                spent += backoff.elapsed();
+            }
+            if e.stopped.load(Ordering::Acquire) {
+                return Err(ExecutionStopped.into());
+            }
+            if spent >= self.retry_bound {
+                component.trace(json!({"event":"preflight_read_exhausted","operation":c.id,"claim_number":c.number,"site":site,"spent_ms":spent.as_millis(),"bound_ms":self.retry_bound.as_millis()}));
+                return self.fatal("preflight store retry exhausted; no worker classification");
+            }
+        }
+    }
     pub async fn dispatch_next(self: &Arc<Self>, dispatcher: &Arc<Dispatcher>) -> Result<()> {
         if self.worker_slots.available_permits() == 0 {
             return Ok(());
@@ -147,18 +205,18 @@ impl Engine {
         d: &Dispatcher,
     ) -> Result<Option<Outcome>> {
         self.order_step(c, component, e, 1).await?;
-        let data=component.value("SELECT jsonb_build_object('request',o.request,'summary',o.request_summary,'account',o.provider_account,'status',s.status,'admitted_sats',o.admitted_sats)::text FROM provisiond.operations o LEFT JOIN provisiond.provider_account_status s ON s.provider_account=o.provider_account WHERE o.id::text=$1",&[&c.id]).await?;
+        let data=self.preflight_value(c,component,e,"account","SELECT jsonb_build_object('request',o.request,'summary',o.request_summary,'account',o.provider_account,'status',s.status,'admitted_sats',o.admitted_sats)::text FROM provisiond.operations o LEFT JOIN provisiond.provider_account_status s ON s.provider_account=o.provider_account WHERE o.id::text=$1",&[&c.id]).await?;
         if data["status"] != "healthy" {
             return Err(Error::new("conflict","provider account unavailable",data["status"]!="terminated",json!({"reason":if data["status"]=="terminated"{"account_terminated"}else{"state"}})).into());
         }
-        let tenant_status=component.value("SELECT COALESCE((SELECT to_jsonb(status) FROM provisiond.tenants WHERE id=$1),'null'::jsonb)::text",&[&c.tenant]).await?;
+        let tenant_status=self.preflight_value(c,component,e,"tenant","SELECT COALESCE((SELECT to_jsonb(status) FROM provisiond.tenants WHERE id=$1),'null'::jsonb)::text",&[&c.tenant]).await?;
         if tenant_status == "suspended" {
             return Err(Error::conflict("tenant_suspended").into());
         }
         let account = data["account"].as_str().context("account")?;
         let descriptor = d.catalog.get(account).context("configured descriptor")?;
         self.order_step(c, component, e, 2).await?;
-        let closure=component.value("SELECT COALESCE((SELECT greatest(0,ceil(extract(epoch FROM closed_until-clock_timestamp())*1000))::bigint FROM provisiond.channel_closures WHERE provider_account=$1 AND channel=$2),0)::text",&[&account,&descriptor["channel"].as_str()]).await?;
+        let closure=self.preflight_value(c,component,e,"channel","SELECT COALESCE((SELECT greatest(0,ceil(extract(epoch FROM closed_until-clock_timestamp())*1000))::bigint FROM provisiond.channel_closures WHERE provider_account=$1 AND channel=$2),0)::text",&[&account,&descriptor["channel"].as_str()]).await?;
         if closure.as_i64().unwrap_or(0) > 0 {
             return Err(Error::new(
                 "rate_limited",

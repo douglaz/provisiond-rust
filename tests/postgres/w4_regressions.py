@@ -405,3 +405,6 @@ CASES.update(ROUND2_CASES)
 # Run after default startup/lifecycle checks to verify their build isolation too.
 from w4_observation import observation
 CASES['w4_observation']=observation
+
+from w4_preflight import preflight
+CASES['w4_preflight']=preflight
