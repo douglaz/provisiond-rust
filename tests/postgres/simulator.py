@@ -74,6 +74,7 @@ def main():
                         record('resource_created',resource=resource['external_id'],value=resource,test_fixture=True)
                     if 'offers' in body:state['offers']=body['offers']
                     if 'mode' in body:state['mode']=body['mode']
+                    if 'verification_resource' in body:state['verification_resource']=body['verification_resource']
                     if 'settlement' in body:
                         value=body['settlement']
                         if value.get('rail')=='lightning' and value.get('settled'):
@@ -141,16 +142,32 @@ def main():
                 return
             if self.path=='/search':
                 record('read_only',**identity)
-                if mode=='search_throttle':
+                if mode in ('search_throttle','search_network'):
+                    record('verification_fault_returned',mode=mode,**identity)
+                    if mode=='search_network':
+                        self.close_connection=True;self.connection.shutdown(2);self.connection.close();return
                     self.reply({'error':{'kind':'rate_limited','message':'controlled verification throttle','retryable':True,'details':{'accepted':False,'retry_after_ms':1000}}});return
                 # PRV-26/OPS-27: concurrent orders must not invalidate a search
                 # iterator. Resources are replaced, not mutated, after insertion.
                 with lock:resources=tuple(state['resources'].values())
                 found=[r for r in search_values(resources,identity) if r['account']==body['account'] and r['channel']==body['channel'] and r['correlator']==body['correlator']]
-                self.reply({'authoritative':True,'resources':found});return
+                if mode in ('search_non_authoritative','search_many','get_error','get_absent','search_malformed'):
+                    other=state['resources'][state['verification_resource']]
+                    if mode in ('get_error','get_absent','search_malformed'):found=[other]
+                    else:found.append(other)
+                    record('verification_identifiers_returned',source='search',identifiers=[r['external_id'] for r in found],**identity)
+                    if mode=='search_malformed':found.append({})
+                    if mode.startswith('search_'):record('verification_fault_returned',mode=mode,**identity)
+                self.reply({'authoritative':mode!='search_non_authoritative','resources':found});return
             if self.path in ['/get','/constraints']:
                 record('read_only',**identity)
                 resource=state['resources'].get(body['external_id'])
+                if self.path=='/get' and mode in ('get_error','get_absent'):
+                    record('verification_fault_returned',mode=mode,**identity)
+                    if mode=='get_error':
+                        self.reply({'error':{'kind':'not_found','message':'controlled read failure','retryable':False,'details':{'accepted':False,'status':404}}});return
+                    record('verification_identifiers_returned',source='get',identifiers=[resource['external_id']],**identity)
+                    self.reply(dict(resource,present=False));return
                 if self.reply(resource if self.path=='/get' else {'earliest_cancellation_date':time.strftime('%Y-%m-%dT00:00:00Z',time.gmtime())}):
                     record('read_response_returned',**identity)
                 return

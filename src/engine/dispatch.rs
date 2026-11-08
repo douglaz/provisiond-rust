@@ -405,12 +405,23 @@ impl Engine {
             };
         drop(permit);
         ensure!(reply["accepted"] == true, "order acceptance absent");
+        // OPS-13/PRV-5: accepted reply and later reads are surviving evidence,
+        // including when malformed data would otherwise become an untyped error
+        // at execute_order's handoff. No identifier here authorizes settlement.
+        let mut identifiers = ProviderIdentifiers::default();
+        identifiers.remember("order_reply", &reply);
+        let verification = async {
         let mut resources = BTreeMap::new();
         for channel in descriptor["channels"]
             .as_array()
             .context("reachable ordering channels")?
         {
             let found=provider_io(e,async {d.client.call(component,descriptor,"/search",&json!({"account":account,"operation":c.id,"correlator":c.id,"channel":channel})).await.map_err(|mut error| {error.0["details"]["accepted"]=json!(true);error})}).await?;
+            if let Some(resources) = found["resources"].as_array() {
+                for resource in resources {
+                    identifiers.remember("search", resource);
+                }
+            }
             if found["authoritative"] != true {
                 return Err(Error::new(
                     "provider",
@@ -455,6 +466,7 @@ impl Engine {
                 })
         })
         .await?;
+        identifiers.remember("get", &machine);
         // WIR-11/STO-48: this read establishes state. OPS-21/49 retain its
         // instant with the verified outcome across constraint I/O and settlement.
         let observed_at = chrono::Utc::now();
@@ -487,6 +499,53 @@ impl Engine {
             machine,
             observed_at,
         }))
+        }.await;
+        verification.map_err(|error| identifiers.failure(error))
+    }
+}
+
+/// OPS-13, DOM-18, WIR-10b: only safe opaque identifiers, labeled by observation
+/// source. Keep distinct observations rather than replacing the accepted reply.
+#[derive(Default)]
+struct ProviderIdentifiers(BTreeMap<&'static str, std::collections::BTreeSet<String>>);
+impl ProviderIdentifiers {
+    fn remember(&mut self, source: &'static str, value: &Value) {
+        if let Some(id) = value["external_id"].as_str().filter(|id| {
+            !id.is_empty()
+                && id.len() <= 128
+                && id
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"_-:".contains(&b))
+        }) {
+            self.0.entry(source).or_default().insert(id.to_owned());
+        }
+    }
+    fn failure(self, error: anyhow::Error) -> anyhow::Error {
+        if error.downcast_ref::<FatalEngine>().is_some() {
+            return error;
+        }
+        let mut error = error.downcast_ref::<Error>().cloned().unwrap_or_else(|| {
+            if error.downcast_ref::<ExecutionStopped>().is_some() {
+                Error::new(
+                    "conflict",
+                    "operation execution was cut off by a stop",
+                    false,
+                    json!({"reason":"cut_off"}),
+                )
+            } else {
+                Error::new(
+                    "internal",
+                    "provider verification could not complete",
+                    false,
+                    json!({}),
+                )
+            }
+        });
+        error.0["details"]["accepted"] = json!(true);
+        if !self.0.is_empty() {
+            error.0["details"]["provider_identifiers"] = json!(self.0);
+        }
+        error.into()
     }
 }
 

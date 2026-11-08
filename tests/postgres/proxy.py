@@ -168,6 +168,12 @@ class Proxy:
                 self.gate(c,'commit_reply',tag)
                 self.gate(c,'execute_reply',tag)
                 c['client'].sendall(tag+length+body)
+                if tag==b'E':
+                    # Attribute an idle lock's fatal response without recording
+                    # provider data, SQL parameters or PostgreSQL error prose.
+                    fields={v[:1]:v[1:].decode() for v in body.split(b'\0') if v}
+                    self.h.event('server_error_forwarded',session=c['pid'],
+                                 sqlstate=fields.get(b'C'),severity=fields.get(b'V'))
                 if tag in (b'C',b'Z',b'N',b'E'):
                     self.h.event('protocol_response',tag=tag.decode(),session=c['pid'],query=c['query'],command_tag=body.rstrip(b'\0').decode() if tag==b'C' else None,ready_status=body.decode() if tag==b'Z' else None)
         except (EOFError,OSError):

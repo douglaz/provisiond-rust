@@ -244,6 +244,7 @@ class Workflow:
             p.wait(timeout=5)
         assert all(p.poll() is not None for p in self.children)
         selected={'api_listening','api_stopping','api_tasks_finished','api_background_task_failed','api_request_task_failed','http_business_begin','http_response','dispatch_step','dispatch_step_held','dispatch_license_acknowledged','provider_verified','execute_returned','settlement_finished','external_entry','rail_credit_acknowledged','rail_observation_processed','activation_without_healthy_assignment','whole_transaction_retry','generation_checked','worker_zero_row','destination_read','destination_exposed','token_request_held','token_issued','token_request_abandoned','funding_held','preflight_read_retry','preflight_read_exhausted'}
+        selected.update({'startup_lock_acquired','startup_lock_lost','claim_attempt_started','claim_registered','stop_record_started','stop_record_finished','commit_possible_dispatch','commit_owner_completed','engine_fatal'})
         for child in self.children:
             if getattr(child,'name',None) in ['api','engine']:
                 trace=[json.loads(line) for line in child.log.read_text().splitlines() if line.startswith('{')]
@@ -300,6 +301,10 @@ def workflow(h,case=None,defect=None):
         if case=='w4_query':
             query_leniency(w)
             return
+        if case=='w4_lock_dispatch':
+            from w4_publication import lock_dispatch
+            lock_dispatch(w)
+            return
         if case=='w4_search_error':
             accepted_verification_error(w)
             return
@@ -354,6 +359,8 @@ def workflow(h,case=None,defect=None):
         destinations(w,t,deposit)
         payment_atomic(w)
         accepted_verification_error(w)
+        from w4_publication import lock_dispatch
+        lock_dispatch(w)
         query_leniency(w)
         admission_field_repetition(w)
         guards=w.enrol();w.fund(guards,'guard-tenant');licensing_guards_and_crash(w,guards)
@@ -701,19 +708,8 @@ def admission_refusals(w,t):
 
 
 def accepted_verification_error(w):
-    t=w.enrol();w.fund(t,'accepted-verification');w.provider_control(mode='search_throttle')
-    op=w.request('POST','/v1/machines',w.create_body(t),t,'accepted-search-error',status=202)['id']
-    w.start_engine();eventually(lambda:w.status(op) in ['failed','needs_reconciliation']);w.stop_engine()
-    observed=w.status(op);w.h.event('accepted_verification_error_observed',operation=op,classification=observed,accepted_effect=True,verification_throttle=True)
-    assert observed=='needs_reconciliation','accepted create verification failure must retain uncertainty'
-    view=w.request('GET','/v1/operations/'+op,tenant=t)
-    assert view['retryable'] is False and view['error']['retryable'] is False
-    assert view['error']['details']['retry_after_ms']==1000 and view['error']['details']['accepted'] is True
-    w.operation_reads(t,op,'rate_limited',False)
-    assert w.h.sql(f"SELECT reserved_sats||':'||state FROM provisiond.commitments WHERE operation_id='{op}'")=='43:open'
-    assert w.h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE operation_id='{op}'")=='0'
-    w.provider_control(mode='normal')
-    w.h.results.append(dict(test='W4-accepted-verification-error',result='pass'))
+    from w4_publication import accepted_identifiers
+    accepted_identifiers(w)
 
 
 def temporary_keys(w):
