@@ -50,12 +50,16 @@ def verification_stop(w,only=None):
                 return [e for e in rows if event is None or e.get('event')==event]
             # Setup readiness precedes this operation-attributed provider window.
             eventually(lambda:any(e['path']=='/'+path and e['stage']=='request_held' for e in operation_events(w,op)))
+            # OPS-21/PRV-26: reply delivery permits verification before the order
+            # handler finishes its post-reply evidence write. Await that truthful
+            # record independently; only creation must precede the held request.
+            eventually(lambda:any(e['path']=='/order' and e['stage']=='response_returned' for e in operation_events(w,op)))
             records=operation_events(w,op)
             held=next(e for e in records if e['path']=='/'+path and e['stage']=='request_held')
             order=[e for e in records if e['path']=='/order']
             assert [e['stage'] for e in order]==['request_received','accepted','resource_created','response_returned']
             created=order[2]['resource'];assert order[3]['resource']==created
-            assert order[-1]['sequence']<held['sequence']
+            assert order[2]['sequence']<held['sequence']
             assert any(e.get('operation')==op for e in current('dispatch_license_acknowledged'))
             assert state(w,op)['status']=='running' and state(w,op)['claim']==1
             expected={'order_reply':[created]}
