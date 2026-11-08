@@ -687,6 +687,40 @@ each exited 1 at its intended assertion. [Runtime red](../evidence/w4/red-prefli
 record exact identities, versions, commands/statuses and cleanup. All 54 operational paths match
 the clean tested commit. D-6/7/8/9 remain Open; no production timing or deployment policy changed.
 
+### D-24. Complete stored operation errors
+
+**Measured 2026-11-08.** WIR-9/10b and DOM-17 require the four-field inner error on operation
+reads. Both ordinary-restart producers now supply `details: {}`; survived-stop recording uses
+`wire::Error::new` to supply a human-readable message alongside the existing conflict kind,
+cut-off reason and retryability. OPS-16 still preserves existing errors verbatim. Classifier order,
+markers, claim/generation guards, money, stop/retry bounds and API projections are unchanged.
+
+`Workflow.operation_reads` checks authenticated HTTP detail and list responses before comparing
+exact error keys, field types, nonempty messages and the retained view-level correlation identity.
+The existing preflight exhaustion/restart and survived-stop arms are independently selectable;
+the canonical workflow also checks the marked-create restart, ambiguous stop, ordinary business
+and accepted-provider errors, and null-error successes. Their existing money and external-effect
+assertions remain. These checks add no new fault scenario or service surface.
+
+**Recorded basis:** committed runtime/fixtures `3eeac6fd677f37a4e11e525ba9acb8f2fc63a39f`, unchanged
+specification pin; PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and
+tokio-postgres 0.7.18. `nix develop --command bash tools/check.sh` exited 0.
+`PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
+--evidence <run-dir>/final-complete.json` exited 0 across all nine phases: 139 pass results,
+30 recognized intended-negative controls and successful cleanup. All 54 operational hashes match
+the clean tested commit. The pre-commit `--phase workflow --case w4_preflight`,
+`--case w4_live_stop` and complete `--phase workflow` commands each exited 0. On unchanged
+`758649f` runtime, `--case w4_restart_error` and `--case w4_stop_error` each exited 1 at the
+intended HTTP shape assertion, with both endpoint responses observed and cleanup passing.
+All 31 runtime/migration/dependency/pin hashes match that original commit; only three fixtures
+changed. The first corrected-source canonical attempt had a wrong test expectation for an
+existing controlled network failure; its exit 1 and cleanup pass remain recorded as failure.
+[Restart red](../evidence/w4/red-operation-restart.json), [stop red](../evidence/w4/red-operation-stop.json),
+[workflow](../evidence/w4/final-workflow.json), [validation](../evidence/w4/validation.json),
+[source](../evidence/w4/tested-source.json) and [report](../evidence/w4/report.md) retain exact
+identities and logs. Earlier D-18–D-23 measurements retain their historical tested commits;
+the linked final bundle now tests this correction. D-6/7/8/9 remain Open.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |

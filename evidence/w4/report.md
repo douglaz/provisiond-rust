@@ -1,7 +1,7 @@
 # Local funding-to-provisioning evidence
 
 Recorded 2026-11-08. The loopback simulator workflow is implemented and demonstrated on committed
-runtime/fixtures `36c9142a6870c10bac055b64d41f423d3f39cc99`, against specification
+runtime/fixtures `3eeac6fd677f37a4e11e525ba9acb8f2fc63a39f`, against specification
 `ac37c7cae5d3ff746515137774a4cdd5a3531375`. This remains a pre-conformance prototype.
 
 The HTTP path obtains a delayed admission token, enrols a pending tenant, requests one deposit,
@@ -23,7 +23,7 @@ are literal nonpayable TEST/SIMULATOR values; no real provider, purchase or fund
 spec-lock checks). [Gate](gate.json) records complete command/log hashes and dependency versions.
 
 `PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
---evidence <run-dir>/final.json` exited **0**, covering all nine required phases. Whole stdout and
+--evidence <run-dir>/final-complete.json` exited **0**, covering all nine required phases. Whole stdout and
 stderr were captured separately before their saved statuses were read. [Aggregate](final.json) and
 [validation](validation.json) record statuses; each non-control phase and every control child records
 successful cleanup after its assertions. All phase inventories match. Source was clean throughout
@@ -31,7 +31,7 @@ every final phase;
 every runtime, migration, fixture, dependency and tool hash matches the commit. The
 [tested source](tested-source.json) records the clean verification tree and exact tested files. Later
 documentation/evidence edits preserve the tested runtime, migrations, fixtures, dependencies and tooling.
-The [publication audit](publication-audit.json), command `python3 <run-dir>/round4-2cdt51w9/audit-publication.py`,
+The [publication audit](publication-audit.json), command `python3 <run-dir>/round5-sskh_2j6/audit-publication.py`,
 exited 0 after checking all 54 runtime/fixture hashes against the commit, result inventories, cleanup,
 local links and credential/private-path/name leakage.
 
@@ -57,6 +57,36 @@ The nixpkgs pin is `aff8a0b28396750446e5537a96461bc4facdb287`; manifests contain
 versions and configuration. This is one primary and one synchronous physical standby on one host,
 not evidence of separate failure domains or production fencing/capacity.
 
+## Complete operation error objects
+
+WIR-9/10b and DOM-17 require an operation's non-null error to contain exactly `kind`, `message`,
+`retryable` and `details`. Both ordinary-restart branches now include an empty details object;
+survived-stop recording uses the existing wire error constructor to supply a nonempty human message.
+The kind, retryability and cut-off reason remain unchanged. OPS-16 preserves an existing stored
+error and its evidence. Classification, markers, revision/result behavior, claim/generation guards,
+redaction, money, retry/stop bounds and external dispatch are unchanged.
+
+The HTTP-funded/admitted preflight exhaustion/restart and survived-stop arms read the completed
+outcome through both authenticated operation endpoints. The shared assertion captures detail and
+list responses before checking exact error keys, string/message/boolean/object types, expected
+kind/retryability/details, and the operation view's retained correlation identity. An inner envelope
+or correlation field fails the exact key check. The existing marked-create crash/unresolved and
+ambiguous provider-stop arms use the same assertion; ordinary business and accepted-provider errors
+and successful null-error operations are also checked. Existing full-release/reserved-money,
+zero-debit and single-order/no-order assertions remain.
+
+[Original restart](red-operation-restart.json) and [original survived-stop](red-operation-stop.json)
+each exited 1 at the intended HTTP shape assertion with cleanup pass. Both authenticated responses
+show the missing field: details on restart, message on stop. All 31 runtime/migration/dependency/pin
+hashes match `758649f72411022476236b369a95685052e1e955`; only three observation fixtures changed in
+the live handoff checkout before the runtime fix. The manifests preserve their exact dirty fixture
+identities. The shared HTTP assertion is unchanged in final fixtures; the audit reconstructs the
+original overlay hashes from the first implementation commit, excluding two later checks in other
+cases. These are original-runtime regressions, separate from the thirty sensitivity controls.
+The focused `--phase workflow --case w4_restart_error` and `w4_stop_error` selectors isolate the
+existing arms, with no new fault scenario. The five-arm preflight, ambiguous-stop and full-workflow
+focused commands exited 0; final nine-phase verification independently tested committed source.
+
 ## Worker preflight and startup cleanup
 
 OPS-49 now covers each worker preflight SELECT at the account/request, tenant-status and
@@ -70,7 +100,7 @@ Five final HTTP-funded/admitted cases prove the fault activates on the intended 
 Two or more failed transports leave the same claim running, 43 sats reserved, no marker/debit
 and no provider request. Recovery at each site completes steps 1–9 once and makes exactly one
 order before normal atomic settlement and keyed replay. The sustained account-read fault produces
-34 failed transports and real engine exit 1, with the exhaustion diagnostic and 2023 ms accounted
+34 failed transports and real engine exit 1, with the exhaustion diagnostic and 2002 ms accounted
 against its 2000 ms bound. The operation remains running until ordinary restart classifies it
 under OPS-15's null-marker exception, releasing the commitment without any debit or provider call.
 A survived stop during tenant-read retry records failed/cut_off under the existing 1000 ms bound,
@@ -117,8 +147,8 @@ All 30 runtime/migration/dependency hashes match `d62e1f4` (runtime-equivalent t
 six fixture-only overlays supply observation/testing. It ran in the unchanged handoff runtime before
 the correction. The pre-commit focused observation and regression-sequence commands then each
 exited 0; [validation](validation.json) retains their distinct dirty-source identities and log hashes.
-Together with the preserved 23 earlier reds and the preflight-store red, there are 25 original-runtime
-regressions.
+Together with the preserved 23 earlier reds, the preflight-store red and the two operation-error
+reds, there are 27 original-runtime regressions.
 
 The default API startup check now builds into a separate target directory. Effective configuration
 records API/engine/migrator executable hashes and feature lists; invocation events identify the
@@ -187,6 +217,14 @@ the W1–W3 stop, lock, sent-COMMIT, cancellation and startup inventory.
 
 ## Limits and earlier failures
 
+The first operation-error canonical run on `55f629b` exited 1 in a new test assertion: the controlled
+worker failure correctly reported `network`, while the test expected `internal`. All first six phases
+and workflow cleanup passed. Correcting only that expectation yielded a focused 56-scenario workflow
+exit 0, followed by the final nine-phase exit 0 on `3eeac6f`. The failed run remains fail and is not an
+original-runtime regression. The pre-commit fast gate initially used the existing ignored repository
+build target; both committed-source gates used the invocation-owned external target, which was
+removed after all commands completed. No inherited build output was deleted.
+
 The first new canonical attempt on `6c8a1be` exited 1 in the workflow phase at the preserved
 unauthenticated `/v1/provider-accounts` 404 assertion; the first six phases passed and workflow cleanup
 passed. Restoring dedicated namespace hiding and adding root/tenant checks produced focused exits 0
@@ -252,3 +290,7 @@ of checkout behavior or part of the acceptance count.
 Only sanitized manifests and summaries are committed. Raw protocol/application logs, credentials,
 backups and private responses remain in the isolated owned test area; each published trace/log has
 its retained hash. Historical W3 evidence keeps its original identity.
+
+Deferred cosmetic suggestions remain optional: draft overlay explanation, the one-host fixture's
+clock-domain sentence, default-feature workflow labeling, operator trace provenance labeling and
+the `invalid_settlements` mode name. They create no additional task or acceptance obligation.

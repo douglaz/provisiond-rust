@@ -132,6 +132,11 @@ store-retry budget; sessions are released before backoff. Transient errors retai
 and commitment. Exhaustion exits nonzero without worker classification, leaving ordinary restart
 to classify the null-marker create. A survived stop cancels the read/retry and uses the existing
 shielded cut-off record. No provider call is inside this retry loop; API reads keep their semantics.
+Generated ordinary-restart errors include an empty details object; survived-stop cut-offs include
+a human-readable message alongside their existing reason and retryability. Authenticated operation
+detail and list reads check the exact four-field inner error, its types and the view-level correlation
+identity for both restart branches and both stop classifications. Ordinary errors and null-error
+successes share those HTTP checks. Existing stored errors remain preserved under OPS-16.
 This is a reduced customer service, with no real provider or rail adapter. The local
 profile's three workers, pool sizes, timeouts and retry/stop bounds remain provisional under D-6.
 
