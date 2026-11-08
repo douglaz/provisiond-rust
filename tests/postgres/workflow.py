@@ -631,7 +631,7 @@ def licensing_guards_and_crash(w,t):
         assert h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE operation_id='{op}'")=='0'
         assert not [e for e in w.external()['events'] if e.get('command')==op and e.get('path') in ['/keys','/order']]
         h.event('worker_crash_distinction_observed',mode=mode,state=w.status(op),step=step,provider_mutation=False)
-        w.operation_reads(t,op,'internal',True,{} if mode!='worker_failure' else None)
+        w.operation_reads(t,op,'network' if mode=='worker_failure' else 'internal',True,{'accepted':None} if mode=='worker_failure' else {})
     h.results.append(dict(test='W4-step8-row-contention-and-crash',result='pass'))
 
 
