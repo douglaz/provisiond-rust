@@ -38,7 +38,7 @@ pub(super) async fn credit(
         return Ok(false);
     }
     let destination = v["destination"].as_str().context("destination")?;
-    let binding=store.value("SELECT COALESCE((SELECT jsonb_build_object('id',id,'payment_hash',payment_hash,'requested_sats',requested_sats) FROM provisiond.deposits WHERE ($1='lightning' AND invoice=$2) OR ($1='onchain' AND address=$2)),'null'::jsonb)::text",&[&rail,&destination]).await?;
+    let binding=store.value("SELECT COALESCE((SELECT jsonb_build_object('id',id,'payment_hash',payment_hash) FROM provisiond.deposits WHERE ($1='lightning' AND invoice=$2) OR ($1='onchain' AND address=$2)),'null'::jsonb)::text",&[&rail,&destination]).await?;
     ensure!(!binding.is_null(), "unbound rail destination");
     let reference = if rail == "lightning" {
         let hash = v["payment_hash"].as_str().context("payment hash")?;
@@ -63,16 +63,8 @@ pub(super) async fn credit(
         .as_i64()
         .filter(|n| *n > 0 && *n <= crate::wire::SAFE_INTEGER)
         .context("settled amount")?;
-    // A simulated Lightning settlement has the invoice's exact amount; on-chain is actual output value.
-    if rail == "lightning" {
-        ensure!(
-            amount
-                == binding["requested_sats"]
-                    .as_i64()
-                    .context("invoice amount")?,
-            "invoice value mismatch"
-        );
-    }
+    // LDG-47, CNF-116/117: both rails credit the trusted received value,
+    // including under/overpayment. The deposit's intent is never credit authority.
     let payment = Payment {
         deposit: binding["id"].as_str().context("deposit")?.to_owned(),
         rail: rail.into(),
@@ -102,8 +94,11 @@ pub(super) async fn credit(
     component.trace(json!({"event":"rail_credit_acknowledged","rail":rail,"deposit":payment.deposit,"activated":!activated.is_empty()}));
     Ok(true)
 }
-pub(super) async fn watch(store: Arc<Store>, p: Parameters) -> Result<()> {
-    let address = http::loopback(&std::env::var("PROVISIOND_RAIL_SIMULATOR")?)?;
+pub(super) async fn watch(
+    store: Arc<Store>,
+    p: Parameters,
+    address: std::net::SocketAddr,
+) -> Result<()> {
     let component = store.component();
     loop {
         #[cfg(feature = "store-test-hooks")]

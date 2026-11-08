@@ -21,6 +21,7 @@ use subtle::ConstantTimeEq;
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::Semaphore,
+    task::JoinSet,
 };
 struct State {
     store: Arc<Store>,
@@ -70,6 +71,82 @@ fn as_error(e: anyhow::Error) -> Error {
             json!({}),
         )
     }
+}
+// WIR-34's closed operator list is method-scoped. WIR-29/30 share customer
+// paths and select their customer projection through ordinary authentication.
+fn operator_route(method: &str, path: &str) -> bool {
+    let parts: Vec<_> = path.split('/').collect();
+    matches!(
+        (method, parts.as_slice()),
+        ("GET", ["", "v1", "episodes" | "address-resolution"])
+            | ("GET", ["", "v1", "episodes", _])
+            | ("GET", ["", "v1", "machines", _, "attachments"])
+            | ("GET", ["", "v1", "provider-accounts", _, "billing"])
+            | ("POST", ["", "v1", "abuse-cases"])
+            | ("POST", ["", "v1", "operations", _, "actions", "resolve"])
+            | ("POST", ["", "v1", "deposits", _, "actions", "attribute"])
+            | (
+                "POST",
+                [
+                    "",
+                    "v1",
+                    "tenants",
+                    _,
+                    "actions",
+                    "suspend" | "resume" | "assign-provider-account",
+                ],
+            )
+            | (
+                "POST",
+                ["", "v1", "episodes", _, "actions", "retry" | "keep"]
+            )
+            | (
+                "POST",
+                [
+                    "",
+                    "v1",
+                    "abuse-cases",
+                    _,
+                    "actions",
+                    "close" | "record-transmission" | "revise-deadline",
+                ],
+            )
+            | (
+                "POST",
+                [
+                    "",
+                    "v1",
+                    "machines",
+                    _,
+                    "actions",
+                    "record-network-restriction",
+                ],
+            )
+            | (
+                "POST",
+                [
+                    "",
+                    "v1",
+                    "machines",
+                    _,
+                    "attachments",
+                    _,
+                    "actions",
+                    "release",
+                ],
+            )
+            | (
+                "POST",
+                [
+                    "",
+                    "v1",
+                    "provider-accounts",
+                    _,
+                    "actions",
+                    "record-status" | "record-billing",
+                ],
+            )
+    )
 }
 impl State {
     fn rate(&self, principal: &str, write: bool) -> Result<()> {
@@ -279,12 +356,7 @@ impl State {
             return Ok((200, v));
         }
         // WIR-34: operator methods have no customer authentication oracle.
-        if path.starts_with("/v1/provider-accounts")
-            || path.starts_with("/v1/tenants/")
-            || path.contains("/actions/record-")
-            || path.ends_with("/actions/attribute")
-            || path.ends_with("/actions/resolve")
-        {
+        if operator_route(&r.method, path) {
             return Err(Error::missing().into());
         }
         // API-29: bound unauthenticated work by source, before its database
@@ -984,6 +1056,16 @@ pub async fn serve(store: Store, trace: Trace) -> Result<()> {
     store.compatible_schema().await?;
     let store = Arc::new(store);
     let p = Parameters::load()?;
+    // OVR-10b, STO-13: validate the whole local service configuration before
+    // binding or reporting readiness. --check-schema never enters this path.
+    let address = http::loopback(
+        &std::env::var("PROVISIOND_API_LISTEN").context("missing PROVISIOND_API_LISTEN")?,
+    )
+    .context("PROVISIOND_API_LISTEN must be a loopback socket address with a positive port")?;
+    let rail_address = http::loopback(
+        &std::env::var("PROVISIOND_RAIL_SIMULATOR").context("missing PROVISIOND_RAIL_SIMULATOR")?,
+    )
+    .context("PROVISIOND_RAIL_SIMULATOR must be a loopback socket address with a positive port")?;
     let descriptors=store.value("SELECT COALESCE(jsonb_object_agg(account,descriptor),'{}'::jsonb)::text FROM provisiond.provider_accounts",&[]).await?;
     for descriptor in descriptors
         .as_object()
@@ -1013,28 +1095,87 @@ pub async fn serve(store: Store, trace: Trace) -> Result<()> {
         rates: Mutex::new(BTreeMap::new()),
         trace: trace.clone(),
     });
-    let address = http::loopback(
-        &std::env::var("PROVISIOND_API_LISTEN").context("missing API loopback address")?,
-    )?;
     let listener = TcpListener::bind(address).await?;
     let maintenance_store = store.clone();
     let maintenance_parameters = p.clone();
-    let maintenance =
+    let mut maintenance =
         tokio::spawn(async move { housekeeping(maintenance_store, maintenance_parameters).await });
-    let funding = tokio::spawn(funding::watch(store, p));
+    let mut funding = tokio::spawn(funding::watch(store, p, rail_address));
+    let mut funding_observed = false;
+    let mut maintenance_observed = false;
+    let mut requests = JoinSet::new();
     trace(
         json!({"event":"api_listening","address":address.to_string(),"parameters":state.p.value}),
     );
-    loop {
-        let (socket, peer) = listener.accept().await?;
-        let state = state.clone();
-        tokio::spawn(async move {
-            if let Err(_e) = connection(socket, peer, state).await { /* caller disconnects carry no secret diagnostic */
+    let result: Result<()> = async {
+        loop {
+            tokio::select! {
+                result = &mut funding => {
+                    funding_observed = true;
+                    return task_stopped("funding watcher", result);
+                }
+                result = &mut maintenance => {
+                    maintenance_observed = true;
+                    return task_stopped("housekeeping", result);
+                }
+                Some(result) = requests.join_next(), if !requests.is_empty() => {
+                    ensure!(result.is_ok(), "API request task panicked");
+                }
+                accepted = listener.accept() => {
+                    let (socket, peer) = accepted?;
+                    let state = state.clone();
+                    requests.spawn(async move {
+                        // Caller disconnects carry no secret diagnostic.
+                        let _ = connection(socket, peer, state).await;
+                    });
+                }
             }
-        });
-        if funding.is_finished() || maintenance.is_finished() {
-            anyhow::bail!("funding watcher stopped");
         }
+    }
+    .await;
+    drop(listener);
+    trace(json!({"event":"api_stopping","pending_requests":requests.len()}));
+    // STO-7/55, OPS-49: cancellation drops only caller work. The existing
+    // Process still owns every sent COMMIT, including one whose waiter ends here.
+    // Reap both periodic owners and every handler before releasing State/Store.
+    for (name, task, observed) in [
+        ("funding watcher", &mut funding, funding_observed),
+        ("housekeeping", &mut maintenance, maintenance_observed),
+    ] {
+        if !observed {
+            task.abort();
+            let result = task.await;
+            if !matches!(&result, Err(error) if error.is_cancelled()) {
+                if let Err(error) = task_stopped(name, result) {
+                    trace(
+                        json!({"event":"api_background_task_failed","component":name,"error":format!("{error:#}")}),
+                    );
+                }
+            }
+        }
+    }
+    let drained = tokio::time::timeout(Duration::from_secs(1), async {
+        while let Some(result) = requests.join_next().await {
+            if result.is_err() {
+                trace(json!({"event":"api_request_task_failed"}));
+            }
+        }
+    })
+    .await
+    .is_ok();
+    requests.abort_all();
+    while requests.join_next().await.is_some() {}
+    trace(json!({"event":"api_tasks_finished","requests_drained":drained}));
+    result
+}
+fn task_stopped(
+    name: &str,
+    result: std::result::Result<Result<()>, tokio::task::JoinError>,
+) -> Result<()> {
+    match result {
+        Ok(Err(error)) => Err(error).with_context(|| format!("API {name} failed")),
+        Ok(Ok(())) => anyhow::bail!("API {name} stopped unexpectedly"),
+        Err(_) => anyhow::bail!("API {name} panicked or was cancelled"),
     }
 }
 async fn connection(mut socket: TcpStream, peer: SocketAddr, state: Arc<State>) -> Result<()> {

@@ -398,3 +398,6 @@ CASES.update(w4_reserve_record=reserve_record,w4_rate_record=rate_record,w4_conv
 
 def offer_record(w):admission_record_fields(w,'offer')
 CASES['w4_offer_record']=offer_record
+
+from w4_round2 import CASES as ROUND2_CASES
+CASES.update(ROUND2_CASES)

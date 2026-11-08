@@ -71,7 +71,12 @@ def main():
                 if not settled:
                     if invoice not in state['cancelled']:state['cancelled'].append(invoice);record('invoice_cancelled',destination=invoice)
                 self.reply({'cancelled':not settled});return
-            if self.path=='/settlements':self.reply(state['settlements']);return
+            if self.path=='/settlements':
+                # Test-only malformed trusted-adapter response exercises the
+                # watcher's actual error return, including in default binaries.
+                if state['mode']=='invalid_settlements':
+                    record('invalid_settlements_returned');self.reply({});return
+                self.reply(state['settlements']);return
             operation=body.get('operation')
             identity=dict(command=operation,account=body.get('account'),correlator=body.get('correlator'),path=self.path)
             record('request_received',**identity)

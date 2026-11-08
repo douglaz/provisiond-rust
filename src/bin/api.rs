@@ -21,10 +21,16 @@ async fn main() {
     if let Err(error) = &result {
         eprintln!("provisiond api: {error:#}");
     }
-    let shutdown = Arc::get_mut(&mut process)
-        .expect("store released")
-        .shutdown(Duration::from_secs(1))
-        .await;
+    // STO-7: if an owner remains, exit without unwinding its live work. Never
+    // turn an ordinary service failure into an ownership-assertion panic.
+    let Some(owner) = Arc::get_mut(&mut process) else {
+        eprintln!("provisiond api: store owners remain at shutdown; process must exit");
+        std::process::exit(1);
+    };
+    let shutdown = owner.shutdown(Duration::from_secs(1)).await;
+    if let Err(error) = &shutdown {
+        eprintln!("provisiond api: {error:#}");
+    }
     if result.is_err() || shutdown.is_err() {
         std::process::exit(1);
     }
