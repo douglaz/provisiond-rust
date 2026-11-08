@@ -208,6 +208,34 @@ class Workflow:
             user_data=None,labels={},provider_options={},runway_seconds=3600,max_commitment_sats=100,acknowledge_purchase=True,**changes)
     def status(self,id):return self.h.sql(f"SELECT status FROM provisiond.operations WHERE id='{id}'")
     def wait_status(self,id,value):eventually(lambda:self.status(id)==value)
+    def operation_reads(self,t,op,kind=None,retryable=False,details=None):
+        """WIR-9/10/10b/26, DOM-17: the same inner error on both HTTP reads."""
+        detail=self.request('GET','/v1/operations/'+op,tenant=t)
+        page=self.request('GET','/v1/operations?limit=100',tenant=t)
+        listed=[v for v in page['operations'] if v['id']==op]
+        assert len(listed)==1,'operation must occur once in its tenant HTTP list'
+        views={'detail':detail,'list':listed[0]}
+        # Observe both actual responses before the shape assertion, including on
+        # original-runtime reds. Never complete or normalize the returned error.
+        self.h.event('operation_http_error_observed',operation=op,case=self.case,views=views)
+        correlation=self.h.sql(f"SELECT correlation_id::text FROM provisiond.operations WHERE id='{op}'")
+        assert isinstance(correlation,str) and correlation
+        for endpoint,view in views.items():
+            assert view['correlation_id']==correlation and view['id']==op
+            error=view['error']
+            if kind is None:
+                assert error is None and view['retryable'] is False
+                continue
+            assert isinstance(error,dict) and set(error)=={'kind','message','retryable','details'}, ('WIR-10b operation error must contain exactly kind/message/retryable/details',endpoint,error)
+            assert isinstance(error['kind'],str) and error['kind']==kind
+            assert isinstance(error['message'],str) and error['message'].strip()
+            assert type(error['retryable']) is bool and error['retryable'] is retryable
+            assert isinstance(error['details'],dict)
+            if details is not None:assert error['details']==details
+            assert view['retryable'] is (False if view['status']=='needs_reconciliation' else retryable)
+            assert view['result'] is None
+        assert views['detail']==views['list'],'detail and list must project the same operation'
+        return detail
     def close(self):
         for p in reversed(self.children):
             if p.poll() is None:p.terminate()
@@ -229,6 +257,10 @@ def workflow(h,case=None,defect=None):
     w.case=case or 'w4_workflow'
     try:
         from w4_regressions import CASES
+        if case in ('w4_restart_error','w4_stop_error'):
+            from w4_preflight import preflight
+            preflight(w,only='exhaust' if case=='w4_restart_error' else 'stop')
+            return
         if case=='w4_regressions':
             for name,regression in CASES.items():
                 w.case=name;regression(w)
@@ -462,6 +494,7 @@ def worker_refusals(w,t):
         w.start_engine();w.wait_status(op,'failed');w.stop_engine()
         view=w.request('GET','/v1/operations/'+op,tenant=t)
         assert view['error']['kind']==kind,(name,view)
+        if name=='account_first':w.operation_reads(t,op,'conflict',True,{'reason':'state'})
         if reason:assert view['error']['details']['reason']==reason,(name,view)
         assert 'refusals' not in view['error']['details']
         assert h.sql(f"SELECT reserved_sats||':'||state FROM provisiond.commitments WHERE operation_id='{op}'")=='0:closed'
@@ -598,6 +631,7 @@ def licensing_guards_and_crash(w,t):
         assert h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE operation_id='{op}'")=='0'
         assert not [e for e in w.external()['events'] if e.get('command')==op and e.get('path') in ['/keys','/order']]
         h.event('worker_crash_distinction_observed',mode=mode,state=w.status(op),step=step,provider_mutation=False)
+        w.operation_reads(t,op,'internal',True,{} if mode!='worker_failure' else None)
     h.results.append(dict(test='W4-step8-row-contention-and-crash',result='pass'))
 
 
@@ -639,6 +673,7 @@ def accepted_verification_error(w):
     view=w.request('GET','/v1/operations/'+op,tenant=t)
     assert view['retryable'] is False and view['error']['retryable'] is False
     assert view['error']['details']['retry_after_ms']==1000 and view['error']['details']['accepted'] is True
+    w.operation_reads(t,op,'rate_limited',False)
     assert w.h.sql(f"SELECT reserved_sats||':'||state FROM provisiond.commitments WHERE operation_id='{op}'")=='43:open'
     assert w.h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE operation_id='{op}'")=='0'
     w.provider_control(mode='normal')
@@ -896,5 +931,6 @@ def live_provider_stop(w):
     assert exited is None and observed=='needs_reconciliation','live provider I/O must cancel before the stop-record bound'
     assert h.sql(f"SELECT reserved_sats||':'||state FROM provisiond.commitments WHERE operation_id='{op}'")=='43:open'
     assert h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE operation_id='{op}'")=='0'
+    w.operation_reads(t,op,'conflict',False,{'reason':'cut_off'})
     h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(dict(w.descriptor,account=account)),account))
     h.results.append(dict(test='W4-live-provider-stop',result='pass'))

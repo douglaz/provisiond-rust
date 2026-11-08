@@ -300,10 +300,12 @@ impl Engine {
                 let tenant: String = row.get(1);
                 let mut tx = component.begin().await?;
                 crate::ledger::serialize(&mut tx, &[&tenant]).await?;
-                // The about-to-order predicate is inside the guarded write.
-                let mut rows=tx.rows("UPDATE provisiond.operations SET status='failed',error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',true)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' AND kind='create' AND about_to_order_at IS NULL RETURNING kind,status,commitment_id::text",&[&id]).await?;
+                // OPS-15: the about-to-order predicate is inside the guarded write.
+                // WIR-9/10b: generated errors carry the complete inner object;
+                // OPS-16 preserves an existing error and its evidence verbatim.
+                let mut rows=tx.rows("UPDATE provisiond.operations SET status='failed',error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',true,'details','{}'::jsonb)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' AND kind='create' AND about_to_order_at IS NULL RETURNING kind,status,commitment_id::text",&[&id]).await?;
                 if rows.is_empty() {
-                    rows=tx.rows("UPDATE provisiond.operations SET status=CASE WHEN kind='refresh' THEN 'failed' ELSE 'needs_reconciliation' END,error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',true)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' RETURNING kind,status,commitment_id::text",&[&id]).await?;
+                    rows=tx.rows("UPDATE provisiond.operations SET status=CASE WHEN kind='refresh' THEN 'failed' ELSE 'needs_reconciliation' END,error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',true,'details','{}'::jsonb)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' RETURNING kind,status,commitment_id::text",&[&id]).await?;
                 }
                 if let Some(row) = rows.first() {
                     if row.get::<_, String>(0) == "create" && row.get::<_, String>(1) == "failed" {
@@ -904,7 +906,10 @@ impl Engine {
                             tx.rows("SELECT about_to_order_at IS NOT NULL FROM provisiond.operations WHERE id=$1::text::uuid", &[&claim.id]).await?[0].get::<_,bool>(0)
                         } else {dispatched}
                     },"refresh"=>false,"power"=>row.get::<_,bool>(1),_=>anyhow::bail!("unsupported stop kind")};
-                    tx.settle(&claim,if ambiguous {"needs_reconciliation"}else{"failed"},&Value::Null,&json!({"kind":"conflict","details":{"reason":"cut_off"},"retryable":!ambiguous})).await
+                    // OPS-21, WIR-9/10b: retain cut-off classification and detail
+                    // while supplying the mandatory human-readable message.
+                    let error=crate::wire::Error::new("conflict","operation execution was cut off by a stop",!ambiguous,json!({"reason":"cut_off"}));
+                    tx.settle(&claim,if ambiguous {"needs_reconciliation"}else{"failed"},&Value::Null,&error.0).await
                 })
             }).await.map_err(|e|format!("{e:#}"));
             engine.finish_record(&record, result.clone(), &operation_id, number);

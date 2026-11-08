@@ -26,12 +26,13 @@ def calls(w,op):
     return [e for e in w.external()['events'] if e.get('command')==op]
 
 
-def preflight(w):
+def preflight(w,only=None):
     from core import core_probe
     h=w.h;w.stop_engine()
     # No runtime hooks inject the fault: the independent PG proxy disconnects
     # only the selected SELECT's transport, leaving claims/records/API intact.
     for mode,site in [('recover',site) for site in READS]+[('exhaust','account'),('stop','tenant')]:
+        if only is not None and mode!=only:continue
         key='preflight-'+mode+'-'+site
         t=funded(w,key)
         op=w.request('POST','/v1/machines',w.create_body(t),t,key,status=202)['id']
@@ -75,6 +76,7 @@ def preflight(w):
                 assert state['claim']==1 and state['reserved']==12 and state['debits']==2 and state['machine']
                 assert w.request('POST','/v1/machines',w.create_body(t),t,key,status=202)['id']==op
                 assert state==snapshot(w,op)
+                w.operation_reads(t,op)
                 h.event('preflight_recovered',operation=op,site=site,state=state,steps=steps,provider_requests=requests,retries=len(retries))
             elif mode=='exhaust':
                 p=w.engine
@@ -98,6 +100,7 @@ def preflight(w):
                 assert 'restart' in state['error']['message'] and state['closed'] and state['reserved']==0
                 assert state['debits']==0 and state['marker'] is None and state['machine'] is None and not calls(w,op)
                 h.event('preflight_restart_classified',operation=op,state=state,provider_requests=0)
+                w.operation_reads(t,op,'internal',True,{})
             else:
                 probe.command('record_stop '+op);probe.command('wait_records')
                 state=snapshot(w,op)
@@ -109,6 +112,7 @@ def preflight(w):
                 assert len(faults())==n and not calls(w,op)
                 h.event('preflight_survived_stop_recorded',operation=op,state=state,provider_requests=0,
                         further_read_attempts=0,stop_record_ms=1000)
+                w.operation_reads(t,op,'conflict',True,{'reason':'cut_off'})
             h.results.append(dict(test='W4-'+key,result='pass'))
         finally:
             h.proxy.fail_query=None;gate.release()
