@@ -340,3 +340,61 @@ def absent_rate(w):
 
 from workflow import stop_cost_adapter
 CASES.update(w4_no_rate_absent=absent_rate,w4_stop_cost=stop_cost_adapter)
+
+
+def admission_record_fields(w, category):
+    # OPS-23/43: API-written accepted authority/conversion validation is step 3,
+    # before even a read-only List offers request; edited records are untrusted.
+    w.stop_engine();t=funded(w,'accepted-record-'+category)
+    if category=='reserve':
+        cases=[('missing',None,None),('zero',None,0),('negative',None,-1),('mismatch',None,42)]
+    elif category=='rate':
+        base=['offer','accepted_terms','rate']
+        cases=[('missing_num',base+['rate_num'],None),('zero_num',base+['rate_num'],0),
+               ('zero_den',base+['rate_den'],0),('negative_den',base+['rate_den'],-1),
+               ('bad_haircut',base+['haircut_bps'],10001),('missing_haircut',base+['haircut_bps'],None),
+               ('missing_source',base+['source'],None),('empty_source',base+['source'],''),
+               ('bad_observation',base+['observed_at'],'invalid-time'),('missing_observation',base+['observed_at'],None)]
+    elif category=='offer':
+        cases=[('strategies',['offer','install_strategies'],['provider_catalogue']),
+               ('missing_bound',['offer','declared_cancellation_bound'],None),
+               ('null_bound',['offer','declared_cancellation_bound'],None),
+               ('wrong_bound',['offer','declared_cancellation_bound'],'1970-01-01T00:00:00Z'),
+               ('period',['offer','accepted_terms','offer','period_seconds'],7200)]
+    else:
+        cases=[('setup_sats',['setup_fee','sats'],1),('setup_rate',['setup_fee','rate_num'],11),
+               ('setup_haircut',['setup_fee','haircut_bps'],1),('setup_source',['setup_fee','rate_source'],'different-source'),
+               ('unit_sats',['first_unit','sats'],1),('unit_rounding',['first_unit','rounding_rule_version'],'floor-v1'),
+               ('unit_seconds',['first_unit','seconds'],0)]
+    assertion='accepted '+category+' fields must fail incomplete_record before List offers'
+    for name,path,value in cases:
+        op=w.request('POST','/v1/machines',w.create_body(t),t,'accepted-record-'+category+'-'+name,status=202)['id']
+        if path is None:
+            literal='NULL' if value is None else str(value)
+            w.h.sql(f"UPDATE provisiond.operations SET admitted_sats={literal} WHERE id='{op}'")
+        elif name=='missing_bound':
+            w.h.sql(f"UPDATE provisiond.operations SET request_summary=request_summary #- '{{offer,declared_cancellation_bound}}' WHERE id='{op}'")
+        else:
+            pointer='{'+','.join(path)+'}'
+            w.h.sql("UPDATE provisiond.operations SET request_summary=jsonb_set(request_summary,'%s','%s'::jsonb) WHERE id='%s'"%(pointer,json.dumps(value),op))
+        w.start_engine();eventually(lambda:w.status(op) in ['failed','succeeded','needs_reconciliation']);w.stop_engine()
+        view=w.request('GET','/v1/operations/'+op,tenant=t)
+        requests=[e['path'] for e in w.external()['events'] if e.get('command')==op and e['stage']=='request_received']
+        steps=[e['step'] for e in w.events('engine','dispatch_step') if e.get('operation')==op]
+        error=view['error'] or {}
+        w.h.event('accepted_record_validation_observed',category=category,corruption=name,operation=op,state=view['status'],reason=error.get('details',{}).get('reason'),provider_requests=requests,steps=steps)
+        assert view['status']=='failed' and error.get('kind')=='conflict' and error.get('details',{}).get('reason')=='incomplete_record' and error.get('retryable') is True and view['retryable'] is True and steps==[1,2,3] and requests==[],assertion
+        assert w.h.sql(f"SELECT reserved_sats||':'||state FROM provisiond.commitments WHERE operation_id='{op}'")=='0:closed'
+        assert w.h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE operation_id='{op}'")=='0'
+        assert w.h.sql(f"SELECT about_to_order_at IS NULL AND correlator_value IS NULL FROM provisiond.operations WHERE id='{op}'")=='t'
+    w.h.results.append(dict(test='W4-accepted-'+category+'-record-validation',result='pass',cases=len(cases)))
+
+
+def reserve_record(w):admission_record_fields(w,'reserve')
+def rate_record(w):admission_record_fields(w,'rate')
+def conversion_record(w):admission_record_fields(w,'conversion')
+CASES.update(w4_reserve_record=reserve_record,w4_rate_record=rate_record,w4_conversion_record=conversion_record)
+
+
+def offer_record(w):admission_record_fields(w,'offer')
+CASES['w4_offer_record']=offer_record

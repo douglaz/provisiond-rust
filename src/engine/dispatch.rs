@@ -172,7 +172,7 @@ impl Engine {
         let r = &data["request"];
         let summary = &data["summary"];
         wire::validate_create(r, pricing::wind_seconds(descriptor)?)?;
-        validate_admission_fields(summary, r, account).map_err(|_| {
+        validate_admission_fields(summary, r, account, &data["admitted_sats"]).map_err(|_| {
             Error::new(
                 "conflict",
                 "incomplete admission record",
@@ -429,10 +429,30 @@ impl Engine {
 }
 
 // OPS-23: validate every persisted admission field before the first driver read.
-fn validate_admission_fields(s: &Value, r: &Value, account: &str) -> Result<()> {
+fn validate_admission_fields(
+    s: &Value,
+    r: &Value,
+    account: &str,
+    admitted_sats: &Value,
+) -> Result<()> {
     let snapshot = &s["offer"];
     let accepted = &snapshot["accepted_terms"]["offer"];
     let rate = &snapshot["accepted_terms"]["rate"];
+    let admitted = admitted_sats
+        .as_i64()
+        .filter(|n| *n > 0)
+        .context("admitted reserve")?;
+    ensure!(
+        rate["source"]
+            .as_str()
+            .is_some_and(|source| !source.is_empty()),
+        "accepted rate source"
+    );
+    chrono::DateTime::parse_from_rfc3339(
+        rate["observed_at"]
+            .as_str()
+            .context("accepted rate observation")?,
+    )?;
     pricing::validate_descriptor(&snapshot["accepted_terms"]["pricing_descriptor"])?;
     ensure!(
         s["kind"] == "create"
@@ -448,7 +468,8 @@ fn validate_admission_fields(s: &Value, r: &Value, account: &str) -> Result<()> 
                 snapshot["machine_kind"].as_str(),
                 Some("virtual" | "bare_metal")
             )
-            && snapshot["install_strategies"].is_array(),
+            && snapshot["install_strategies"].is_array()
+            && snapshot["install_strategies"] == accepted["install_strategies"],
         "admitted product kind/strategies"
     );
     ensure!(
@@ -456,7 +477,8 @@ fn validate_admission_fields(s: &Value, r: &Value, account: &str) -> Result<()> 
             && snapshot["currency"] == accepted["currency"]
             && accepted["currency"] == rate["currency"]
             && snapshot["recurring_price"] == accepted["recurring_price"]
-            && snapshot["recurring_period"] == "hour",
+            && snapshot["recurring_period"] == "hour"
+            && accepted["period_seconds"] == 3600,
         "accepted native currency/price/period"
     );
     let scale = u32::try_from(rate["minor_scale"].as_u64().context("native precision")?)?;
@@ -481,6 +503,11 @@ fn validate_admission_fields(s: &Value, r: &Value, account: &str) -> Result<()> 
     ensure!(
         snapshot["billing_unit_seconds"].as_i64() == Some(seconds),
         "copied duration"
+    );
+    ensure!(
+        accepted["billing_unit"]["native_floor"].is_null()
+            || accepted["billing_unit"]["native_floor"].is_string(),
+        "accepted native floor"
     );
     let floor = accepted["billing_unit"]["native_floor"]
         .as_str()
@@ -520,9 +547,36 @@ fn validate_admission_fields(s: &Value, r: &Value, account: &str) -> Result<()> 
                 .context("conversion observation")?,
         )?;
     }
-    if let Some(bound) = snapshot["declared_cancellation_bound"].as_str() {
-        chrono::DateTime::parse_from_rfc3339(bound)?;
-    }
+    // OPS-23/43: accepted conversion and admitted authority are API-written
+    // fields. Validate their coherent accepted basis before the first driver read;
+    // step 6 alone compares the current offer with that already validated basis.
+    let expected = pricing::calculate(
+        accepted,
+        &snapshot["accepted_terms"]["pricing_descriptor"],
+        rate,
+        r["runway_seconds"].as_i64().context("accepted runway")?,
+    )?;
+    ensure!(admitted == expected.reserve, "accepted reserve mismatch");
+    ensure!(
+        s["setup_fee"] == expected.setup,
+        "accepted setup conversion mismatch"
+    );
+    ensure!(
+        s.get("first_unit") == expected.unit.as_ref(),
+        "accepted unit conversion mismatch"
+    );
+    let declared = accepted["cancellation_bound"]
+        .as_str()
+        .or_else(|| snapshot["accepted_terms"]["pricing_descriptor"]["cancellation_bound"].as_str())
+        .map(|date| {
+            chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")?;
+            anyhow::Ok(format!("{date}T00:00:00Z"))
+        })
+        .transpose()?;
+    ensure!(
+        snapshot.get("declared_cancellation_bound") == Some(&json!(declared)),
+        "accepted cancellation-bound copy"
+    );
     Ok(())
 }
 

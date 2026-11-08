@@ -94,7 +94,7 @@ class Harness:
         self.env = dict(os.environ, PGPASSFILE=str(self.pgpass), PGCONNECT_TIMEOUT='2', CARGO_TARGET_DIR=str(self.target))
         self.config = dict(synchronous_commit='on', synchronous_standby_names='FIRST 1 (provisiond_sync)',
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
-                           archive_mode='on', restart_after_crash='on', ports=self.ports[:3],
+                           archive_mode='on', restart_after_crash='on', ports=self.ports[:3],bootstrap_readiness_seconds=60,postgres_stop_wait_seconds=60,
                            authentication='scram-sha-256 loopback only', standby_role='replicator')
         if phase in ('checks','commits','regressions','corrections','core','workflow','default-workflow'):
             self.config['store'] = dict(read_pool=1,write_pool=1,statement_ms=1000,lock_ms=500,
@@ -262,18 +262,19 @@ tcp_keepalives_count = 2
         self.release_port(n['port'])
         free_port(n['port'])
         log = (self.root / f'{name}.log').open('ab', buffering=0)
+        readiness_started=time.monotonic()
         n['process'] = subprocess.Popen(['postgres','-D',str(n['data'])], env=self.env,
                                          stdout=log, stderr=log)
         n['command'] = dict(command=['postgres','-D',str(n['data'])],exit_status=None)
         self.commands.append(n['command'])
         log.close()
-        eventually(lambda: self.sql('SELECT 1',node=name,role=role,ok=False)=='1')
-        self.event('server_started', node=name, pid=n['process'].pid, port=n['port'])
+        eventually(lambda: self.sql('SELECT 1',node=name,role=role,ok=False)=='1',seconds=self.config['bootstrap_readiness_seconds'])
+        self.event('server_started', node=name, pid=n['process'].pid, port=n['port'],bootstrap_readiness_seconds=self.config['bootstrap_readiness_seconds'],readiness_elapsed_seconds=time.monotonic()-readiness_started)
 
     def stop(self, name, mode='fast'):
         n = self.nodes[name]
         if n.get('process') and n['process'].poll() is None:
-            self.run(['pg_ctl','-D',str(n['data']),'stop','-m',mode,'-w','-t','15'])
+            self.run(['pg_ctl','-D',str(n['data']),'stop','-m',mode,'-w','-t',str(self.config['postgres_stop_wait_seconds'])],timeout=75)
             status=n['process'].wait(timeout=5)
             n['command']['exit_status']=status
             self.event('server_stopped', node=name, mode=mode,exit_status=status)
@@ -452,14 +453,14 @@ tcp_keepalives_count = 2
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','default-workflow','all'],default='all')
-    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions'],help='one focused regression; default runs all')
+    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record'],help='one focused regression; default runs all')
     ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset','w4_atomic','w4_ack','w4_overload'])
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
     preflight_ports()
     cases={
-        'workflow':{'w4_atomic','w4_ack','w4_overload','w4_search_error','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions'},
+        'workflow':{'w4_atomic','w4_ack','w4_overload','w4_search_error','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record'},
         'regressions':{'session','transaction','runtime','cancelled'},
         'corrections':{'execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency'},
         'core':{'migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup'},
