@@ -178,6 +178,11 @@ forwarded values, and awaits acknowledged account/tenant/correlator licensing be
 registration or ordering. The independent provider process records request, acceptance, creation and
 returned-response stages outside PostgreSQL. Verification searches the configured channel and directly
 reads the resource before the post-order cancellation-constraint read and atomic settlement.
+The successful confirming read captures `state_observed_at` in its retained outcome. Later constraint
+I/O, shielded stop records and whole-transaction repeats persist that same instant. The local first
+seed still uses the billable row's creation instant, plus copied billing seconds only when the first
+unit was actually debited. Its high-water mark and settlement effects commit together. General
+metering remains deferred.
 
 Only one virtual simulator product, one reachable ordering channel per account, hourly native pricing,
 no billable attachments, unlimited traffic and an already-effective cancellation bound are supported.
@@ -209,7 +214,13 @@ not select production capacities or close D-6/7/8/9.
 
 The canonical runner requires nine phases and retains the full W1–W3 inventory plus the workflow,
 default-feature workflow and three additional sensitivity controls. Historical W3 evidence above
-retains its original source identity. Fresh W4 evidence is recorded separately.
+retains its original source identity. Fresh W4 evidence is recorded separately. Default API startup
+checks build into a separate target directory. The workflow records executable hashes and feature
+modes for API/engine/migrator builds
+and every API/engine invocation, plus the observation fixture's probe. Later lifecycle cases retain
+the original hook-enabled API; the independent default workflow uses no test features. The delayed
+observation cases use the independent simulator's attributed constraint hold. The existing
+default-build defect-environment check remains part of acceptance.
 
 The local fixtures have observed cold API/engine setup refusals at the unchanged 250 ms checkout
 bound. Their underlying cause is not established. The application process exits on that refusal.

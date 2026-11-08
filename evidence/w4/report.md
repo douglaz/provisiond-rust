@@ -1,7 +1,7 @@
 # Local funding-to-provisioning evidence
 
 Recorded 2026-11-08. The loopback simulator workflow is implemented and demonstrated on committed
-runtime/fixtures `62333c64032bf256c1318801ec64ecfc465aa819`, against specification
+runtime/fixtures `e4b7a3c8b2595cc8e8d9a1687d16fb2000e1cba8`, against specification
 `ac37c7cae5d3ff746515137774a4cdd5a3531375`. This remains a pre-conformance prototype.
 
 The HTTP path obtains a delayed admission token, enrols a pending tenant, requests one deposit,
@@ -26,13 +26,13 @@ spec-lock checks). [Gate](gate.json) records complete command/log hashes and dep
 --evidence <run-dir>/final.json` exited **0**, covering all nine required phases. Whole stdout and
 stderr were captured separately before their saved statuses were read. [Aggregate](final.json) and
 [validation](validation.json) record statuses; each non-control phase and every control child records
-successful cleanup after its assertions. All phase inventories match. The four task-owned
-documentation drafts were dirty during testing;
+successful cleanup after its assertions. All phase inventories match. Source was clean throughout
+every final phase;
 every runtime, migration, fixture, dependency and tool hash matches the commit. The
-[tested source](tested-source.json) identifies that dirt and the exact tested files. Later
+[tested source](tested-source.json) records the clean verification tree and exact tested files. Later
 documentation/evidence edits preserve the tested runtime, migrations, fixtures, dependencies and tooling.
-The [publication audit](publication-audit.json), command `python3 <run-dir>/audit-publication.py`,
-exited 0 after checking all 52 runtime/fixture hashes against the commit, result inventories, cleanup,
+The [publication audit](publication-audit.json), command `python3 <run-dir>/round3-fyovtgvm/audit-publication.py`,
+exited 0 after checking all 53 runtime/fixture hashes against the commit, result inventories, cleanup,
 local links and credential/private-path/name leakage.
 
 The final commands used the default Nix daemon with NIX_REMOTE and NIX_CONFIG unset, with
@@ -48,7 +48,7 @@ changed, and these tool-mode observations establish no cause for application che
 | regressions | 9 pass | 0 |
 | corrections | 8 pass | 0 |
 | core | 35 pass; 3 not run | 0 |
-| workflow | 48 pass | 0 |
+| workflow | 51 pass | 0 |
 | default-workflow | 2 pass | 0 |
 | controls | 30 expected negative demonstration | 0 |
 
@@ -56,6 +56,41 @@ PostgreSQL tools 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9 w
 The nixpkgs pin is `aff8a0b28396750446e5537a96461bc4facdb287`; manifests contain all dependency
 versions and configuration. This is one primary and one synchronous physical standby on one host,
 not evidence of separate failure domains or production fencing/capacity.
+
+## Provider observation and fixture modes
+
+The confirming `/get` captures the provider-state observation instant before subsequent constraint
+I/O. The retained verified outcome carries that instant across normal settlement, shielded stops
+and whole-transaction repeats. State and its observation commit atomically with the existing
+machine/money effects. The local billing seed remains at billable creation, offset only by an
+actually debited first unit's copied seconds; it no longer relies on equality with observation time.
+Zero-unit and no-current-rate assertions independently check the seed and high-water mark.
+
+The three final observation arms begin with real HTTP funding/admission. Independent, fsync'd
+provider records identify the successful `/get` and this operation's held `/constraints` request.
+A controlled delay exceeds public second precision within finite driver call bounds. Persisted
+and HTTP observation timestamps identify the earlier read. Losing a real settlement acknowledgement
+forces a whole-transaction repeat with unchanged state/seed/revision/money and no repeated provider
+call. A bounded constraint timeout and a survived stop during the held read each still settle
+successfully with a null constraint date and the original observation. Cleanup passes in all arms.
+
+[The new original-runtime red](red-provider-observation.json) exits 1 at the intended timestamp
+assertion after the attributed delay and actual lost-acknowledgement repeat, with cleanup pass.
+All 30 runtime/migration/dependency hashes match `d62e1f4` (runtime-equivalent to `62333c6`);
+six fixture-only overlays supply observation/testing. It ran in the unchanged handoff runtime before
+the correction. The pre-commit focused observation and regression-sequence commands then each
+exited 0; [validation](validation.json) retains their distinct dirty-source identities and log hashes.
+Together with the preserved 23 earlier reds, there are 24 original-runtime regressions.
+
+The default API startup check now builds into a separate target directory. Effective configuration
+records API/engine/migrator executable hashes and feature lists; invocation events identify the
+executable used, including the observation probe. All nine default startup invocations (eight
+negatives plus schema-only) use no features. The restored API and subsequent lifecycle cases keep
+the original `store-test-hooks` build. The observation cases run after those lifecycle cases in the
+actual aggregate order. The independent default workflow uses no test features and still rejects
+defect activation through environment alone. No new runtime observation hook was added. Prior
+evidence's feature field did not identify the API overwritten by its startup rebuild; validation
+retains that historical metadata limitation without rejecting its lifecycle outcomes.
 
 ## Corrections and sensitivity
 

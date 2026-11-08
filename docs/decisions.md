@@ -550,7 +550,7 @@ remain enabled. Observed setup fsync exceeded 20 s, checkpoint shutdown took 21.
 backup exceeded 45 s. Their cause is not established; these bounds select no application timeout,
 production retry policy or pg_receivewal hardening. Earlier failed attempts remain failures.
 
-**Recorded basis for D-18–D-20:** runtime/fixtures `62333c64032bf256c1318801ec64ecfc465aa819`, specification
+**Recorded basis for D-18–D-20:** runtime/fixtures `e4b7a3c8b2595cc8e8d9a1687d16fb2000e1cba8`, specification
 `ac37c7cae5d3ff746515137774a4cdd5a3531375`; PostgreSQL tools 18.6, Rust 1.97.1, Cargo 1.97.0,
 Python 3.14.7 and Nix 2.34.9, nixpkgs `aff8a0b28396750446e5537a96461bc4facdb287`.
 `nix develop --command bash tools/check.sh` exited 0.
@@ -587,20 +587,62 @@ ownership panic, with uncertainty retained. API components do not inherit OPS-49
 A separate restart after configuration/capacity repair uses ordinary keyed requests/rail replay;
 continuous availability or automatic repair is not claimed. D-6/7/8/9 remain Open.
 
-**Recorded basis:** committed runtime/fixtures `62333c64032bf256c1318801ec64ecfc465aa819`, specification
+**Recorded basis:** committed runtime/fixtures `e4b7a3c8b2595cc8e8d9a1687d16fb2000e1cba8`, specification
 `ac37c7cae5d3ff746515137774a4cdd5a3531375`; PostgreSQL tools 18.6, Rust 1.97.1, Cargo 1.97.0,
 Python 3.14.7, Nix 2.34.9, nixpkgs `aff8a0b28396750446e5537a96461bc4facdb287`.
 `nix develop --command bash tools/check.sh` exited 0.
 `PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
---evidence <run-dir>/final.json` exited 0 across all nine phases, including the seven new regressions.
+--evidence <run-dir>/final.json` exited 0 across all nine phases, including the seven API/funding
+regressions and three provider-observation arms.
 [Gate](../evidence/w4/gate.json), [workflow](../evidence/w4/final-workflow.json),
 [original-runtime reds](../evidence/w4/regressions.json), [source inventory](../evidence/w4/tested-source.json)
 and [validation](../evidence/w4/validation.json) record versions, commands, exact hashes and cleanup.
-The final commands used the default Nix daemon with NIX_REMOTE/NIX_CONFIG unset. Four task-owned
-documentation drafts were dirty during the run; all runtime/fixture/tool/dependency hashes match the
-commit. A failed earlier canonical run on `6c8a1be` found missing namespace-root hiding; it is retained
+The final commands used the default Nix daemon with NIX_REMOTE/NIX_CONFIG unset. The final
+verification tree was clean in every phase; all runtime/fixture/tool/dependency hashes match the
+commit. Later documentation/evidence-only commits preserve those operational hashes. A failed
+earlier canonical run on `6c8a1be` found missing namespace-root hiding; it is retained
 as fail. The follow-up focused route/unauthenticated checks and final canonical run exited 0. This
 settles neither the earlier cold-checkout cause nor production parameter selection.
+
+### D-22. Provider observation time and fixture executable identity
+
+**Measured 2026-11-08.** WIR-11/STO-48 date state at the successful authoritative machine read.
+The engine captures a UTC instant immediately after that read, before PRV-13c's constraint I/O,
+and carries it in `Outcome::VerifiedCreateDetails`. OPS-21's shielded record and OPS-49's whole
+transaction repeats retain that outcome. The atomic landed-order transaction writes its instant
+with state using an explicit UTC timestamp, preserving PostgreSQL microsecond precision. Its
+existing idempotent guard leaves an already-attached observation unchanged. No extra provider read
+or persistent history is introduced. LDG-38's local billable-creation seed remains independent:
+creation instant plus copied seconds for an actual nonzero customer first-unit debit, otherwise
+creation instant. Debit reference, seed and high-water checks retain LDG-39's eligibility rules.
+
+The startup fixture builds its default API in a separate target directory. Recorded build and
+invocation hashes identify default versus `store-test-hooks` modes; later lifecycle cases keep
+the original hook-enabled binary. The observation regression uses an operation-attributed hold
+in the independent simulator after the confirming read, with finite 3/5-second driver call bounds.
+It checks the persisted instant and second-precision HTTP view, a lost settlement acknowledgement
+and actual whole-transaction repeat, a bounded constraint timeout, and a survived stop during
+constraints. Machine, debit, commitment, seed and external-call counts remain stable on repeat.
+No new runtime fault hook is needed. The separate default-feature workflow still proves that
+environment variables cannot enable opt-in defects.
+
+**Recorded basis:** committed runtime/fixtures `e4b7a3c8b2595cc8e8d9a1687d16fb2000e1cba8`, unchanged specification
+pin; PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9,
+tokio-postgres 0.7.18 (exact dependencies in the manifests).
+`nix develop --command bash tools/check.sh` exited 0.
+`PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
+--evidence <run-dir>/final.json` exited 0, all nine phases, 134 pass results and 30 recognized
+intended-negative controls; cleanup passed. The pre-commit focused observation and regression
+sequence commands each exited 0. The original `62333c6`-equivalent runtime at
+`d62e1f4` exited 1 at the intended timestamp assertion after the attributed hold and real settlement
+repeat; all 30 runtime/migration/dependency hashes match that original source. Six fixture-only
+overlays are identified in [the red manifest](../evidence/w4/red-provider-observation.json).
+[Final workflow](../evidence/w4/final-workflow.json), [validation](../evidence/w4/validation.json),
+[source](../evidence/w4/tested-source.json) and [report](../evidence/w4/report.md) retain effective
+build modes, commands/statuses and source/log hashes. Source was clean throughout final verification.
+Earlier evidence's mixed API modes are recorded as a historical metadata limitation in validation;
+the earlier lifecycle results are not reclassified as application failures. No application timing,
+pricing, runway or accepted deployment policy changed; D-6/7/8/9 remain Open.
 
 ## Open
 
