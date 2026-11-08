@@ -1,7 +1,7 @@
 # Local funding-to-provisioning evidence
 
 Recorded 2026-11-08. The loopback simulator workflow is implemented and demonstrated on committed
-runtime/fixtures `03516ef719334f1d7a2dd751b37953b84705edc5`, against specification
+runtime/fixtures `9f47805bbfabe3c2f0defb070ca2ff9edeb1c03c`, against specification
 `ac37c7cae5d3ff746515137774a4cdd5a3531375`. This remains a pre-conformance prototype.
 
 The HTTP path obtains a delayed admission token, enrols a pending tenant, requests one deposit,
@@ -25,7 +25,7 @@ The earlier `nix develop --command python3 tests/postgres/test_ports.py` exited 
 busy-port refusal at every offset); [unit evidence](port-unit.json) retains its separate stdout/stderr hashes.
 
 `PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
---evidence <run-dir>/final-complete.json` exited **0**, covering all nine required phases. Whole stdout and
+--evidence <run-dir>/final-acceptance-2/final-complete.json` exited **0**, covering all nine required phases. Whole stdout and
 stderr were captured separately before their saved statuses were read. [Aggregate](final.json) and
 [validation](validation.json) record statuses; each non-control phase and every control child records
 successful cleanup after its assertions. All phase inventories match. Source was clean throughout
@@ -50,7 +50,7 @@ changed, and these tool-mode observations establish no cause for application che
 | regressions | 9 pass | 0 |
 | corrections | 8 pass | 0 |
 | core | 35 pass; 3 not run | 0 |
-| workflow | 67 pass | 0 |
+| workflow | 69 pass | 0 |
 | default-workflow | 2 pass | 0 |
 | controls | 30 expected negative demonstration | 0 |
 
@@ -67,7 +67,7 @@ while an original record remains pending. Readiness and one represented active w
 fault. The idle advisory-lock backend alone is terminated, with forwarded 57P01 and a new client
 driver-death event attributing loss. The claim transport is separate. Each fixed executable logs
 loss, stops the active worker and exits 71 under its original 1000 ms record bound. Final observed
-intervals from the fixture's driver-death observation were 976/980/970 ms. No guaranteed detection
+intervals from the fixture's driver-death observation were 1015/1011/967 ms. No guaranteed detection
 time is selected. In the SyncRep arm the original claim owner has not completed when the process
 exits; no new claim attempt follows detection. Late registration receives the original loss bound.
 Reply completion does not bypass the older drain. Existing core tests retain the earlier exact
@@ -97,7 +97,8 @@ is authorized by these unverified IDs.
 after acceptance, activated throttle and acknowledged unresolved settlement. All 31 runtime inputs
 match unchanged `eace82c`; five fixture-only overlays and their exact diffs/hashes are recorded.
 The fixed seven-branch focused selector and the final committed canonical workflow exit 0.
-Together with the preserved 28 earlier runtime reds, there are now 30; the three tooling reds and
+Together with the preserved 28 earlier runtime reds and two additional stop arms below, there are
+32 original-runtime regression arms; the three tooling reds and
 30 sensitivity controls remain distinct. [Source](tested-source.json), [validation](validation.json)
 and [regression index](regressions.json) retain historical identities.
 
@@ -106,6 +107,59 @@ the client caps a response at 2 MiB. Prior review input reported 8,000 valid obs
 2,184,000 bytes; that probe was not rerun here. Bounded delivery needs a later repair. These bounded
 fixtures make no arbitrary-history or high-throughput ingestion claim. D-6 and production deployment
 choices remain Open; automatic reconciliation and the full ENG-07 drill remain unimplemented/not run.
+
+## Survived stops during verification
+
+The independently selectable `--phase workflow --case w4_verify_stop` command runs both
+`w4_search_stop` and `w4_get_stop`; each can also run alone. After ordinary HTTP funding/admission
+and acknowledged licensing, independent provider events establish one accepted, created and
+returned order. The simulator holds the operation's actual search, or its confirming get after
+successful search. Only the exact idle lifetime-lock session is terminated. Forwarded SQLSTATE
+57P01 and one new driver-death event attribute the stop, with generation unchanged and no new claim
+after detected loss. The provider request stays held until the shielded claim-guarded cut-off
+record is acknowledged and the executable exits nonzero without harness termination.
+
+Both stored errors and authenticated detail/list retain the exact four-field error, false advice,
+accepted knowledge, attempted create and learned IDs. Search cancellation retains the order-reply
+ID; get cancellation retains both order-reply and search IDs. Frozen offer/correlator/setup/unit
+terms, the original open 43-sat reserve, purged request and null result persist. No machine or debit
+appears. An ordinary successor preserves these facts, and the independent provider store confirms
+one resource and no second purchase. Both fixture descriptors are restored and holds released.
+The finite per-account provider fixture allowance is 5 seconds; the original 1000 ms record and
+all application startup, checkout, store-call and retry bounds remain unchanged.
+
+For the get window, selected search IDs are durably recorded before the response that can license
+get. The real held get proves receipt; selection alone claims no successful delivery. This removes
+the source-visible response-before-record race without HTTP I/O under the simulator lock, general
+scheduling machinery or a weakened causal assertion. No dynamically reproduced scheduling failure
+is claimed. Extra records remain restricted to explicit fixture holds.
+
+The final-byte combined focused command exited 0 before the fixture commit, and both windows passed
+again in the committed canonical workflow. Final observed intervals from lock termination through
+exit and stored/HTTP error inspection were 95 ms for search and 93 ms for get; both engines exited 1.
+These local observations are not a detection guarantee. [The original-runtime stop reds](red-verification-stop.json)
+retain two independent intended exit-1 executions on unchanged `eace82c`, after acknowledged durable
+cut-off and autonomous exit. They fail the stored-ID assertion before accepted/attempted checks.
+All 31 original runtime inputs and five exact fixture overlays are checked against Git objects and
+reconstructed diffs. Their historical driver/simulator hashes differ from final fixtures; the exact
+comparison discloses later read-completion, record narrowing and selection-order changes. These
+are added checks of the existing identifier correction, with no new runtime defect established.
+
+The current gate and complete command identify the new execution commit above. All 31 runtime
+inputs remain byte-identical to `03516ef`; all 56 operational hashes match the tested commit.
+[Validation](validation.json) retains earlier stop attempts with their exact source/command/status
+identities. In this continuation, the first focused invocation passed search but failed the required
+get successor startup; the next combined invocation passed both windows. The first canonical attempt
+passed W1, then failed checks at an ordinary admission checkout; cleanup passed. The second complete
+attempt passed every phase. Neither failure is an earned negative demonstration or a new runtime bug.
+
+A first post-commit gate exited 101 because its reused entry-point test executable embedded a
+removed precommit target path. That exact path was observed in the cached executable. The final
+gate used a fresh isolated standard target with `CARGO_BUILD_BUILD_DIR` unset and exited 0. The
+canonical command used a private sequential copy of Cargo intermediates, with fresh invocation-owned
+targets and recorded executable hashes; its cache was removed after every command and assertion
+finished. The transferred historical cache was untouched. Complete stdout/stderr hashes, cleanup
+and build modes remain in validation; no host configuration changed.
 
 ## Coherent search during simulator creation
 
@@ -160,7 +214,7 @@ logic is unchanged; only the two scheduling barriers and coherent inspection sna
 The manifest identifies original, overlay, corrected simulator and fixture hashes, versions,
 commands, observed events and cleanup pass. The corrected pre-commit focused command exited 0;
 [committed-source evidence](simulator-concurrency.json) independently records the canonical pass.
-There are 30 original-runtime regressions and three tooling regressions (startup cleanup, concurrent
+There are 32 original-runtime regression arms and three tooling regressions (startup cleanup, concurrent
 simulator retention and search during creation), separate from 30 activated sensitivity controls. Earlier original reds and
 historical W3 evidence retain their identities.
 

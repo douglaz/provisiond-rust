@@ -175,7 +175,7 @@ DB-10 saturation remain `not run` for their later work packages.
 27 negative controls, original-runtime reproduction and claim-specific capacity return.
 
 [W4 local workflow evidence](evidence/w4/report.md) records the nine-phase acceptance run,
-30 activated sensitivity controls, 30 original-runtime regressions and three tooling regressions
+30 activated sensitivity controls, 32 original-runtime regression arms and three tooling regressions
 (startup cleanup, concurrent simulator resource retention and search during creation). The focused preflight case is
 `--phase workflow --case w4_preflight`; its
 `w4_restart_error` and `w4_stop_error` selectors isolate the existing restart and survived-stop arms.
@@ -197,3 +197,12 @@ death or process exit. The `--case w4_search_error` selector checks seven accept
 failures, retained provider identifiers in stored errors and authenticated detail/list reads,
 open reserves and unchanged evidence across ordinary restart. Identifiers remain evidence for an
 unresolved outcome. Both selectors run in the complete canonical workflow.
+
+The `--phase workflow --case w4_verify_stop` selector checks survived cancellation during an
+accepted create's pending search and confirming get. Use `w4_search_stop` or `w4_get_stop` to
+isolate either window. Only the exact idle lifetime-lock session is terminated; the provider
+request stays held through acknowledged cut-off recording and autonomous engine exit. Stored
+errors and authenticated detail/list reads retain learned identifiers, accepted knowledge,
+frozen terms and the open reserve across ordinary successor startup, with no second purchase.
+Both windows also run in the complete canonical workflow. These are additional checks of the
+existing identifier correction, with no new runtime defect established.

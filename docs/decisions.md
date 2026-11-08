@@ -893,7 +893,7 @@ correlation, actual failure kind and applicable retry/status details. Original o
 setup/unit evidence, open 43-sat reserve, null result, no machine/debit and identical restart reads
 are checked; the independent provider records no second purchase.
 
-**Recorded basis:** same committed runtime, versions and full commands/statuses as D-28. The focused
+**Recorded basis for the seven ordinary branches:** same committed runtime, versions and full commands/statuses as D-28. The focused
 seven-branch command exited 0 before commit. On unchanged `eace82c` runtime with only five fixture
 overlays, the final driver exited 1 at the intended stored-ID assertion after actual acceptance,
 verification throttle and acknowledged unresolved settlement; cleanup passed. All 31 original
@@ -901,6 +901,46 @@ runtime/migration/dependency/pin hashes match the Git objects. [Original red](..
 [workflow](../evidence/w4/final-workflow.json), [source](../evidence/w4/tested-source.json) and
 [validation](../evidence/w4/validation.json) record exact hashes/diffs, builds, commands and outcomes.
 Earlier reds and historical W1–W3 evidence retain their original source identities. D-6 remains Open.
+
+**Additional cancellation coverage, measured 2026-11-08.** `verification_stop` independently holds
+search after an accepted order reply, or get after successful search, then loses only the exact
+idle lifetime-lock session. Both windows observe attributed transport death, unchanged generation,
+acknowledged claim-guarded cut-off and autonomous nonzero exit while the provider request remains
+held. Stored errors and authenticated detail/list preserve the learned identifiers, accepted
+knowledge, attempted action, false advice and frozen terms, with the original open 43-sat reserve,
+purged request, null result and no machine/debit. An ordinary successor retains those facts and
+produces no second purchase. This exercises `ProviderIdentifiers::failure`'s existing
+`ExecutionStopped` conversion and Outcome handoff; it establishes no new runtime defect.
+
+The simulator records selected search IDs before sending the response that permits get. The real
+held get then proves receipt. Recording after the response allowed a source-visible event-order
+race; no dynamic reproduction of that scheduling failure is claimed. The short evidence write
+finishes before HTTP I/O, and additional records remain limited to explicit holds. The per-account
+simulator `call_seconds=5` allowance is finite and restored by fixture cleanup. The 1000 ms record,
+startup/checkout/store/retry bounds, runtime and ownership remain unchanged.
+
+On final fixture bytes, `nix develop --command python3 tests/postgres/harness.py --phase workflow
+--case w4_verify_stop --seed 20261106 --evidence <run-dir>/focused-verify-stop-2.json` exited 0
+with slot 55500 and both windows passing. On committed runtime/fixtures
+`9f47805bbfabe3c2f0defb070ca2ff9edeb1c03c`, `nix develop --command bash tools/check.sh` exited 0
+(12 Rust tests, fmt, clippy, spec-lock). `PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command
+bash tools/postgres.sh --seed 20261106 --evidence <run-dir>/final-acceptance-2/final-complete.json`
+exited 0 across all nine phases: 152 pass results, 30 recognized sensitivity controls, two other
+expected negative demonstrations and four declared not-run entries; cleanup passed. Versions remain
+PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9. All 31 runtime inputs
+match `03516ef`; all 56 operational hashes match the new clean execution commit.
+
+The two [historical original-runtime stop reds](../evidence/w4/red-verification-stop.json) each
+exited 1 at the intended stored-ID assertion after acknowledged cut-off, autonomous exit and
+successful cleanup on unchanged `eace82c`. Their exact earlier fixture overlays are reconstructable;
+the final simulator ordering/read-completion differences are disclosed rather than relabeling those
+executions. [Validation](../evidence/w4/validation.json) retains unsuccessful attempts, including
+a cached gate test executable that embedded a removed target path. The final gate used a fresh
+isolated target with `CARGO_BUILD_BUILD_DIR` unset. The canonical command used private sequential
+Cargo intermediates, fresh per-invocation targets and recorded executable hashes; the copied cache
+was removed after all assertions. [Source](../evidence/w4/tested-source.json) and
+[workflow](../evidence/w4/final-workflow.json) identify the final executions. No production choice
+is settled; D-6 remains Open and the rail-history bounded-delivery limit remains deferred.
 
 ## Open
 

@@ -223,6 +223,16 @@ direct reads in `error.details.provider_identifiers`, grouped by observation sou
 unverified evidence, never attachment or debit authority. Actual error kind/details, accepted
 knowledge, frozen terms and the open reserve survive payload purge and ordinary restart.
 
+The same retained evidence is demonstrated for survived stops during a pending search
+and confirming get, before confirmation succeeds. The simulator publishes selected search IDs
+before sending the response that permits get; the subsequent held get proves receipt. This
+ordering check alone does not claim response delivery. Both real-executable windows acknowledge
+their shielded cut-off record, exit nonzero and preserve errors/terms/reserve through ordinary
+successor startup without another purchase. Their finite per-account simulator call allowance is
+5 seconds, restored after the assertions; the original 1000 ms stop record and all application
+startup, checkout, store-call and retry bounds remain unchanged. This adds cancellation coverage
+of the existing correction, without establishing a new runtime defect.
+
 The rail simulator returns its entire retained observation history, while the client caps response
 bodies at 2 MiB. Bounded local fixtures do not demonstrate ingestion of arbitrary retained histories;
 bounded delivery remains follow-up work.
