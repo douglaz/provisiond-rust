@@ -125,9 +125,13 @@ diagnostic; it has no in-process engine retry loop. Recovery requires a separate
 restart after the underlying capacity/configuration problem is addressed, followed by ordinary keyed
 request or adapter replay. This is bounded failure handling, not an availability guarantee.
 The engine dispatches queued creates after its acknowledged startup generation and ordinary restart
-pass, retaining the existing lock-loss, claim and stop ownership. Unsupported operation kinds are
-refused. OPS-49 also covers each worker preflight account, tenant and channel SELECT as a complete
-autocommit read. Checkout, connection, check, query and backoff consume the existing 2000 ms
+pass. Executable lock observation runs independently of dispatch/claim COMMIT waits. A dispatch
+refusal after loss joins the original record drain; late acknowledged claims inherit the original
+loss bound. Pending sent transactions and worker capacity retain their existing owners.
+The local executable regression covers actual SyncRep and separate late/empty reply cases; the full
+older record/outcome matrix remains in core tests. This selects no guaranteed detection time.
+Unsupported operation kinds are refused. OPS-49 also covers each worker preflight account, tenant
+and channel SELECT as a complete autocommit read. Checkout, connection, check, query and backoff consume the existing 2000 ms
 store-retry budget; sessions are released before backoff. Transient errors retain the running claim
 and commitment. Exhaustion exits nonzero without worker classification, leaving ordinary restart
 to classify the null-marker create. A survived stop cancels the read/retry and uses the existing
@@ -214,6 +218,14 @@ suspension fan-out and settled-key cleanup are not demonstrated: a verified atta
 retains its required queued cancellation obligation without claiming a complete cancellation worker.
 An accepted order with a dropped reply remains `needs_reconciliation`, with its reserve intact and no
 blind resend. This is a partial lost-reply demonstration, not ENG-05 automatic reconciliation.
+Accepted verification failures retain safe opaque provider IDs from the order reply, searches and
+direct reads in `error.details.provider_identifiers`, grouped by observation source. These are
+unverified evidence, never attachment or debit authority. Actual error kind/details, accepted
+knowledge, frozen terms and the open reserve survive payload purge and ordinary restart.
+
+The rail simulator returns its entire retained observation history, while the client caps response
+bodies at 2 MiB. Bounded local fixtures do not demonstrate ingestion of arbitrary retained histories;
+bounded delivery remains follow-up work.
 
 Pricing uses checked rational native amounts, margin on machine time, one conversion/haircut and
 upward commitment rounding. Settlement retains accepted setup/unit authorization, pairs customer

@@ -1,7 +1,7 @@
 # Local funding-to-provisioning evidence
 
 Recorded 2026-11-08. The loopback simulator workflow is implemented and demonstrated on committed
-runtime/fixtures `01ccfab0bff3126289529a80caf83f870740eb12`, against specification
+runtime/fixtures `03516ef719334f1d7a2dd751b37953b84705edc5`, against specification
 `ac37c7cae5d3ff746515137774a4cdd5a3531375`. This remains a pre-conformance prototype.
 
 The HTTP path obtains a delayed admission token, enrols a pending tenant, requests one deposit,
@@ -21,7 +21,7 @@ are literal nonpayable TEST/SIMULATOR values; no real provider, purchase or fund
 
 `nix develop --command bash tools/check.sh` exited **0** (12 Rust tests; formatting, clippy and
 spec-lock checks). [Gate](gate.json) records complete command/log hashes and dependency versions.
-`nix develop --command python3 tests/postgres/test_ports.py` exited 0 (three unit tests, including
+The earlier `nix develop --command python3 tests/postgres/test_ports.py` exited 0 (three unit tests, including
 busy-port refusal at every offset); [unit evidence](port-unit.json) retains its separate stdout/stderr hashes.
 
 `PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
@@ -33,9 +33,9 @@ every final phase;
 every runtime, migration, fixture, dependency and tool hash matches the commit. The
 [tested source](tested-source.json) records the clean verification tree and exact tested files. Later
 documentation/evidence edits preserve the tested runtime, migrations, fixtures, dependencies and tooling.
-The [publication audit](publication-audit.json), command `python3 <run-dir>/round8-seljrlv3/audit-publication.py`,
-exited 0 after checking all 55 runtime/fixture hashes against the commit, result inventories, cleanup,
-local links and credential/private-path/name leakage.
+The [publication audit](publication-audit.json) records the final operational hash, inventory, cleanup,
+local-link and sanitation checks. The tested commit has 56 operational paths; later documentation
+and evidence commits preserve those bytes and do not claim to have rerun the runtime.
 
 The final commands used the default Nix daemon with NIX_REMOTE and NIX_CONFIG unset, with
 Nix 2.34.9. [Build environment](build-environment.json) retains the earlier successful read-only
@@ -50,7 +50,7 @@ changed, and these tool-mode observations establish no cause for application che
 | regressions | 9 pass | 0 |
 | corrections | 8 pass | 0 |
 | core | 35 pass; 3 not run | 0 |
-| workflow | 58 pass | 0 |
+| workflow | 67 pass | 0 |
 | default-workflow | 2 pass | 0 |
 | controls | 30 expected negative demonstration | 0 |
 
@@ -58,6 +58,54 @@ PostgreSQL tools 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9 w
 The nixpkgs pin is `aff8a0b28396750446e5537a96461bc4facdb287`; manifests contain all dependency
 versions and configuration. This is one primary and one synchronous physical standby on one host,
 not evidence of separate failure domains or production fencing/capacity.
+
+## Independent executable lock observation
+
+The `w4_lock_dispatch` selector and canonical workflow cover three real-binary arms: a claim COMMIT
+in observed PostgreSQL SyncRep, a late claim reply during lock-loss recording, and an empty reply
+while an original record remains pending. Readiness and one represented active worker precede the
+fault. The idle advisory-lock backend alone is terminated, with forwarded 57P01 and a new client
+driver-death event attributing loss. The claim transport is separate. Each fixed executable logs
+loss, stops the active worker and exits 71 under its original 1000 ms record bound. Final observed
+intervals from the fixture's driver-death observation were 976/980/970 ms. No guaranteed detection
+time is selected. In the SyncRep arm the original claim owner has not completed when the process
+exits; no new claim attempt follows detection. Late registration receives the original loss bound.
+Reply completion does not bypass the older drain. Existing core tests retain the earlier exact
+record identity/deadline, generation, outcome and capacity matrix. Capacity retention in the binary
+arm is inferred from the unchanged process-owned claim path plus owner/registration observations,
+not a direct semaphore sample. Periodic business scheduling remains unsupported.
+
+[Original-runtime red](red-lock-dispatch.json) records unchanged `eace82c` runtime with only fixture
+overlays, exit 1 at the intended missing lock handling assertion after actual SyncRep and attributed
+driver death. The original engine stays alive until post-assertion fixture cleanup. The fixed
+focused selector exits 0 for all three arms, and the final committed canonical workflow repeats them.
+All owned export/build/data cleanup passed. Losing a reply never establishes rollback or absence.
+
+## Surviving provider identifiers
+
+`w4_search_error` now checks seven accepted verification faults and ordinary restart. Independent
+provider stages establish exactly one order, accepted creation and returned actual resource ID for
+each operation. A separately admitted real order supplies distinct IDs for deliberately ambiguous
+or wrong verification reads. Acknowledged stored errors retain all learned IDs under
+`details.provider_identifiers`, grouped by order reply/search/get. Authenticated operation detail
+and list agree on the full four-field error, false retryability, correlation and applicable throttle/
+status details. Accepted knowledge survives typed and untyped errors. Offer/correlator/fee/unit
+terms, the open 43-sat reserve and null result persist; no machine, debit, release or second purchase
+is authorized by these unverified IDs.
+
+[Original-runtime red](red-provider-identifiers.json) exits 1 at the intended stored-ID assertion
+after acceptance, activated throttle and acknowledged unresolved settlement. All 31 runtime inputs
+match unchanged `eace82c`; five fixture-only overlays and their exact diffs/hashes are recorded.
+The fixed seven-branch focused selector and the final committed canonical workflow exit 0.
+Together with the preserved 28 earlier runtime reds, there are now 30; the three tooling reds and
+30 sensitivity controls remain distinct. [Source](tested-source.json), [validation](validation.json)
+and [regression index](regressions.json) retain historical identities.
+
+The rail-history limit remains deferred: the simulator returns all retained observations while
+the client caps a response at 2 MiB. Prior review input reported 8,000 valid observations producing
+2,184,000 bytes; that probe was not rerun here. Bounded delivery needs a later repair. These bounded
+fixtures make no arbitrary-history or high-throughput ingestion claim. D-6 and production deployment
+choices remain Open; automatic reconciliation and the full ENG-07 drill remain unimplemented/not run.
 
 ## Coherent search during simulator creation
 
@@ -112,7 +160,7 @@ logic is unchanged; only the two scheduling barriers and coherent inspection sna
 The manifest identifies original, overlay, corrected simulator and fixture hashes, versions,
 commands, observed events and cleanup pass. The corrected pre-commit focused command exited 0;
 [committed-source evidence](simulator-concurrency.json) independently records the canonical pass.
-There are 28 original-runtime regressions and three tooling regressions (startup cleanup, concurrent
+There are 30 original-runtime regressions and three tooling regressions (startup cleanup, concurrent
 simulator retention and search during creation), separate from 30 activated sensitivity controls. Earlier original reds and
 historical W3 evidence retain their identities.
 
@@ -244,7 +292,8 @@ six fixture-only overlays supply observation/testing. It ran in the unchanged ha
 the correction. The pre-commit focused observation and regression-sequence commands then each
 exited 0; [validation](validation.json) retains their distinct dirty-source identities and log hashes.
 Together with the preserved 23 earlier reds, the preflight-store red, the two operation-error
-shape reds and the restart retryability red, there are 28 original-runtime regressions.
+shape reds and the restart retryability red, that earlier stage had 28 original-runtime regressions.
+The two publication-repair reds above bring the current portfolio to 30.
 
 The default API startup check now builds into a separate target directory. Effective configuration
 records API/engine/migrator executable hashes and feature lists; invocation events identify the

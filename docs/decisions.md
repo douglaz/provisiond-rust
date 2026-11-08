@@ -836,6 +836,72 @@ Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9. All 55 operational hashes match the 
 identities, statuses and limits. Historical failed attempts remain fail; automatic reconciliation,
 W3-E/pg_receivewal hardening and W5–W11 remain deferred. D-6/7/8/9 remain Open.
 
+### D-28. Lock observation independent of executable dispatch
+
+**Measured 2026-11-08.** OPS-47/21 use two pinned executable futures: ordinary dispatch and
+serialized lock observation. Main polls both and observes either path's failure/completion.
+Dispatch errors first join `Engine::observe_lock`, so a post-loss refusal cannot bypass pending
+records. Main exits before dropping either pending future. Claim reservation, sent-COMMIT ownership,
+late registration with the original loss timestamp, generation checks and the record registry remain
+in their existing boundaries; no COMMIT deadline or new task framework was introduced.
+
+`--phase workflow --case w4_lock_dispatch` establishes readiness and an active worker, attributes
+an ordinary claim to its backend and COMMIT owner, observes a real `SyncRep` wait, then terminates
+only the idle advisory-lock backend. A forwarded 57P01 and one new client driver-death event attribute
+that loss while the claim transport stays separate. Loss is published, the represented worker is
+stopped, no new claim attempt starts and the executable exits 71 with the original owner incomplete.
+Two reply-only arms acknowledge a late or empty claim after loss while an older record remains
+held. The process survives that completion and exits at the original record bound; the late claim
+is registered/stopped under the original loss. These arms are distinct from SyncRep evidence.
+The final observed exits were 976, 980 and 970 ms after the fixture observed driver death;
+these are local observations, not a detection guarantee. Semaphore counts are inferred from the
+unchanged ownership path and supplemented by existing core capacity tests, not sampled directly.
+
+**Recorded basis:** runtime/fixtures `03516ef719334f1d7a2dd751b37953b84705edc5`, unchanged pin;
+PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and tokio-postgres 0.7.18.
+`nix develop --command bash tools/check.sh` exited 0. With slot 55500,
+`nix develop --command bash tools/postgres.sh --seed 20261106 --evidence <run-dir>/final-complete.json`
+exited 0 across all nine phases: 150 pass results, 30 recognized sensitivity controls, two other
+expected negative demonstrations and four declared not-run results; cleanup passed. The focused
+three-arm command exited 0 before commit. The same final assertion driver on unchanged `eace82c`
+runtime with five fixture-only overlays exited 1 at the intended starvation assertion after actual
+SyncRep and attributed lock-driver death; owned export/build/data cleanup passed.
+[Original red](../evidence/w4/red-lock-dispatch.json), [workflow](../evidence/w4/final-workflow.json),
+[source](../evidence/w4/tested-source.json) and [validation](../evidence/w4/validation.json) retain
+exact identities, commands/statuses, observations and limits. D-6 remains Open; the full ENG-07
+stop-record drill and automatic reconciliation remain deferred.
+
+### D-29. Surviving identifiers on accepted verification failure
+
+**Measured 2026-11-08.** OPS-13, PRV-5 and WIR-10b use a small in-memory collector around existing
+settle-time verification. It copies only safe opaque `external_id` strings (nonempty, at most 128
+bytes, ASCII alphanumeric or `_`, `-`, `:`), which includes the local simulator's resource IDs.
+`error.details.provider_identifiers` groups sorted distinct strings by `order_reply`, `search` and
+`get`. IDs from a non-authoritative or malformed read remain evidence even when that read cannot
+verify a machine. Typed errors retain their kind and details; an untyped verification error becomes
+a safe internal error with accepted knowledge and collected IDs before the Outcome handoff.
+A stop during verification retains its cut-off conflict and evidence. Absorbed post-confirmation
+constraint reads still return their verified outcome. Existing claim-guarded settlement performs
+recursive redaction and persistence. No raw provider reply or executable request is copied.
+
+`--phase workflow --case w4_search_error` checks seven branches: search throttle/network,
+non-authoritative/many/malformed results, failed direct read and unconfirmed presence. Each exact
+operation has one independent accepted/created/returned order. A separate real successful order
+supplies distinct verification IDs for intentionally wrong/ambiguous reads. Acknowledged stored
+errors and authenticated detail/list retain every learned ID, exact error shape, false advice,
+correlation, actual failure kind and applicable retry/status details. Original offer/correlator/
+setup/unit evidence, open 43-sat reserve, null result, no machine/debit and identical restart reads
+are checked; the independent provider records no second purchase.
+
+**Recorded basis:** same committed runtime, versions and full commands/statuses as D-28. The focused
+seven-branch command exited 0 before commit. On unchanged `eace82c` runtime with only five fixture
+overlays, the final driver exited 1 at the intended stored-ID assertion after actual acceptance,
+verification throttle and acknowledged unresolved settlement; cleanup passed. All 31 original
+runtime/migration/dependency/pin hashes match the Git objects. [Original red](../evidence/w4/red-provider-identifiers.json),
+[workflow](../evidence/w4/final-workflow.json), [source](../evidence/w4/tested-source.json) and
+[validation](../evidence/w4/validation.json) record exact hashes/diffs, builds, commands and outcomes.
+Earlier reds and historical W1–W3 evidence retain their original source identities. D-6 remains Open.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |

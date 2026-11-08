@@ -175,7 +175,7 @@ DB-10 saturation remain `not run` for their later work packages.
 27 negative controls, original-runtime reproduction and claim-specific capacity return.
 
 [W4 local workflow evidence](evidence/w4/report.md) records the nine-phase acceptance run,
-30 activated sensitivity controls, 28 original-runtime regressions and three tooling regressions
+30 activated sensitivity controls, 30 original-runtime regressions and three tooling regressions
 (startup cleanup, concurrent simulator resource retention and search during creation). The focused preflight case is
 `--phase workflow --case w4_preflight`; its
 `w4_restart_error` and `w4_stop_error` selectors isolate the existing restart and survived-stop arms.
@@ -188,3 +188,12 @@ simulator restart and durable replay. It also holds an active search iterator wh
 creates its resource, then checks both HTTP responses and live/replayed search/get associations.
 Search filters a snapshot copied under the existing simulator lock. The complete runner includes both cases.
 This is a simulator-only pre-conformance subset; the report identifies the tested source and limits.
+
+The focused `--phase workflow --case w4_lock_dispatch` selector runs the real executable with an
+active worker and a claim held in PostgreSQL `SyncRep`, then loses only the lifetime-lock session.
+It also checks late and empty claim replies during the original record drain. Lock observation
+continues independently of dispatch, with sent transactions retained until their reply, transport
+death or process exit. The `--case w4_search_error` selector checks seven accepted verification
+failures, retained provider identifiers in stored errors and authenticated detail/list reads,
+open reserves and unchanged evidence across ordinary restart. Identifiers remain evidence for an
+unresolved outcome. Both selectors run in the complete canonical workflow.
