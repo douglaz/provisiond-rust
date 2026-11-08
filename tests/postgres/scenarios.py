@@ -378,10 +378,12 @@ def replication_negatives(h):
     wrong.terminate()
     wrong.wait(timeout=5)
     resume_standby(h)
-    status=backup.wait(timeout=45)
+    backup_wait_started=time.monotonic()
+    status=backup.wait(timeout=h.config['bootstrap_command_seconds'])
+    h.event('backup_probe_completed',command_bound_seconds=h.config['bootstrap_command_seconds'],elapsed_seconds=time.monotonic()-backup_wait_started,exit_status=status)
     h.commands.append(dict(command=['pg_basebackup','-X','stream','--max-rate=1M','--status-interval=1','application_name=bootstrap_probe'],exit_status=status))
     assert status==0,(h.root/'identity-backup.log').read_text()
-    h.run(['pg_verifybackup',str(backup_path)])
+    h.run(['pg_verifybackup',str(backup_path)],timeout=h.config['bootstrap_command_seconds'])
     h.results.append(dict(test='DB-05-non-designated',result='pass',
                          injection='pg_basebackup streaming sender reached the exact read-only check target while pending; separate fresh cold admission refused with backup ahead of its own target and designated receiver paused',
                          establishes='non-designated later flush never substitutes for designated peer'))
