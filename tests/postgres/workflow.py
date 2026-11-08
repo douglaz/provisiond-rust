@@ -209,7 +209,7 @@ class Workflow:
     def status(self,id):return self.h.sql(f"SELECT status FROM provisiond.operations WHERE id='{id}'")
     def wait_status(self,id,value):eventually(lambda:self.status(id)==value)
     def operation_reads(self,t,op,kind=None,retryable=False,details=None):
-        """WIR-9/10/10b/26, DOM-17: the same inner error on both HTTP reads."""
+        """WIR-9/9b/10/10b/26, API-51, DOM-17: equal advice on both HTTP reads."""
         detail=self.request('GET','/v1/operations/'+op,tenant=t)
         page=self.request('GET','/v1/operations?limit=100',tenant=t)
         listed=[v for v in page['operations'] if v['id']==op]
@@ -229,10 +229,12 @@ class Workflow:
             assert isinstance(error,dict) and set(error)=={'kind','message','retryable','details'}, ('WIR-10b operation error must contain exactly kind/message/retryable/details',endpoint,error)
             assert isinstance(error['kind'],str) and error['kind']==kind
             assert isinstance(error['message'],str) and error['message'].strip()
-            assert type(error['retryable']) is bool and error['retryable'] is retryable
+            assert type(error['retryable']) is bool and type(view['retryable']) is bool
+            assert error['retryable'] is view['retryable'], ('WIR-9b operation error retryability must equal authoritative view',endpoint,view)
+            assert view['retryable'] is retryable
+            if view['status']=='needs_reconciliation':assert retryable is False
             assert isinstance(error['details'],dict)
             if details is not None:assert error['details']==details
-            assert view['retryable'] is (False if view['status']=='needs_reconciliation' else retryable)
             assert view['result'] is None
         assert views['detail']==views['list'],'detail and list must project the same operation'
         return detail
@@ -260,6 +262,8 @@ def workflow(h,case=None,defect=None):
         if case in ('w4_restart_error','w4_stop_error'):
             from w4_preflight import preflight
             preflight(w,only='exhaust' if case=='w4_restart_error' else 'stop')
+            if case=='w4_restart_error':
+                t=w.enrol();w.fund(t,'restart-error-tenant');licensing_guards_and_crash(w,t)
             return
         if case=='w4_regressions':
             for name,regression in CASES.items():
@@ -598,6 +602,7 @@ def payment_atomic(w):
 
 
 def licensing_guards_and_crash(w,t):
+    from w4_preflight import snapshot
     h=w.h;account=t['account'];w.stop_engine();w.provider_control(offers={'sim-a':[w.offer],'sim-b':[w.offer]})
     for target in ['account','tenant']:
         op=w.request('POST','/v1/machines',w.create_body(t),t,'contended-guard-'+target,status=202)['id']
@@ -620,6 +625,8 @@ def licensing_guards_and_crash(w,t):
         h.sql(f"UPDATE provisiond.tenants SET status='active' WHERE id='{t['tenant_id']}'")
         h.event('step8_contended_guard_observed',target_type=target,wait_event='Lock',marker_rolled_back=True,mutation=False)
     for mode,step in [('worker_failure',9),('crash_null',8),('crash_set',9)]:
+        # OPS-11/15, WIR-9b/API-51: an actual interrupted marked create
+        # retains uncertainty/reserve and must never advise another purchase.
         op=w.request('POST','/v1/machines',w.create_body(t),t,'worker-crash-'+mode,status=202)['id']
         if mode=='worker_failure':
             failure=w.control/'fail-step-9';failure.touch();w.start_engine();w.wait_status(op,'failed');w.stop_engine();failure.unlink()
@@ -627,11 +634,35 @@ def licensing_guards_and_crash(w,t):
         else:
             hold=w.control/f'hold-step-{step}';hold.touch();w.start_engine()
             eventually(lambda:any(e.get('operation')==op and e['step']==step for e in w.events('engine','dispatch_step_held')))
-            w.stop_engine();hold.unlink();w.start_engine();w.wait_status(op,'failed' if mode=='crash_null' else 'needs_reconciliation');w.stop_engine()
+            before=snapshot(w,op)
+            assert before['status']=='running' and before['error'] is None and before['reserved']==43
+            assert (before['marker'] is not None)==(mode=='crash_set')
+            licensed=[e for e in w.events('engine','dispatch_license_acknowledged') if e.get('operation')==op]
+            assert bool(licensed)==(mode=='crash_set')
+            interrupted=w.engine;w.stop_engine()
+            assert interrupted.returncode==-15
+            assert snapshot(w,op)==before,'crash must leave the running claim unclassified'
+            h.event('marked_create_interrupted',operation=op,mode=mode,step=step,state=before,
+                    license_acknowledged=bool(licensed),process_exit_status=interrupted.returncode)
+            hold.unlink();restarted=w.start_engine()
+            w.wait_status(op,'failed' if mode=='crash_null' else 'needs_reconciliation')
+            completed=[json.loads(line) for line in restarted.log.read_text().splitlines() if line.startswith('{')]
+            assert any(e.get('event')=='restart_pass_complete' and e['running_found']==1 for e in completed)
+            w.stop_engine()
+            h.event('interrupted_create_restart_completed',operation=op,mode=mode,state=snapshot(w,op),
+                    restart_pass_count=1,restarted_pid=restarted.pid)
+        state=snapshot(w,op)
+        assert state['machine'] is None
+        if mode=='crash_set':
+            assert state['status']=='needs_reconciliation' and state['reserved']==43 and state['closed'] is None
+            assert state['marker']==before['marker'] and state['claim']==before['claim']
+        else:
+            assert state['status']=='failed' and state['reserved']==0 and state['closed']
         assert h.sql(f"SELECT count(*) FROM provisiond.ledger_entries WHERE operation_id='{op}'")=='0'
         assert not [e for e in w.external()['events'] if e.get('command')==op and e.get('path') in ['/keys','/order']]
         h.event('worker_crash_distinction_observed',mode=mode,state=w.status(op),step=step,provider_mutation=False)
-        w.operation_reads(t,op,'network' if mode=='worker_failure' else 'internal',True,{'accepted':None} if mode=='worker_failure' else {})
+        view=w.operation_reads(t,op,'network' if mode=='worker_failure' else 'internal',mode!='crash_set',{'accepted':None} if mode=='worker_failure' else {})
+        assert state['error']==view['error'],'HTTP must retain the stored generated error'
     h.results.append(dict(test='W4-step8-row-contention-and-crash',result='pass'))
 
 
