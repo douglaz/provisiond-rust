@@ -272,10 +272,17 @@ def empty_queue(h):
 
 def enqueue(h,tenant,key,**kwargs):
     fund(h,tenant,key)
-    p=core_probe(h)
-    op=command(p,'admit',request(tenant,key,**kwargs))['value']['id']
-    p.finish()
-    return op
+    value=request(tenant,key,**kwargs)
+    # Idempotent API setup replay, as for fund(); never repeat an engine startup
+    # or a target fault probe, and never retry a business refusal.
+    for attempt in range(3):
+        p=core_probe(h)
+        result=command(p,'admit',value,ok=None)
+        p.finish()
+        if result['ok']:return result['value']['id']
+        assert 'whole pool checkout deadline' in result['error'],result
+        h.event('fixture_admission_checkout_refused',attempt=attempt+1,request_replay=True,checkout_ms=250,engine_startup_repeated=False)
+    raise AssertionError('fixture admission never acknowledged after three API requests')
 
 
 def claims(h,defect=None):
