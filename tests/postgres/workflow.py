@@ -305,6 +305,10 @@ def workflow(h,case=None,defect=None):
             from w4_publication import lock_dispatch
             lock_dispatch(w)
             return
+        if case in ('w4_verify_stop','w4_search_stop','w4_get_stop'):
+            from w4_publication import verification_stop
+            verification_stop(w,only={'w4_search_stop':'search','w4_get_stop':'get'}.get(case))
+            return
         if case=='w4_search_error':
             accepted_verification_error(w)
             return
@@ -359,8 +363,9 @@ def workflow(h,case=None,defect=None):
         destinations(w,t,deposit)
         payment_atomic(w)
         accepted_verification_error(w)
-        from w4_publication import lock_dispatch
+        from w4_publication import lock_dispatch, verification_stop
         lock_dispatch(w)
+        verification_stop(w)
         query_leniency(w)
         admission_field_repetition(w)
         guards=w.enrol();w.fund(guards,'guard-tenant');licensing_guards_and_crash(w,guards)

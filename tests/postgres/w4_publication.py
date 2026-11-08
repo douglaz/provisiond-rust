@@ -22,6 +22,131 @@ def operation_events(w,op):
     return [e for e in w.external()['events'] if e.get('command')==op]
 
 
+def verification_stop(w,only=None):
+    """OPS-13/21/47, PRV-5/26, WIR-9/10b, LDG-39/67: survived verification stops.
+
+    The executable cancels a genuinely pending search/get after its dedicated
+    lock transport dies. No provider error or application deadline supplies the
+    cut-off. Expected IDs come from independent, durable simulator observations.
+    """
+    h=w.h;w.stop_engine();w.provider_control(mode='normal')
+    for path in ([only] if only else ['search','get']):
+        t=funded(w,'verification-stop-'+path)
+        account=t['account']
+        original_descriptor=json.loads(h.sql(f"SELECT descriptor FROM provisiond.provider_accounts WHERE account='{account}'"))
+        # As in w4_observation, a finite provider-fixture allowance keeps its
+        # fsync'd order stages separate from the cancellation under test. Store,
+        # checkout, startup, retry and the original 1000 ms record stay unchanged.
+        descriptor=dict(original_descriptor,call_seconds=5)
+        h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(descriptor),account))
+        op=w.request('POST','/v1/machines',w.create_body(t),t,'verification-stop-'+path,status=202)['id']
+        admitted=state(w,op)
+        hold=h.root/('provider/hold-'+path);hold.touch()
+        p=None
+        try:
+            p=w.start_engine()
+            def current(event=None):
+                rows=[json.loads(line) for line in p.log.read_text().splitlines() if line.startswith('{')]
+                return [e for e in rows if event is None or e.get('event')==event]
+            # Setup readiness precedes this operation-attributed provider window.
+            eventually(lambda:any(e['path']=='/'+path and e['stage']=='request_held' for e in operation_events(w,op)))
+            records=operation_events(w,op)
+            held=next(e for e in records if e['path']=='/'+path and e['stage']=='request_held')
+            order=[e for e in records if e['path']=='/order']
+            assert [e['stage'] for e in order]==['request_received','accepted','resource_created','response_returned']
+            created=order[2]['resource'];assert order[3]['resource']==created
+            assert order[-1]['sequence']<held['sequence']
+            assert any(e.get('operation')==op for e in current('dispatch_license_acknowledged'))
+            assert state(w,op)['status']=='running' and state(w,op)['claim']==1
+            expected={'order_reply':[created]}
+            reads=[e for e in records if e['stage']=='verification_identifiers_selected']
+            if path=='get':
+                assert len(reads)==1 and reads[0]['source']=='search'
+                # Selection precedes the response that licenses this real get;
+                # receipt is established by get, not by the selection event alone.
+                assert reads[0]['sequence']<held['sequence']
+                expected['search']=reads[0]['identifiers']
+                assert expected['search']==[created]
+            else:assert not reads
+            assert not any(e['path'] in ('/constraints',) or e['stage']=='verification_fault_returned' for e in records)
+            lock_pid=current('startup_lock_acquired')[-1]['session']
+            generation=h.sql('SELECT generation FROM provisiond.startup_generation')
+            deaths=len(current('driver_dead'))
+            # This one statement both verifies idle attribution and terminates
+            # only the exact lifetime-lock backend; no SyncRep backend is touched.
+            assert h.sql(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid={lock_pid} AND state='idle' AND wait_event IS DISTINCT FROM 'SyncRep'")=='t'
+            died=time.monotonic()
+            eventually(lambda:any(e['event']=='server_error_forwarded' and e['session']==lock_pid and e['sqlstate']=='57P01' for e in h.events))
+            eventually(lambda:len(current('driver_dead'))==deaths+1)
+            eventually(lambda:bool(current('startup_lock_lost')))
+            h.event('verification_stop_armed',operation=op,claim_number=1,window=path,
+                    held_request=held,order_stages=[e['stage'] for e in order],
+                    expected_identifiers=expected,lock_session=lock_pid,generation=generation,
+                    attributed_driver_deaths=1,forwarded_sqlstate='57P01',setup_readiness_completed=True,provider_call_seconds=5)
+            # Keep the provider held through the shielded record and executable
+            # exit. A timeout/error outcome cannot satisfy the cut-off assertions.
+            eventually(lambda:p.poll() is not None,seconds=3)
+            p.wait(timeout=1)
+            events=current();records=operation_events(w,op)
+            starts=[e for e in events if e.get('event')=='stop_record_started' and e.get('operation')==op]
+            finished=[e for e in events if e.get('event')=='stop_record_finished' and e.get('operation')==op]
+            outcomes=[e for e in events if e.get('event')=='stop_record_outcome' and e.get('operation')==op]
+            assert p.returncode!=0 and len(starts)==1 and starts[0]['bound_ms']==1000
+            assert not starts[0].get('existing_settlement',False)
+            assert len(outcomes)==1 and outcomes[0]['claim_number']==1
+            assert len(finished)==1 and finished[0]['landed'] is True and finished[0]['affected'] is True
+            assert not any('stop bound expired' in json.dumps(e) for e in events)
+            assert hold.exists() and not any(e['stage']=='request_released' or e['path']=='/constraints' for e in records)
+            assert not any(e['path']=='/'+path and e['stage'] in ('read_response_returned','verification_identifiers_returned','verification_fault_returned') for e in records)
+            loss_index=next(i for i,e in enumerate(events) if e.get('event')=='startup_lock_lost')
+            assert not any(e.get('event')=='claim_attempt_started' for e in events[loss_index+1:])
+            assert h.sql('SELECT generation FROM provisiond.startup_generation')==generation
+            stored=state(w,op)
+            view=w.operation_reads(t,op,'conflict',False)
+            assert stored['status']=='needs_reconciliation' and stored['claim']==1
+            assert stored['error']['details']['reason']=='cut_off'
+            h.event('verification_stop_handoff_observed',operation=op,claim_number=1,window=path,
+                    engine_exit=p.returncode,harness_terminated_engine=False,
+                    elapsed_from_termination_ms=round((time.monotonic()-died)*1000),
+                    stop_record=starts[0],acknowledged_record=finished[0],
+                    pending_provider_request_unreleased=True,expected_identifiers=expected,
+                    stored_error=stored['error'],detail_list_equal=True,unchanged_generation=True)
+            # Deliberately first among the new handoff fields: the old generic
+            # stop producer reaches durable cut-off but lacks accepted/attempted
+            # too. Its red must name the identifier loss, not those later checks.
+            assert stored['error']['details'].get('provider_identifiers')==expected, 'OPS-13 survived verification stop must preserve learned provider identifiers in stored error.details'
+            assert stored['error']==view['error'] and stored['error']['details']['accepted'] is True
+            assert stored['error']['details']['attempted']=='create_machine'
+            assert stored['summary']==dict(admitted['summary'],correlator={'kind':'operation_uuid','value':op})
+            assert stored['correlator']==op and stored['summary']['offer']['offer_id']=='test-small'
+            assert stored['summary']['setup_fee'] and stored['summary']['first_unit']
+            assert stored['request_purged'] and stored['result'] is None and stored['machine'] is None
+            assert stored['reserved']==admitted['reserved']==43 and stored['commitment_state']=='open' and stored['debits']==0
+            assert 'request' not in view and 'TEST_ONLY_SECRET_MARKER' not in json.dumps(view)
+            assert h.sql(f"SELECT count(*) FROM provisiond.machines WHERE provider_account='{account}' AND external_id='{created}'")=='0'
+            count=h.sql('SELECT count(*) FROM provisiond.operations')
+            hold.unlink()
+            # request_released precedes the handler's remaining durable writes.
+            # Snapshot independent effects only after that exact read finishes.
+            eventually(lambda:any(e['path']=='/'+path and e['stage']=='verification_read_finished' for e in operation_events(w,op)))
+            records=operation_events(w,op)
+            w.start_engine()
+            assert state(w,op)==stored and w.operation_reads(t,op,'conflict',False)==view
+            w.stop_engine()
+            assert operation_events(w,op)==records and h.sql('SELECT count(*) FROM provisiond.operations')==count
+            assert created in w.external()['resources']
+            assert h.sql(f"SELECT count(*) FROM provisiond.machines WHERE provider_account='{account}' AND external_id='{created}'")=='0'
+            h.event('verification_stop_survives_restart',operation=op,window=path,state=stored,
+                    unchanged_operation_count=int(count),orders=1,created_resources=1,second_purchase=False)
+            h.results.append(dict(test='W4-verification-stop-'+path,result='pass'))
+        finally:
+            if hold.exists():hold.unlink()
+            w.stop_engine()
+            h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(original_descriptor),account))
+            h.event('verification_stop_fixture_recovered',operation=op,window=path,hold_released=True,
+                    engine_reaped=p is None or p.poll() is not None)
+
+
 def lock_dispatch(w):
     """CNF-366 extension: a real claim COMMIT in SyncRep cannot starve observation."""
     for mode in ('syncrep','late_claim','empty_claim'):

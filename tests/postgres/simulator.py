@@ -158,7 +158,14 @@ def main():
                     record('verification_identifiers_returned',source='search',identifiers=[r['external_id'] for r in found],**identity)
                     if mode=='search_malformed':found.append({})
                     if mode.startswith('search_'):record('verification_fault_returned',mode=mode,**identity)
-                self.reply({'authoritative':mode!='search_non_authoritative','resources':found});return
+                if mode=='normal' and (args.root/'hold-get').exists():
+                    # OPS-21/13: publish the selected IDs before this reply can
+                    # license get. The subsequent held get proves receipt; this
+                    # event alone does not claim successful response delivery.
+                    record('verification_identifiers_selected',source='search',identifiers=[r['external_id'] for r in found],**identity)
+                returned=self.reply({'authoritative':mode!='search_non_authoritative','resources':found})
+                if held:record('verification_read_finished',reply_returned=returned,**identity)
+                return
             if self.path in ['/get','/constraints']:
                 record('read_only',**identity)
                 resource=state['resources'].get(body['external_id'])
@@ -168,8 +175,9 @@ def main():
                         self.reply({'error':{'kind':'not_found','message':'controlled read failure','retryable':False,'details':{'accepted':False,'status':404}}});return
                     record('verification_identifiers_returned',source='get',identifiers=[resource['external_id']],**identity)
                     self.reply(dict(resource,present=False));return
-                if self.reply(resource if self.path=='/get' else {'earliest_cancellation_date':time.strftime('%Y-%m-%dT00:00:00Z',time.gmtime())}):
-                    record('read_response_returned',**identity)
+                returned=self.reply(resource if self.path=='/get' else {'earliest_cancellation_date':time.strftime('%Y-%m-%dT00:00:00Z',time.gmtime())})
+                if returned:record('read_response_returned',**identity)
+                if self.path=='/get' and held:record('verification_read_finished',reply_returned=returned,**identity)
                 return
             if self.path=='/delete':
                 state['resources'].pop(body['external_id'],None);record('resource_deleted',resource=body['external_id'],**identity);self.reply({'gone':True});return
