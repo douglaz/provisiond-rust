@@ -75,6 +75,14 @@ fn as_error(e: anyhow::Error) -> Error {
 // WIR-34's closed operator list is method-scoped. WIR-29/30 share customer
 // paths and select their customer projection through ordinary authentication.
 fn operator_route(method: &str, path: &str) -> bool {
+    // These reserved namespaces have no customer verbs. Keep their existing
+    // hiding, including namespace roots, independently of credential state.
+    if path == "/v1/provider-accounts"
+        || path.starts_with("/v1/provider-accounts/")
+        || path.starts_with("/v1/tenants/")
+    {
+        return true;
+    }
     let parts: Vec<_> = path.split('/').collect();
     matches!(
         (method, parts.as_slice()),

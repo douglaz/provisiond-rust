@@ -67,7 +67,8 @@ def overpayment(w):actual_credit(w,True)
 def operator_hiding(w):
     from w4_regressions import funded
     active=funded(w,'operator-hiding');pending=w.enrol()
-    routes=[('GET','/v1/episodes'),('GET','/v1/episodes/id'),
+    routes=[('GET','/v1/provider-accounts'),('GET','/v1/tenants/id'),
+        ('GET','/v1/episodes'),('GET','/v1/episodes/id'),
         ('POST','/v1/episodes/id/actions/retry'),('POST','/v1/episodes/id/actions/keep'),
         ('GET','/v1/address-resolution'),('GET','/v1/machines/id/attachments'),
         ('POST','/v1/machines/id/attachments/attachment/actions/release'),
