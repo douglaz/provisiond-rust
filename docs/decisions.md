@@ -721,6 +721,43 @@ existing controlled network failure; its exit 1 and cleanup pass remain recorded
 identities and logs. Earlier D-18–D-23 measurements retain their historical tested commits;
 the linked final bundle now tests this correction. D-6/7/8/9 remain Open.
 
+### D-25. Consistent reconciliation-pending retryability
+
+**Measured 2026-11-08.** WIR-9b/API-51 require a reconciliation-pending operation and its error
+to advise `retryable: false`. `Engine::restart_pass` now generates false in the ordinary branch
+that moves a marked create to `needs_reconciliation`; its read-only refresh exception retains true.
+The separate null-marker failed-create branch retains true, as OPS-15 requires. Both producers
+retain their complete inner error and COALESCE preservation under OPS-16. No stored-error rewrite,
+state transition, marker, claim/generation guard, revision/result, dispatch, accounting or timing
+policy changed. D-24's earlier broad retryability preservation did not verify this equality; this
+entry corrects that generated advice against the pinned contract.
+
+`Workflow.operation_reads` requires every non-null error's boolean retryability to equal the
+authoritative operation view and the expected case value, with false for `needs_reconciliation`.
+The existing marked-create scenario observes the acknowledged step-8 marker while step 9 is held,
+real process termination with signal 15 and unchanged running claim, then the successor's completed
+one-row restart pass. Both authenticated HTTP endpoints show the same error/correlation and false
+advice, with the original 43-sat reserve, no machine/debit and no key/order call. Null-marker restart
+and worker-recorded failure still demonstrate failed/full-release/true advice. The selector
+`--phase workflow --case w4_restart_error` now includes these existing arms as well as preflight
+exhaustion; no new runtime fault or service route was introduced.
+
+**Recorded basis:** committed runtime/fixtures `0d8f775e9871a0f3f6e5b8bb49f55cb6f9e5f18f`, unchanged
+specification pin; PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and
+tokio-postgres 0.7.18. `nix develop --command bash tools/check.sh` exited 0.
+`PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
+--evidence <run-dir>/final-complete.json` exited 0 across all nine phases: 139 pass results,
+30 recognized intended-negative controls and successful cleanup. All 54 operational hashes match
+the clean tested commit. The pre-commit focused restart selector exited 0 on identical operational
+bytes. On unchanged `8104047` runtime with only that workflow fixture overlaid, it exited 1 at the
+intended HTTP retryability equality assertion after both actual responses and crash/restart were
+observed; cleanup passed. All 31 runtime/migration/dependency/pin hashes match the original, and
+the fixture hash matches the final commit. [Original-runtime red](../evidence/w4/red-restart-retryability.json),
+[workflow](../evidence/w4/final-workflow.json), [source](../evidence/w4/tested-source.json),
+[validation](../evidence/w4/validation.json) and [report](../evidence/w4/report.md) retain exact
+identities, commands, log hashes, fault observations and limits. Earlier red identities remain;
+there are 28 runtime regressions and one separate tooling regression. D-6/7/8/9 remain Open.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |

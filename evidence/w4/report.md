@@ -1,7 +1,7 @@
 # Local funding-to-provisioning evidence
 
 Recorded 2026-11-08. The loopback simulator workflow is implemented and demonstrated on committed
-runtime/fixtures `3eeac6fd677f37a4e11e525ba9acb8f2fc63a39f`, against specification
+runtime/fixtures `0d8f775e9871a0f3f6e5b8bb49f55cb6f9e5f18f`, against specification
 `ac37c7cae5d3ff746515137774a4cdd5a3531375`. This remains a pre-conformance prototype.
 
 The HTTP path obtains a delayed admission token, enrols a pending tenant, requests one deposit,
@@ -31,7 +31,7 @@ every final phase;
 every runtime, migration, fixture, dependency and tool hash matches the commit. The
 [tested source](tested-source.json) records the clean verification tree and exact tested files. Later
 documentation/evidence edits preserve the tested runtime, migrations, fixtures, dependencies and tooling.
-The [publication audit](publication-audit.json), command `python3 <run-dir>/round5-sskh_2j6/audit-publication.py`,
+The [publication audit](publication-audit.json), command `python3 <run-dir>/round6-fl8vmyru/audit-publication.py`,
 exited 0 after checking all 54 runtime/fixture hashes against the commit, result inventories, cleanup,
 local links and credential/private-path/name leakage.
 
@@ -57,14 +57,42 @@ The nixpkgs pin is `aff8a0b28396750446e5537a96461bc4facdb287`; manifests contain
 versions and configuration. This is one primary and one synchronous physical standby on one host,
 not evidence of separate failure domains or production fencing/capacity.
 
+## Reconciliation-pending retryability
+
+WIR-9b/API-51 make the operation view authoritative and require false for
+`needs_reconciliation`. The restart producer now generates `retryable: false` for an unresolved
+create, preserving OPS-16's existing-error rule and the null-marker failed-create exception's true
+advice. Classification, money, markers, guards, revisions, external calls and bounds are unchanged.
+The shared HTTP helper requires the error and view to agree as well as match each expected outcome.
+
+[The original-runtime red](red-restart-retryability.json) exited 1 at the intended equality
+assertion on unchanged `8104047507bd696b742d2923384781036130e568` runtime. One workflow-only
+overlay matches the final committed fixture; all 31 runtime/migration/dependency/pin hashes match
+the original source. Its patch and build identities are retained. The create was independently
+HTTP-enrolled, funded and admitted. Its marker and licensing acknowledgement were observed at the
+step-9 hold; signal 15 actually terminated the engine, leaving the running claim unchanged. The
+successor completed its one-row restart pass. Both authenticated endpoint responses were captured
+before the assertion: view false, error true, with the same operation/correlation, 43 sats reserved,
+no machine/debit and no key/order call. Cleanup passed. This is an earned runtime regression,
+separate from the thirty sensitivity controls and the earlier error-shape regressions.
+
+The same focused command, `nix develop --command python3 tests/postgres/harness.py --phase workflow
+--case w4_restart_error --seed 20261106 --evidence <run-dir>/focused-retryability.json`, with slot
+55500, exited 0 on the corrected pre-commit bytes. The final canonical run independently tested
+those committed operational hashes. The marked-create error/view are both false; null-marker
+restart and live pre-step-9 worker failure remain failed, fully released and true. Accepted-provider
+ambiguity, survived cut-offs and successful null-error reads retain their existing correct advice.
+The existing restart selector includes these arms; canonical execution already reaches them.
+
 ## Complete operation error objects
 
 WIR-9/10b and DOM-17 require an operation's non-null error to contain exactly `kind`, `message`,
 `retryable` and `details`. Both ordinary-restart branches now include an empty details object;
 survived-stop recording uses the existing wire error constructor to supply a nonempty human message.
-The kind, retryability and cut-off reason remain unchanged. OPS-16 preserves an existing stored
-error and its evidence. Classification, markers, revision/result behavior, claim/generation guards,
-redaction, money, retry/stop bounds and external dispatch are unchanged.
+The kind and cut-off reason remain unchanged. The retryability correction above follows the
+pinned precedence; OPS-16 preserves an existing stored error and its evidence. Classification,
+markers, revision/result behavior, claim/generation guards, redaction, money, retry/stop bounds
+and external dispatch are unchanged.
 
 The HTTP-funded/admitted preflight exhaustion/restart and survived-stop arms read the completed
 outcome through both authenticated operation endpoints. The shared assertion captures detail and
@@ -80,9 +108,10 @@ each exited 1 at the intended HTTP shape assertion with cleanup pass. Both authe
 show the missing field: details on restart, message on stop. All 31 runtime/migration/dependency/pin
 hashes match `758649f72411022476236b369a95685052e1e955`; only three observation fixtures changed in
 the live handoff checkout before the runtime fix. The manifests preserve their exact dirty fixture
-identities. The shared HTTP assertion is unchanged in final fixtures; the audit reconstructs the
-original overlay hashes from the first implementation commit, excluding two later checks in other
-cases. These are original-runtime regressions, separate from the thirty sensitivity controls.
+identities. The original shape-check logic remains in the stronger final helper. The audit
+reconstructs those original overlay hashes from the first implementation commit, excluding two
+later checks in other cases; the original manifests retain their historical fixture identities.
+These are original-runtime regressions, separate from the thirty sensitivity controls.
 The focused `--phase workflow --case w4_restart_error` and `w4_stop_error` selectors isolate the
 existing arms, with no new fault scenario. The five-arm preflight, ambiguous-stop and full-workflow
 focused commands exited 0; final nine-phase verification independently tested committed source.
@@ -100,7 +129,7 @@ Five final HTTP-funded/admitted cases prove the fault activates on the intended 
 Two or more failed transports leave the same claim running, 43 sats reserved, no marker/debit
 and no provider request. Recovery at each site completes steps 1–9 once and makes exactly one
 order before normal atomic settlement and keyed replay. The sustained account-read fault produces
-34 failed transports and real engine exit 1, with the exhaustion diagnostic and 2002 ms accounted
+34 failed transports and real engine exit 1, with the exhaustion diagnostic and 2033 ms accounted
 against its 2000 ms bound. The operation remains running until ordinary restart classifies it
 under OPS-15's null-marker exception, releasing the commitment without any debit or provider call.
 A survived stop during tenant-read retry records failed/cut_off under the existing 1000 ms bound,
@@ -147,8 +176,8 @@ All 30 runtime/migration/dependency hashes match `d62e1f4` (runtime-equivalent t
 six fixture-only overlays supply observation/testing. It ran in the unchanged handoff runtime before
 the correction. The pre-commit focused observation and regression-sequence commands then each
 exited 0; [validation](validation.json) retains their distinct dirty-source identities and log hashes.
-Together with the preserved 23 earlier reds, the preflight-store red and the two operation-error
-reds, there are 27 original-runtime regressions.
+Together with the preserved 23 earlier reds, the preflight-store red, the two operation-error
+shape reds and the restart retryability red, there are 28 original-runtime regressions.
 
 The default API startup check now builds into a separate target directory. Effective configuration
 records API/engine/migrator executable hashes and feature lists; invocation events identify the
@@ -291,6 +320,8 @@ Only sanitized manifests and summaries are committed. Raw protocol/application l
 backups and private responses remain in the isolated owned test area; each published trace/log has
 its retained hash. Historical W3 evidence keeps its original identity.
 
-Deferred cosmetic suggestions remain optional: draft overlay explanation, the one-host fixture's
-clock-domain sentence, default-feature workflow labeling, operator trace provenance labeling and
-the `invalid_settlements` mode name. They create no additional task or acceptance obligation.
+Optional presentation suggestions left unchanged: distinct human restart messages; an explicit
+successful-result check in the null-error helper; separate documentation hash lists; fixture
+clock-domain/default-feature labels; operator trace provenance; the invalid-settlement mode name;
+per-unit retry-budget wording; last-error diagnostics/stderr duplication; stop-count pairs; and
+redundant aggregate identity fields. These add no acceptance obligation or tracker item.
