@@ -122,10 +122,26 @@ class Workflow:
     def external(self):return http(self.h.ports[5],'GET','/inspect')[1]
     def request(self,method,path,body=None,tenant=None,key=None,raw=None,status=200,headers=None):
         token=tenant['spending_token'] if isinstance(tenant,dict) else tenant
-        code,value,hs=http(self.h.ports[4],method,path,body,token,key,raw,headers)
+        for attempt in range(1,4):
+            code,value,hs=http(self.h.ports[4],method,path,body,token,key,raw,headers)
+            for k in ['X-Correlation-Id','Access-Control-Allow-Origin','Access-Control-Expose-Headers','Vary']:assert k in hs,(k,hs)
+            if code>=400:assert set(value)=={'error','correlation_id'} and set(value['error'])=={'kind','message','retryable','details'}
+            # WIR-3/9: an ordinary idempotent client may resend a retryable
+            # checkout refusal after its pacing hint. Fault assertions and
+            # defect controls always observe the first response directly.
+            retry=(code==503 and status in (200,202) and method=='POST' and path in ('/v1/deposits','/v1/machines') and token and key
+                and self.defect is None and not any(not g.released.is_set() for g in self.h.proxy.gates)
+                and value['error']['kind']=='overloaded' and value['error']['retryable'] is True)
+            if not retry or attempt==3:break
+            hint=value['error']['details']['retry_after_ms']
+            assert type(hint) is int and hint>0
+            assert hs['Retry-After'].isascii() and hs['Retry-After'].isdecimal() and int(hs['Retry-After'])==(hint+999)//1000
+            delay=max(hint,int(hs['Retry-After'])*1000)
+            if delay>1000:break  # bounded fixture client; never shorten server pacing
+            data=raw if raw is not None else json.dumps(body).encode() if body is not None else b''
+            self.h.event('http_client_checkout_resend',attempt=attempt,method=method,target=path,response_status=code,correlation_id=value['correlation_id'],retry_after_ms=hint,wait_ms=delay,key_sha256=hashlib.sha256(key.encode()).hexdigest(),body_sha256=hashlib.sha256(data).hexdigest(),same_request=True)
+            time.sleep(delay/1000)
         assert code==status,(method,path,code,value)
-        for k in ['X-Correlation-Id','Access-Control-Allow-Origin','Access-Control-Expose-Headers','Vary']:assert k in hs,(k,hs)
-        if code>=400:assert set(value)=={'error','correlation_id'} and set(value['error'])=={'kind','message','retryable','details'}
         return value
     def enrol(self):
         token=self.request('POST','/v1/enrol/token',{})
