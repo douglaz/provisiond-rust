@@ -14,6 +14,8 @@ def main():
     ap.add_argument('--port',type=int,required=True)
     ap.add_argument('--root',type=Path,required=True)
     ap.add_argument('--kind',choices=['provider','rail'],required=True)
+    ap.add_argument('--concurrent-order-barrier',action='store_true',
+                    help='test-only: overlap two acceptances and allocations')
     args=ap.parse_args()
     args.root.mkdir(exist_ok=True)
     events=args.root/'effects.jsonl'
@@ -35,6 +37,11 @@ def main():
             with events.open('a') as f:
                 f.write(json.dumps(e,sort_keys=True)+'\n');f.flush();os.fsync(f.fileno())
             return e
+    # W4 independent-effect evidence for OPS-27/PRV-26: force both orders
+    # through acceptance before allocation, then both allocations before creation.
+    # No lock is held while waiting; ordinary simulator invocations have no barrier.
+    accepted_pair=threading.Barrier(2,timeout=5,action=lambda:record('acceptance_overlap',parties=2))
+    allocated_pair=threading.Barrier(2,timeout=5,action=lambda:record('allocation_overlap',parties=2))
     class Handler(BaseHTTPRequestHandler):
         protocol_version='HTTP/1.1'
         def log_message(self,*_):pass
@@ -64,7 +71,10 @@ def main():
                                 self.reply({'refused':'simulator invoice is not payable'});return
                         state['settlements'].append(value);record('rail_observation',value=value)
                 self.reply({'ok':True});return
-            if self.path=='/inspect':self.reply({'events':list(map(json.loads,events.read_text().splitlines())) if events.exists() else [],'resources':state['resources'],'keys':state['keys']});return
+            if self.path=='/inspect':
+                with lock:
+                    snapshot={'events':list(map(json.loads,events.read_text().splitlines())) if events.exists() else [],'resources':dict(state['resources']),'keys':dict(state['keys'])}
+                self.reply(snapshot);return
             if self.path=='/cancel':
                 invoice=body['invoice']
                 settled=any(v.get('destination')==invoice and v.get('rail')=='lightning' and v.get('settled') and v.get('preimage_known') for v in state['settlements'])
@@ -101,8 +111,12 @@ def main():
                     self.reply({'error':{'kind':'authentication','message':'TEST_ONLY_SECRET_MARKER','retryable':False,'details':{'accepted':False,'api_key':'TEST_ONLY_SECRET_MARKER','nested':[{'password':'TEST_ONLY_SECRET_MARKER'}]}}});return
                 if mode=='reject_order':
                     self.reply({'error':{'kind':'authentication','message':'controlled order rejection','retryable':False,'details':{'accepted':False}}});return
-                record('accepted',**identity)
-                external='SIMULATOR-RESOURCE-'+str(sequence)
+                accepted=record('accepted',**identity)
+                if args.concurrent_order_barrier:accepted_pair.wait()
+                # PRV-26/OPS-27 test evidence: the fsync'd acceptance owns this
+                # identity. A later global sequence can belong to another order.
+                external='SIMULATOR-RESOURCE-'+str(accepted['sequence'])
+                if args.concurrent_order_barrier:allocated_pair.wait()
                 resource={'external_id':external,'account':body['account'],'correlator':body['correlator'],'channel':body['channel'],'name':body['request']['hostname'],'region':body['request'].get('region'),'state':'running','public_ips':[],'present':True}
                 with lock:
                     state['resources'][external]=resource
