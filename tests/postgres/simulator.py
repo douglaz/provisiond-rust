@@ -31,7 +31,7 @@ def main():
         nonlocal sequence
         with lock:
             sequence+=1
-            e=dict(sequence=sequence,stage=stage,**value)
+            e=dict(sequence=sequence,timestamp=time.time(),stage=stage,**value)
             with events.open('a') as f:
                 f.write(json.dumps(e,sort_keys=True)+'\n');f.flush();os.fsync(f.fileno())
             return e
@@ -81,7 +81,10 @@ def main():
             identity=dict(command=operation,account=body.get('account'),correlator=body.get('correlator'),path=self.path)
             record('request_received',**identity)
             hold=args.root/('hold-'+self.path.strip('/'))
+            held=hold.exists()
+            if held:record('request_held',**identity)
             while hold.exists():time.sleep(.002)
+            if held:record('request_released',**identity)
             mode=state['mode']
             if self.path=='/offers':record('read_only',**identity);self.reply(state['offers'].get(body['account'],[]));return
             if self.path=='/keys':
@@ -119,7 +122,9 @@ def main():
             if self.path in ['/get','/constraints']:
                 record('read_only',**identity)
                 resource=state['resources'].get(body['external_id'])
-                self.reply(resource if self.path=='/get' else {'earliest_cancellation_date':time.strftime('%Y-%m-%dT00:00:00Z',time.gmtime())});return
+                if self.reply(resource if self.path=='/get' else {'earliest_cancellation_date':time.strftime('%Y-%m-%dT00:00:00Z',time.gmtime())}):
+                    record('read_response_returned',**identity)
+                return
             if self.path=='/delete':
                 state['resources'].pop(body['external_id'],None);record('resource_deleted',resource=body['external_id'],**identity);self.reply({'gone':True});return
             self.reply({'error':{'kind':'unsupported','message':'test route unsupported','retryable':False,'details':{'accepted':False}}})

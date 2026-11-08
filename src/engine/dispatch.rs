@@ -397,6 +397,9 @@ impl Engine {
                 })
         })
         .await?;
+        // WIR-11/STO-48: this read establishes state. OPS-21/49 retain its
+        // instant with the verified outcome across constraint I/O and settlement.
+        let observed_at = chrono::Utc::now();
         if machine["present"] != true {
             return Err(Error::new(
                 "provider",
@@ -424,6 +427,7 @@ impl Engine {
             external_id: external.clone(),
             earliest_date: date,
             machine,
+            observed_at,
         }))
     }
 }

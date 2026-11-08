@@ -22,6 +22,7 @@ pub enum Outcome {
         external_id: String,
         earliest_date: Option<String>,
         machine: Value,
+        observed_at: chrono::DateTime<chrono::Utc>,
     },
     VerifiedCreate {
         external_id: String,
@@ -1001,6 +1002,7 @@ async fn apply_outcome(tx: &mut Transaction, c: &Claim, outcome: &Outcome) -> Re
             external_id,
             earliest_date,
             machine,
+            observed_at,
         } => {
             if !tx
                 .settle_verified_create(c, external_id, earliest_date.as_deref())
@@ -1008,7 +1010,7 @@ async fn apply_outcome(tx: &mut Transaction, c: &Claim, outcome: &Outcome) -> Re
             {
                 return Ok(false);
             }
-            tx.attach_details(c, machine).await?;
+            tx.attach_details(c, machine, observed_at).await?;
             Ok(true)
         }
         Outcome::VerifiedCreate {

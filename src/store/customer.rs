@@ -91,8 +91,14 @@ impl super::Transaction {
     }
 }
 impl super::Transaction {
-    /// OPS-27/LDG-38/39/72: the verified observation and paid-first-unit seed share settlement.
-    pub(crate) async fn attach_details(&mut self, c: &super::Claim, machine: &Value) -> Result<()> {
+    /// OPS-27/WIR-11/STO-48: persist the read's instant with the verified state.
+    /// LDG-38/39/72: the first seed separately uses this billable creation's instant.
+    pub(crate) async fn attach_details(
+        &mut self,
+        c: &super::Claim,
+        machine: &Value,
+        observed_at: &chrono::DateTime<chrono::Utc>,
+    ) -> Result<()> {
         if !self.engine_fenced {
             self.failed = true;
             anyhow::bail!("engine-only transaction requires generation fence");
@@ -145,7 +151,8 @@ impl super::Transaction {
             .as_i64()
             .context("unit seconds")?;
         let seed_seconds = if row.get::<_, bool>(2) { seconds } else { 0 };
-        self.rows("UPDATE provisiond.machines SET name=$2,region=$3,public_ips=$4::text::jsonb,state=$5,state_observed_at=transaction_timestamp(),correlator_kind='operation_uuid',correlator_value=$6,customer_rate_num=$7,customer_rate_den=$8,protected_sats=$9,meter_seed_at=transaction_timestamp()+$10::bigint*interval '1 second' WHERE id=$1::text::uuid AND state_observed_at IS NULL RETURNING id",&[&id,&machine["name"].as_str(),&machine["region"].as_str(),&machine["public_ips"].to_string(),&machine["state"].as_str().unwrap_or("unknown"),&c.id,&customer_num,&customer_den,&protected,&seed_seconds]).await?;
+        let observed_at = observed_at.to_rfc3339_opts(chrono::SecondsFormat::Micros, true);
+        self.rows("UPDATE provisiond.machines SET name=$2,region=$3,public_ips=$4::text::jsonb,state=$5,state_observed_at=$11::text::timestamptz,correlator_kind='operation_uuid',correlator_value=$6,customer_rate_num=$7,customer_rate_den=$8,protected_sats=$9,meter_seed_at=transaction_timestamp()+$10::bigint*interval '1 second' WHERE id=$1::text::uuid AND state_observed_at IS NULL RETURNING id",&[&id,&machine["name"].as_str(),&machine["region"].as_str(),&machine["public_ips"].to_string(),&machine["state"].as_str().unwrap_or("unknown"),&c.id,&customer_num,&customer_den,&protected,&seed_seconds,&observed_at]).await?;
         self.rows("INSERT INTO provisiond.meter_totals(subject_kind,subject_id,billing_period,high_water_mark) SELECT 'machine',id,to_char(transaction_timestamp() AT TIME ZONE 'UTC','YYYY-MM'),meter_seed_at FROM provisiond.machines WHERE id=$1::text::uuid ON CONFLICT DO NOTHING RETURNING subject_id",&[&id]).await?;
         if price.is_some() {
             self.rows("UPDATE provisiond.machines m SET runway_until=greatest(transaction_timestamp(),meter_seed_at)+CASE WHEN customer_rate_num>0 THEN floor(greatest(0,c.reserved_sats-protected_sats)::numeric*customer_rate_den/customer_rate_num)::bigint ELSE 0 END*interval '1 second' FROM provisiond.commitments c WHERE m.id=$1::text::uuid AND c.machine_id=m.id AND c.state='open' RETURNING m.id",&[&id]).await?;

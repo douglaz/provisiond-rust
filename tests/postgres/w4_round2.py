@@ -109,15 +109,20 @@ def api_events(p):
 def startup(w):
     # Default binary, no retry for negative startup. Schema-only needs no service values.
     w.api.terminate();w.api.wait(timeout=5)
-    w.h.run(['cargo','build','--bin','api','--locked'],timeout=120)
+    target=w.h.root/'default-startup-target'
+    w.h.run(['cargo','build','--bin','api','--locked','--target-dir',str(target)],timeout=120)
+    executable=target/'debug/api'
+    identity=w.build_identity(executable,[])
+    w.h.config['workflow']['builds']['default_startup_api']=identity
     base=dict(w.h.env,**environment(w.h),PROVISIOND_LOCAL_PARAMETERS=str(w.parameters),
               PROVISIOND_API_LISTEN=f'127.0.0.1:{w.h.ports[4]}',
               PROVISIOND_RAIL_SIMULATOR=f'127.0.0.1:{w.h.ports[6]}')
     def run(name,env,args=()):
         log=w.h.root/(name+'.stdout');err=w.h.root/(name+'.stderr')
         with log.open('w') as out,err.open('w') as errors:
-            p=subprocess.Popen([str(w.h.target/'debug/api'),*args],env=env,stdout=out,stderr=errors,text=True)
+            p=subprocess.Popen([str(executable),*args],env=env,stdout=out,stderr=errors,text=True)
         p.name='api';p.log=log;p.error=err;w.children.append(p);w.h.extra.append(p)
+        w.h.event('workflow_binary_started',component='api',case=name,**identity)
         eventually(lambda:p.poll() is not None or any(e['event']=='api_listening' for e in api_events(p)))
         return p
     for var in ['PROVISIOND_RAIL_SIMULATOR','PROVISIOND_API_LISTEN']:
@@ -136,6 +141,7 @@ def startup(w):
     env=dict(base)
     for var in ['PROVISIOND_LOCAL_PARAMETERS','PROVISIOND_API_LISTEN','PROVISIOND_RAIL_SIMULATOR']:env.pop(var,None)
     p=run('schema-only-without-service',env,['--check-schema']);assert p.wait(timeout=5)==0
+    assert w.build_identity(w.h.target/'debug/api',w.builds['api']['features'])==w.builds['api']
     w.launch_api();w.request('OPTIONS','/v1/machines')
     w.h.results.append(dict(test='W4-required-startup-configuration',result='pass',default_binary=True,negative_cases=8))
 

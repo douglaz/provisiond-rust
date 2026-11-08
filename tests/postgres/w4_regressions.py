@@ -309,7 +309,7 @@ def no_rate_projection(w):
     eventually(lambda:any(e.get('operation')==op and e.get('step')==9 for e in w.events('engine','dispatch_step_held')))
     w.h.sql("UPDATE provisiond.rates SET available=false WHERE currency='USD'");hold.unlink()
     w.wait_status(op,'succeeded');w.stop_engine()
-    view=json.loads(w.h.sql(f"SELECT jsonb_build_object('runway',m.runway_until,'customer_num',m.customer_rate_num,'customer_den',m.customer_rate_den,'protected',m.protected_sats,'first_unit_paid',m.first_unit_debit_id IS NOT NULL,'eligible_seed',m.meter_seed_at=m.state_observed_at+interval '3600 seconds','debits',(SELECT sum(-amount_sats) FROM provisiond.ledger_entries WHERE operation_id=o.id),'exhaustion_cancellations',(SELECT count(*) FROM provisiond.operations WHERE machine_id=m.id AND system_reason='exhausted'))::text FROM provisiond.operations o JOIN provisiond.machines m ON m.id=o.machine_id WHERE o.id='{op}'"))
+    view=json.loads(w.h.sql(f"SELECT jsonb_build_object('runway',m.runway_until,'customer_num',m.customer_rate_num,'customer_den',m.customer_rate_den,'protected',m.protected_sats,'first_unit_paid',m.first_unit_debit_id IS NOT NULL,'eligible_seed',m.meter_seed_at=m.created_at+interval '3600 seconds' AND m.state_observed_at<=m.created_at AND EXISTS(SELECT 1 FROM provisiond.meter_totals mt WHERE mt.subject_id=m.id AND mt.high_water_mark=m.meter_seed_at),'debits',(SELECT sum(-amount_sats) FROM provisiond.ledger_entries WHERE operation_id=o.id),'exhaustion_cancellations',(SELECT count(*) FROM provisiond.operations WHERE machine_id=m.id AND system_reason='exhausted'))::text FROM provisiond.operations o JOIN provisiond.machines m ON m.id=o.machine_id WHERE o.id='{op}'"))
     w.h.event('no_rate_settlement_projection_observed',operation=op,settled=True,**view)
     assert view['runway'] is None and view['customer_num'] is None and view['customer_den'] is None and view['protected'] is None,'unavailable current rate must halt runway projection'
     assert view['first_unit_paid'] and view['eligible_seed'] and view['debits']==31 and view['exhaustion_cancellations']==0
@@ -401,3 +401,7 @@ CASES['w4_offer_record']=offer_record
 
 from w4_round2 import CASES as ROUND2_CASES
 CASES.update(ROUND2_CASES)
+
+# Run after default startup/lifecycle checks to verify their build isolation too.
+from w4_observation import observation
+CASES['w4_observation']=observation

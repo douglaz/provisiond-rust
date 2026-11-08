@@ -62,6 +62,8 @@ class Workflow:
         self.rail=self.simulator('rail',6)
         self.provider_control(offers={'sim-a':[self.offer],'sim-b':[self.offer]})
         h.config['workflow']=dict(parameters=PARAMETERS,descriptor=self.descriptor,offer=self.offer,rate=self.rate,listeners=dict(api=h.ports[4],provider=h.ports[5],rail=h.ports[6]),test_build_features=[] if default_build else ['store-test-hooks'])
+        self.builds={name:self.build_identity(h.target/'debug'/name,[] if default_build else ['store-test-hooks']) for name in ['api','engine','migrate']}
+        h.config['workflow']['builds']=dict(self.builds)
         if default_build:h.config['engine']['runtime_build']['features']=[]
         h.release_port(h.ports[4])
         self.launch_api()
@@ -74,6 +76,9 @@ class Workflow:
         return p
     def start(self,name,extra=None):
         h=self.h
+        identity=self.build_identity(h.target/'debug'/name,self.builds[name]['features'])
+        assert identity==self.builds[name],'workflow executable changed after its recorded build'
+        h.event('workflow_binary_started',component=name,case=getattr(self,'case','setup'),**identity)
         if self.defect:extra=dict(extra or {},STORE_TEST_DEFECT=self.defect)
         count=sum(1 for c in self.children if getattr(c,'name',None)==name)
         log=h.root/f'{name}-{count}.stdout';err=h.root/f'{name}-{count}.stderr'
@@ -81,6 +86,8 @@ class Workflow:
             p=subprocess.Popen([str(h.target/'debug'/name)],env=dict(h.env,**environment(h),**(extra or {})),stdout=out,stderr=errors,text=True)
         p.name=name;p.log=log;p.error=err;self.children.append(p);h.extra.append(p)
         return p
+    def build_identity(self,path,features):
+        return dict(executable=str(path),sha256=hashlib.sha256(path.read_bytes()).hexdigest(),features=features)
     def restart_api(self,parameters=None):
         if self.api.poll() is None:self.api.terminate();self.api.wait(timeout=5)
         self.parameters.write_text(json.dumps(parameters or PARAMETERS))
@@ -219,10 +226,12 @@ class Workflow:
 
 def workflow(h,case=None,defect=None):
     w=Workflow(h,defect='w4_ack' if case=='w4_default' else 'payment_atomic' if defect=='w4_atomic' else defect,default_build=case=='w4_default')
+    w.case=case or 'w4_workflow'
     try:
         from w4_regressions import CASES
         if case=='w4_regressions':
-            for regression in CASES.values():regression(w)
+            for name,regression in CASES.items():
+                w.case=name;regression(w)
             return
         if case in CASES:
             CASES[case](w)
@@ -318,7 +327,8 @@ def workflow(h,case=None,defect=None):
         halt_invoice(w)
         forwarded_validation(w)
         live_provider_stop(w)
-        for regression in CASES.values():regression(w)
+        for name,regression in CASES.items():
+            w.case=name;regression(w)
     finally:w.close()
 
 
@@ -478,9 +488,9 @@ def worker_refusals(w,t):
     w.provider_control(offers={account:[zero]})
     op=w.request('POST','/v1/machines',w.create_body(t),t,'zero-unit-create',status=202)['id']
     w.start_engine();w.wait_status(op,'succeeded');w.stop_engine()
-    copied=h.sql(f"SELECT m.billing_unit_seconds||':'||(m.first_unit_debit_id IS NULL)||':'||(m.meter_seed_at=m.state_observed_at) FROM provisiond.machines m JOIN provisiond.operations o ON o.machine_id=m.id WHERE o.id='{op}'")
+    copied=h.sql(f"SELECT m.billing_unit_seconds||':'||(m.first_unit_debit_id IS NULL)||':'||(m.meter_seed_at=m.created_at AND m.state_observed_at<=m.created_at AND EXISTS(SELECT 1 FROM provisiond.meter_totals mt WHERE mt.subject_id=m.id AND mt.high_water_mark=m.meter_seed_at)) FROM provisiond.machines m JOIN provisiond.operations o ON o.machine_id=m.id WHERE o.id='{op}'")
     assert copied=='3600:true:true','zero first unit must retain billing duration without a debit'
-    h.event('zero_unit_observed',billing_seconds=3600,unit_debit=False,seed_at_observation=True)
+    h.event('zero_unit_observed',billing_seconds=3600,unit_debit=False,seed_at_creation=True,high_water_matches_seed=True)
     h.sql("UPDATE provisiond.offer_listings SET offers='%s',read_at=clock_timestamp() WHERE provider_account='%s'"%(json.dumps([w.offer]),account))
     w.provider_control(offers={account:[w.offer]})
     h.results.append(dict(test='W4-worker-first-refusals-and-zero-unit',result='pass',cases=len(cases)))
