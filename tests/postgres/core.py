@@ -528,7 +528,10 @@ def stops(h):
     started=next(e for e in p.events if e.get('event')=='stop_record_started' and e['operation']==claims[2]['id'])
     marker=len(p.events)
     h.sql(f"SELECT pg_terminate_backend({startup['lock_pid']})")
-    eventually(lambda:any(e.get('event')=='driver_dead' for e in p.events[marker:]),seconds=.2)
+    # OPS-21/47 fixture precondition: wait for client disconnection, not a
+    # 200 ms delivery assumption. The already-running 1000 ms record bound
+    # and all subsequent stop/settlement assertions remain in force.
+    eventually(lambda:any(e.get('event')=='driver_dead' for e in p.events[marker:]))
     p.send('poll_lock')
     eventually(lambda:any(e.get('event')=='startup_lock_lost' for e in p.events))
     holder.stdin.close();assert holder.wait(timeout=5)==0
