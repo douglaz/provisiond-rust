@@ -464,6 +464,144 @@ tokio-postgres 0.7.18, deadpool 0.12.3, tokio 1.54.1 and socket2 0.6.5. Runtime 
 uses `store-test-hooks`. Prior W3 evidence still demonstrates its original commit; this is a
 separate final supplement. ENG-05, ENG-07 and DB-10 remain not run; D-6/7/8/9 remain Open.
 
+### D-18. Local customer service and simulator boundaries
+
+**Measured 2026-11-08.** The `local-simulator` profile serves the customer subset listed in
+`docs/scope.md` after compatibility checks. Authentication, strict I-JSON/JCS fingerprinting,
+principal receipts, suspension and durable ceilings precede the ordered purchase tail. Failed
+ordinary authentications consume bounded source-memory traffic allowances; successful principals
+retain separate read/write budgets. Supported read configurations cover three fleet reads per
+1000 ms advertised cadence, including partial windows. Token concurrency pacing is a constant
+1000 ms independent of admission delay. No caller address is persisted.
+
+The funding side ingests trusted simulator observations through `funding::credit`; customers cannot
+credit themselves. One retained deposit accepts both payment identities and credits actual final
+amounts once. Activation and one healthy assignable account are committed with the credit. Assignment
+uses least-assigned count with account-name tie order under serialization. Activation still succeeds
+when no healthy account exists, with a diagnostic and empty assignment; later assignment sweeps remain
+deferred. Literal nonpayable TEST/SIMULATOR destinations, floors, expiry/finality and orphan limits
+are disclosed. Concurrent simulator deliveries are serially ingested by one watcher; separate-client
+core tests exercise concurrent payment transactions.
+
+One virtual hourly simulator product, unlimited traffic, no billable attachments and a current-day
+cancellation bound narrow the profile. Descriptors are immutable local configuration and must contain
+no credentials. The API has no provider client, the engine has no rail/customer credential access,
+and ledger code makes no external calls. The independent provider/rail processes keep fsync'd effect
+records outside PostgreSQL. Only fully processed fixture delivery history is cleared between unrelated
+fault windows; durable records remain. Dropped-order replies demonstrate unresolved reservation and
+no resend, not automatic reconciliation or a complete cancellation workflow.
+
+Ordinary fixture clients make at most three HTTP attempts for the same authenticated keyed
+POST deposit/create after retryable checkout overload, honoring body and HTTP pacing with at most
+one second of waiting per resend. Every replayed refusal and unchanged key/body digest is recorded.
+Expected errors, reads, enrolment,
+armed transport faults and defect builds remain direct; no engine startup or business-error retry
+is added. Six fixture-only transport checks verify these guards; PostgreSQL workflow/control
+assertions remain independent.
+
+Core fixture admission setup mirrors the existing funding setup: at most three API requests with
+the same frozen request/key, and only after a complete checkout-deadline refusal. Each refusal is
+recorded. This adds no Store-internal retry, engine startup retry or target-fault retry; business
+errors stop immediately.
+
+### D-19. Accepted native coverage and settlement evidence
+
+**Measured 2026-11-08.** `request_summary.offer.accepted_terms` retains the accepted offer, rate and
+credential-free pricing descriptor. The API also retains the admitted reserve, setup/unit authorization
+and conversion evidence. Before any driver read, step 3 recomputes their coherence with the accepted
+offer, rate and descriptor, and checks frozen strategy, cancellation and hourly copies (OPS-23).
+Twenty-six corruptions across four groups are refused before external reads. The worker compares
+current native requirements, including component offsets and billing-unit floor, against the admitted
+reserve at that accepted conversion basis. A native
+shortfall refuses with `price_moved`; exchange movement alone never grows or refuses the commitment.
+Pricing uses checked rational arithmetic, margin on machine time, one haircut/conversion on the native
+sum and upward commitment rounding.
+
+Settlement retains the authorized setup/unit satoshis. A clamped customer debit pairs with the same
+commitment decrement, carrying `floor(native * customer_debit / computed_debit)`; the deficiency carries
+the exact native remainder and never seizes available balance. It records the machine subject, provider
+account, zero absorbed seconds and the actual opening rate, permanently null if unavailable. A nonzero
+first-unit customer debit alone supplies the retained debit reference and paid-unit seed. Accepted
+settlement and seed still commit without a current rate; runway re-derivation stops with null new
+projection fields rather than using a stale rate or inventing exhaustion. Later metering/re-derivation
+remains outside this slice.
+
+### D-20. Separate acknowledged offline migrations
+
+**Measured 2026-11-08.** `Store::migrate` applies one complete SQL program and its history row per
+acknowledged transaction, including a fresh database. A lost reply after release 1 prevents speculative
+release-2 execution; a later invocation reads durable history and continues. Each migration uses the
+existing fixed advisory key and bounded lock-timeout retries. Failed initial/reconnect acquisition still
+exits immediately. Components support exactly history `1/1,2/2`, checked before listener/startup lock.
+Release 2 preserves release-1 identities, money, destinations and completion time, and backfills existing
+machine-clamp subject evidence while preserving the renamed opening timestamp. Offline stop-everything
+and no-down-migration rules remain unchanged.
+
+The recorded local checkout setup refusals have no established cause. Ordinary API fixture setup may
+make at most three separate, recorded deployment attempts after the process exits on an exact read-only
+checkout refusal before listener/business/funding/external activity. Fault-armed, defect and negative
+startup cases, and all engine startups, remain single invocations. No runtime timeout, checkout policy,
+startup retry or production capacity is selected by this fixture handling. D-6/7/8/9 remain Open.
+
+
+Physical fixture commands have an explicit 180 s setup bound, 60 s server readiness and pg_ctl
+shutdown wait, with a 75 s shutdown command bound. Backup verification and synchronous durability
+remain enabled. Observed setup fsync exceeded 20 s, checkpoint shutdown took 21.907 s, and one base
+backup exceeded 45 s. Their cause is not established; these bounds select no application timeout,
+production retry policy or pg_receivewal hardening. Earlier failed attempts remain failures.
+
+**Recorded basis for D-18–D-20:** runtime/fixtures `62333c64032bf256c1318801ec64ecfc465aa819`, specification
+`ac37c7cae5d3ff746515137774a4cdd5a3531375`; PostgreSQL tools 18.6, Rust 1.97.1, Cargo 1.97.0,
+Python 3.14.7 and Nix 2.34.9, nixpkgs `aff8a0b28396750446e5537a96461bc4facdb287`.
+`nix develop --command bash tools/check.sh` exited 0.
+`PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
+--evidence <run-dir>/final.json` exited 0. [Gate](../evidence/w4/gate.json),
+[aggregate](../evidence/w4/final.json), [workflow](../evidence/w4/final-workflow.json),
+[core](../evidence/w4/final-core.json), [controls](../evidence/w4/final-controls.json),
+[original-runtime regressions](../evidence/w4/regressions.json) and
+[source inventory](../evidence/w4/tested-source.json) hold versions, commands, observed results,
+source hashes and cleanup. The final commands used the default Nix daemon with NIX_REMOTE/NIX_CONFIG
+unset, as recorded
+in [build environment](../evidence/w4/build-environment.json). The earlier read-only mode observations
+remain historical. No host configuration was changed and no cause for earlier checkout refusals
+is established. The [report](../evidence/w4/report.md) narrows every claim.
+
+### D-21. Trusted payment values and bounded API task ownership
+
+**Measured 2026-11-08.** LDG-47 credits the trusted final received amount on both rails, including
+Lightning values above or below the retained deposit intent. Positive safe-integer bounds, finality,
+destination/hash/outpoint binding, atomic payment/credit and payment-identity deduplication remain.
+Cumulative activation and healthy assignment share the credit transaction. WIR-34 hiding covers its
+closed method-scoped list and the existing dedicated operator namespaces; shared customer providers,
+offers and abuse-case reads retain their customer behavior, including explicit unsupported outcomes.
+
+The API validates its parameter file and positive-port loopback API/rail addresses after schema
+compatibility and before binding/readiness. `--check-schema` is independent of unused service values.
+Required watcher/housekeeping completion is selected alongside accepts; task errors and panics are
+fatal diagnostics, never a silent dead component. Failure drops the listener, cancels/joins periodic
+tasks, drains request handlers for one second, then cancels/joins the rest before dropping State/Store.
+Process shutdown retains its existing one-second bound and safety guards. A sent COMMIT is never
+cancelled with its receipt: after handler cancellation it still owns its checkout until completion,
+transport death or process exit (STO-7/55). Unresolved work at the process bound exits 1 without an
+ownership panic, with uncertainty retained. API components do not inherit OPS-49's engine retry loop.
+A separate restart after configuration/capacity repair uses ordinary keyed requests/rail replay;
+continuous availability or automatic repair is not claimed. D-6/7/8/9 remain Open.
+
+**Recorded basis:** committed runtime/fixtures `62333c64032bf256c1318801ec64ecfc465aa819`, specification
+`ac37c7cae5d3ff746515137774a4cdd5a3531375`; PostgreSQL tools 18.6, Rust 1.97.1, Cargo 1.97.0,
+Python 3.14.7, Nix 2.34.9, nixpkgs `aff8a0b28396750446e5537a96461bc4facdb287`.
+`nix develop --command bash tools/check.sh` exited 0.
+`PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
+--evidence <run-dir>/final.json` exited 0 across all nine phases, including the seven new regressions.
+[Gate](../evidence/w4/gate.json), [workflow](../evidence/w4/final-workflow.json),
+[original-runtime reds](../evidence/w4/regressions.json), [source inventory](../evidence/w4/tested-source.json)
+and [validation](../evidence/w4/validation.json) record versions, commands, exact hashes and cleanup.
+The final commands used the default Nix daemon with NIX_REMOTE/NIX_CONFIG unset. Four task-owned
+documentation drafts were dirty during the run; all runtime/fixture/tool/dependency hashes match the
+commit. A failed earlier canonical run on `6c8a1be` found missing namespace-root hiding; it is retained
+as fail. The follow-up focused route/unauthenticated checks and final canonical run exited 0. This
+settles neither the earlier cold-checkout cause nor production parameter selection.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
@@ -483,7 +621,8 @@ both client and server. Isolation is read committed; search path is `pg_catalog,
 `max_connections=24` with three reserved slots accommodates two store sessions plus bootstrap,
 fixture/observer and replication-test headroom; it is not a product capacity budget. W3 adds
 three engine worker write slots, one compatibility read slot and a dedicated startup-lock session;
-no periodic scheduler is implemented. Its Store-retry bound is 2000 ms. Production capacity,
+W3 did not implement a periodic scheduler. W4 adds local create dispatch polling; general
+maintenance/reconciliation remains deferred. The Store-retry bound is 2000 ms. Production capacity,
 retry policy, alarm thresholds and restart policy remain unselected.
 The lifecycle fixture uses a 1000 ms stop bound and exits unresolved at that bound; two complete
 read/check attempts are allowed for a broken destination-read session. These are test values,

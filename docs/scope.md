@@ -12,7 +12,7 @@ exposed as a public provisiond service, pointed at real provider accounts, or gi
 | Category | Contents | Status |
 |---|---|---|
 | Implemented behaviour | The two-node harness bootstraps/rebuilds a standby and restores an archived-WAL fixture. The store spike applies physical-session settings, checks a fixed flushed prefix before admission and after destination reads, discards interrupted reads/transactions, closes retained pre-COMMIT connections on deadline, and supervises sent COMMITs with warning-aware outcomes on process-owned I/O. The `migrate` binary applies offline versioned migrations through the same COMMIT owner. The engine checks compatibility, holds a lifetime lock, advances a UUID generation, fences transactions and performs ordinary restart recovery. Process-owned claims and defers retain worker capacity through caller cancellation. Acknowledged defer completion retires only its claim. Execution cancellation covers licensing through dispatch; stop records preserve returned outcomes and enforce absolute deadlines without a caller waiter. Concurrent observers share one lock-loss fan-out. Terminal stop records retire only their execution, report zero-row refusals accurately and return capacity after acknowledgment. Detection and user stops share a consistent ordering. Engine-only methods reject unfenced transactions. Typed library methods implement claims, guarded settlements, reservations and payment credits. | demonstrated subset; [historical W3 evidence](../evidence/w3.md), [defer supplement](../evidence/defer/report.md) |
-| Local service behaviour | Loopback customer HTTP funding/create subset, common simulated rail ingestion and automatic healthy assignment, ordered local create dispatch and verified atomic settlement. The supported path and its limits are described below. | implemented; final W4 recording pending |
+| Local service behaviour | Loopback customer HTTP funding/create subset, common simulated rail ingestion and automatic healthy assignment, ordered local create dispatch and verified atomic settlement. The supported path and its limits are described below. | demonstrated subset; [W4 evidence](../evidence/w4/report.md) |
 | Simulator-only behaviour | Deterministic acceptance/reply pause hooks and Rust simulator entries; verified-create outcomes drive the atomic settlement primitive, without real provider/rail drivers. Simulator evidence is never substituted for provider evidence. | simulator paths implemented |
 | Unsupported behaviour | Everything in "Not supported in this profile" below, and every v1 requirement not marked implemented or demonstrated in `docs/conformance-map.md`. | by design |
 | Production work not yet attempted | Real-provider drivers, rescue installation, every operation kind beyond the first slice, a customer UI, security review, key custody, billing operations, separate-host deployment rehearsal, operator runbooks, exposure limits. | not attempted |
@@ -109,6 +109,21 @@ provider reconciliation and DB-10 deployment-wide saturation also remain not run
 budgets do not guarantee observer access or bound residual backends across process lifetimes.
 
 The API serves only the explicit loopback `local-simulator` profile after schema compatibility.
+It validates required parameter files and both API/rail socket addresses before binding or reporting
+readiness. Missing, malformed, zero-port and nonloopback addresses refuse startup; standalone
+`api --check-schema` requires no unused service parameters. Dedicated operator namespaces and the
+method-scoped operator list return 404 on the customer listener, including for pending credentials.
+Shared customer methods retain their ordinary projections or explicit unsupported outcome.
+
+Periodic task errors, unexpected completion and panics are observed independently of customer
+connections. A failure closes the listener, cancels and joins both periodic tasks, and gives owned
+request handlers one second to finish before cancelling and joining the remainder. The existing
+Process then has its unchanged one-second drain bound. A sent COMMIT remains process-owned even
+after its handler is cancelled; unresolved work at that bound requires exit 1, with no rollback or
+nonexecution inferred. Ordinary background checkout exhaustion also exits 1 with its component/error
+diagnostic; it has no in-process engine retry loop. Recovery requires a separate supervisor/operator
+restart after the underlying capacity/configuration problem is addressed, followed by ordinary keyed
+request or adapter replay. This is bounded failure handling, not an availability guarantee.
 The engine dispatches queued creates after its acknowledged startup generation and ordinary restart
 pass, retaining the existing lock-loss, claim and stop ownership. Unsupported operation kinds are
 refused. This is a reduced customer service, with no real provider or rail adapter. The local
@@ -142,8 +157,9 @@ admitted operation's transaction. Replays precede suspension and ceiling refusal
 Deposits use nonpayable literal `TEST/SIMULATOR/NONPAYABLE` strings, with two independent simulator
 destinations bound to one retained deposit. Final settled Lightning and sufficiently confirmed
 on-chain observations enter one trusted internal credit boundary, using payment hash/outpoint identity
-and actual settled amounts. Nonfinal observations cannot activate or credit. Both destinations can
-credit; there is no refund. Below-threshold credits leave enrolment pending until its original expiry.
+and actual settled amounts. Trusted positive final Lightning underpayments and overpayments credit
+the received value while preserving the deposit intent. Nonfinal observations cannot activate or credit.
+Both destinations can credit; there is no refund. Below-threshold credits leave enrolment pending until its original expiry.
 Destination responses, including replay, require a new post-read flush check on the same uninterrupted
 PostgreSQL session. Orphan credit remains retained; recovery by re-attribution is unsupported here.
 
@@ -203,3 +219,24 @@ It records each actual exit and both log hashes, and repeats nothing while a tra
 armed or a defect build is selected. Engine startup and negative startup tests receive no such
 retry. These are fixture deployment attempts, not runtime recovery or a production availability
 claim; failed or unactivated fault scenarios remain failures or inconclusive observations.
+
+Physical database fixture setup has explicit 180 s command bounds for initdb, offline replication-role
+creation, pg_basebackup and pg_verifybackup; server readiness is bounded at 60 s. Backup verification,
+fsync and synchronous commit remain enabled. Fixture shutdown uses pg_ctl wait 60 s inside a 75 s
+command bound. Recorded setup fsync exceeded the old 20 s readiness bound, a checkpoint shutdown took
+21.907 s, and a later base backup exceeded the old 45 s command bound. These are fixture I/O allowances,
+not changes to the 250 ms application checkout, 1000 ms stop record or deferred pg_receivewal path.
+The cause of occasional host setup delays is not established. Failed earlier runs remain failures.
+
+The [W4 report](../evidence/w4/report.md) and source inventory record the committed runtime/fixtures
+used by the final nine-phase run. Later documentation/evidence changes preserve those hashes.
+
+For ordinary authenticated, keyed POST requests to deposits/machines that expect success, the fixture
+client makes at most three HTTP attempts with identical bytes and key after a retryable checkout
+overload. It follows both body and HTTP pacing hints, waiting at most one second per resend, and records
+every such response with correlation and key/body digests. Expected errors, reads, enrolment, armed
+transport faults and defect controls receive the first response directly. Engine startup and business
+errors gain no retry. This is test-client protocol handling, not a runtime timeout or capacity policy.
+Core fixture setup similarly makes at most three API admission requests with the same key and body,
+only after a whole-checkout refusal, mirroring its funding helper. Target fault probes and engine
+startups are direct.

@@ -83,6 +83,12 @@ implemented subset. DB-10 saturation remains not run (W8).
 
 ## Local prototype entry points
 
+The API validates its required loopback API/rail addresses before readiness, owns its periodic and
+request tasks, and exits nonzero on a failed required background component after bounded cleanup.
+Sent COMMITs retain their existing process ownership through reply, transport death or process exit.
+The [W4 evidence](evidence/w4/report.md) records actual-value funding, operator hiding, startup and
+lifecycle regressions alongside the complete local workflow; automatic reconciliation remains deferred.
+
 The named `local-simulator` profile uses D-6's provisional settings. Configure
 `PROVISIOND_PROFILE=local-simulator`, `PROVISIOND_DATABASE_URL` (private, never committed),
 `PROVISIOND_STANDBY_NAME`, `PROVISIOND_STANDBY_ROLE` and `PROVISIOND_STANDBY_ADDRESS`.
@@ -155,5 +161,9 @@ control and accepts only its intended assertion failure after activation and suc
 ENG-05 automatic reconciliation, ENG-07's dedicated replication-freeze stop-record drill and
 DB-10 saturation remain `not run` for their later work packages.
 [Historical W3 acceptance](evidence/w3.md) retains its original tested source. The
-[defer cancellation supplement](evidence/defer/report.md) records the current seven-phase run,
+[defer cancellation supplement](evidence/defer/report.md) records its seven-phase run,
 27 negative controls, original-runtime reproduction and claim-specific capacity return.
+
+[W4 local workflow evidence](evidence/w4/report.md) records the nine-phase acceptance run,
+30 activated sensitivity controls and 23 original-runtime regressions. This is a simulator-only
+pre-conformance subset; the report identifies the tested source and remaining limits.
