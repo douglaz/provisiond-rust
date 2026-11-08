@@ -14,6 +14,14 @@ def accepted(p,op):
     return [e for e in p.events if e.get('event')=='simulator_accepted' and e.get('operation')==op]
 
 
+def terminate_lock(h,p,pid):
+    # OPS-47 fixture: server termination returning is not client loss observation.
+    marker=len(p.events)
+    h.sql(f"SELECT pg_terminate_backend({pid})")
+    eventually(lambda:any(e.get('event')=='driver_dead' for e in p.events[marker:]))
+    h.event('lock_transport_death_observed',pid=pid,probe=p.index)
+
+
 def defer_cancel(h,defect=None):
     # OPS-8/6, STO-3/7/55: receipt cancellation cannot own defer retirement.
     empty_queue(h)
@@ -160,7 +168,7 @@ def queued_claim(h,defect=None,only=None):
             eventually(lambda:any(e.get('event')==waiting for e in p.events[client_marker:]))
             assert not any(e.get('event')=='send_requested' and e.get('query')=='BEGIN READ WRITE' for e in h.events[marker:])
             assert h.sql(f"SELECT status||':'||claim_number FROM provisiond.operations WHERE id='{queued}'")=='queued:0'
-        h.sql(f"SELECT pg_terminate_backend({startup['lock_pid']})")
+        terminate_lock(h,p,startup['lock_pid'])
         p.command('observe_pair');held(p,'lock_registration')
         assert any(e.get('event')=='startup_lock_lost' for e in p.events)
         pending_at_release=p.command('claim_pending')['value']['pending']
@@ -208,7 +216,7 @@ def displaced_record(h,defect=None):
         assert p.command('owners')['value']==dict(workers=1,available_slots=1)
         p.command('wait_start');eventually(lambda:any(e.get('event')=='waiter_polled' for e in p.events))
         if mode=='lock_loss':
-            h.sql(f"SELECT pg_terminate_backend({startup['lock_pid']})")
+            terminate_lock(h,p,startup['lock_pid'])
             p.command('observe_pair');held(p,'lock_registration');p.command('boundary_release')
             eventually(lambda:any(e.get('event')=='lock_registration_complete' for e in p.events))
             eventually(lambda:any(e.get('event')=='stop_record_finished' and e.get('operation')==op for e in p.events))
@@ -258,7 +266,7 @@ def loss_stop(h,defect=None):
         if window=='sent_record':
             p.command('record_stop '+op);gate.wait();original=p.command('record_state '+op)['value']
         generation=h.sql('SELECT generation FROM provisiond.startup_generation')
-        h.sql(f"SELECT pg_terminate_backend({startup['lock_pid']})")
+        terminate_lock(h,p,startup['lock_pid'])
         p.command('observe_pair');held(p,'lock_registration')
         assert any(e.get('event')=='startup_lock_lost' for e in p.events)
         assert h.sql('SELECT generation FROM provisiond.startup_generation')==generation
