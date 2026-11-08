@@ -758,6 +758,42 @@ the fixture hash matches the final commit. [Original-runtime red](../evidence/w4
 identities, commands, log hashes, fault observations and limits. Earlier red identities remain;
 there are 28 runtime regressions and one separate tooling regression. D-6/7/8/9 remain Open.
 
+### D-26. Distinct durable simulator purchases
+
+**Measured 2026-11-08.** The independent provider simulator derives each resource identity from
+that order's returned acceptance event, whose sequence was allocated and fsync'd under the existing
+lock. Reading a later shared sequence could give distinct accepted orders one resource ID and
+lose one resource from both live state and replay. Inspection now copies a coherent locked snapshot.
+Production runtime, migrations, dependencies, provider retries and accounting are unchanged;
+all 31 corresponding hashes match the preceding implementation.
+
+The explicit test-only `--concurrent-order-barrier` option overlaps two acceptances before either
+allocation, then both allocations before either creation. Ordinary invocations have no barrier.
+`nix develop --command python3 tests/postgres/harness.py --phase workflow --case w4_simulator
+--seed 20261106 --evidence <run-dir>/focused.json` exited 0 before commit on the final fixture bytes.
+Against the unchanged `06986ddeae79435f6b5499e638da5805f3c959ab` simulator with only scheduling and
+inspection hooks overlaid, the same assertion driver exited 1 at the intended distinct-resource
+assertion: two accepted commands returned one ID and retained one resource live and after restart.
+Both processes were reaped and cleanup passed. This is a tooling regression, separate from the
+28 application-runtime reds and 30 sensitivity controls. Exact sources, fixture/overlay hashes,
+commands, independent events and statuses are in [the red](../evidence/w4/red-concurrent-simulator.json)
+and [corrected evidence](../evidence/w4/simulator-concurrency.json).
+
+On committed runtime/fixtures `ddd28b18aec830287ede2b5939d95b3d00d5e169`,
+`nix develop --command bash tools/check.sh` exited 0 (12 Rust tests, fmt, clippy, spec-lock).
+`PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
+--evidence <run-dir>/final-complete.json` exited 0 across all nine phases: 140 pass results,
+30 recognized intended-negative controls, the normal funded HTTP create, dropped reply, concurrent
+simulator replay and successful cleanup. All 55 operational hashes match the tested commit.
+Versions were PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9.
+[Validation](../evidence/w4/validation.json) also preserves two earlier failed canonical attempts:
+a resource-admission test received 202/503 instead of 202/409, then a duplicate pg_receivewal
+process exceeded its existing 5-second shutdown wait. Both cleanups passed; neither failure is
+acceptance or a new earned red. No policy or fixture was changed for either repeat. The cause of
+the checkout refusal is unestablished; pg_receivewal wait hardening remains deferred.
+[Tested source](../evidence/w4/tested-source.json) and [report](../evidence/w4/report.md) retain
+identities and limits. D-6/7/8/9 remain Open.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |

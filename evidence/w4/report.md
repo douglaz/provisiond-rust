@@ -1,7 +1,7 @@
 # Local funding-to-provisioning evidence
 
 Recorded 2026-11-08. The loopback simulator workflow is implemented and demonstrated on committed
-runtime/fixtures `0d8f775e9871a0f3f6e5b8bb49f55cb6f9e5f18f`, against specification
+runtime/fixtures `ddd28b18aec830287ede2b5939d95b3d00d5e169`, against specification
 `ac37c7cae5d3ff746515137774a4cdd5a3531375`. This remains a pre-conformance prototype.
 
 The HTTP path obtains a delayed admission token, enrols a pending tenant, requests one deposit,
@@ -21,6 +21,8 @@ are literal nonpayable TEST/SIMULATOR values; no real provider, purchase or fund
 
 `nix develop --command bash tools/check.sh` exited **0** (12 Rust tests; formatting, clippy and
 spec-lock checks). [Gate](gate.json) records complete command/log hashes and dependency versions.
+`nix develop --command python3 tests/postgres/test_ports.py` exited 0 (three unit tests, including
+busy-port refusal at every offset); [unit evidence](port-unit.json) retains its separate stdout/stderr hashes.
 
 `PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106
 --evidence <run-dir>/final-complete.json` exited **0**, covering all nine required phases. Whole stdout and
@@ -31,8 +33,8 @@ every final phase;
 every runtime, migration, fixture, dependency and tool hash matches the commit. The
 [tested source](tested-source.json) records the clean verification tree and exact tested files. Later
 documentation/evidence edits preserve the tested runtime, migrations, fixtures, dependencies and tooling.
-The [publication audit](publication-audit.json), command `python3 <run-dir>/round6-fl8vmyru/audit-publication.py`,
-exited 0 after checking all 54 runtime/fixture hashes against the commit, result inventories, cleanup,
+The [publication audit](publication-audit.json), command `python3 <run-dir>/round7-_sq5ow10/audit-publication.py`,
+exited 0 after checking all 55 runtime/fixture hashes against the commit, result inventories, cleanup,
 local links and credential/private-path/name leakage.
 
 The final commands used the default Nix daemon with NIX_REMOTE and NIX_CONFIG unset, with
@@ -48,7 +50,7 @@ changed, and these tool-mode observations establish no cause for application che
 | regressions | 9 pass | 0 |
 | corrections | 8 pass | 0 |
 | core | 35 pass; 3 not run | 0 |
-| workflow | 56 pass | 0 |
+| workflow | 57 pass | 0 |
 | default-workflow | 2 pass | 0 |
 | controls | 30 expected negative demonstration | 0 |
 
@@ -56,6 +58,41 @@ PostgreSQL tools 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9 w
 The nixpkgs pin is `aff8a0b28396750446e5537a96461bc4facdb287`; manifests contain all dependency
 versions and configuration. This is one primary and one synchronous physical standby on one host,
 not evidence of separate failure domains or production fencing/capacity.
+
+## Distinct concurrent simulator resources
+
+The simulator uses each order's fsync'd acceptance-event sequence for its resource ID, preserving
+that command's account/correlator/channel association. Its inspection snapshot is locked against
+concurrent event/resource writes. Application runtime and accounting remain byte-identical to the
+preceding implementation (31 runtime/migration/dependency/pin hashes).
+
+The complete workflow includes the focused `--phase workflow --case w4_simulator` regression.
+Two loopback HTTP orders reach acceptance before either allocates; both allocations finish before
+either resource is created. Recorded barrier events establish that overlap. Each command has separate
+request-received, accepted, resource-created and response-returned stages. Inspection retains two
+resources, each correlator search yields exactly one, and each direct read has the expected identity.
+The test restarts that invocation-owned provider on the same independent durable store and repeats
+those assertions with the original resource IDs. Both child processes are reaped and the port is
+returned to the invocation's reservation before harness cleanup.
+
+[The original simulator red](red-concurrent-simulator.json) exited 1 at the intended uniqueness/
+retention assertion: two distinct accepted commands both returned `SIMULATOR-RESOURCE-5`, and
+only one resource survived live inspection and replay. Its original `06986dd` allocation/effect
+logic is unchanged; only the two scheduling barriers and coherent inspection snapshot are overlaid.
+The manifest identifies original, overlay, corrected simulator and fixture hashes, versions,
+commands, observed events and cleanup pass. The corrected pre-commit focused command exited 0;
+[committed-source evidence](simulator-concurrency.json) independently records the canonical pass.
+There are 28 original-runtime regressions and two tooling regressions (startup cleanup and concurrent
+simulator retention), separate from 30 activated sensitivity controls. Earlier original reds and
+historical W3 evidence retain their identities.
+
+Two earlier complete-command attempts on this same commit remain fail: the first passed six phases
+and the new concurrency, funded HTTP and dropped-reply arms before the existing resource-admission
+concurrency assertion received 202/503 instead of 202/409; the second stopped in checks when a
+duplicate pg_receivewal process exceeded its existing 5-second shutdown wait. Both cleanups passed.
+[Validation](validation.json) preserves commands, statuses and raw-log/manifest hashes. No source,
+policy or expectation changed for the fresh repeats. The checkout-refusal cause is unestablished;
+pg_receivewal wait hardening remains deferred. These failures are not earned regression reds.
 
 ## Reconciliation-pending retryability
 
@@ -320,8 +357,9 @@ Only sanitized manifests and summaries are committed. Raw protocol/application l
 backups and private responses remain in the isolated owned test area; each published trace/log has
 its retained hash. Historical W3 evidence keeps its original identity.
 
-Optional presentation suggestions left unchanged: distinct human restart messages; an explicit
-successful-result check in the null-error helper; separate documentation hash lists; fixture
+Optional suggestions left unchanged: an explicit expected HTTP status in operation_reads; one
+expression for refresh status/retryability or an explicit untested-refresh label; distinct human
+restart messages; an explicit successful-result check in the null-error helper; separate documentation hash lists; fixture
 clock-domain/default-feature labels; operator trace provenance; the invalid-settlement mode name;
 per-unit retry-budget wording; last-error diagnostics/stderr duplication; stop-count pairs; and
 redundant aggregate identity fields. These add no acceptance obligation or tracker item.

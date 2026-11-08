@@ -190,8 +190,13 @@ commitment, queued operation, receipt and principal counter increments. The work
 checks against one current listing, compares native coverage at the accepted conversion basis, validates
 forwarded values, and awaits acknowledged account/tenant/correlator licensing before temporary-key
 registration or ordering. The independent provider process records request, acceptance, creation and
-returned-response stages outside PostgreSQL. Verification searches the configured channel and directly
-reads the resource before the post-order cancellation-constraint read and atomic settlement.
+returned-response stages outside PostgreSQL. Each order derives its resource ID from its own
+fsync'd acceptance event. A separate-process HTTP regression forces overlapping acceptance/allocation,
+checks two distinct commands and resources with their account/correlator/channel associations, and
+checks inspection, search and direct reads before and after replay of the same durable store. This
+is simulator evidence for the supported channel, without an automatic reconciliation claim.
+Verification searches the configured channel and directly reads the resource before the post-order
+cancellation-constraint read and atomic settlement.
 The successful confirming read captures `state_observed_at` in its retained outcome. Later constraint
 I/O, shielded stop records and whole-transaction repeats persist that same instant. The local first
 seed still uses the billable row's creation instant, plus copied billing seconds only when the first

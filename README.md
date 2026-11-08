@@ -169,10 +169,14 @@ DB-10 saturation remain `not run` for their later work packages.
 27 negative controls, original-runtime reproduction and claim-specific capacity return.
 
 [W4 local workflow evidence](evidence/w4/report.md) records the nine-phase acceptance run,
-30 activated sensitivity controls, 28 original-runtime regressions and one startup-cleanup tooling
-regression. The focused preflight case is `--phase workflow --case w4_preflight`; its
+30 activated sensitivity controls, 28 original-runtime regressions and two tooling regressions
+(startup cleanup and concurrent simulator resource retention). The focused preflight case is
+`--phase workflow --case w4_preflight`; its
 `w4_restart_error` and `w4_stop_error` selectors isolate the existing restart and survived-stop arms.
 These cases check complete operation errors through authenticated detail and list HTTP reads.
 The restart selector also interrupts a create after acknowledged licensing and checks that
 its reconciliation-pending error and operation view both return `retryable: false`.
+The `--phase workflow --case w4_simulator` selector forces two separate-process HTTP orders through
+overlapping acceptance/allocation, checks their four effect stages, and retains both resources through
+simulator restart and durable replay. The complete runner includes this tooling regression.
 This is a simulator-only pre-conformance subset; the report identifies the tested source and limits.
