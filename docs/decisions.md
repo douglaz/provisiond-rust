@@ -913,21 +913,25 @@ produces no second purchase. This exercises `ProviderIdentifiers::failure`'s exi
 `ExecutionStopped` conversion and Outcome handoff; it establishes no new runtime defect.
 
 The simulator records selected search IDs before sending the response that permits get. The real
-held get then proves receipt. Recording after the response allowed a source-visible event-order
-race; no dynamic reproduction of that search/get scheduling failure is claimed. The short evidence write
-finishes before HTTP I/O, and additional records remain limited to explicit holds. The per-account
+held get then proves receipt. The short evidence write finishes before HTTP I/O, and additional
+records remain limited to explicit holds. The current transport reads replies to EOF, after the
+handler's evidence writes; no reachable search/get ordering failure is established. The per-account
 simulator `call_seconds=5` allowance is finite and restored by fixture cleanup. The 1000 ms record,
 startup/checkout/store/retry bounds, runtime and ownership remain unchanged.
 
 The order-reply bookkeeping correction independently awaits the truthful `response_returned`
 record, retaining all four exact order stages and matching resource IDs. Its causal comparison uses
 `resource_created`, published before reply delivery, and the subsequent actual held verification
-request. Post-reply bookkeeping may follow that request. A controlled in-process probe of actual
-handler methods with stubbed reply delivery and extracted assertion blocks produced creation 3,
-held search 5 and completion 6: both old snapshot/sequence assertions failed, revised assertions
-passed (command exit 0). This is a fixture scheduling observation, not a real HTTP/executable/PG
-runtime regression. [Validation](../evidence/w4/validation.json) records command, hashes and scope.
-No simulator or runtime edit was needed; the selected-search-ID to actual held-get proof remains.
+request. With the current Rust transport, `http::call` reads each reply to EOF. Python 3.14.7's
+server closes the connection after the handler returns, including its `response_returned` write.
+Thus the current engine cannot begin verification before that record. The revised fixture avoids
+depending on this transport detail; it does not repair a reachable failure of the current client.
+A controlled in-process probe of actual handler methods with stubbed reply delivery and extracted
+assertion blocks produced creation 3, held search 5 and completion 6: both old assertions failed
+and revised assertions passed (command exit 0). The stub removes the EOF dependency, so this is
+a fixture-model observation, not a real HTTP/executable/PG regression or proof of reachability.
+[Validation](../evidence/w4/validation.json) records command, hashes and scope. No simulator or
+runtime edit was needed; the selected-search-ID to actual held-get proof remains.
 
 On final fixture bytes, `nix develop --command python3 tests/postgres/harness.py --phase workflow
 --case w4_verify_stop --seed 20261106 --evidence <run-dir>/order-evidence-t2_p9xbu/focused-verify-stop.json` exited 0

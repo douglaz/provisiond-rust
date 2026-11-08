@@ -105,7 +105,7 @@
       "implementation_commit": "6410302aef1b96cc2d83e9c0caad5fd6c404ff4b",
       "previous_driver_sha256": "6db888540ed9d21bac787e28646fbc92d281f66470c7ebf069d062ff6d31a92d",
       "final_driver_sha256": "603f3d739fcd1124f4115b81ced39c7590c39a0d3e2728f2813cceedc3c312d0",
-      "source_order": "resource_created is recorded before reply; successful reply precedes response_returned. Verification can arrive between delivery and that post-reply record.",
+      "source_order": "resource_created is recorded before reply; successful reply precedes response_returned. The current Rust client reads to EOF, which Python 3.14.7 sends after the handler finishes response_returned. Verification therefore follows that record for the current client; the revised fixture does not depend on that transport detail.",
       "assertions": "Await response_returned independently; require all four exact order stages and matching resource ID. Compare resource_created with the actual held verification request. Selected-search-ID to held-get comparison unchanged.",
       "probe_evidence": "validation.json#fixture_scheduling_probe"
     }

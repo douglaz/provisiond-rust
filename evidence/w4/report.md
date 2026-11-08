@@ -129,20 +129,23 @@ The finite per-account provider fixture allowance is 5 seconds; the original 100
 all application startup, checkout, store-call and retry bounds remain unchanged.
 
 For the get window, selected search IDs are durably recorded before the response that can license
-get. The real held get proves receipt; selection alone claims no successful delivery. This removes
-the source-visible response-before-record race without HTTP I/O under the simulator lock, general
-scheduling machinery or a weakened causal assertion. No dynamic reproduction of that search/get
-scheduling failure is claimed. Extra records remain restricted to explicit fixture holds.
+get. The real held get proves receipt; selection alone claims no successful delivery. The fixture
+uses no HTTP I/O under the simulator lock or general scheduling machinery. The current transport
+waits for EOF after the handler's evidence writes, so no reachable search/get ordering failure is
+established. Extra records remain restricted to explicit fixture holds.
 
 The order handler records `resource_created` before replying and `response_returned` only after
-successful delivery. Verification can arrive before that final bookkeeping record. The stop
-fixture independently waits for the truthful completion record, checks all four exact order stages
-and their resource association, and compares pre-reply creation with the actual held verification
-request. It imposes no order between post-reply bookkeeping and verification. A controlled
+successful delivery. The current Rust client reads to EOF; Python 3.14.7 closes the connection
+after the handler finishes its bookkeeping. Verification therefore follows that record with this
+client. The stop fixture independently waits for truthful completion, checks all four exact order
+stages and their resource association, and compares pre-reply creation with held verification.
+Its assertions avoid depending on the EOF ordering without claiming that ordering is currently
+violated. A controlled
 in-process probe ran the actual handler methods with stubbed reply delivery and extracted old/new
 assertions: creation sequence 3, held search 5, later completion 6. Both old missing/late-record
 assertions failed; the revised wait and causal assertions passed (probe command exit 0). This was
-not a real HTTP, executable or PostgreSQL regression run and establishes no new runtime defect.
+not a real HTTP, executable or PostgreSQL regression run. Stubbed delivery removes the current
+client's EOF dependency, so the probe establishes no reachable runtime failure.
 [Validation](validation.json) records its exact scope, source and log hashes. The search-selection
 and actual held-get proof above is unchanged.
 

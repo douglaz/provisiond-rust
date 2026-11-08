@@ -227,7 +227,7 @@ explicit limits are in the W4 report and source inventory.
 ## Executable lock observation and surviving verification identifiers
 
 These are the recorded local repair and cancellation-coverage arms on
-`9f47805bbfabe3c2f0defb070ca2ff9edeb1c03c`, whose runtime matches `03516ef`;
+`6410302aef1b96cc2d83e9c0caad5fd6c404ff4b`, whose runtime matches `03516ef`;
 the unsupported/deferred families and historical evidence above retain their limits.
 
 | Requirement | Pinned source | Implementation symbol | Test / arm | Evidence | Status |
