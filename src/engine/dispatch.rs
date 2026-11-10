@@ -258,16 +258,15 @@ impl Engine {
             )
             .into());
         }
-        for cap in [pricing::capability(kind.expect("validated kind"))] {
-            if !pricing::has(descriptor, cap) {
-                return Err(Error::new(
-                    "unsupported",
-                    "ordering capability unavailable",
-                    false,
-                    json!({"provider_account":account,"capability":cap}),
-                )
-                .into());
-            }
+        let cap = pricing::capability(kind.expect("validated kind"));
+        if !pricing::has(descriptor, cap) {
+            return Err(Error::new(
+                "unsupported",
+                "ordering capability unavailable",
+                false,
+                json!({"provider_account":account,"capability":cap}),
+            )
+            .into());
         }
         self.order_step(c, component, e, 4).await?;
         if !pricing::has(descriptor, "list_offers") {
