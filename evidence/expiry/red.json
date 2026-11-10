@@ -1,0 +1,428 @@
+{
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "implementation_commit": "096d31cfd994031808b7f11e5d9280cab43df600",
+  "tested_source_sha256": "f72a33d4e327b3604f36b8f1891f98a111dd4d935cd553b4bd2506c510a84105",
+  "source_dirty": true,
+  "seed": 20261110,
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "workflow",
+    "--case",
+    "w4_expiry",
+    "--seed",
+    "20261110",
+    "--evidence",
+    "<run-dir>/red-final.json"
+  ],
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "engine": {
+      "workers": 3,
+      "write_pool": 3,
+      "compatibility_read_pool": 1,
+      "startup_lock_outside_pool": true,
+      "startup_wait_ms": 500,
+      "store_retry_ms": 2000,
+      "stop_record_ms": 1000,
+      "startup_lock_keepalives": {
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "count": 2,
+        "profile_assignment": "shared with pooled local values"
+      },
+      "runtime_build": {
+        "features": [],
+        "target_directory": "<run-dir>/harness/workflow-5npl08qy/target"
+      },
+      "migration_lock_ms": 500,
+      "migration_lock_retries": 2,
+      "schema_version": 2,
+      "semantic_version": 2,
+      "notice_cap": 16
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    },
+    "workflow": {
+      "parameters": {
+        "activation_sats": 100,
+        "deposit_seconds": 3600,
+        "finality_seconds": 600,
+        "tenant_seconds": 10800,
+        "pending_limit": 64,
+        "admission_delay_ms": 50,
+        "admission_validity_seconds": 60,
+        "admission_capacity": 256,
+        "source_concurrency": 2,
+        "rate_interval_ms": 1000,
+        "read_limit": 1000,
+        "write_limit": 1000,
+        "created_limit": 100,
+        "spend_limit": 1000000,
+        "ceiling_seconds": 3600,
+        "retention_seconds": 3600,
+        "receipt_seconds": 86400,
+        "listing_age_seconds": 3600,
+        "lightning_floor_sats": 1,
+        "onchain_floor_sats": 20,
+        "confirmation_depth": 2
+      },
+      "descriptor": {
+        "account": "sim-a",
+        "kind": "local_simulator",
+        "capabilities": [
+          "provision_virtual",
+          "list_offers",
+          "delete_machine"
+        ],
+        "channel": "orders",
+        "channels": [
+          "orders"
+        ],
+        "offer_is_resource": false,
+        "temporary_keys": false,
+        "currency": "USD",
+        "stop_cost": true,
+        "allow_orders": true,
+        "correlator": "operation_id",
+        "margin_bps": 1000,
+        "order_budget": {
+          "limit": 20,
+          "per_seconds": 86400
+        },
+        "cancellation_bound": "2026-11-10",
+        "meter_seconds": 1,
+        "call_seconds": 1,
+        "visibility_seconds": 1,
+        "resolution_seconds": 1,
+        "read_seconds": 1,
+        "hold_seconds": 1,
+        "margin_seconds": 1,
+        "max_correlator_bytes": 128,
+        "max_rate_outage_seconds": 600
+      },
+      "offer": {
+        "id": "test-small",
+        "name": "Nonpayable simulator virtual machine",
+        "kind": "virtual",
+        "regions": [
+          "test"
+        ],
+        "recurring_price": "0.01",
+        "setup_fee": "0.02",
+        "currency": "USD",
+        "period_seconds": 3600,
+        "billing_unit": {
+          "seconds": 3600,
+          "native_floor": null
+        },
+        "install_strategies": [],
+        "cancellation_bound": null,
+        "traffic_bound": "unlimited",
+        "attachments": [],
+        "sellable": true
+      },
+      "rate": {
+        "currency": "USD",
+        "minor_scale": 2,
+        "rate_num": 10,
+        "rate_den": 1,
+        "margin_bps": 1000,
+        "haircut_bps": 0,
+        "source": "simulator-fixed-rational",
+        "observed_at": "2026-11-10T02:03:01Z"
+      },
+      "listeners": {
+        "api": 55504,
+        "provider": 55505,
+        "rail": 55506
+      },
+      "test_build_features": [],
+      "builds": {
+        "api": {
+          "executable": "<run-dir>/harness/workflow-5npl08qy/target/debug/api",
+          "sha256": "01d05f408ad7b5cad78a2a991cbe67dff136c30682223d07d63c270f5c00af2a",
+          "features": []
+        },
+        "engine": {
+          "executable": "<run-dir>/harness/workflow-5npl08qy/target/debug/engine",
+          "sha256": "ab3394d413cfe9af5b538e5ca60355d103f4051315a8bdf042a687158b7f165d",
+          "features": []
+        },
+        "migrate": {
+          "executable": "<run-dir>/harness/workflow-5npl08qy/target/debug/migrate",
+          "sha256": "02193eb17be345605d9e367d24185426b75ff78ba795a10e9f10613be712c20c",
+          "features": []
+        }
+      }
+    }
+  },
+  "configuration_sha256": "f4b01ba6906d1aed8b0d8b3a2210129ca1809d4fdaa57f3e0d95fd90a66f1916",
+  "scenarios": [
+    {
+      "test": "w4_expiry",
+      "result": "fail",
+      "reason": "expired authenticated deposit must receive HTTP 401 authentication refusal"
+    }
+  ],
+  "trace": {
+    "path": "<run-dir>/harness/workflow-5npl08qy/events.jsonl",
+    "sha256": "1c2bf4fefcbdbff66a078f9b2824081452e305def66490ebe777fe8b56ffaf91"
+  },
+  "raw_evidence": "<run-dir>/harness/workflow-5npl08qy",
+  "limitations": [
+    "local processes only; no separate-host durability or fencing proof",
+    "no product recovery incidents, automatic provider reconciliation, full meter or production alarms",
+    "DB-10 full saturation: not run (W8)"
+  ],
+  "result": "expected negative demonstration",
+  "observed_child_result": "fail",
+  "command_exit_status": 1,
+  "fix_commit": "c81fae6a16c86b68329eba8d44e72b8126b8f070",
+  "artifacts": {
+    "manifest": "<run-dir>/red-final.json",
+    "manifest_sha256": "0a00e6ad3b30ed5308e4a69c157ce6f1a4df8dfa5096877a380090ace7a66da3",
+    "combined_output": "<run-dir>/red-final.log",
+    "combined_output_sha256": "501a0d005bdab48010c6a8ed396e783812a0d9aa72b474f4e75528b1cc0e5a3b"
+  },
+  "events": [
+    {
+      "event": "workflow_binary_started",
+      "timestamp": 1794276181.4768617,
+      "elapsed": 21.83604399790056,
+      "component": "api",
+      "case": "setup",
+      "executable": "<run-dir>/harness/workflow-5npl08qy/target/debug/api",
+      "sha256": "01d05f408ad7b5cad78a2a991cbe67dff136c30682223d07d63c270f5c00af2a",
+      "features": []
+    },
+    {
+      "event": "fault_requested",
+      "timestamp": 1794276182.684473,
+      "elapsed": 23.04365478490945,
+      "fault": "transport_gate",
+      "pattern": "SELECT COALESCE((SELECT jsonb_build_object('fingerprint'",
+      "direction": "send"
+    },
+    {
+      "event": "fault_requested",
+      "timestamp": 1794276182.6845312,
+      "elapsed": 23.04371299291961,
+      "fault": "transport_gate",
+      "pattern": "SELECT status FROM provisiond.tenants WHERE id=$1",
+      "direction": "execute_reply"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794276182.6862364,
+      "elapsed": 23.045418232912198,
+      "fault": "transport_gate",
+      "direction": "send",
+      "session": 1251278,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "expiry_authentication_returned",
+      "timestamp": 1794276182.6866596,
+      "elapsed": 23.0458414319437,
+      "tenant": "7475365f-39d6-4a63-ad94-449ea33c5981",
+      "session": 1251278,
+      "boundary": "first receipt Parse after successful authenticate return; before business BEGIN"
+    },
+    {
+      "event": "expiry_deletion_acknowledged",
+      "timestamp": 1794276182.712852,
+      "elapsed": 23.07203384290915,
+      "tenant": "7475365f-39d6-4a63-ad94-449ea33c5981",
+      "tenant_absent": true,
+      "enrolment_absent": true,
+      "mechanism": "housekeeping-owned serialization/deletion transaction via app fixture session",
+      "capacity_lock": 1347572816,
+      "tenant_lock": 1347572814,
+      "synchronous_commit": "on",
+      "deposits_inside_finality_window": 0,
+      "application_deadlines_unchanged": true
+    },
+    {
+      "event": "fault_released",
+      "timestamp": 1794276182.7129128,
+      "elapsed": 23.072094555944204,
+      "fault": "transport_gate",
+      "pattern": "SELECT COALESCE((SELECT jsonb_build_object('fingerprint'",
+      "direction": "send",
+      "activated": true
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794276182.7628927,
+      "elapsed": 23.12207458296325,
+      "fault": "transport_gate",
+      "direction": "execute_reply",
+      "session": 1251414,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "expiry_status_boundary_reached",
+      "timestamp": 1794276182.763364,
+      "elapsed": 23.122545931953937,
+      "tenant": "7475365f-39d6-4a63-ad94-449ea33c5981",
+      "session": 1251414
+    },
+    {
+      "event": "fault_released",
+      "timestamp": 1794276182.7634208,
+      "elapsed": 23.122602767893113,
+      "fault": "transport_gate",
+      "pattern": "SELECT status FROM provisiond.tenants WHERE id=$1",
+      "direction": "execute_reply",
+      "activated": true
+    },
+    {
+      "event": "expiry_response_observed",
+      "timestamp": 1794276182.7747483,
+      "elapsed": 23.133930249954574,
+      "status": null,
+      "body": null,
+      "headers": null,
+      "transport_error": "RemoteDisconnected('Remote end closed connection without response')",
+      "api_exit_status": 1,
+      "api_stderr": "\nthread 'tokio-rt-worker' (1251272) panicked at src/api/mod.rs:480:20:\nindex out of bounds: the len is 0 but the index is 0\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nprovisiond api: API request task panicked\n",
+      "api_stopping": [
+        {
+          "event": "api_stopping",
+          "pending_requests": 0
+        }
+      ],
+      "listener_after_exit": "ConnectionRefusedError",
+      "status_row_count": 0,
+      "transaction_session_closed": true,
+      "backend_absent": true
+    },
+    {
+      "event": "workflow_children_reaped",
+      "timestamp": 1794276182.7823322,
+      "elapsed": 23.141513970913365,
+      "count": 3
+    },
+    {
+      "event": "failure",
+      "timestamp": 1794276182.7823837,
+      "elapsed": 23.14156522694975,
+      "type": "AssertionError",
+      "message": "expired authenticated deposit must receive HTTP 401 authentication refusal"
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794276182.9146342,
+      "elapsed": 23.273816433968022,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794276183.94685,
+      "elapsed": 24.306032232940197,
+      "path": "<run-dir>/harness/workflow-5npl08qy/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794276183.9727275,
+      "elapsed": 24.331909696920775,
+      "path": "<run-dir>/harness/workflow-5npl08qy/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794276184.0863001,
+      "elapsed": 24.445482373936102,
+      "path": "<run-dir>/harness/workflow-5npl08qy/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794276184.086538,
+      "elapsed": 24.44571995700244,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794276184.086605,
+      "elapsed": 24.445786881959066,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<run-dir>/harness/workflow-5npl08qy"
+    }
+  ],
+  "status_query_zero_rows": {
+    "command_tag": "SELECT 0",
+    "elapsed": 23.12266616593115,
+    "event": "protocol_response",
+    "query": "SELECT status FROM provisiond.tenants WHERE id=$1",
+    "ready_status": null,
+    "session": 1251414,
+    "tag": "C",
+    "timestamp": 1794276182.7634845
+  },
+  "intended_assertion": "expired authenticated deposit must receive HTTP 401 authentication refusal"
+}
