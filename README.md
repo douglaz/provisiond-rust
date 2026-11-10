@@ -189,6 +189,13 @@ creates its resource, then checks both HTTP responses and live/replayed search/g
 Search filters a snapshot copied under the existing simulator lock. The complete runner includes both cases.
 This is a simulator-only pre-conformance subset; the report identifies the tested source and limits.
 
+The focused `--phase workflow --case w4_expiry` selector uses default-feature binaries to
+exercise deletion of a pending tenant after successful authentication and before request
+serialization. It checks the exact 401 refusal, service and periodic-task liveness, session/lock
+release, no invented business effects, valid deposits and replay/suspension ordering. The same
+case runs in the complete workflow. [Expiry evidence](evidence/expiry/report.md) records the
+original-runtime red and fixed-runtime green.
+
 The focused `--phase workflow --case w4_lock_dispatch` selector runs the real executable with an
 active worker and a claim held in PostgreSQL `SyncRep`, then loses only the lifetime-lock session.
 It also checks late and empty claim replies during the original record drain. Lock observation

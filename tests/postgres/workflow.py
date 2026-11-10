@@ -261,10 +261,14 @@ def workflow(h,case=None,defect=None):
         concurrent_orders(h)
         search_during_create(h)
         if case=='w4_simulator':return
-    w=Workflow(h,defect='w4_ack' if case=='w4_default' else 'payment_atomic' if defect=='w4_atomic' else defect,default_build=case=='w4_default')
+    w=Workflow(h,defect='w4_ack' if case=='w4_default' else 'payment_atomic' if defect=='w4_atomic' else defect,default_build=case in ('w4_default','w4_expiry'))
     w.case=case or 'w4_workflow'
     try:
         from w4_regressions import CASES
+        if case=='w4_expiry':
+            from w4_expiry import expiry
+            expiry(w)
+            return
         if case in ('w4_restart_error','w4_stop_error'):
             from w4_preflight import preflight
             preflight(w,only='exhaust' if case=='w4_restart_error' else 'stop')
@@ -376,6 +380,8 @@ def workflow(h,case=None,defect=None):
         lost_ack_refusals(w)
         ceiling_restart(w)
         token_limits_and_expiry(w)
+        from w4_expiry import expiry
+        expiry(w)
         error_redaction(w)
         halt_invoice(w)
         forwarded_validation(w)

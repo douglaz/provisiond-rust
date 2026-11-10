@@ -475,10 +475,20 @@ impl State {
                 .await?
                 .context("replay disappeared");
         }
-        let status: String = tx
+        // API-3/34, WIR-5/9a: expiry can reap the authenticated pending
+        // principal before LDG-35 serialization. The lock needs no live row.
+        let rows = tx
             .rows("SELECT status FROM provisiond.tenants WHERE id=$1", &[&id])
-            .await?[0]
-            .get(0);
+            .await?;
+        let row = rows.first().ok_or_else(|| {
+            Error::new(
+                "authentication",
+                "authentication required",
+                false,
+                json!({"reason":"token"}),
+            )
+        })?;
+        let status: String = row.get(0);
         if status == "suspended" {
             return Err(Error::new("suspended", "tenant suspended", false, json!({})).into());
         }
