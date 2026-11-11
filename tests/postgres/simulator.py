@@ -120,6 +120,15 @@ def main():
             if self.path=='/keys/delete':
                 state['keys'].pop(operation,None);record('key_deleted',**identity);self.reply({'ok':True});return
             if self.path=='/order':
+                # PRV-5/OPS-11: errors from the mutating request itself, with
+                # durable receipt/response facts and no invented acceptance.
+                if mode in ('provider_400','provider_500','provider_no_status'):
+                    details={'accepted':False if mode=='provider_400' else None}
+                    if mode!='provider_no_status':details['status']=400 if mode=='provider_400' else 500
+                    error={'kind':'provider','message':'controlled provider order refusal','retryable':True,'details':details}
+                    record('order_error_selected',error=error,**identity)
+                    if self.reply({'error':error}):record('response_returned',error=error,**identity)
+                    return
                 if mode=='secret_error':
                     self.reply({'error':{'kind':'authentication','message':'TEST_ONLY_SECRET_MARKER','retryable':False,'details':{'accepted':False,'api_key':'TEST_ONLY_SECRET_MARKER','nested':[{'password':'TEST_ONLY_SECRET_MARKER'}]}}});return
                 if mode=='reject_order':
@@ -142,6 +151,10 @@ def main():
                 return
             if self.path=='/search':
                 record('read_only',**identity)
+                if mode=='search_provider_400':
+                    error={'kind':'provider','message':'controlled verification refusal','retryable':True,'details':{'accepted':False,'status':400}}
+                    record('verification_fault_returned',mode=mode,error=error,**identity)
+                    self.reply({'error':error});return
                 if mode in ('search_throttle','search_network'):
                     record('verification_fault_returned',mode=mode,**identity)
                     if mode=='search_network':

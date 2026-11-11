@@ -367,11 +367,11 @@ impl State {
         if operator_route(&r.method, path) {
             return Err(Error::missing().into());
         }
-        // API-29: bound unauthenticated work by source, before its database
-        // lookup. Bearer spelling cannot create fresh buckets; no source persists.
-        // Valid principals retain their independent read/write budgets below.
+        // API-3/29/50: identify valid callers through the ordinary checked read
+        // before consulting the failed-auth source allowance. That allowance
+        // must not block unrelated principals sharing an address. Credential
+        // verification still uses the bounded pool; this is no pre-database cap.
         let source_key = format!("source:{source}");
-        self.rate_allowance(&source_key, write, false)?;
         let tenant = match self.authenticate(r).await {
             Ok(tenant) => tenant,
             Err(error) => {

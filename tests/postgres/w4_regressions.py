@@ -408,3 +408,187 @@ CASES['w4_observation']=observation
 
 from w4_preflight import preflight
 CASES['w4_preflight']=preflight
+
+
+def provider_refusal(w):
+    """PRV-5, OPS-11/12/43, LDG-32/35/39, STO-3/58: definitive step-9 rejection."""
+    from w4_publication import state, operation_events
+    h=w.h;w.stop_engine();t=funded(w,'provider-refusal');account=t['account']
+    original=json.loads(h.sql(f"SELECT descriptor FROM provisiond.provider_accounts WHERE account='{account}'"))
+    descriptor=dict(original,offer_is_resource=True,temporary_keys=True)
+    h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(descriptor),account))
+    w.restart_api();w.provider_control(mode='provider_400')
+    body=w.create_body(t);key='definitive-provider-refusal'
+    before=w.request('GET','/v1/balance',tenant=t)
+    admission=w.request('POST','/v1/machines',body,t,key,status=202);op=admission['id']
+    admitted=state(w,op)
+    commitment=h.sql(f"SELECT commitment_id FROM provisiond.operations WHERE id='{op}'")
+    balance=w.request('GET','/v1/balance?commitments=true',tenant=t)
+    assert before['available_sats']==115 and balance['available_sats']==72
+    assert admitted['reserved']==43 and admitted['commitment_state']=='open'
+    assert any(c['operation_id']==op and c['reserved_sats']==43 for c in balance['commitments'])
+    assert h.sql(f"SELECT count(*) FROM provisiond.resource_exclusions WHERE operation_id='{op}'")=='1'
+    h.event('provider_refusal_admitted',operation=op,commitment=commitment,state=admitted,
+            available_before=before['available_sats'],available_admitted=balance['available_sats'],exclusions=1)
+    # Hold the ordinary settlement statement, after the real client returned its
+    # retained error, while the original admitted money/exclusion still exist.
+    gate=h.proxy.arm('SET status=$3,result=','send')
+    try:
+        w.start_engine();gate.wait()
+        eventually(lambda:any(e['stage']=='response_returned' for e in operation_events(w,op) if e['path']=='/order'))
+        records=operation_events(w,op)
+        order=[e for e in records if e['path']=='/order']
+        assert [e['stage'] for e in order]==['request_received','order_error_selected','response_returned']
+        assert order[-1]['error']['details']=={'status':400,'accepted':False}
+        assert any(e.get('operation')==op for e in w.events('engine','dispatch_license_acknowledged'))
+        assert [e['step'] for e in w.events('engine','dispatch_step') if e.get('operation')==op]==list(range(1,10))
+        assert state(w,op)['reserved']==43 and state(w,op)['status']=='running'
+        assert w.request('GET','/v1/balance',tenant=t)['available_sats']==72
+        assert op not in w.external()['keys'] and any(e['stage']=='key_deleted' for e in records)
+        assert not any(e['stage'] in ('accepted','resource_created') for e in records)
+    finally:gate.release()
+    eventually(lambda:any(e.get('operation')==op for e in w.events('engine','settlement_finished')))
+    w.stop_engine();stored=state(w,op)
+    # Read both endpoints before the intended red: baseline must first establish
+    # the real client's canonical provider/400/accepted-false error, not a hook.
+    detail=w.request('GET','/v1/operations/'+op,tenant=t)
+    listed=next(v for v in w.request('GET','/v1/operations?limit=100',tenant=t)['operations'] if v['id']==op)
+    after=w.request('GET','/v1/balance',tenant=t)
+    h.event('provider_refusal_settlement_observed',operation=op,commitment=commitment,
+            state=stored,detail=detail,listed=listed,available_after=after['available_sats'],order=order)
+    assert stored['error']['kind']=='provider' and stored['error']['details']['status']==400 and stored['error']['details']['accepted'] is False
+    assert stored['status']=='failed', 'OPS-11 provider/400/accepted-false order must settle failed and release original commitment'
+    expected={'kind':'provider','message':'simulator request refused','retryable':True,'details':{'status':400,'accepted':False}}
+    assert stored['error']==expected and detail==listed
+    assert w.operation_reads(t,op,'provider',True,expected['details'])==detail
+    assert detail['status']=='failed' and detail['terminal'] is True
+    assert stored['reserved']==0 and stored['commitment_state']=='closed'
+    assert stored['machine'] is None and stored['debits']==0 and stored['result'] is None
+    assert h.sql(f"SELECT count(*) FROM provisiond.machines WHERE tenant_id='{t['tenant_id']}'")=='0'
+    assert h.sql(f"SELECT count(*) FROM provisiond.resource_exclusions WHERE operation_id='{op}'")=='0'
+    assert after==before and after['available_sats']==115
+    snapshot=state(w,op);events=operation_events(w,op)
+    closed_commitment=h.sql(f"SELECT to_jsonb(c) FROM provisiond.commitments c WHERE id='{commitment}'")
+    assert h.sql(f"SELECT count(*) FROM provisiond.idempotency_records WHERE resource_id='{op}'")=='1'
+    for restart in (False,True):
+        if restart:w.restart_api();w.start_engine();w.stop_engine()
+        assert w.request('POST','/v1/machines',body,t,key,status=202)==detail
+        assert state(w,op)==snapshot and operation_events(w,op)==events
+        assert h.sql(f"SELECT to_jsonb(c) FROM provisiond.commitments c WHERE id='{commitment}'")==closed_commitment
+        assert w.request('GET','/v1/balance',tenant=t)==before
+        assert w.operation_reads(t,op,'provider',True)==detail
+        assert h.sql(f"SELECT commitment_id FROM provisiond.operations WHERE id='{op}'")==commitment
+    # Reuse the freed exclusion on a distinct, successful ordinary create.
+    w.provider_control(mode='normal')
+    successor=w.request('POST','/v1/machines',body,t,'after-definitive-refusal',status=202)['id']
+    w.start_engine();w.wait_status(successor,'succeeded');w.stop_engine()
+    assert state(w,successor)['debits']==2
+    assert [e['stage'] for e in operation_events(w,successor) if e['path']=='/order']==['request_received','accepted','resource_created','response_returned']
+    assert state(w,op)==snapshot and operation_events(w,op)==events
+    h.event('provider_refusal_replay_restart_observed',operation=op,commitment=commitment,
+            unchanged_state=snapshot,closed_commitment=json.loads(closed_commitment),order_requests=1,
+            commitment_unchanged_on_replay=True,restored_available_sats=115,successor=successor)
+    h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(original),account))
+    w.restart_api();h.results.append(dict(test='W4-definitive-provider-refusal',result='pass'))
+
+
+def provider_ambiguity(w):
+    """PRV-5, OPS-11/12/13/16, LDG-39/67: dispatched ambiguity never frees money."""
+    from w4_publication import state, operation_events
+    h=w.h;w.stop_engine()
+    for mode in ('provider_500','provider_no_status','search_provider_400'):
+        t=funded(w,'ambiguity-'+mode);w.provider_control(mode=mode)
+        body=w.create_body(t);key='ambiguity-'+mode
+        admission=w.request('POST','/v1/machines',body,t,key,status=202);op=admission['id']
+        admitted=state(w,op)
+        w.start_engine();eventually(lambda:any(e.get('operation')==op for e in w.events('engine','settlement_finished')));w.stop_engine()
+        stored=state(w,op);view=w.operation_reads(t,op,'provider',False)
+        assert stored['status']=='needs_reconciliation' and stored['error']==view['error']
+        assert stored['reserved']==admitted['reserved']==43 and stored['commitment_state']=='open'
+        assert stored['debits']==0 and stored['machine'] is None
+        assert w.request('GET','/v1/balance',tenant=t)['available_sats']==72
+        details=stored['error']['details'];assert details['attempted']=='create_machine'
+        records=operation_events(w,op);order=[e for e in records if e['path']=='/order']
+        if mode=='search_provider_400':
+            assert details['accepted'] is True and details['status']==400
+            assert [e['stage'] for e in order]==['request_received','accepted','resource_created','response_returned']
+            assert details['provider_identifiers']['order_reply']==[order[-1]['resource']]
+            assert any(e['stage']=='verification_fault_returned' and e['error']['details']['accepted'] is False for e in records)
+        else:
+            assert details['accepted'] is None
+            assert details.get('status')==(500 if mode=='provider_500' else None)
+            assert [e['stage'] for e in order]==['request_received','order_error_selected','response_returned']
+        assert any(e.get('operation')==op for e in w.events('engine','dispatch_license_acknowledged'))
+        assert w.request('POST','/v1/machines',body,t,key,status=202)==view
+        w.start_engine();w.stop_engine()
+        assert state(w,op)==stored and operation_events(w,op)==records
+        assert w.operation_reads(t,op,'provider',False)==view
+        h.event('provider_ambiguity_guard_observed',mode=mode,operation=op,state=stored,
+                available_sats=72,order=order,restart_unchanged=True,second_order=False)
+    w.provider_control(mode='normal');h.results.append(dict(test='W4-dispatched-provider-ambiguity',result='pass'))
+
+
+def mixed_pacing(w):
+    """API-3/7/29/50, WIR-4/5/9a: one source, independent valid caller budgets."""
+    h=w.h;w.stop_engine();a=funded(w,'mixed-a');b=funded(w,'mixed-b')
+    pending=w.enrol();suspended=w.enrol()
+    h.sql(f"UPDATE provisiond.tenants SET status='suspended' WHERE id='{suspended['tenant_id']}'")
+    interval=10000;limit=30;writes=2
+    w.restart_api(dict(PARAMETERS,rate_interval_ms=interval,read_limit=limit,write_limit=writes))
+    started=time.monotonic();observations=[]
+    def call(label,method,path,token=None,body=None,key=None,raw=None):
+        code,value,headers=http(h.ports[4],method,path,body,token,key,raw)
+        assert value.get('correlation_id',headers['X-Correlation-Id'])==headers['X-Correlation-Id']
+        assert 'Retry-After' in headers['Access-Control-Expose-Headers']
+        if code>=400:assert set(value)=={'error','correlation_id'} and set(value['error'])=={'kind','message','retryable','details'}
+        if code==429:
+            hint=value['error']['details']['retry_after_ms']
+            assert value['error']['kind']=='rate_limited' and value['error']['retryable'] is True
+            assert 0<hint<=interval and headers['Retry-After']==str((hint+999)//1000)
+        observation=dict(label=label,method=method,status=code,elapsed_ms=round((time.monotonic()-started)*1000),
+                         error=value.get('error'),retry_after=headers.get('Retry-After'))
+        observations.append(observation);h.event('mixed_pacing_response',**observation)
+        return code,value
+    for i,token in enumerate((None,'unknown-one',a['recovery_credential'],'rotated-unknown')):
+        code,value=call('invalid-write-'+str(i),'POST','/v1/deposits',token,key='mixed-invalid',raw=b'{')
+        assert code==(401 if i<writes else 429)
+    h.event('mixed_source_exhausted',budget='write',limit=writes,statuses=[v['status'] for v in observations],interval_ms=interval)
+    # The baseline red must be exactly this valid request after proven exhaustion.
+    code,deposit=call('valid-a-first-write','POST','/v1/deposits',a['spending_token'],{'amount_sats':1},'mixed-a-first')
+    assert code==200, 'API-50 valid caller must reach independent write budget after failed-auth source exhaustion'
+    assert deposit['requested_sats']==1
+    for name,t in [('a',a),('b',b)]:
+        for i in range(1 if name=='a' else 0,writes):
+            code,value=call('valid-'+name+'-write-'+str(i),'POST','/v1/deposits',t['spending_token'],{'amount_sats':1},'mixed-'+name+'-'+str(i))
+            assert code==200, 'unexpected 429 or refusal before valid principal write allowance exhausted'
+            assert value['requested_sats']==1 and value['id']!=deposit['id']
+        assert call('exhausted-'+name+'-write','POST','/v1/deposits',t['spending_token'],{'amount_sats':1},'mixed-'+name+'-exhausted')[0]==429
+    # Source reads have their own full allowance despite exhausted source writes.
+    for i in range(limit+2):
+        token=(None,'unknown-read-'+str(i),a['recovery_credential'])[i%3]
+        assert call('invalid-read-'+str(i),'GET','/v1/balance',token)[0]==(401 if i<limit else 429)
+    h.event('mixed_source_exhausted',budget='read',limit=limit,interval_ms=interval)
+    assert call('valid-pending','POST','/v1/machines',pending['spending_token'],raw=b'{')[1]['error']['kind']=='not_activated'
+    assert call('valid-suspended','POST','/v1/deposits',suspended['spending_token'],{'amount_sats':1},'mixed-suspended')[1]['error']['kind']=='suspended'
+    paths=['/v1/operations?terminal=false','/v1/balance','/v1/machines']
+    for name,t in [('a',a),('b',b)]:
+        # Deliberate burst to exhaust this principal, not obedient polling. The
+        # separate pacing case verifies sustained advertised-cadence cycles.
+        for i in range(limit):
+            code,value=call('valid-'+name+'-read-'+str(i),'GET',paths[i%3],t['spending_token'])
+            assert code==200, 'unexpected 429 or refusal before valid principal read allowance exhausted'
+            if i%3==0:assert value['operations']==[] and value['poll_after_ms']==1000
+            elif i%3==1:assert value['available_sats']==115
+            else:assert value['machines']==[]
+        assert call('exhausted-'+name+'-read','GET','/v1/balance',t['spending_token'])[0]==429
+    assert call('still-invalid-write','POST','/v1/deposits','new-invalid-spelling',raw=b'{')[0]==429
+    assert call('still-invalid-read','GET','/v1/balance','new-invalid-read')[0]==429
+    elapsed=round((time.monotonic()-started)*1000)
+    assert elapsed<interval, 'mixed traffic must complete in one source window; no accidental allowance reset'
+    h.event('mixed_pacing_observed',interval_ms=interval,read_limit=limit,write_limit=writes,
+            advertised_cadence_ms=1000,required_reads_per_window=30,elapsed_ms=elapsed,principals=2,
+            valid_reads_each=limit,valid_writes_each=writes,observations=observations)
+    w.restart_api();h.results.append(dict(test='W4-mixed-source-principal-pacing',result='pass'))
+
+
+CASES.update({'w4_provider_refusal':provider_refusal,'w4_provider_ambiguity':provider_ambiguity,'w4_mixed_pacing':mixed_pacing})

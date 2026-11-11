@@ -144,7 +144,8 @@ impl Engine {
     Err(error)=>{
      let mut error=error.downcast_ref::<Error>().cloned().unwrap_or_else(||Error::new("internal","worker could not complete",true,json!({"accepted":null})));
      let dispatched=execution.dispatched.load(Ordering::Acquire);
-     let uncertain_kind=matches!(error.0["kind"].as_str(),Some("network"|"timeout"|"internal")) || error.0["kind"]=="provider" && error.0["details"]["upstream_status"].as_u64().is_none_or(|code|code>=500) || error.0["kind"]=="conflict" && error.0["details"]["reason"]=="cut_off";
+     // PRV-5/OPS-11: the driver retains upstream HTTP status in details.status.
+     let uncertain_kind=matches!(error.0["kind"].as_str(),Some("network"|"timeout"|"internal")) || error.0["kind"]=="provider" && error.0["details"]["status"].as_u64().is_none_or(|code|code>=500) || error.0["kind"]=="conflict" && error.0["details"]["reason"]=="cut_off";
      let ambiguous=dispatched&&(uncertain_kind||error.0["details"]["accepted"]==true);
      if !dispatched && uncertain_kind {error.0["retryable"]=json!(true);}
      if ambiguous{error.0["retryable"]=json!(false);error.0["details"]["attempted"]=json!("create_machine");}
