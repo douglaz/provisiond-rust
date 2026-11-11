@@ -956,6 +956,39 @@ was removed after all assertions. [Source](../evidence/w4/tested-source.json) an
 [workflow](../evidence/w4/final-workflow.json) identify the final executions. No production choice
 is settled; D-6 remains Open and the rail-history bounded-delivery limit remains deferred.
 
+### D-30. Canonical provider status and independent caller pacing
+
+**Measured 2026-11-11.** PRV-5/OPS-11 settle the status field: `details.status` is the driver's
+retained upstream status. `Engine::execute_order` reads that field while preserving worker position,
+known acceptance, reported error/advice and guarded settlement. A definitive provider/400 refusal
+closes its original commitment at zero and removes its resource exclusion through the existing
+LDG-35/STO-3 transaction, with no machine/setup/unit debit. Dispatched provider 500/no-status and
+accepted-then-provider-400 guards retain their reserves and surviving errors across restart.
+
+API-3/29/50 settle the separation: `State::handle` identifies a valid principal before checking the
+failed-auth source allowance. Credential verification uses ordinary bounded checked read sessions;
+there is no pre-database source-work cap. Authentication refusals still consume bounded in-memory
+source budgets independent of token spelling. Principal read/write allowances, auth-before-body,
+pending/suspended restrictions and replay ordering remain. No new admission mechanism is selected.
+
+**Recorded basis:** runtime/fixtures `27a75ffe84c633178c6b90e2e856817f09bb1c8f`; unchanged specification
+pin; PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and tokio-postgres 0.7.18.
+`nix develop --command bash tools/check.sh` exited 0. `nix develop --command python3
+tests/postgres/harness.py --phase workflow --seed 20261111 --evidence <run-dir>/workflow-final.json`
+exited 0 with 73 pass entries. Focused `w4_provider_refusal`, `w4_mixed_pacing`,
+`w4_provider_ambiguity`, default-feature `w4_expiry` and `--phase default-workflow` each exited 0.
+The first two selectors on unchanged `17a40da` runtime, with identical final fixture overlays,
+each exited 1 at its intended assertion after the actual provider error/source exhaustion.
+All 31 baseline runtime/build inputs match Git. Six existing activated controls each exited 1
+at their exact assertion; their runner exited 0. All cleanups passed. The mixed fixture uses
+30 reads/two writes per 10000 ms, admitting the three-read cadence, and completes within one
+window. These are test parameters, not production capacities.
+
+[Report](../evidence/refusal-pacing/report.md), [source](../evidence/refusal-pacing/tested-source.json),
+[validation](../evidence/refusal-pacing/validation.json) and [observations](../evidence/refusal-pacing/observations.json)
+retain the exact final comparisons, features, binaries, commands/statuses and raw-log hashes.
+Earlier W4/expiry evidence remains historical. No nine-phase run is claimed; D-6/7/8/9 remain Open.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |

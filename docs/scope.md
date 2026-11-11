@@ -169,8 +169,10 @@ The loopback customer listener supports `POST /v1/enrol/token`, `POST /v1/enrol`
 operation list/detail, balance with optional commitments, and unauthenticated OPTIONS. Credentials
 are shown once and stored hashed. Recovery credentials do not authenticate ordinary routes; recovery,
 maintenance and operator APIs remain unsupported. Traffic and enrolment concurrency state stays in
-memory without persisted caller addresses. Principal create/spend ceilings are durable and share the
-admitted operation's transaction. Replays precede suspension and ceiling refusal.
+memory without persisted caller addresses. Ordinary checked credential verification precedes the
+failed-auth source allowance, so a full abuse bucket cannot refuse a valid principal sharing the
+address. This source allowance is not a pre-database work bound. Principal create/spend ceilings are
+durable and share the admitted operation's transaction. Replays precede suspension and ceiling refusal.
 
 Deposits use nonpayable literal `TEST/SIMULATOR/NONPAYABLE` strings, with two independent simulator
 destinations bound to one retained deposit. Final settled Lightning and sufficiently confirmed
@@ -299,3 +301,11 @@ errors gain no retry. This is test-client protocol handling, not a runtime timeo
 Core fixture setup similarly makes at most three API admission requests with the same key and body,
 only after a whole-checkout refusal, mirroring its funding helper. Target fault probes and engine
 startups are direct.
+
+The [refusal and pacing supplement](../evidence/refusal-pacing/report.md) records separate unchanged-runtime
+reds and fixed-runtime greens for definitive provider/400 rejection and mixed-source caller pacing.
+The three focused workflow selectors are `w4_provider_refusal`, `w4_provider_ambiguity` and
+`w4_mixed_pacing`; all also run in the complete workflow. Definitive refusal releases the original
+commitment/exclusion without a debit, while dispatched provider 5xx/no-status and known acceptance
+retain unresolved reservations. This supplement runs the complete workflow, focused default-feature
+checks and six affected controls; it makes no new nine-phase or production-conformance claim.
