@@ -61,9 +61,12 @@ identities, raw-log hashes, cleanup and activation observations are in
 [validation](validation.json); consequential DB/HTTP/provider facts are in
 [observations](observations.json). Raw artifacts remain outside Git at
 `<run-dir>`, with a full raw artifact inventory and cleanup audit. Here `<run-dir>`
-always means the artifact directory; harness traces/build paths include its
-`harness/` child explicitly. Raw manifests retain the harness's original local
-placeholder convention.
+names the artifact directory; harness traces/build paths include its `harness/`
+child explicitly. Control child command arrays retain the fixture's generic
+`<run-dir>/control-manifest.json` token: their actual outputs are
+`<run-dir>/harness/controls-jsvy7nk9/<defect>.json`, while each control's `evidence`
+field names the parent-finalized manifest. Raw manifests retain the harness's
+original local placeholder convention.
 
 The committed observations are a focused projection of final raw manifests:
 repeated frozen summaries and workflow duplicates are omitted, and mixed HTTP
