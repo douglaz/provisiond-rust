@@ -989,6 +989,54 @@ window. These are test parameters, not production capacities.
 retain the exact final comparisons, features, binaries, commands/statuses and raw-log hashes.
 Earlier W4/expiry evidence remains historical. No nine-phase run is claimed; D-6/7/8/9 remain Open.
 
+### D-31. Provider reads use their separately priced deadline
+
+**Measured 2026-11-11.** PRV-13b/OVR-19 give the mutating call and confirming read
+separate sequential waits. `Client::call_entered` applies `read_seconds` to all four
+existing GET routes (`/offers`, `/search`, `/get`, `/constraints`) and the separate
+post-delete confirming GET. POSTs retain `call_seconds`; one-second fallbacks and
+descriptor validation remain. The seven-term reserve formula is unchanged.
+
+With admitted mutation/read terms of 5/1 seconds and the other terms one, the priced
+sum remains 11 seconds. Accepted-create read expiry keeps the existing timeout,
+accepted knowledge, false caller advice, safe identifiers, frozen terms and complete
+43-sat open commitment through ordinary restart. There is no machine/debit, second
+order or timeout-based absence/billing-stop inference. The test-only stop-cost
+adapter retains network/accepted-true/false-retryability on failed confirmation.
+PRV-13c still absorbs the post-confirmation constraint failure. No resolution
+scheduler, production cancellation path or mutation retry is added.
+
+Existing cancellation/observation fixtures explicitly price the former effective
+three/five-second read allowance, preserving actual lock-loss and retained-outcome
+faults. Application startup, checkout, store/retry and stop-record bounds stay fixed.
+
+**Recorded basis:** runtime/fixtures `aa5c0bd8bc417a8c1c7b37fbae118ba0b83470d2`,
+unchanged specification pin; PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7,
+Nix 2.34.9 and tokio-postgres 0.7.18. The final exact `w4_read_deadline` fixture on
+unchanged `8c961c81e0746d2e88ca4934b2ea927a4bbc89bf` plus seven fixture-only overlays
+exited 1 at the intended timing assertion: confirming read still open after 3.002728 s,
+priced allowance 1 s and scheduling tolerance 0.4 s. Baseline runtime/build inputs
+all match Git. The identical focused fixed-source run exited 0; its recorded HEAD
+predates the fix commit, with all 57 operational hashes matching that later commit.
+
+On the clean fix commit, `nix develop --command python3 tests/postgres/harness.py
+--phase workflow --seed 20261111 --evidence <run-dir>/workflow-final.json` exited 0
+with 80 pass entries, repeating all seven new arms. Receipt-to-wait-end read times
+were 1.000257–1.001037 s, including the separate delete-confirmation call; a delayed
+mutation completed in 3.033655 s under its 5 s term. Focused default-feature
+`w4_expiry`, `--phase default-workflow` and core `stops`, `licensing_stop`,
+`outcome_stop`, `deadline` each exited 0. The unchanged canonical runner restricted
+to nine affected controls exited 0; every child exited 1 at its exact assertion after
+activation, with cleanup passing. `nix develop --command bash tools/check.sh` exited
+0 after those checks. Credentials/data/targets were removed and all ten ports freed.
+
+[Report](../evidence/read-deadline/report.md), [source](../evidence/read-deadline/tested-source.json),
+[observations](../evidence/read-deadline/observations.json) and
+[validation](../evidence/read-deadline/validation.json) retain commands, feature/binary
+identities, raw-proof hashes, tolerances, outcomes and limits. Independent review
+is not run in this implementation phase; acceptance is not asserted. Earlier evidence
+is historical, no nine-phase run is claimed, and D-6/7/8/9 remain Open.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
