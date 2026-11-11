@@ -1037,6 +1037,37 @@ identities, raw-proof hashes, tolerances, outcomes and limits. Independent revie
 is not run in this implementation phase; acceptance is not asserted. Earlier evidence
 is historical, no nine-phase run is claimed, and D-6/7/8/9 remain Open.
 
+### D-32. One finite operation replay and readability horizon (STO-33 reading)
+
+**Decided 2026-11-11 by the owner (owner pick 2026-11-11).** The retention repair stopped
+before implementation because STO-33's "can refuse a reused key" could be read two ways
+against STO-25's tombstone, which keeps refusing a key after its operation is removed:
+
+- Reading A: refusal includes a permanent tombstone's refusal, so settled operations must
+  stay readable without limit.
+- Reading B, verbatim as put to the reading panel: "STO-33's horizon is the finite interval
+  during which a same-key replay returns the existing operation (API-11's promise, given an
+  explicit stated expiry as STO-25 permits). One finite number is both the replay horizon and
+  the operation-readability horizon. After it, reading the operation answers `gone`, and the
+  retained record keeps refusing the key for good, as STO-25's tombstone."
+
+A five-reader panel read STO-33, STO-25, STO-14, STO-35, API-11, DOM-21 and CNF-158 at the
+pin. Three readers picked B; two judged the text ambiguous and left the choice to the owner,
+while calling B the stronger whole-text reading; none picked A. Three of five is below the
+pre-accepted ratio, so the question went to the owner, who chose Reading B.
+
+- Strongest argument for B: A makes STO-14's retention MUST, STO-25's tombstone, CNF-158's
+  post-horizon `gone` and STO-33's own premise ("STO-25 makes idempotency records outlive"
+  terminal operations) impossible to meet together; the only finite number left to state is
+  API-11's replay expiry.
+- Strongest argument against settling it from the text: STO-33 never says in so many words
+  that refusal by a retained record or tombstone after the published replay expiry falls
+  outside "can refuse a reused key"; B narrows that phrase by structure, not by wording.
+
+**Spec clarification owed: STO-33 wording.** Its smallest form: STO-33's "can refuse a reused
+key" excludes refusal by a retained record or tombstone after the published replay expiry.
+The specification is read-only in this phase; the clarification is raised against it later.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
