@@ -23,6 +23,32 @@ use tokio::{
     sync::Semaphore,
     task::JoinSet,
 };
+// STO-33/25, DOM-21, OPS-3: one stored deadline across every resolving
+// operation receipt, including other scopes. A single statement observes state,
+// deadline and time; absent bodies remain identifiable through permanent receipts.
+const OPERATION_HISTORY: &str = "(SELECT COALESCE(o.id,r.resource_id) AS id,o.tenant_id,o.created_at,v.body,r.expires_at,COALESCE(o.status IN ('succeeded','failed') AND r.expires_at<=statement_timestamp(),false) AS expired FROM provisiond.operations o FULL JOIN (SELECT resource_id,max(expires_at) AS expires_at FROM provisiond.idempotency_records WHERE resource_kind='operation' GROUP BY resource_id) r ON r.resource_id=o.id LEFT JOIN provisiond.operation_views v ON v.id=o.id)";
+// STO-14/24/25/33: the actual DELETE independently protects every unexpired
+// resolving receipt. Receiptless rows retain their existing terminal-age fallback;
+// their missing durable deletion identity remains outside this keyed repair.
+const SETTLED_RETENTION: &str = "o.status IN ('succeeded','failed') AND NOT EXISTS(SELECT 1 FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=o.id AND r.expires_at>statement_timestamp()) AND (EXISTS(SELECT 1 FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=o.id) OR o.updated_at<statement_timestamp()-$1::bigint*interval '1 second')";
+
+fn operation_result(v: &Value) -> Result<Value> {
+    if !v["body"].is_null() && v["expired"] != true {
+        return Ok(v["body"].clone());
+    }
+    Err(if v["retained_until"].is_null() {
+        Error::missing()
+    } else {
+        Error::new(
+            "gone",
+            "operation removed by retention; read machines and balance",
+            false,
+            json!({"retained_until":v["retained_until"]}),
+        )
+    }
+    .into())
+}
+
 struct State {
     store: Arc<Store>,
     p: Parameters,
@@ -215,13 +241,21 @@ impl State {
         key: &str,
         fingerprint: &str,
     ) -> Result<Option<(u16, Value)>> {
-        // Includes the same-session post-read check, because a receipt may carry destinations.
-        let v=self.store.destination_value("SELECT COALESCE((SELECT jsonb_build_object('fingerprint',fingerprint,'resource_id',resource_id,'resource_kind',resource_kind,'status',status,'body',response_body,'expires',provisiond.wire_time(expires_at),'expired',expires_at<=clock_timestamp()) FROM provisiond.idempotency_records WHERE scope_kind='tenant' AND scope_id=$1 AND key=$2),'null'::jsonb)::text",&[&tenant,&key]).await?;
+        // STO-33/API-11: operation state and effective expiry are read together,
+        // including logical expiry before housekeeping. Deposit responses retain
+        // their same-session post-read destination check and original expiry rule.
+        let sql = format!(
+            "SELECT COALESCE((SELECT jsonb_build_object('fingerprint',r.fingerprint,'resource_kind',r.resource_kind,'status',r.status,'body',r.response_body,'expires',provisiond.wire_time(r.expires_at),'expired',r.expires_at<=statement_timestamp(),'operation',jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at))) FROM provisiond.idempotency_records r LEFT JOIN {OPERATION_HISTORY} h ON r.resource_kind='operation' AND h.id=r.resource_id AND (h.tenant_id=$1 OR h.tenant_id IS NULL) WHERE r.scope_kind='tenant' AND r.scope_id=$1 AND r.key=$2),'null'::jsonb)::text"
+        );
+        let v = self.store.destination_value(&sql, &[&tenant, &key]).await?;
         if v.is_null() {
             return Ok(None);
         }
         if v["fingerprint"] != fingerprint {
             return Err(Error::conflict("idempotency_mismatch").into());
+        }
+        if v["resource_kind"] == "operation" {
+            return Ok(Some((202, operation_result(&v["operation"])?)));
         }
         if v["expired"] == true {
             return Err(Error::new(
@@ -232,38 +266,19 @@ impl State {
             )
             .into());
         }
-        if v["resource_kind"] == "operation" {
-            return Ok(Some((
-                202,
-                self.operation(
-                    tenant,
-                    v["resource_id"].as_str().context("receipt resource")?,
-                )
-                .await?,
-            )));
-        }
         Ok(Some((
             v["status"].as_u64().context("status")? as u16,
             v["body"].clone(),
         )))
     }
     async fn operation(&self, tenant: &str, id: &str) -> Result<Value> {
-        let v=self.store.value("SELECT COALESCE((SELECT body FROM provisiond.operation_views WHERE tenant_id=$1 AND id::text=$2),'null'::jsonb)::text",&[&tenant,&id]).await?;
-        if !v.is_null() {
-            return Ok(v);
-        }
-        let gone=self.store.value("SELECT COALESCE((SELECT jsonb_build_object('retained_until',provisiond.wire_time(expires_at)) FROM provisiond.idempotency_records WHERE scope_kind='tenant' AND scope_id=$1 AND resource_id::text=$2 AND resource_kind='operation' LIMIT 1),'null'::jsonb)::text",&[&tenant,&id]).await?;
-        Err(if gone.is_null() {
-            Error::missing()
-        } else {
-            Error::new(
-                "gone",
-                "operation removed by retention; read machines and balance",
-                false,
-                gone,
-            )
-        }
-        .into())
+        // DOM-21/WIR-27: use the same snapshot and maximum as keyed replay.
+        // Tombstone authorization remains tenant-scoped; deadline aggregation is
+        // across all resolving receipts, never an arbitrary receipt LIMIT 1.
+        let sql = format!(
+            "SELECT COALESCE((SELECT jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at)) FROM {OPERATION_HISTORY} h WHERE h.id::text=$2 AND (h.tenant_id=$1 OR (h.tenant_id IS NULL AND EXISTS(SELECT 1 FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=h.id AND r.scope_kind='tenant' AND r.scope_id=$1)))),'null'::jsonb)::text"
+        );
+        operation_result(&self.store.value(&sql, &[&tenant, &id]).await?)
     }
     async fn handle(&self, r: &Request, source: IpAddr, correlation: &str) -> Result<(u16, Value)> {
         let path = r.target.split('?').next().unwrap_or(&r.target);
@@ -760,6 +775,7 @@ impl State {
             scope_id: tenant.into(),
             key: key.into(),
             fingerprint: fingerprint.into(),
+            receipt_seconds: self.p.n("receipt_seconds"),
             provider_account: account.into(),
             channel: descriptor["channel"].as_str().context("channel")?.into(),
             offer: offer_id.into(),
@@ -803,7 +819,7 @@ impl State {
             .await?[0]
                 .get::<_, String>(0),
         )?;
-        tx.rows("UPDATE provisiond.idempotency_records SET response_body=$3::text::jsonb,expires_at=transaction_timestamp()+$4::bigint*interval '1 second' WHERE scope_kind='tenant' AND scope_id=$1 AND key=$2 RETURNING resource_id",&[&tenant,&key,&body.to_string(),&self.p.n("receipt_seconds")]).await?;
+        tx.rows("UPDATE provisiond.idempotency_records SET response_body=$3::text::jsonb WHERE scope_kind='tenant' AND scope_id=$1 AND key=$2 RETURNING resource_id",&[&tenant,&key,&body.to_string()]).await?;
         Ok((202, body))
     }
 }
@@ -1001,9 +1017,12 @@ impl State {
                 .ok_or_else(|| Error::field("/cursor"))?
                 .into();
         }
+        // STO-33/CNF-158: logical expiry also excludes settled collection rows,
+        // independently of physical sweep timing. Unsettled rows never expire.
+        let operation_table = format!("(SELECT * FROM {OPERATION_HISTORY} h WHERE NOT h.expired)");
         let table = match collection {
             "machines" => "provisiond.machine_views",
-            "operations" => "provisiond.operation_views",
+            "operations" => &operation_table,
             _ => {
                 "(SELECT id,tenant_id,opened_at AS created_at,jsonb_build_object('machine_id',machine_id,'operation_id',operation_id,'reserved_sats',reserved_sats,'runway_until',(SELECT provisiond.wire_time(runway_until) FROM provisiond.machines WHERE id=c.machine_id)) AS body FROM provisiond.commitments c WHERE state='open')"
             }
@@ -1263,7 +1282,10 @@ async fn housekeeping(store: Arc<Store>, p: Parameters) -> Result<()> {
     let component = store.component();
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
-        let work=store.value("SELECT to_json(EXISTS(SELECT 1 FROM provisiond.enrolments e JOIN provisiond.tenants t ON t.id=e.tenant_id WHERE t.status='pending' AND e.expires_at<clock_timestamp()) OR EXISTS(SELECT 1 FROM provisiond.operations WHERE status IN ('succeeded','failed') AND updated_at<clock_timestamp()-$1::bigint*interval '1 second'))::text",&[&p.n("retention_seconds")]).await?;
+        let probe = format!(
+            "SELECT to_json(EXISTS(SELECT 1 FROM provisiond.enrolments e JOIN provisiond.tenants t ON t.id=e.tenant_id WHERE t.status='pending' AND e.expires_at<statement_timestamp()) OR EXISTS(SELECT 1 FROM provisiond.operations o WHERE {SETTLED_RETENTION}))::text"
+        );
+        let work = store.value(&probe, &[&p.n("retention_seconds")]).await?;
         if work != true {
             continue;
         }
@@ -1281,7 +1303,9 @@ async fn housekeeping(store: Arc<Store>, p: Parameters) -> Result<()> {
             .await?;
             tx.rows("DELETE FROM provisiond.enrolments e WHERE tenant_id=$1 AND NOT EXISTS(SELECT 1 FROM provisiond.tenants t WHERE t.id=e.tenant_id) RETURNING handle",&[&tenant]).await?;
         }
-        tx.rows("DELETE FROM provisiond.operations WHERE status IN ('succeeded','failed') AND updated_at<transaction_timestamp()-$1::bigint*interval '1 second' RETURNING id",&[&p.n("retention_seconds")]).await?;
+        let purge =
+            format!("DELETE FROM provisiond.operations o WHERE {SETTLED_RETENTION} RETURNING o.id");
+        tx.rows(&purge, &[&p.n("retention_seconds")]).await?;
         ensure!(
             component.commit(tx)?.wait().await? == CommitOutcome::Acknowledged,
             "housekeeping unacknowledged"

@@ -89,7 +89,7 @@ async fn main() -> Result<()> {
                 }
                 "admit"=> {
                     let v:Value=serde_json::from_str(arg)?;
-                    let r=CreateRequest {tenant:v["tenant"].as_str().context("tenant")?.into(),scope_kind:v["scope_kind"].as_str().unwrap_or("tenant").into(),scope_id:v["scope_id"].as_str().or(v["tenant"].as_str()).context("scope")?.into(),key:v["key"].as_str().context("key")?.into(),fingerprint:v["key"].as_str().context("key")?.into(),provider_account:"simulator".into(),channel:"simulated-channel".into(),offer:v["offer"].as_str().unwrap_or("catalogue").into(),offer_is_resource:v["resource"].as_bool().unwrap_or(false),reserved_sats:v["reserve"].as_i64().context("reserve")?,setup:v["setup"].clone(),first_unit:v.get("first_unit").cloned(),offer_snapshot:v["snapshot"].clone()};
+                    let r=CreateRequest {receipt_seconds:86400,tenant:v["tenant"].as_str().context("tenant")?.into(),scope_kind:v["scope_kind"].as_str().unwrap_or("tenant").into(),scope_id:v["scope_id"].as_str().or(v["tenant"].as_str()).context("scope")?.into(),key:v["key"].as_str().context("key")?.into(),fingerprint:v["key"].as_str().context("key")?.into(),provider_account:"simulator".into(),channel:"simulated-channel".into(),offer:v["offer"].as_str().unwrap_or("catalogue").into(),offer_is_resource:v["resource"].as_bool().unwrap_or(false),reserved_sats:v["reserve"].as_i64().context("reserve")?,setup:v["setup"].clone(),first_unit:v.get("first_unit").cloned(),offer_snapshot:v["snapshot"].clone()};
                     Ok(json!({"id":component.admit_create(&r).await?}))
                 }
                 "payment"=> {

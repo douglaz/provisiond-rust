@@ -64,8 +64,8 @@ impl Parameters {
             "pending TTL must exceed expiry plus finality"
         );
         ensure!(
-            p.n("receipt_seconds") > p.n("retention_seconds"),
-            "receipt horizon must exceed operation retention"
+            p.n("receipt_seconds") == p.n("retention_seconds"),
+            "receipt_seconds and retention_seconds must equal one operation replay/readability horizon"
         );
         // API-50: three fleet reads per advertised 1000 ms cadence, including
         // a partial interval. Windows start on the caller's first request.

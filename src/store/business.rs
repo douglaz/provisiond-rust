@@ -18,6 +18,8 @@ pub struct CreateRequest {
     pub scope_id: String,
     pub key: String,
     pub fingerprint: String,
+    /// STO-33/35: admission-origin replay/readability duration, never renewed.
+    pub receipt_seconds: i64,
     pub provider_account: String,
     pub channel: String,
     pub offer: String,
@@ -190,6 +192,7 @@ impl Transaction {
         result
     }
     async fn admit_create_inner(&mut self, r: &CreateRequest) -> Result<String> {
+        ensure!(r.receipt_seconds > 0, "invalid receipt horizon");
         ensure!(
             r.reserved_sats > 0 && matches!(r.scope_kind.as_str(), "tenant" | "operator"),
             "invalid admitting request"
@@ -282,7 +285,7 @@ impl Transaction {
         let summary = summary.to_string();
         self.rows("INSERT INTO provisiond.operations(id,tenant_id,idempotency_key,kind,status,provider_account,request,request_summary,correlation_id,commitment_id) VALUES($1::text::uuid,$2,$3,'create','queued',$4,'{}',$5::text::jsonb,$1,$6::text::uuid) RETURNING id",&[&id,&r.tenant,&r.key,&r.provider_account,&summary,&commitment]).await?;
         let receipt = json!({"operation_id":id}).to_string();
-        self.rows("INSERT INTO provisiond.idempotency_records(scope_kind,scope_id,key,fingerprint,resource_kind,resource_id,status,response_body,expires_at) VALUES($1,$2,$3,$4,'operation',$5::text::uuid,202,$6::text::jsonb,transaction_timestamp()+interval '1 day') RETURNING resource_id",&[&r.scope_kind,&r.scope_id,&r.key,&r.fingerprint,&id,&receipt]).await?;
+        self.rows("INSERT INTO provisiond.idempotency_records(scope_kind,scope_id,key,fingerprint,resource_kind,resource_id,status,response_body,expires_at) VALUES($1,$2,$3,$4,'operation',$5::text::uuid,202,$6::text::jsonb,transaction_timestamp()+$7::bigint*interval '1 second') RETURNING resource_id",&[&r.scope_kind,&r.scope_id,&r.key,&r.fingerprint,&id,&receipt,&r.receipt_seconds]).await?;
         Ok(id)
     }
     async fn credit_payment_inner(&mut self, p: &Payment) -> Result<String> {

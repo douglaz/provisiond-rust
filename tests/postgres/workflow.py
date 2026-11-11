@@ -14,7 +14,7 @@ from harness import eventually
 PARAMETERS=dict(activation_sats=100,deposit_seconds=3600,finality_seconds=600,tenant_seconds=10800,
  pending_limit=64,admission_delay_ms=50,admission_validity_seconds=60,admission_capacity=256,
  source_concurrency=2,rate_interval_ms=1000,read_limit=1000,write_limit=1000,created_limit=100,
- spend_limit=1000000,ceiling_seconds=3600,retention_seconds=3600,receipt_seconds=86400,
+ spend_limit=1000000,ceiling_seconds=3600,retention_seconds=86400,receipt_seconds=86400,
  listing_age_seconds=3600,lightning_floor_sats=1,onchain_floor_sats=20,confirmation_depth=2)
 
 
@@ -33,14 +33,14 @@ def http(port,method,path,body=None,token=None,key=None,raw=None,headers=None):
 
 
 class Workflow:
-    def __init__(self,h,defect=None,default_build=False):
+    def __init__(self,h,defect=None,default_build=False,parameters=None):
         self.defect=defect
         self.default_build=default_build
         self.h=h;self.children=[];self.engine=None;self.private=[]
         prepare(h)
         h.run(['cargo','build','--bins',*(['--features','store-test-hooks'] if not default_build else []),'--locked'],timeout=120)
         binary(h,'migrate',role='migrator')
-        self.parameters=h.root/'local-parameters.json';self.parameters.write_text(json.dumps(PARAMETERS))
+        self.parameters=h.root/'local-parameters.json';self.parameters.write_text(json.dumps(parameters or PARAMETERS))
         self.control=h.root/'worker-control';self.control.mkdir()
         self.descriptor=dict(account='sim-a',kind='local_simulator',capabilities=['provision_virtual','list_offers','delete_machine'],
             channel='orders',channels=['orders'],offer_is_resource=False,temporary_keys=False,
@@ -61,7 +61,7 @@ class Workflow:
         self.provider=self.simulator('provider',5)
         self.rail=self.simulator('rail',6)
         self.provider_control(offers={'sim-a':[self.offer],'sim-b':[self.offer]})
-        h.config['workflow']=dict(parameters=PARAMETERS,descriptor=self.descriptor,offer=self.offer,rate=self.rate,listeners=dict(api=h.ports[4],provider=h.ports[5],rail=h.ports[6]),test_build_features=[] if default_build else ['store-test-hooks'])
+        h.config['workflow']=dict(parameters=parameters or PARAMETERS,descriptor=self.descriptor,offer=self.offer,rate=self.rate,listeners=dict(api=h.ports[4],provider=h.ports[5],rail=h.ports[6]),test_build_features=[] if default_build else ['store-test-hooks'])
         self.builds={name:self.build_identity(h.target/'debug'/name,[] if default_build else ['store-test-hooks']) for name in ['api','engine','migrate']}
         h.config['workflow']['builds']=dict(self.builds)
         if default_build:h.config['engine']['runtime_build']['features']=[]
@@ -261,10 +261,15 @@ def workflow(h,case=None,defect=None):
         concurrent_orders(h)
         search_during_create(h)
         if case=='w4_simulator':return
-    w=Workflow(h,defect='w4_ack' if case=='w4_default' else 'payment_atomic' if defect=='w4_atomic' else defect,default_build=case in ('w4_default','w4_expiry'))
+    from w4_retention import parameters as retention_parameters
+    w=Workflow(h,parameters=retention_parameters() if case=='w4_retention' else None,defect='w4_ack' if case=='w4_default' else 'payment_atomic' if defect=='w4_atomic' else defect,default_build=case in ('w4_default','w4_expiry'))
     w.case=case or 'w4_workflow'
     try:
         from w4_regressions import CASES
+        if case=='w4_retention':
+            from w4_retention import retention
+            retention(w)
+            return
         if case=='w4_expiry':
             from w4_expiry import expiry
             expiry(w)
@@ -388,6 +393,8 @@ def workflow(h,case=None,defect=None):
         live_provider_stop(w)
         for name,regression in CASES.items():
             w.case=name;regression(w)
+        from w4_retention import retention
+        w.case="w4_retention";retention(w)
     finally:w.close()
 
 

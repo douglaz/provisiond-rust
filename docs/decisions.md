@@ -1068,6 +1068,45 @@ pre-accepted ratio, so the question went to the owner, who chose Reading B.
 key" excludes refusal by a retained record or tombstone after the published replay expiry.
 The specification is read-only in this phase; the clarification is raised against it later.
 
+### D-33. Admission-origin keyed retention with one logical cutoff
+
+**Implemented 2026-11-11; validation pending.** D-32's owner ruling governs STO-33 and
+STO-25. Keep both parameter names for compatibility but require equality at startup, in
+addition to positive, timestamp-safe validation. The ordinary fixture uses 86400 seconds
+for each: it preserves deposit receipt lifetime and extends the previous one-hour operation
+readability promise to that same day. This selects no production horizon.
+
+`CreateRequest::receipt_seconds` supplies admission's database transaction timestamp plus H
+inside `Transaction::admit_create_inner`; operation and receipt remain atomic (STO-35).
+`State::create` changes only the response snapshot, never expiry. For a receipted operation,
+E is the maximum persisted expiry across every resolving operation receipt, across keys and
+scopes. Existing deadlines survive configuration changes and replays. No terminal-age H is
+added. `OPERATION_HISTORY` supplies one statement snapshot and database observation time to
+replay, detail and list. Unsettled operations remain available beyond E; settled operations
+are logically removed at E. Detail and replay share `operation_result` and the same E.
+Fingerprint mismatch still precedes expiry and deposit replay retains its same-session
+post-read destination check.
+
+Full database timestamps decide eligibility, with equality expired. `retained_until` uses
+existing `wire_time` second precision, truncating less than one second for presentation only.
+No comparison or deletion rounds down; every unexpired stored receipt protects its operation.
+The probe and actual DELETE share `SETTLED_RETENTION`, including its all-receipt guard.
+Receipts/fingerprints survive permanently; ledger, commitment financial history and episodes
+are outside retention. GETs perform no writes. A queued/running/reconciliation-pending
+operation never becomes gone merely because E passed. If it settles after E, retention
+applies as soon as that settlement is visible, without another H; the caller may first see
+gone instead of its final body. No reconciliation or settlement work is added for retention.
+
+The scan over permanently retained receipts has no resource-id index at prototype scale;
+indexing remains deferred. Receiptless rows keep the pre-existing terminal-age sweep fallback
+and lack a permanent deletion identity, so their later not_found gap remains outside this
+keyed repair. Bodies already deleted by the old sweep cannot be recovered. F3 retained rail
+history and descriptor-at-startup deadline limits remain deferred. D-32's specification
+wording clarification is still owed; the specification was not modified.
+
+Validation and final evidence will be recorded in the focused retention supplement after
+execution; no demonstration is claimed by this implementation entry.
+
 ## Open
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |

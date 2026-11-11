@@ -252,8 +252,8 @@ controlled inputs, not a real market feed.
 `tests/postgres/workflow.py` owns the disclosed local parameter fixture: activation 100 sats, a 3600 s
 deposit, 600 s finality allowance, 10800 s pending lifetime, 64 pending tenants, a 50 ms admission delay,
 60 s token validity, 256 spent nonces, two held token requests per source, separate 1000-request read
-and write budgets per 1000 ms, 100 creates and 1000000 sats per 3600 s principal interval, 3600 s
-operation retention, 86400 s receipt retention, 3600 s listing age, 1/20 sat Lightning/on-chain floors
+and write budgets per 1000 ms, 100 creates and 1000000 sats per 3600 s principal interval, 86400 s
+operation replay/readability and receipt horizon, 3600 s listing age, 1/20 sat Lightning/on-chain floors
 and confirmation depth two. Enrolment concurrency pacing is a constant 1000 ms independent of delay.
 Supported traffic configurations must allow list, balance and machine reads at the finest advertised
 1000 ms cadence. Parameter/descriptor files and simulator addresses are required; these settings do

@@ -150,6 +150,24 @@ capacity, traffic budgets, durable principal ceilings, retention, floors, confir
 conversion and sequential wind-down inputs. Configuration validation admits the three fleet reads at
 the finest advertised cadence. These fixture settings do not settle production capacities or D-6.
 
+STO-33/API-11 operation replay and readability share one **86400-second** local fixture
+horizon, measured from receipt admission's database transaction timestamp. Both configuration
+names, `retention_seconds` and `receipt_seconds`, must express that same positive duration.
+Each operation uses the latest stored expiry among all receipts resolving to it; changing
+configuration or replaying a key never renews or shortens an existing receipt. Queued, running
+and `needs_reconciliation` operations remain readable, listed and replayable beyond expiry.
+Once settled and expired, detail and matching-key replay return non-retryable `410 gone`,
+and collections omit the operation, independently of the physical sweep. A late settlement
+receives no new horizon. `details.retained_until` renders the stored deadline at wire second
+precision; comparisons use the full database timestamp, so formatting never cuts an unexpired
+receipt short. Receipts and fingerprints refuse reuse permanently: a changed body conflicts,
+and a matching post-horizon key cannot purchase again. Read machines and balance after `gone`.
+The one-day ordinary deposit receipt lifetime is preserved. This fixture chooses no production
+horizon; historical bodies already deleted by the old sweep cannot be reconstructed.
+
+The focused keyed-retention regression is `--phase workflow --case w4_retention`; its four
+checks also run in the complete workflow phase.
+
 Focused commands use `--phase corrections --case verify_cancel`, `--phase core --case migrations`,
 `--case money`, `--case claims`, `--case generation`, `--case stops` or `--case external`.
 The additional core cases are `claim_cancel`, `defer_cancel`, `licensing_stop`, `outcome_stop`, `replacement_outcome`, `deadline`,
