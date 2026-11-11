@@ -37,7 +37,9 @@ def verification_stop(w,only=None):
         # As in w4_observation, a finite provider-fixture allowance keeps its
         # fsync'd order stages separate from the cancellation under test. Store,
         # checkout, startup, retry and the original 1000 ms record stay unchanged.
-        descriptor=dict(original_descriptor,call_seconds=5)
+        # PRV-13b: price the read's former effective five-second wait explicitly;
+        # an early read timeout must not substitute for attributed lock loss.
+        descriptor=dict(original_descriptor,call_seconds=5,read_seconds=5)
         h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(descriptor),account))
         op=w.request('POST','/v1/machines',w.create_body(t),t,'verification-stop-'+path,status=202)['id']
         admitted=state(w,op)
@@ -86,7 +88,7 @@ def verification_stop(w,only=None):
             h.event('verification_stop_armed',operation=op,claim_number=1,window=path,
                     held_request=held,order_stages=[e['stage'] for e in order],
                     expected_identifiers=expected,lock_session=lock_pid,generation=generation,
-                    attributed_driver_deaths=1,forwarded_sqlstate='57P01',setup_readiness_completed=True,provider_call_seconds=5)
+                    attributed_driver_deaths=1,forwarded_sqlstate='57P01',setup_readiness_completed=True,provider_call_seconds=5,provider_read_seconds=5)
             # Keep the provider held through the shielded record and executable
             # exit. A timeout/error outcome cannot satisfy the cut-off assertions.
             eventually(lambda:p.poll() is not None,seconds=3)

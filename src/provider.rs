@@ -39,15 +39,19 @@ impl Client {
         path: &str,
         v: &Value,
     ) -> Result<Value, Error> {
-        let bound = Duration::from_secs(d["call_seconds"].as_u64().unwrap_or(1));
+        // PRV-13b/OVR-19: the mutation and its confirming read are separate
+        // sequential waits, each bounded by its own priced descriptor term.
+        let read = ["/offers", "/search", "/get", "/constraints"].contains(&path);
+        let read_bound = Duration::from_secs(d["read_seconds"].as_u64().unwrap_or(1));
+        let bound = if read {
+            read_bound
+        } else {
+            Duration::from_secs(d["call_seconds"].as_u64().unwrap_or(1))
+        };
         let deletion_read = (path == "/delete").then(|| v.clone());
         let v = http::call(
             self.address,
-            if ["/offers", "/search", "/get", "/constraints"].contains(&path) {
-                "GET"
-            } else {
-                "POST"
-            },
+            if read { "GET" } else { "POST" },
             path,
             v,
             bound,
@@ -109,7 +113,7 @@ impl Client {
             ));
         }
         if let Some(request) = deletion_read {
-            let observed = http::call(self.address, "GET", "/get", &request, bound)
+            let observed = http::call(self.address, "GET", "/get", &request, read_bound)
                 .await
                 .map_err(|_| {
                     Error::new(

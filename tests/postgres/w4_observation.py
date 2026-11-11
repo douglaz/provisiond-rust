@@ -13,7 +13,10 @@ def observation(w):
     # Each arm uses actual HTTP funding/admission and the independent driver.
     for mode in ['reply_loss','constraint_timeout','stop_after_read']:
         t=funded(w,'observation-'+mode);account=t['account']
-        descriptor=dict(w.descriptor,account=account,call_seconds=3 if mode=='constraint_timeout' else 5)
+        # PRV-13b: retain the old effective read allowance explicitly so the
+        # observation/stop hold, rather than an early timeout, remains the fault.
+        allowance=3 if mode=='constraint_timeout' else 5
+        descriptor=dict(w.descriptor,account=account,call_seconds=allowance,read_seconds=allowance)
         h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(descriptor),account))
         op=w.request('POST','/v1/machines',w.create_body(t),t,'observation-'+mode,status=202)['id']
         hold=h.root/'provider/hold-constraints';hold.touch()
@@ -39,7 +42,7 @@ def observation(w):
             h.event('provider_observation_delay_activated',operation=op,case=mode,
                     get_received_at=read['timestamp'],constraint_received_at=constraint['timestamp'],
                     get_sequence=read['sequence'],constraint_sequence=constraint['sequence'],
-                    constraint_held=True,settlement_started=False,call_seconds=descriptor['call_seconds'])
+                    constraint_held=True,settlement_started=False,call_seconds=descriptor['call_seconds'],read_seconds=descriptor['read_seconds'])
             if mode=='constraint_timeout':
                 w.wait_status(op,'succeeded')  # the bounded failed read leaves success/null
             else:

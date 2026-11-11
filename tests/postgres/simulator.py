@@ -4,6 +4,8 @@ import calendar
 import json
 import os
 from pathlib import Path
+import select
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -35,7 +37,7 @@ def main():
         nonlocal sequence
         with lock:
             sequence+=1
-            e=dict(sequence=sequence,timestamp=time.time(),stage=stage,**value)
+            e=dict(sequence=sequence,timestamp=time.time(),monotonic_ns=time.monotonic_ns(),stage=stage,**value)
             with events.open('a') as f:
                 f.write(json.dumps(e,sort_keys=True)+'\n');f.flush();os.fsync(f.fileno())
             return e
@@ -74,6 +76,7 @@ def main():
                         record('resource_created',resource=resource['external_id'],value=resource,test_fixture=True)
                     if 'offers' in body:state['offers']=body['offers']
                     if 'mode' in body:state['mode']=body['mode']
+                    if 'deadline_delay' in body:state['deadline_delay']=body['deadline_delay']
                     if 'verification_resource' in body:state['verification_resource']=body['verification_resource']
                     if 'settlement' in body:
                         value=body['settlement']
@@ -103,6 +106,27 @@ def main():
             operation=body.get('operation')
             identity=dict(command=operation,account=body.get('account'),correlator=body.get('correlator'),path=self.path)
             record('request_received',**identity)
+            # PRV-13b/OVR-19 test tooling only: one attributed request, after
+            # readiness. Observe peer EOF while withholding the response, so the
+            # measured reply wait excludes database and process-startup work.
+            with lock:
+                delay=state.get('deadline_delay')
+                if delay and delay['operation']==operation and delay['path']==self.path:
+                    state['deadline_delay']=None
+                else:delay=None
+            if delay:
+                started=time.monotonic()
+                record('deadline_delay_started',seconds=delay['seconds'],**identity)
+                closed=None
+                while time.monotonic()-started<delay['seconds']:
+                    if closed is None and select.select([self.connection],[],[],.002)[0]:
+                        if self.connection.recv(1,socket.MSG_PEEK)==b'':
+                            closed=time.monotonic()-started
+                            record('deadline_peer_closed',wait_seconds=closed,**identity)
+                    else:time.sleep(.002)
+                record('deadline_delay_finished',wait_seconds=closed if closed is not None else time.monotonic()-started,
+                       peer_closed=closed is not None,measurement='peer EOF' if closed is not None else 'lower bound before reply',**identity)
+                if closed is not None:return
             hold=args.root/('hold-'+self.path.strip('/'))
             held=hold.exists()
             if held:record('request_held',**identity)

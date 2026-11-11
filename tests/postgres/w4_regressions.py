@@ -592,3 +592,6 @@ def mixed_pacing(w):
 
 
 CASES.update({'w4_provider_refusal':provider_refusal,'w4_provider_ambiguity':provider_ambiguity,'w4_mixed_pacing':mixed_pacing})
+
+from w4_read_deadline import read_deadline
+CASES['w4_read_deadline']=read_deadline
