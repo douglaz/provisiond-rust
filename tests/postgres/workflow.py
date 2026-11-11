@@ -266,6 +266,14 @@ def workflow(h,case=None,defect=None):
     w.case=case or 'w4_workflow'
     try:
         from w4_regressions import CASES
+        if case=='w4_retention_reads':
+            from w4_retention_scale import retention_reads
+            retention_reads(w)
+            return
+        if case=='w4_retention_scale':
+            from w4_retention_scale import retention_scale
+            retention_scale(w)
+            return
         if case=='w4_retention':
             from w4_retention import retention
             retention(w)

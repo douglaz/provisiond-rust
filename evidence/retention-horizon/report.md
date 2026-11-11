@@ -1,9 +1,11 @@
 # Shared operation replay/readability horizon
 
-The local keyed customer subset is implemented by 684cbb21cce88f81c884115ceae1a4bbc5335b1b, under specification
+This is historical evidence for the unaccepted implementation
+684cbb21cce88f81c884115ceae1a4bbc5335b1b, under specification
 ac37c7cae5d3ff746515137774a4cdd5a3531375 and D-32's settled finite-horizon reading.
-This supplement records final focused/workflow validation; no nine-phase run or production
-conformance is claimed. Historical evidence remains unchanged.
+The [query-bound companion](query-bound/report.md) supersedes this supplement for final runtime
+validation. The original proofs remain historical; no nine-phase run or production conformance
+is claimed. This report does not establish Run acceptance.
 
 STO-33/API-11 use one admission-origin H: both configuration names must equal 86400 seconds
 in the ordinary fixture, preserving deposit receipt lifetime. Operation admission stores
@@ -87,13 +89,11 @@ files and WAL archives were removed. Private raw logs and simulator effect histo
 <run-dir>; the isolated baseline source was hash-audited again after all reviews and removed by its exact owned path.
 The capped unit retained 16 GiB MemoryMax, zero swap, OOMPolicy=continue and KillMode=mixed.
 
-All five prescribed review seats were attempted. [Review judgment](review.json) records four
-substantive independent acceptances and no blocking finding; the fifth returned a 402 usage-balance
-error with empty output and contributed no vote. The three-of-four fallback quorum was satisfied.
-Each substantive review independently checked the exact target, raw/source/config hashes, actual
-red/green/control observations and cleanup. Minor disclosure/SQL-shape clarifications and final
-cleanup/review bookkeeping followed; runtime and fixture bytes did not change. Limits remain:
-receiptless rows lack a durable deletion identity and can later answer not_found; already-deleted
-bodies cannot be reconstructed; permanent receipt scan indexing, F3 retained rail-history size and
-descriptor-at-startup deadline limits are deferred. D-32's specification clarification is still owed.
+The retained [review record](review.json) is Implementer pre-review, not Run acceptance.
+Its historical participation tally establishes no independent acceptance quorum. The subsequent
+housekeeping timeout and measured read-bound failures required the query-bound continuation.
+Permanent receipt query scaling is addressed by that companion within its measured shapes;
+production sizing remains open. Receiptless deletion identity, already-lost bodies, F3 retained
+rail-history size and descriptor-at-startup deadline limits remain outside this repair.
+D-32's specification clarification is still owed. Independent Run review is pending.
 No provider/funds activity or production horizon is selected.

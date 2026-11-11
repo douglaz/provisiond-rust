@@ -1081,7 +1081,7 @@ inside `Transaction::admit_create_inner`; operation and receipt remain atomic (S
 `State::create` changes only the response snapshot, never expiry. For a receipted operation,
 E is the maximum persisted expiry across every resolving operation receipt, across keys and
 scopes. Existing deadlines survive configuration changes and replays. No terminal-age H is
-added. `OPERATION_HISTORY` supplies one statement snapshot and database observation time to
+added. `operation_history` supplies one statement snapshot and database observation time to
 replay, detail and list. Unsettled operations remain available beyond E; settled operations
 are logically removed at E. Detail and replay share `operation_result` and the same E.
 Fingerprint mismatch still precedes expiry and deposit replay retains its same-session
@@ -1097,32 +1097,54 @@ operation never becomes gone merely because E passed. If it settles after E, ret
 applies as soon as that settlement is visible, without another H; the caller may first see
 gone instead of its final body. No reconciliation or settlement work is added for retention.
 
-The read SQL aggregates permanently retained operation receipts and FULL JOINs operations
-for detail, list and replay, including the shared deposit-receipt query; the work probe also
-consults those records. There is no resource-id index. These queries retain the existing
-statement bound; indexing/query tuning and scale validation remain deferred. This describes
-SQL shape, not a measured execution plan or a capacity guarantee. Receiptless rows keep the pre-existing terminal-age sweep fallback
+The original correlated work probe timed out on 20,000 settled operations and 200,000
+operation receipts, stopping the actual API. The replacement `SETTLED_RETENTION` materializes
+settled candidates, hash-joins resolving receipts, aggregates their maximum persisted expiry,
+and joins once back to candidates. Probe and DELETE evaluate this same relation afresh.
+Measured plans scan receipts once, with no candidate-by-live-receipt comparison loop.
+
+The unchanged global read aggregate also reached its bound: at two million receipts the
+actual detail, operation replay, list and deposit replay returned internal errors. With only
+queued operations, 8 successful housekeeping probes and a live API isolate that read
+failure. `operation_history` now selects IDs before aggregation: detail filters both inputs
+by ID; keyed replay uses the selected receipt through a lateral relation; list filters existing
+operations by tenant and retains every receipt resolving to those IDs. Tenant authorization
+remains separate from the all-scope maximum. Deposit replay avoids operation-history work.
+
+No index or migration was needed. On PostgreSQL 18.6 with ordinary planner settings and the
+unchanged 1000 ms statement bound, no-work/mixed probe and DELETE execution times were
+41.897–48.675 ms at 20k operations/200k receipts, 135.727–162.578 ms at 20k/1M, and
+193.266–200.734 ms at 50k/1M. The largest observed housekeeping statement leaves 799.266 ms of measured
+headroom. HTTP reads on these shapes took 4.01–178.24 ms; the separate 20k/2M queued-history
+fixture took 4.39–165.53 ms. These are local observations, not a production capacity guarantee.
+The shapes separately increase permanent receipt history and existing operation count across
+100 tenant identities. Receiptless rows keep the pre-existing terminal-age sweep fallback
 and lack a permanent deletion identity, so their later not_found gap remains outside this
 keyed repair. Bodies already deleted by the old sweep cannot be recovered. F3 retained rail
 history and descriptor-at-startup deadline limits remain deferred. D-32's specification
 wording clarification is still owed; the specification was not modified.
 
-**Recorded basis:** runtime/fixtures `684cbb21cce88f81c884115ceae1a4bbc5335b1b`, unchanged pin;
+**Historical basis, superseded for final runtime validation:** runtime/fixtures
+`684cbb21cce88f81c884115ceae1a4bbc5335b1b`, unchanged pin;
 PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and tokio-postgres 0.7.18.
 `nix develop --command bash tools/check.sh` exited 0. The identical final `w4_retention` fixture
 on unchanged `8ea285a` exited 1 at SAME-KEY REPLAY EXPECTS EXISTING OPERATION, with the row
 physically deleted but 25.304408 seconds of live receipt remaining. The fixed focused command
 exited 0. Complete workflow exited 0 with 84 pass entries; default-feature expiry/default workflow,
-four core stop/deadline commands and the canonical nine-control recognizing parent each exited 0.
+four core stop/deadline commands and a nine-control subset recognizing parent each exited 0.
 Each control child exited 1 at its exact assertion after activation and cleanup. Final core/control
 runs capture actual executable hashes/features; no fault or application bound was widened.
 [Report](../evidence/retention-horizon/report.md), [source](../evidence/retention-horizon/tested-source.json),
 [validation](../evidence/retention-horizon/validation.json) and [observations](../evidence/retention-horizon/observations.json)
 record timings, config/source/raw hashes, byte-identical overlays, sole allowed config-value
-difference and cleanup. Four substantive independent reviews accepted the exact fix/proofs with no blocker; the fifth
-seat returned a 402/empty response and did not count. The prescribed fallback quorum was met.
-[Review judgment](../evidence/retention-horizon/review.json) records participation and limitations.
-No new nine-phase run is claimed.
+difference and cleanup. The retained [pre-review record](../evidence/retention-horizon/review.json)
+is Implementer pre-review, not Run acceptance; it establishes no independent acceptance quorum.
+
+**Current measured basis:** the [query-bound companion](../evidence/retention-horizon/query-bound/report.md)
+binds final runtime/fixtures, exact commands and exits, actual plans/timings, unchanged-baseline
+executable reds, final greens and cleanup. The one-second statement, two-second store-call and
+250 ms checkout bounds, permanent receipts and task-failure handling remain unchanged. Independent
+Run review is pending. No new nine-phase run is claimed.
 
 ## Open
 

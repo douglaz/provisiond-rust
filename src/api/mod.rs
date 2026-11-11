@@ -24,13 +24,19 @@ use tokio::{
     task::JoinSet,
 };
 // STO-33/25, DOM-21, OPS-3: one stored deadline across every resolving
-// operation receipt, including other scopes. A single statement observes state,
-// deadline and time; absent bodies remain identifiable through permanent receipts.
-const OPERATION_HISTORY: &str = "(SELECT COALESCE(o.id,r.resource_id) AS id,o.tenant_id,o.created_at,v.body,r.expires_at,COALESCE(o.status IN ('succeeded','failed') AND r.expires_at<=statement_timestamp(),false) AS expired FROM provisiond.operations o FULL JOIN (SELECT resource_id,max(expires_at) AS expires_at FROM provisiond.idempotency_records WHERE resource_kind='operation' GROUP BY resource_id) r ON r.resource_id=o.id LEFT JOIN provisiond.operation_views v ON v.id=o.id)";
-// STO-14/24/25/33: the actual DELETE independently protects every unexpired
-// resolving receipt. Receiptless rows retain their existing terminal-age fallback;
-// their missing durable deletion identity remains outside this keyed repair.
-const SETTLED_RETENTION: &str = "o.status IN ('succeeded','failed') AND NOT EXISTS(SELECT 1 FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=o.id AND r.expires_at>statement_timestamp()) AND (EXISTS(SELECT 1 FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=o.id) OR o.updated_at<statement_timestamp()-$1::bigint*interval '1 second')";
+// operation receipt, including other scopes. Select candidate identities before
+// aggregation, without narrowing the receipts by scope/tenant. A single statement
+// observes state, deadline and time, including permanent receipt-only identities.
+fn operation_history(operations: &str, receipts: &str) -> String {
+    format!(
+        "(SELECT COALESCE(o.id,d.resource_id) AS id,o.tenant_id,o.created_at,v.body,d.expires_at,COALESCE(o.status IN ('succeeded','failed') AND d.expires_at<=statement_timestamp(),false) AS expired FROM (SELECT * FROM provisiond.operations candidate WHERE {operations}) o FULL JOIN (SELECT i.resource_id,max(i.expires_at) AS expires_at FROM provisiond.idempotency_records i WHERE i.resource_kind='operation' AND {receipts} GROUP BY i.resource_id) d ON d.resource_id=o.id LEFT JOIN provisiond.operation_views v ON v.id=o.id)"
+    )
+}
+// STO-14/24/25/33: resolve all receipts for the settled candidate set once,
+// including other scopes, rather than scanning live receipts per operation.
+// Receipt presence is distinct from expiry; receiptless rows keep the strict age
+// fallback. Both statements evaluate this relation afresh at statement time.
+const SETTLED_RETENTION: &str = "(WITH candidates AS MATERIALIZED (SELECT id,updated_at FROM provisiond.operations WHERE status IN ('succeeded','failed')) SELECT c.id FROM candidates c LEFT JOIN (SELECT r.resource_id,max(r.expires_at) AS expires_at FROM provisiond.idempotency_records r JOIN candidates c ON c.id=r.resource_id WHERE r.resource_kind='operation' GROUP BY r.resource_id) r ON r.resource_id=c.id WHERE (r.resource_id IS NOT NULL AND r.expires_at<=statement_timestamp()) OR (r.resource_id IS NULL AND c.updated_at<statement_timestamp()-$1::bigint*interval '1 second'))";
 
 fn operation_result(v: &Value) -> Result<Value> {
     if !v["body"].is_null() && v["expired"] != true {
@@ -244,8 +250,12 @@ impl State {
         // STO-33/API-11: operation state and effective expiry are read together,
         // including logical expiry before housekeeping. Deposit responses retain
         // their same-session post-read destination check and original expiry rule.
+        let history = operation_history(
+            "candidate.id=r.resource_id AND r.resource_kind='operation'",
+            "i.resource_id=r.resource_id AND r.resource_kind='operation'",
+        );
         let sql = format!(
-            "SELECT COALESCE((SELECT jsonb_build_object('fingerprint',r.fingerprint,'resource_kind',r.resource_kind,'status',r.status,'body',r.response_body,'expires',provisiond.wire_time(r.expires_at),'expired',r.expires_at<=statement_timestamp(),'operation',jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at))) FROM provisiond.idempotency_records r LEFT JOIN {OPERATION_HISTORY} h ON r.resource_kind='operation' AND h.id=r.resource_id AND (h.tenant_id=$1 OR h.tenant_id IS NULL) WHERE r.scope_kind='tenant' AND r.scope_id=$1 AND r.key=$2),'null'::jsonb)::text"
+            "SELECT COALESCE((SELECT jsonb_build_object('fingerprint',r.fingerprint,'resource_kind',r.resource_kind,'status',r.status,'body',r.response_body,'expires',provisiond.wire_time(r.expires_at),'expired',r.expires_at<=statement_timestamp(),'operation',jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at))) FROM provisiond.idempotency_records r LEFT JOIN LATERAL {history} h ON r.resource_kind='operation' AND h.id=r.resource_id AND (h.tenant_id=$1 OR h.tenant_id IS NULL) WHERE r.scope_kind='tenant' AND r.scope_id=$1 AND r.key=$2),'null'::jsonb)::text"
         );
         let v = self.store.destination_value(&sql, &[&tenant, &key]).await?;
         if v.is_null() {
@@ -275,8 +285,9 @@ impl State {
         // DOM-21/WIR-27: use the same snapshot and maximum as keyed replay.
         // Tombstone authorization remains tenant-scoped; deadline aggregation is
         // across all resolving receipts, never an arbitrary receipt LIMIT 1.
+        let history = operation_history("candidate.id::text=$2", "i.resource_id::text=$2");
         let sql = format!(
-            "SELECT COALESCE((SELECT jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at)) FROM {OPERATION_HISTORY} h WHERE h.id::text=$2 AND (h.tenant_id=$1 OR (h.tenant_id IS NULL AND EXISTS(SELECT 1 FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=h.id AND r.scope_kind='tenant' AND r.scope_id=$1)))),'null'::jsonb)::text"
+            "SELECT COALESCE((SELECT jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at)) FROM {history} h WHERE h.id::text=$2 AND (h.tenant_id=$1 OR (h.tenant_id IS NULL AND EXISTS(SELECT 1 FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=h.id AND r.scope_kind='tenant' AND r.scope_id=$1)))),'null'::jsonb)::text"
         );
         operation_result(&self.store.value(&sql, &[&tenant, &id]).await?)
     }
@@ -1019,7 +1030,11 @@ impl State {
         }
         // STO-33/CNF-158: logical expiry also excludes settled collection rows,
         // independently of physical sweep timing. Unsettled rows never expire.
-        let operation_table = format!("(SELECT * FROM {OPERATION_HISTORY} h WHERE NOT h.expired)");
+        let history = operation_history(
+            "candidate.tenant_id=$1",
+            "i.resource_id IN (SELECT id FROM provisiond.operations WHERE tenant_id=$1)",
+        );
+        let operation_table = format!("(SELECT * FROM {history} h WHERE NOT h.expired)");
         let table = match collection {
             "machines" => "provisiond.machine_views",
             "operations" => &operation_table,
@@ -1283,7 +1298,7 @@ async fn housekeeping(store: Arc<Store>, p: Parameters) -> Result<()> {
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
         let probe = format!(
-            "SELECT to_json(EXISTS(SELECT 1 FROM provisiond.enrolments e JOIN provisiond.tenants t ON t.id=e.tenant_id WHERE t.status='pending' AND e.expires_at<statement_timestamp()) OR EXISTS(SELECT 1 FROM provisiond.operations o WHERE {SETTLED_RETENTION}))::text"
+            "SELECT to_json(EXISTS(SELECT 1 FROM provisiond.enrolments e JOIN provisiond.tenants t ON t.id=e.tenant_id WHERE t.status='pending' AND e.expires_at<statement_timestamp()) OR EXISTS(SELECT 1 FROM {SETTLED_RETENTION} due))::text"
         );
         let work = store.value(&probe, &[&p.n("retention_seconds")]).await?;
         if work != true {
@@ -1303,8 +1318,9 @@ async fn housekeeping(store: Arc<Store>, p: Parameters) -> Result<()> {
             .await?;
             tx.rows("DELETE FROM provisiond.enrolments e WHERE tenant_id=$1 AND NOT EXISTS(SELECT 1 FROM provisiond.tenants t WHERE t.id=e.tenant_id) RETURNING handle",&[&tenant]).await?;
         }
-        let purge =
-            format!("DELETE FROM provisiond.operations o WHERE {SETTLED_RETENTION} RETURNING o.id");
+        let purge = format!(
+            "DELETE FROM provisiond.operations o WHERE o.id IN (SELECT id FROM {SETTLED_RETENTION} due) RETURNING o.id"
+        );
         tx.rows(&purge, &[&p.n("retention_seconds")]).await?;
         ensure!(
             component.commit(tx)?.wait().await? == CommitOutcome::Acknowledged,
