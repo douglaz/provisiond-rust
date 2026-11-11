@@ -1070,7 +1070,7 @@ The specification is read-only in this phase; the clarification is raised agains
 
 ### D-33. Admission-origin keyed retention with one logical cutoff
 
-**Implemented 2026-11-11; validation pending.** D-32's owner ruling governs STO-33 and
+**Measured 2026-11-11.** D-32's owner ruling governs STO-33 and
 STO-25. Keep both parameter names for compatibility but require equality at startup, in
 addition to positive, timestamp-safe validation. The ordinary fixture uses 86400 seconds
 for each: it preserves deposit receipt lifetime and extends the previous one-hour operation
@@ -1097,15 +1097,32 @@ operation never becomes gone merely because E passed. If it settles after E, ret
 applies as soon as that settlement is visible, without another H; the caller may first see
 gone instead of its final body. No reconciliation or settlement work is added for retention.
 
-The scan over permanently retained receipts has no resource-id index at prototype scale;
-indexing remains deferred. Receiptless rows keep the pre-existing terminal-age sweep fallback
+The read SQL aggregates permanently retained operation receipts and FULL JOINs operations
+for detail, list and replay, including the shared deposit-receipt query; the work probe also
+consults those records. There is no resource-id index. These queries retain the existing
+statement bound; indexing/query tuning and scale validation remain deferred. This describes
+SQL shape, not a measured execution plan or a capacity guarantee. Receiptless rows keep the pre-existing terminal-age sweep fallback
 and lack a permanent deletion identity, so their later not_found gap remains outside this
 keyed repair. Bodies already deleted by the old sweep cannot be recovered. F3 retained rail
 history and descriptor-at-startup deadline limits remain deferred. D-32's specification
 wording clarification is still owed; the specification was not modified.
 
-Validation and final evidence will be recorded in the focused retention supplement after
-execution; no demonstration is claimed by this implementation entry.
+**Recorded basis:** runtime/fixtures `684cbb21cce88f81c884115ceae1a4bbc5335b1b`, unchanged pin;
+PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and tokio-postgres 0.7.18.
+`nix develop --command bash tools/check.sh` exited 0. The identical final `w4_retention` fixture
+on unchanged `8ea285a` exited 1 at SAME-KEY REPLAY EXPECTS EXISTING OPERATION, with the row
+physically deleted but 25.304408 seconds of live receipt remaining. The fixed focused command
+exited 0. Complete workflow exited 0 with 84 pass entries; default-feature expiry/default workflow,
+four core stop/deadline commands and the canonical nine-control recognizing parent each exited 0.
+Each control child exited 1 at its exact assertion after activation and cleanup. Final core/control
+runs capture actual executable hashes/features; no fault or application bound was widened.
+[Report](../evidence/retention-horizon/report.md), [source](../evidence/retention-horizon/tested-source.json),
+[validation](../evidence/retention-horizon/validation.json) and [observations](../evidence/retention-horizon/observations.json)
+record timings, config/source/raw hashes, byte-identical overlays, sole allowed config-value
+difference and cleanup. Four substantive independent reviews accepted the exact fix/proofs with no blocker; the fifth
+seat returned a 402/empty response and did not count. The prescribed fallback quorum was met.
+[Review judgment](../evidence/retention-horizon/review.json) records participation and limitations.
+No new nine-phase run is claimed.
 
 ## Open
 

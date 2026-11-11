@@ -166,7 +166,8 @@ The one-day ordinary deposit receipt lifetime is preserved. This fixture chooses
 horizon; historical bodies already deleted by the old sweep cannot be reconstructed.
 
 The focused keyed-retention regression is `--phase workflow --case w4_retention`; its four
-checks also run in the complete workflow phase.
+checks also run in the complete workflow phase. The [retention supplement](evidence/retention-horizon/report.md)
+records the unchanged-baseline failure, fixed outcomes and tested limits.
 
 Focused commands use `--phase corrections --case verify_cancel`, `--phase core --case migrations`,
 `--case money`, `--case claims`, `--case generation`, `--case stops` or `--case external`.
