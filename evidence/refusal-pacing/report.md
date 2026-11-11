@@ -60,7 +60,17 @@ ten-port slot beginning at 55500. Complete command arrays, actual exits, build
 identities, raw-log hashes, cleanup and activation observations are in
 [validation](validation.json); consequential DB/HTTP/provider facts are in
 [observations](observations.json). Raw artifacts remain outside Git at
-`<run-dir>`, with a full raw artifact inventory and cleanup audit.
+`<run-dir>`, with a full raw artifact inventory and cleanup audit. Here `<run-dir>`
+always means the artifact directory; harness traces/build paths include its
+`harness/` child explicitly. Raw manifests retain the harness's original local
+placeholder convention.
+
+The committed observations are a focused projection of final raw manifests:
+repeated frozen summaries and workflow duplicates are omitted, and mixed HTTP
+responses are grouped into status/count/timing summaries. No response is invented
+or changed. The inventoried `finalize_observations.py` reproduces the committed
+projection byte for byte from those raw manifests (exit 0). Full unsummarized
+responses remain in the hash-bound raw manifests.
 
 | Command after `nix develop --command` | Actual exit / result |
 |---|---|
@@ -82,6 +92,14 @@ PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9,
 tokio-postgres 0.7.18, deadpool 0.12.3 and tokio 1.54.1 were used. Focused
 comparisons and the complete workflow use `store-test-hooks`; the separately
 identified default checks use no test features. Gate checks all features.
+The gate ran on the fix commit before the documentation/evidence commits; its
+status file does not independently snapshot source hashes. Source binding uses
+the clean workflow inventory immediately afterward and equality of all 31
+runtime/build inputs between the fix and review tips. This is a recorded limit,
+not a claim that the gate ran on the later documentation commit.
+A provider 4xx before step 9 keeps its reported advice under the same canonical
+field correction; that specific pre-step-9 provider error is not separately
+injected by these fixtures.
 Every gate's complete stdout/stderr was captured separately and its true status
 saved before either log was read. Inherited Cargo target/intermediate overrides,
 wrappers and Nix overrides were unset; targets were assigned per invocation.
