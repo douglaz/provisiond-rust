@@ -162,7 +162,8 @@ receives no new horizon. `details.retained_until` renders the stored deadline at
 precision; comparisons use the full database timestamp, so formatting never cuts an unexpired
 receipt short. Receipts and fingerprints refuse reuse permanently: a changed body conflicts,
 and a matching post-horizon key cannot purchase again. Read machines and balance after `gone`.
-The one-day ordinary deposit receipt lifetime is preserved. This fixture chooses no production
+Deposit receipts use the same configured duration, so the fixture's 86400 seconds keep their
+one-day lifetime. This fixture chooses no production
 horizon; historical bodies already deleted by the old sweep cannot be reconstructed.
 
 The focused keyed-retention regression is `--phase workflow --case w4_retention`; its four

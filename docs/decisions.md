@@ -1114,9 +1114,15 @@ remains separate from the all-scope maximum. Deposit replay avoids operation-his
 No index or migration was needed. On PostgreSQL 18.6 with ordinary planner settings and the
 unchanged 1000 ms statement bound, no-work/mixed probe and DELETE execution times were
 41.897–48.675 ms at 20k operations/200k receipts, 135.727–162.578 ms at 20k/1M, and
-193.266–200.734 ms at 50k/1M. The largest observed housekeeping statement leaves 799.266 ms of measured
-headroom. HTTP reads on these shapes took 4.01–178.24 ms; the separate 20k/2M queued-history
-fixture took 4.39–165.53 ms. These are local observations, not a production capacity guarantee.
+193.266–200.734 ms at 50k/1M (server EXPLAIN ANALYZE execution). The binary's observed
+query-to-completion probe intervals reached 155.748 ms at 20k/200k, 519.500 ms at 20k/1M and
+500.375 ms at 50k/1M, with no statement error. HTTP reads on these shapes took 4.01–178.24 ms; the separate 20k/2M queued-history
+fixture took 4.39–165.53 ms. These are local observations, not a production capacity guarantee. Receipts have no
+`resource_id` index, so housekeeping and read cost still grow with permanent receipt history,
+and housekeeping shares the single read checkout (250 ms bound) with customer reads. A review
+driver at 20k/1M with three concurrent detail readers made housekeeping miss that checkout and
+the API exit 1, the documented checkout-exhaustion response; the same driver at 20k/200k kept the
+API up. An index on the receipt resource id would raise that threshold; none is selected here.
 The shapes separately increase permanent receipt history and existing operation count across
 100 tenant identities. Receiptless rows keep the pre-existing terminal-age sweep fallback
 and lack a permanent deletion identity, so their later not_found gap remains outside this

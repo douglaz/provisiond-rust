@@ -45,8 +45,8 @@ The base state is exactly 20,000 live settled operation receipts plus 180,000 ex
 receipt-only rows. Each shape also has one ordinary deposit receipt from real simulator funding,
 reported separately in seed counts. Increasing receipts to one million tests permanent-history
 accumulation; increasing operations to 50,000 tests a larger current candidate set across 100 tenant
-identities. The largest selected housekeeping statement is 200.734 ms, leaving 799.266 ms measured
-headroom. These local observations select no production capacity or horizon.
+identities. The largest selected housekeeping statement execution is 200.734 ms (EXPLAIN ANALYZE). The
+binary's observed probe intervals, query sent to command complete, reached 519.500 ms at 20k/1M. These local observations select no production capacity or horizon.
 
 The unchanged global `OPERATION_HISTORY` was measured before the read repair. Initial ordinary
 200k-receipt HTTP reads took 97–475 ms; at one million receipts detail/replay took 804/867 ms and
