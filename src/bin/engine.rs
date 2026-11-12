@@ -27,14 +27,16 @@ async fn main() {
         // OPS-47/STO-7: observe independently of a dispatch's possibly indefinite
         // claim COMMIT. Keep both futures alive until whole-process exit: neither
         // a pending claim receipt nor its sent transaction is a shutdown lever.
-        let dispatch = dispatch(engine.clone(), dispatcher);
+        let dispatch = dispatch(engine.clone(), dispatcher.clone());
+        let reconciliation = reconcile(engine.clone(), dispatcher);
         let observation = observe(engine.clone());
         let controls = test_stops(engine);
-        tokio::pin!(dispatch, observation, controls);
+        tokio::pin!(dispatch, observation, controls, reconciliation);
         let stopped = tokio::select! {
             result = &mut dispatch => result,
             result = &mut observation => result,
             result = &mut controls => result,
+            result = &mut reconciliation => result,
         };
         eprintln!("provisiond engine loop stopped: {stopped:?}");
         // Observe completion/failure of either required path. The lock observer
@@ -57,6 +59,18 @@ async fn main() {
         .await;
     if result.is_err() || shutdown.is_err() {
         std::process::exit(1);
+    }
+}
+async fn reconcile(
+    engine: Arc<Engine>,
+    dispatcher: Arc<provisiond::engine::Dispatcher>,
+) -> anyhow::Result<()> {
+    loop {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        if let Err(error) = engine.reconcile(&dispatcher).await {
+            engine.observe_lock().await?;
+            return Err(error);
+        }
     }
 }
 // OPS-21: opt-in fixture requests use the executable's real record arbitration.

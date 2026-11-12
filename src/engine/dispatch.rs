@@ -6,8 +6,8 @@ use crate::{
     wire::{self, Error},
 };
 pub struct Dispatcher {
-    client: Client,
-    catalog: BTreeMap<String, Value>,
+    pub(super) client: Client,
+    pub(super) catalog: BTreeMap<String, Value>,
 }
 impl Dispatcher {
     pub async fn load(engine: &Arc<Engine>) -> Result<Self> {

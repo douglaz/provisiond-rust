@@ -96,14 +96,14 @@ class Harness:
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
                            archive_mode='on', restart_after_crash='on', ports=self.ports[:3],bootstrap_readiness_seconds=60,postgres_stop_wait_seconds=60,bootstrap_command_seconds=180,
                            authentication='scram-sha-256 loopback only', standby_role='replicator')
-        if phase in ('checks','commits','regressions','corrections','core','workflow','default-workflow','w5'):
+        if phase in ('checks','commits','regressions','corrections','core','workflow','default-workflow','w5','w6'):
             self.config['store'] = dict(read_pool=1,write_pool=1,statement_ms=1000,lock_ms=500,
                 idle_transaction_ms=1000,call_ms=2000,check_ms=3000,checkout_ms=250,
                 keepalive_idle_seconds=2,keepalive_interval_seconds=1,keepalive_count=2,
                 isolation='read committed',search_path='pg_catalog,fixture',stop_fixture_ms=1000,
                 transport='direct TCP; loopback proxy for faults; sslmode=disable')
             self.config['ports'].append(self.ports[3])
-        if phase in ('core','workflow','default-workflow','w5'):
+        if phase in ('core','workflow','default-workflow','w5','w6'):
             self.config['engine']=dict(workers=3,write_pool=3,compatibility_read_pool=1,
                 startup_lock_outside_pool=True,startup_wait_ms=500,store_retry_ms=2000,stop_record_ms=1000,
                 startup_lock_keepalives=dict(idle_seconds=2,interval_seconds=1,count=2,profile_assignment="shared with pooled local values"),
@@ -462,8 +462,8 @@ tcp_keepalives_count = 2
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','default-workflow','w5','all'],default='all')
-    ap.add_argument('--case',choices=__import__('w5').CASES+['w5_controls','session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'],help='one focused regression; default runs all')
+    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','default-workflow','w5','w6','all'],default='all')
+    ap.add_argument('--case',choices=__import__('w6').CASES+__import__('w5').CASES+['w5_controls','session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'],help='one focused regression; default runs all')
     ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset','w4_atomic','w4_ack','w4_overload','w5_generation','w5_checkout','w5_blind_retry','w5_stop_reset','w5_observer_run'])
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
@@ -471,6 +471,7 @@ def main():
     preflight_ports()
     cases={
         'w5':set(__import__('w5').CASES),
+        'w6':set(__import__('w6').CASES),
         'controls':{'w5_controls'},
         'workflow':{'w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'},
         'regressions':{'session','transaction','runtime','cancelled'},
@@ -552,6 +553,9 @@ def main():
         elif args.phase=='default-workflow':
             from workflow import workflow
             workflow(h,'w4_default')
+        elif args.phase=='w6':
+            from w6 import w6
+            w6(h,args.case,args.defect)
         elif args.phase=='w5':
             from w5 import w5
             w5(h,args.case,args.defect)

@@ -1,6 +1,7 @@
 //! OPS-15/16/21/47/49/50: prototype startup, claims and bounded shielded records.
 //! Independent local create dispatch is in dispatch; automatic reconciliation and later kinds remain unsupported.
 mod dispatch;
+mod reconciliation;
 use crate::store::{
     Claim, CommitOutcome, Component, EngineDatabase, FatalEngine, Store, Transaction,
 };
@@ -1041,6 +1042,7 @@ async fn apply_outcome(tx: &mut Transaction, c: &Claim, outcome: &Outcome) -> Re
                 return Ok(false);
             }
             tx.attach_details(c, machine, observed_at).await?;
+            tx.record_visibility(&c.id, observed_at).await?;
             Ok(true)
         }
         Outcome::VerifiedCreate {

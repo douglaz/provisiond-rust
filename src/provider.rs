@@ -41,7 +41,15 @@ impl Client {
     ) -> Result<Value, Error> {
         // PRV-13b/OVR-19: the mutation and its confirming read are separate
         // sequential waits, each bounded by its own priced descriptor term.
-        let read = ["/offers", "/search", "/get", "/constraints"].contains(&path);
+        let read = [
+            "/offers",
+            "/search",
+            "/get",
+            "/constraints",
+            "/enumerate",
+            "/keys/list",
+        ]
+        .contains(&path);
         let read_bound = Duration::from_secs(d["read_seconds"].as_u64().unwrap_or(1));
         let bound = if read {
             read_bound

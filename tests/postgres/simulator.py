@@ -24,12 +24,15 @@ def main():
     args.root.mkdir(exist_ok=True)
     events=args.root/'effects.jsonl'
     lock=threading.RLock()
-    state=dict(mode='normal',offers={},settlements=[],resources={},keys={},cancelled=[])
+    state=dict(mode='normal',offers={},settlements=[],resources={},orders={},keys={},cancelled=[],evidence={})
     sequence=0
     if events.exists():
         for line in events.read_text().splitlines():
             e=json.loads(line);sequence=e['sequence']
             if e['stage']=='resource_created':state['resources'][e['resource']]=e['value']
+            if e['stage']=='resource_created' and not e.get('test_fixture'):state['orders'][e['resource']]=e['value']
+            if e['stage']=='key_registered':state['keys'][e['command']]={'name':e['command'],'owner':e['command'],'account':e['account']}
+            if e['stage']=='key_deleted':state['keys'].pop(e['command'],None)
             if e['stage']=='resource_deleted':state['resources'].pop(e['resource'],None)
             if e['stage']=='rail_observation':state['settlements'].append(e['value'])
             if e['stage']=='invoice_cancelled':state['cancelled'].append(e['destination'])
@@ -71,6 +74,12 @@ def main():
             if self.path=='/control':
                 with lock:
                     if body.get('clear'):state['settlements']=[]
+                    if 'evidence' in body:
+                        proof=body['evidence'];state['evidence'][proof['operation']]=proof
+                        record('evidence_control_activated',value=proof)
+                    if 'remove_resource' in body:
+                        external=body['remove_resource'];state['resources'].pop(external,None)
+                        record('resource_deleted',resource=external,test_fixture=True)
                     if 'fixture_resource' in body:
                         resource=body['fixture_resource'];state['resources'][resource['external_id']]=resource
                         record('resource_created',resource=resource['external_id'],value=resource,test_fixture=True)
@@ -132,12 +141,26 @@ def main():
             if held:record('request_held',**identity)
             while hold.exists():time.sleep(.002)
             if held:record('request_released',**identity)
+            if body.get('resolution'):
+                barrier=args.root/'hold-reconciliation'
+                if barrier.exists():record('resolution_read_held',**identity)
+                while barrier.exists():time.sleep(.002)
+            proof=state['evidence'].get(operation,{})
+            if self.path=='/enumerate':
+                with lock:rows=[r for r in state['resources'].values() if r['account']==body['account']]
+                offset=int(body.get('cursor') or 0);page=rows[offset:offset+2]
+                cursor=str(offset+2) if offset+2<len(rows) else None
+                if proof.get('enumeration')=='incomplete':
+                    self.reply({'resources':page,'complete':False,'next':None});return
+                self.reply({'resources':page,'complete':cursor is None,'next':cursor});return
+            if self.path=='/keys/list':
+                self.reply([dict(v,operation=k) for k,v in state['keys'].items() if v['account']==body['account']]);return
             mode=state['mode']
             if self.path=='/offers':record('read_only',**identity);self.reply(state['offers'].get(body['account'],[]));return
             if self.path=='/keys':
                 if mode=='duplicate_key':
                     self.reply({'error':{'kind':'conflict','message':'duplicate simulator key','retryable':False,'details':{'reason':'state','accepted':False}}});return
-                state['keys'][operation]={'name':operation,'owner':operation};record('key_registered',**identity)
+                state['keys'][operation]={'name':operation,'owner':operation,'account':body['account']};record('key_registered',**identity)
                 if mode=='drop_key_reply':
                     self.close_connection=True;self.connection.shutdown(2);self.connection.close();return
                 self.reply({'id':operation,'owned':True});return
@@ -170,6 +193,7 @@ def main():
                 resource={'external_id':external,'account':body['account'],'correlator':body['correlator'],'channel':body['channel'],'name':body['request']['hostname'],'region':body['request'].get('region'),'state':'running','public_ips':[],'present':True}
                 with lock:
                     state['resources'][external]=resource
+                    state['orders'][external]=resource
                     record('resource_created',resource=external,value=resource,**identity)
                 after=args.root/'hold-after-create'
                 while after.exists():time.sleep(.002)
@@ -179,6 +203,17 @@ def main():
                 return
             if self.path=='/search':
                 record('read_only',**identity)
+                if body.get('resolution') and proof:
+                    search=proof.get('search','normal')
+                    with lock:found=[r for r in state['orders'].values() if r['account']==body['account'] and r['channel']==body['channel'] and r['correlator']==body['correlator']]
+                    if search=='empty':found=[]
+                    if search=='wrong':found=[dict(r,correlator='unrelated') for r in found]
+                    if search=='many':found=found+[dict(r,external_id=r['external_id']+'-duplicate') for r in found]
+                    if search=='in_progress':found=[]
+                    if 'resources' in proof:found=proof['resources']
+                    authoritative=search!='incomplete' and body['channel']!=proof.get('incomplete_channel')
+                    record('resolution_evidence_returned',search=search,authoritative=authoritative,resources=found,**identity)
+                    self.reply({'authoritative':authoritative,'resources':found,'in_progress':search=='in_progress'});return
                 if mode=='search_provider_400':
                     error={'kind':'provider','message':'controlled verification refusal','retryable':True,'details':{'accepted':False,'status':400}}
                     record('verification_fault_returned',mode=mode,error=error,**identity)
@@ -210,6 +245,13 @@ def main():
             if self.path in ['/get','/constraints']:
                 record('read_only',**identity)
                 resource=state['resources'].get(body['external_id'])
+                if body.get('resolution') and self.path=='/get' and proof.get('direct'):
+                    record('resolution_direct_activated',direct=proof['direct'],**identity)
+                    if proof['direct']=='failed':
+                        self.reply({'error':{'kind':'network','message':'controlled read failure','retryable':True,'details':{'accepted':None}}});return
+                    if proof['direct']=='absent':self.reply(None);return
+                    if proof['direct']=='wrong_account':self.reply(dict(resource,account='unrelated'));return
+
                 if self.path=='/get' and mode in ('get_error','get_absent'):
                     record('verification_fault_returned',mode=mode,**identity)
                     if mode=='get_error':

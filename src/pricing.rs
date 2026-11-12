@@ -264,14 +264,19 @@ pub(crate) fn native_coverage_shortfall(
 pub(crate) fn validate_descriptor(d: &Value) -> Result<()> {
     ensure!(
         d["kind"] == "local_simulator"
-            && d["channels"]
-                .as_array()
-                .is_some_and(|a| a.len() == 1 && a[0] == d["channel"])
+            && d["channels"].as_array().is_some_and(|a| !a.is_empty()
+                && a.iter().all(|v| v.as_str().is_some_and(|s| !s.is_empty()))
+                && a.contains(&d["channel"])
+                && a.iter()
+                    .map(|v| v.as_str().expect("validated channel"))
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
+                    == a.len())
             && d["channel"].is_string(),
         "unsupported local ordering-channel declaration"
     );
     ensure!(
-        d["correlator"] == "operation_id"
+        matches!(d["correlator"].as_str(), Some("operation_id" | "none"))
             && d["temporary_keys"].is_boolean()
             && d["offer_is_resource"].is_boolean(),
         "unsupported correlator/key declaration"

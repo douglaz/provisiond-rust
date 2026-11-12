@@ -4,11 +4,13 @@ mod business;
 mod commit;
 mod component;
 mod customer;
+mod reconciliation;
 pub(crate) use business::validate_charge;
 pub use business::{Claim, CreateRequest, Payment};
 pub use component::{
     Component, EngineDatabase, ExternalCall, ExternalKind, FatalEngine, startup_milliseconds,
 };
+pub(crate) use reconciliation::Resolution;
 pub mod migration;
 mod process;
 mod transport;
