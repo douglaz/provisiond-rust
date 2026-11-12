@@ -1,8 +1,8 @@
 {
   "result": "pass",
   "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-  "implementation_commit": "d21297c57a7351b68def0d5a1d015c7e5166017f",
-  "tested_source_sha256": "4052ccd12e43c1cc8b9ddb14ac6f4853721dd6a5c68dc97be0d9099305cc8fb8",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "tested_source_sha256": "328c0aebc46bb8315f3b3f8617f05a1196875effab122ad6f5d0e10878958fc6",
   "source_dirty": false,
   "seed": 20261112,
   "versions": {
@@ -207,29 +207,199 @@
     "DB-10 full saturation: not run (W8)"
   ],
   "events": [
-    {"event":"backup_provenance_retained","timestamp":1794498900.6686058,"elapsed":1.9183728259522468,"path":"<private-run>/w1-dyj6ybh7/standby-backup-manifest.json","sha256":"9d16b3a6db9936b1f69ac09cbed68fd249a4d456fe16fa7f0cf4ea7288e37184"},
-    {"event":"backup_complete","timestamp":1794498900.6688118,"elapsed":1.9185787399765104,"destination":"standby","verified":true,"elapsed_seconds":0.7358936259988695},
-    {"event":"identity_catchup","timestamp":1794498901.3642375,"elapsed":2.6140046659857035,"system_identifier":"7707314084021834229","sampled_primary_flush":"0/3003A90","standby_system_identifier":"7707314084021834229","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"effective_configuration_observed","timestamp":1794498901.3737803,"elapsed":2.6235473200213164,"configuration":{"archive_command":"test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f","archive_mode":"on","lc_messages":"C","listen_addresses":"127.0.0.1","max_connections":"24","port":"55500","restart_after_crash":"on","shared_buffers":"4096","superuser_reserved_connections":"3","synchronous_commit":"on","synchronous_standby_names":"FIRST 1 (provisiond_sync)","tcp_keepalives_count":"2","tcp_keepalives_idle":"2","tcp_keepalives_interval":"1","wal_level":"replica"},"sha256":"fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"},
-    {"event":"bootstrap_complete","timestamp":1794498901.4219692,"elapsed":2.671736418036744,"maintenance_mode_exception":false,"bootstrap_role":"initdb administrator; offline replication identity only","backup_name":"bootstrap_backup","designated_name":"provisiond_sync"},
-    {"event":"backup_provenance_retained","timestamp":1794498902.209847,"elapsed":3.459614367922768,"path":"<private-run>/w1-dyj6ybh7/rebuilt-backup-manifest.json","sha256":"d4651a9052428543176e4901499e76203d5b12f35f54136b61f02baba117625d"},
-    {"event":"backup_complete","timestamp":1794498902.2100747,"elapsed":3.4598418220411986,"destination":"rebuilt","verified":true,"elapsed_seconds":0.6614653700962663},
-    {"event":"identity_catchup","timestamp":1794498902.7843528,"elapsed":4.034119975054637,"system_identifier":"7707314084021834229","sampled_primary_flush":"0/5000000","standby_system_identifier":"7707314084021834229","authenticated_role":"replicator","primary_checkpoint":"1|0/4000028","standby_checkpoint":"1|0/4000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"backup_provenance_retained","timestamp":1794498903.5764682,"elapsed":4.826235556975007,"path":"<private-run>/w1-dyj6ybh7/restore-backup-backup-manifest.json","sha256":"adb24d28734ed8779fbf75ad77c600c2a8e13053df4af471579293ebe6f8e5cf"},
-    {"event":"backup_complete","timestamp":1794498903.5765712,"elapsed":4.826338147977367,"destination":"restore-backup","verified":true,"elapsed_seconds":0.7921545652206987},
-    {"event":"archive_restore_observed","timestamp":1794498904.80858,"elapsed":6.058347115991637,"fixture":"id=2 created after base backup","replay_lsn":"0/7000000","components":"stopped; no incident or product startup claimed"},
-    {"event":"simulator_pause_observed","timestamp":1794498905.0200334,"elapsed":6.269800401059911,"simulator":"provider","point":"acceptance"},
-    {"event":"simulator_pause_observed","timestamp":1794498905.0201144,"elapsed":6.269881613086909,"simulator":"provider","point":"reply"},
-    {"event":"simulator_pause_observed","timestamp":1794498905.020292,"elapsed":6.270059173926711,"simulator":"rail","point":"acceptance"},
-    {"event":"simulator_pause_observed","timestamp":1794498905.020354,"elapsed":6.270121100125834,"simulator":"rail","point":"reply"},
-    {"event":"cleanup_removed","timestamp":1794498905.2549722,"elapsed":6.504739630967379,"path":"<private-run>/w1-dyj6ybh7/primary"},
-    {"event":"cleanup_removed","timestamp":1794498905.2811475,"elapsed":6.530914939939976,"path":"<private-run>/w1-dyj6ybh7/rebuilt"},
-    {"event":"cleanup_removed","timestamp":1794498905.3001904,"elapsed":6.549957689130679,"path":"<private-run>/w1-dyj6ybh7/restore-backup"},
-    {"event":"cleanup_removed","timestamp":1794498905.3252308,"elapsed":6.574998151045293,"path":"<private-run>/w1-dyj6ybh7/restored"},
-    {"event":"cleanup_removed","timestamp":1794498905.345951,"elapsed":6.595718258060515,"path":"<private-run>/w1-dyj6ybh7/standby"},
-    {"event":"allocation_released","timestamp":1794498905.3461611,"elapsed":6.595928349997848,"ports":[55500,55501,55502,55503,55504,55505,55506,55507,55508,55509]},
-    {"event":"cleanup_complete","timestamp":1794498905.3461983,"elapsed":6.595965349115431,"result":"pass","errors":[],"raw_evidence":"<private-run>/w1-dyj6ybh7"}
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794503306.9521792,
+      "elapsed": 1.82142823911272,
+      "path": "<private-run>/w1-_apjk37n/standby-backup-manifest.json",
+      "sha256": "6696f4ef51a1a6f3dc9d675b828e8f18676c398a7f9207bb1a88f0b4b4f81d8d"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794503306.9523873,
+      "elapsed": 1.8216360060032457,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.6608200678601861
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503307.64252,
+      "elapsed": 2.5117689720354974,
+      "system_identifier": "7707333009205271489",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707333009205271489",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794503307.6527607,
+      "elapsed": 2.5220097780693322,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794503307.6970181,
+      "elapsed": 2.5662668710574508,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794503308.5195694,
+      "elapsed": 3.3888180889189243,
+      "path": "<private-run>/w1-_apjk37n/rebuilt-backup-manifest.json",
+      "sha256": "cf19db3b79df12314d25a12bb786fe21145e95d8c0678d6a870910123cde6c70"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794503308.519796,
+      "elapsed": 3.3890445209108293,
+      "destination": "rebuilt",
+      "verified": true,
+      "elapsed_seconds": 0.6970772540662438
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503309.093482,
+      "elapsed": 3.9627308070193976,
+      "system_identifier": "7707333009205271489",
+      "sampled_primary_flush": "0/5000000",
+      "standby_system_identifier": "7707333009205271489",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/4000028",
+      "standby_checkpoint": "1|0/4000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794503309.7077122,
+      "elapsed": 4.576961063081399,
+      "path": "<private-run>/w1-_apjk37n/restore-backup-backup-manifest.json",
+      "sha256": "de0d7277ead8cf4cc7b329f0f98888785dee7831e4f2b958237b9edfcf385f03"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794503309.7077703,
+      "elapsed": 4.57701889006421,
+      "destination": "restore-backup",
+      "verified": true,
+      "elapsed_seconds": 0.6142421879339963
+    },
+    {
+      "event": "archive_restore_observed",
+      "timestamp": 1794503310.9765294,
+      "elapsed": 5.845778223127127,
+      "fixture": "id=2 created after base backup",
+      "replay_lsn": "0/7000000",
+      "components": "stopped; no incident or product startup claimed"
+    },
+    {
+      "event": "simulator_pause_observed",
+      "timestamp": 1794503311.1875975,
+      "elapsed": 6.056846229126677,
+      "simulator": "provider",
+      "point": "acceptance"
+    },
+    {
+      "event": "simulator_pause_observed",
+      "timestamp": 1794503311.1876612,
+      "elapsed": 6.056909756967798,
+      "simulator": "provider",
+      "point": "reply"
+    },
+    {
+      "event": "simulator_pause_observed",
+      "timestamp": 1794503311.1878285,
+      "elapsed": 6.0570770690683275,
+      "simulator": "rail",
+      "point": "acceptance"
+    },
+    {
+      "event": "simulator_pause_observed",
+      "timestamp": 1794503311.1878889,
+      "elapsed": 6.0571375619620085,
+      "simulator": "rail",
+      "point": "reply"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503311.424169,
+      "elapsed": 6.2934179690200835,
+      "path": "<private-run>/w1-_apjk37n/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503311.451034,
+      "elapsed": 6.320283022010699,
+      "path": "<private-run>/w1-_apjk37n/rebuilt"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503311.4694428,
+      "elapsed": 6.338691697921604,
+      "path": "<private-run>/w1-_apjk37n/restore-backup"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503311.4945176,
+      "elapsed": 6.363766493042931,
+      "path": "<private-run>/w1-_apjk37n/restored"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503311.5160742,
+      "elapsed": 6.3853231579996645,
+      "path": "<private-run>/w1-_apjk37n/standby"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794503311.5163004,
+      "elapsed": 6.385549110127613,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794503311.5163386,
+      "elapsed": 6.385587241034955,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/w1-_apjk37n"
+    }
   ],
-  "raw_manifest_sha256": "2bd2c9465b530895c757b849ec67ab4171e848650e1ed84110b4a2ab124e8323",
+  "raw_manifest_sha256": "9bbb81356ff39e21eae5c03cc4e55f3f229337eb2bd5bd58f8c00ae3caf6906d",
   "external_provider_rail_evidence": "not applicable to this phase"
 }

@@ -1,8 +1,8 @@
 {
   "result": "pass",
   "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-  "implementation_commit": "d21297c57a7351b68def0d5a1d015c7e5166017f",
-  "tested_source_sha256": "4052ccd12e43c1cc8b9ddb14ac6f4853721dd6a5c68dc97be0d9099305cc8fb8",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "tested_source_sha256": "328c0aebc46bb8315f3b3f8617f05a1196875effab122ad6f5d0e10878958fc6",
   "source_dirty": false,
   "seed": 20261112,
   "versions": {
@@ -242,67 +242,519 @@
     "DB-10 full saturation: not run (W8)"
   ],
   "events": [
-    {"event":"backup_provenance_retained","timestamp":1794499025.1879413,"elapsed":19.823983011068776,"path":"<private-run>/corrections-lpo9v936/standby-backup-manifest.json","sha256":"9e31ce6ffb205e5646604c1f85d21663d014ea967e947ef052988b09c55876aa"},
-    {"event":"backup_complete","timestamp":1794499025.18821,"elapsed":19.82425147201866,"destination":"standby","verified":true,"elapsed_seconds":1.0259154380764812},
-    {"event":"identity_catchup","timestamp":1794499026.0667484,"elapsed":20.70279009686783,"system_identifier":"7707314616947184134","sampled_primary_flush":"0/3003A90","standby_system_identifier":"7707314616947184134","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"effective_configuration_observed","timestamp":1794499026.0765178,"elapsed":20.712559544015676,"configuration":{"archive_command":"test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f","archive_mode":"on","lc_messages":"C","listen_addresses":"127.0.0.1","max_connections":"24","port":"55500","restart_after_crash":"on","shared_buffers":"4096","superuser_reserved_connections":"3","synchronous_commit":"on","synchronous_standby_names":"FIRST 1 (provisiond_sync)","tcp_keepalives_count":"2","tcp_keepalives_idle":"2","tcp_keepalives_interval":"1","wal_level":"replica"},"sha256":"fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"},
-    {"event":"bootstrap_complete","timestamp":1794499026.124693,"elapsed":20.76073476485908,"maintenance_mode_exception":false,"bootstrap_role":"initdb administrator; offline replication identity only","backup_name":"bootstrap_backup","designated_name":"provisiond_sync"},
-    {"event":"fault_activated","timestamp":1794499027.6720254,"elapsed":22.308066834928468,"fault":"transport_gate","direction":"reply","session":3654480,"statement_kind":"fixture statement"},
-    {"event":"verification_cancellation_observed","timestamp":1794499027.6722496,"elapsed":22.30829097307287,"session":3654480,"transport_closed":true,"source":"client_eof","commits":0},
-    {"event":"fault_activated","timestamp":1794499027.8076253,"elapsed":22.443666766863316,"fault":"transport_gate","direction":"execute_reply","session":3654502,"statement_kind":"fixture statement"},
-    {"event":"execute_cancellation_observed","timestamp":1794499028.1088645,"elapsed":22.744905835017562,"session":3654502,"retained":true,"transport_closed":true,"source":"client_eof"},
-    {"event":"fault_activated","timestamp":1794499028.191697,"elapsed":22.827738432912156,"fault":"transport_gate","direction":"reply","session":null,"statement_kind":"fixture statement"},
-    {"event":"whole_checkout_observed","timestamp":1794499028.4410272,"elapsed":23.077068445971236,"stage":"authentication","elapsed_seconds":0.2520989568438381,"budget_ms":250,"scheduling_tolerance_ms":150,"error":"whole pool checkout deadline (waiting/create/admission): deadline has elapsed"},
-    {"event":"fault_activated","timestamp":1794499028.5593245,"elapsed":23.19536580494605,"fault":"transport_gate","direction":"reply","session":3654566,"statement_kind":"read-only check"},
-    {"event":"whole_checkout_observed","timestamp":1794499028.7610688,"elapsed":23.397110376972705,"stage":"admission","elapsed_seconds":0.25209532119333744,"budget_ms":250,"scheduling_tolerance_ms":150,"error":"whole pool checkout deadline (waiting/create/admission): deadline has elapsed"},
-    {"event":"whole_checkout_observed","timestamp":1794499029.1397426,"elapsed":23.775784227065742,"stage":"slot","elapsed_seconds":0.2514628909993917,"budget_ms":250,"scheduling_tolerance_ms":150,"error":"pool checkout/create/check: Timeout occurred while waiting for a slot to become available"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.2625513,"elapsed":23.89859273703769,"statement":"SET LOCAL synchronous_commit=off","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.321509,"elapsed":23.95755023485981,"statement":"SET synchronous_commit=off","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.3737683,"elapsed":24.009809873066843,"statement":"RESET ALL","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.4269667,"elapsed":24.063008141936734,"statement":"RESET statement_timeout","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.4814498,"elapsed":24.117491045035422,"statement":"SELECT set_config('synchronous_commit','off',false)","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.5336921,"elapsed":24.169733540853485,"statement":"SELECT set_config('search_path','public',false)","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.5853448,"elapsed":24.22138626803644,"statement":"COMMIT","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.6377387,"elapsed":24.2737801768817,"statement":"set /* indirect */ synchronous_commit to off","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.6939254,"elapsed":24.32996688806452,"statement":"SET LOCAL statement_timeout=0","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.7477498,"elapsed":24.383791382890195,"statement":"SET statement_timeout=0","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.8005264,"elapsed":24.436567886034027,"statement":"RESET statement_timeout","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.86013,"elapsed":24.49617142789066,"statement":"SET LOCAL lock_timeout=0","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.910131,"elapsed":24.54617237392813,"statement":"SET lock_timeout=0","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499029.9616926,"elapsed":24.59773408086039,"statement":"RESET lock_timeout","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.0163152,"elapsed":24.652356625068933,"statement":"SET LOCAL idle_in_transaction_session_timeout=0","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.0668266,"elapsed":24.702867852989584,"statement":"SET idle_in_transaction_session_timeout=0","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.1217852,"elapsed":24.757826594868675,"statement":"RESET idle_in_transaction_session_timeout","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.172611,"elapsed":24.808652648935094,"statement":"SET LOCAL default_transaction_isolation='serializable'","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.2224092,"elapsed":24.858450586907566,"statement":"SET default_transaction_isolation='serializable'","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.271964,"elapsed":24.908005672041327,"statement":"RESET default_transaction_isolation","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.322227,"elapsed":24.958268446847796,"statement":"SET LOCAL search_path='public'","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.3727221,"elapsed":25.008763684891164,"statement":"SET search_path='public'","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.4221003,"elapsed":25.058141799876466,"statement":"RESET search_path","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.4720092,"elapsed":25.108050654875115,"statement":"SET LOCAL tcp_keepalives_idle=9","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.5215473,"elapsed":25.157588768051937,"statement":"SET tcp_keepalives_idle=9","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.573518,"elapsed":25.20955992792733,"statement":"RESET tcp_keepalives_idle","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.6233482,"elapsed":25.259389786049724,"statement":"SET LOCAL tcp_keepalives_interval=9","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.6742187,"elapsed":25.310260152909905,"statement":"SET tcp_keepalives_interval=9","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.7238297,"elapsed":25.359871393069625,"statement":"RESET tcp_keepalives_interval","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.7733977,"elapsed":25.409439302049577,"statement":"SET LOCAL tcp_keepalives_count=9","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.82254,"elapsed":25.45858156704344,"statement":"SET tcp_keepalives_count=9","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.8718014,"elapsed":25.507842683931813,"statement":"RESET tcp_keepalives_count","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.9214816,"elapsed":25.557523202849552,"statement":"SET LOCAL default_transaction_read_only=off","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499030.9713268,"elapsed":25.607368269003928,"statement":"SET default_transaction_read_only=off","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"caller_sql_policy_observed","timestamp":1794499031.0210564,"elapsed":25.657097849063575,"statement":"RESET default_transaction_read_only","refused":true,"observed_synchronous_commit":"on"},
-    {"event":"precommit_corruption_observed","timestamp":1794499031.1562605,"elapsed":25.792302283924073,"scope":"corrupt_setting","outcome":"rejected","durable_rows":"0"},
-    {"event":"precommit_corruption_observed","timestamp":1794499031.296486,"elapsed":25.93252751091495,"scope":"corrupt_session_setting","outcome":"rejected","durable_rows":"0"},
-    {"event":"notice_retention_observed","timestamp":1794499031.4413223,"elapsed":26.077363625867292,"initial":0,"outcome":"acknowledged","retained":16},
-    {"event":"notice_retention_observed","timestamp":1794499031.4534879,"elapsed":26.089529210934415,"initial":0,"outcome":"acknowledged","retained":16},
-    {"event":"commit_warning_after_flood_observed","timestamp":1794499031.579036,"elapsed":26.215077288914472,"initial":0,"outcome":"unresolved","retained":16},
-    {"event":"proxy_cleanup","timestamp":1794499031.7100878,"elapsed":26.34612957201898,"cancel_requests":0},
-    {"event":"cleanup_removed","timestamp":1794499032.23936,"elapsed":26.87540197186172,"path":"<private-run>/corrections-lpo9v936/primary"},
-    {"event":"cleanup_removed","timestamp":1794499032.262671,"elapsed":26.89871287997812,"path":"<private-run>/corrections-lpo9v936/standby"},
-    {"event":"cleanup_removed","timestamp":1794499032.357753,"elapsed":26.993794737849385,"path":"<private-run>/corrections-lpo9v936/target"},
-    {"event":"allocation_released","timestamp":1794499032.3579588,"elapsed":26.99400060204789,"ports":[55500,55501,55502,55503,55504,55505,55506,55507,55508,55509]},
-    {"event":"cleanup_complete","timestamp":1794499032.357996,"elapsed":26.99403757089749,"result":"pass","errors":[],"raw_evidence":"<private-run>/corrections-lpo9v936"}
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794503428.6454885,
+      "elapsed": 16.88192177284509,
+      "path": "<private-run>/corrections-y2nfkfzt/standby-backup-manifest.json",
+      "sha256": "264492c2d477a5d57c8d0e0c6f6b8b9d98f575bd6f7b8d76b88c38345d7c3ea8"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794503428.645684,
+      "elapsed": 16.88211716688238,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.6468824329786003
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503429.3462172,
+      "elapsed": 17.582650440977886,
+      "system_identifier": "7707333532046522797",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707333532046522797",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794503429.3556972,
+      "elapsed": 17.592130396980792,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794503429.4024048,
+      "elapsed": 17.638838500948623,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503430.9130452,
+      "elapsed": 19.14947852282785,
+      "fault": "transport_gate",
+      "direction": "reply",
+      "session": 3992243,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "verification_cancellation_observed",
+      "timestamp": 1794503430.913297,
+      "elapsed": 19.14973003184423,
+      "session": 3992243,
+      "transport_closed": true,
+      "source": "client_eof",
+      "commits": 0
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503431.0379767,
+      "elapsed": 19.274410135811195,
+      "fault": "transport_gate",
+      "direction": "execute_reply",
+      "session": 3992257,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "execute_cancellation_observed",
+      "timestamp": 1794503431.3384585,
+      "elapsed": 19.574891765834764,
+      "session": 3992257,
+      "retained": true,
+      "transport_closed": true,
+      "source": "client_eof"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503431.4187453,
+      "elapsed": 19.655178661923856,
+      "fault": "transport_gate",
+      "direction": "reply",
+      "session": null,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "whole_checkout_observed",
+      "timestamp": 1794503431.6692734,
+      "elapsed": 19.905706556979567,
+      "stage": "authentication",
+      "elapsed_seconds": 0.25377695402130485,
+      "budget_ms": 250,
+      "scheduling_tolerance_ms": 150,
+      "error": "whole pool checkout deadline (waiting/create/admission): deadline has elapsed"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503431.7850058,
+      "elapsed": 20.02143900701776,
+      "fault": "transport_gate",
+      "direction": "reply",
+      "session": 3992307,
+      "statement_kind": "read-only check"
+    },
+    {
+      "event": "whole_checkout_observed",
+      "timestamp": 1794503431.9890015,
+      "elapsed": 20.225434705847874,
+      "stage": "admission",
+      "elapsed_seconds": 0.2526663320604712,
+      "budget_ms": 250,
+      "scheduling_tolerance_ms": 150,
+      "error": "whole pool checkout deadline (waiting/create/admission): deadline has elapsed"
+    },
+    {
+      "event": "whole_checkout_observed",
+      "timestamp": 1794503432.357215,
+      "elapsed": 20.593648281879723,
+      "stage": "slot",
+      "elapsed_seconds": 0.25132231577299535,
+      "budget_ms": 250,
+      "scheduling_tolerance_ms": 150,
+      "error": "pool checkout/create/check: Timeout occurred while waiting for a slot to become available"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503432.4777853,
+      "elapsed": 20.714218572014943,
+      "statement": "SET LOCAL synchronous_commit=off",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503432.5276878,
+      "elapsed": 20.76412079203874,
+      "statement": "SET synchronous_commit=off",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503432.5781376,
+      "elapsed": 20.814570812974125,
+      "statement": "RESET ALL",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503432.6270828,
+      "elapsed": 20.86351606901735,
+      "statement": "RESET statement_timeout",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503432.6785564,
+      "elapsed": 20.914989738957956,
+      "statement": "SELECT set_config('synchronous_commit','off',false)",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503432.727497,
+      "elapsed": 20.96393042500131,
+      "statement": "SELECT set_config('search_path','public',false)",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503432.7778418,
+      "elapsed": 21.01427521998994,
+      "statement": "COMMIT",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503432.8295088,
+      "elapsed": 21.065942140994594,
+      "statement": "set /* indirect */ synchronous_commit to off",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503432.879551,
+      "elapsed": 21.11598429083824,
+      "statement": "SET LOCAL statement_timeout=0",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503432.931896,
+      "elapsed": 21.168329176027328,
+      "statement": "SET statement_timeout=0",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503432.9826388,
+      "elapsed": 21.21907203295268,
+      "statement": "RESET statement_timeout",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.0321922,
+      "elapsed": 21.268625522963703,
+      "statement": "SET LOCAL lock_timeout=0",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.082731,
+      "elapsed": 21.31916429894045,
+      "statement": "SET lock_timeout=0",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.1339512,
+      "elapsed": 21.37038431596011,
+      "statement": "RESET lock_timeout",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.1833837,
+      "elapsed": 21.419816959882155,
+      "statement": "SET LOCAL idle_in_transaction_session_timeout=0",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.2333615,
+      "elapsed": 21.469794489908963,
+      "statement": "SET idle_in_transaction_session_timeout=0",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.283247,
+      "elapsed": 21.519680249039084,
+      "statement": "RESET idle_in_transaction_session_timeout",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.3336008,
+      "elapsed": 21.570034090895206,
+      "statement": "SET LOCAL default_transaction_isolation='serializable'",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.3836703,
+      "elapsed": 21.620103433029726,
+      "statement": "SET default_transaction_isolation='serializable'",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.4341524,
+      "elapsed": 21.67058572382666,
+      "statement": "RESET default_transaction_isolation",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.4843433,
+      "elapsed": 21.720776441972703,
+      "statement": "SET LOCAL search_path='public'",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.5348969,
+      "elapsed": 21.77133013587445,
+      "statement": "SET search_path='public'",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.5853393,
+      "elapsed": 21.821772462921217,
+      "statement": "RESET search_path",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.6400018,
+      "elapsed": 21.876435049809515,
+      "statement": "SET LOCAL tcp_keepalives_idle=9",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.6913104,
+      "elapsed": 21.9277436719276,
+      "statement": "SET tcp_keepalives_idle=9",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.743026,
+      "elapsed": 21.979459232883528,
+      "statement": "RESET tcp_keepalives_idle",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.7924902,
+      "elapsed": 22.028923435835168,
+      "statement": "SET LOCAL tcp_keepalives_interval=9",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.8455412,
+      "elapsed": 22.081974235828966,
+      "statement": "SET tcp_keepalives_interval=9",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.898414,
+      "elapsed": 22.134847125038505,
+      "statement": "RESET tcp_keepalives_interval",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503433.950172,
+      "elapsed": 22.186605084920302,
+      "statement": "SET LOCAL tcp_keepalives_count=9",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503434.0001967,
+      "elapsed": 22.23662984301336,
+      "statement": "SET tcp_keepalives_count=9",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503434.0505528,
+      "elapsed": 22.286986039951444,
+      "statement": "RESET tcp_keepalives_count",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503434.1000881,
+      "elapsed": 22.336521164979786,
+      "statement": "SET LOCAL default_transaction_read_only=off",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503434.151635,
+      "elapsed": 22.388068181928247,
+      "statement": "SET default_transaction_read_only=off",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "caller_sql_policy_observed",
+      "timestamp": 1794503434.2018583,
+      "elapsed": 22.438291620928794,
+      "statement": "RESET default_transaction_read_only",
+      "refused": true,
+      "observed_synchronous_commit": "on"
+    },
+    {
+      "event": "precommit_corruption_observed",
+      "timestamp": 1794503434.3339682,
+      "elapsed": 22.57040155795403,
+      "scope": "corrupt_setting",
+      "outcome": "rejected",
+      "durable_rows": "0"
+    },
+    {
+      "event": "precommit_corruption_observed",
+      "timestamp": 1794503434.476486,
+      "elapsed": 22.712919021956623,
+      "scope": "corrupt_session_setting",
+      "outcome": "rejected",
+      "durable_rows": "0"
+    },
+    {
+      "event": "notice_retention_observed",
+      "timestamp": 1794503434.618019,
+      "elapsed": 22.854452180908993,
+      "initial": 0,
+      "outcome": "acknowledged",
+      "retained": 16
+    },
+    {
+      "event": "notice_retention_observed",
+      "timestamp": 1794503434.6284623,
+      "elapsed": 22.864895573817194,
+      "initial": 0,
+      "outcome": "acknowledged",
+      "retained": 16
+    },
+    {
+      "event": "commit_warning_after_flood_observed",
+      "timestamp": 1794503434.7667444,
+      "elapsed": 23.00317755085416,
+      "initial": 0,
+      "outcome": "unresolved",
+      "retained": 16
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794503434.9001856,
+      "elapsed": 23.136619561817497,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503435.4309008,
+      "elapsed": 23.66733427485451,
+      "path": "<private-run>/corrections-y2nfkfzt/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503435.4538882,
+      "elapsed": 23.690321877831593,
+      "path": "<private-run>/corrections-y2nfkfzt/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503435.5494328,
+      "elapsed": 23.785866223974153,
+      "path": "<private-run>/corrections-y2nfkfzt/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794503435.5496361,
+      "elapsed": 23.786069463938475,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794503435.5496798,
+      "elapsed": 23.786112984875217,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/corrections-y2nfkfzt"
+    }
   ],
-  "raw_manifest_sha256": "42ed1882cae50ceb124afe6ef8438b66c2f40cee63e0c577b1ed09935a8ecf00",
+  "raw_manifest_sha256": "f125f652962d55df1817182aaa166d6c05936b9caf2a9769b727ba1303929b34",
   "external_provider_rail_evidence": "not applicable to this phase"
 }

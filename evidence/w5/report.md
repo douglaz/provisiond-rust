@@ -8,13 +8,16 @@ no automatic reconciliation, production availability, incident recovery or real 
 
 Specification: `ac37c7cae5d3ff746515137774a4cdd5a3531375`.
 Whole-change review/regression base: `aceea4eea8382c8d3b6fa554706c54920999369c`.
-Tested runtime and fixtures: `d21297c57a7351b68def0d5a1d015c7e5166017f`, clean in every phase.
+Tested runtime and fixtures: `c7e71c803f7c10158636ff908856507713a608cb`, clean in every phase.
 The [source inventory](tested-source.json) records exact runtime, fixture, migration, dependency,
 Nix and specification-lock hashes. Later documentation/evidence commits preserve those bytes.
 [Implementation commits](implementation-commits.json) covers the entire W5 history from the base,
 including the earlier interruption hooks, retry fixes and fixture corrections; history was preserved.
-The continuation's runtime, canonical fixtures and capacity assertion are respectively `0e1348f`,
-`8ac8737` and `d21297c`. Nothing was pushed, merged or published.
+The observer runtime, canonical fixtures and capacity assertion are respectively `0e1348f`,
+`8ac8737` and `d21297c`. Commit `c7e71c8` adds discriminating closure/release coverage and
+the actual blocked-settlement successor. Its runtime addition is an explicit test-build
+observation and isolated skip-closure control; no new production defect or policy change is claimed.
+Nothing was pushed, merged or published.
 
 [Validation](validation.json) records complete stdout/stderr hashes, true statuses saved before
 reading either stream, effective environment/configuration and exact argv. Raw paths are private.
@@ -24,14 +27,17 @@ reading either stream, effective environment/configuration and exact argv. Raw p
 | `nix develop --command bash tools/check.sh` | 0 | pass |
 | `nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <raw-final-manifest>` | 0 | pass; all ten phases |
 | `nix develop --command python3 tests/postgres/w5_baseline.py --evidence <private-baseline-manifest>` | 0 | pass; recognizes three intended child exits 1 |
-| `nix develop --command python3 -m unittest discover -s tests/postgres -p 'test_*.py'` | 0 | pass; six fixture tests |
+| `nix develop --command python3 -m unittest discover -s tests/postgres -p 'test_*.py'` | 0 | pass; eight fixture tests |
 
 The [aggregate](final.json) includes w1, checks, commits, regressions, corrections, core, workflow,
-default-workflow, w5 and controls, each exit 0. The first nine phases contain 202 scenario entries
-(including reused sub-results); W5 has 25 required selectors plus three reused sub-results.
-All 34 sensitivity children exited 1 at their exact assertions after activation and cleanup.
-Those children are expected negative demonstrations, not 34 implementation regressions.
-Focused runs cannot satisfy the complete W5 inventory, including its seven activated accounting cases.
+default-workflow, w5 and controls, each exit 0. The first nine phases contain 203 scenario entries
+(including reused sub-results); W5 has 26 required selectors plus three reused sub-results.
+All 35 runtime sensitivity children exited 1 at their exact assertions after activation and cleanup.
+Those children are expected negative demonstrations, not 35 implementation regressions.
+The separate direct release-helper probe accepts zero checkouts (child exit 0) and rejects retained
+counts one through three (each child exit 1 at the exact release assertion). These synthetic
+records establish fixture sensitivity; the real PostgreSQL release observations remain required.
+Focused runs cannot satisfy the complete W5 inventory, including its eight activated accounting cases.
 
 Versions: stock PostgreSQL tools 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9,
 tokio-postgres 0.7.18, tokio 1.54.1, deadpool 0.12.3; Linux x86_64. The exact dependency inventory
@@ -61,26 +67,27 @@ events prove independent external effect. These meanings are not interchangeable
 | `w5_claim_reply` | Independently observe committed claim and lose its real reply. Fatal claim uncertainty, no blind claim/worker/provider. Actual successor fails the same null-marker create, releases reserve and posts no debit. | ENG-03, OPS-49/15; claim uncertainty |
 | `w5_step8` | Acknowledged marker, zero step-9 mutation. Surviving failure/stop fails/releases by worker position; crash successor leaves marked create unresolved with reserve. Lost-ack account/tenant guard repeats remain exercised. | OPS-43/11/15; CNF-362 selected create and ENG-04 guard arms |
 | `w5_accepted_lost` | Independent accepted order and actual resource, lost reply, unknown accepted knowledge retained. Operation/error/terms/reserve stay unresolved through restart and keyed replay; no second purchase, machine or debit. | ENG-05 interruption/no-repeat only; W6 resolution not run |
-| `w5_settlement_blocked` | Retained verified outcome/read instant precede real pre-COMMIT transport failure. Original failed session disappears; actual checkout/component release precedes retry. Whole repeat succeeds without purchase, verification or constraint I/O repeat; successor remains succeeded. | ENG-06 pre-COMMIT retry; OPS-49 |
+| `w5_settlement_blocked` | Retained verified outcome/read instant precede real pre-COMMIT transport failure. Original failed session disappears; zero outstanding worker checkouts and a released component permit precede retry. Whole repeat succeeds without purchase, verification or constraint I/O repeat; an actual successor for the same operation preserves succeeded status, the complete durable snapshot, provider evidence and one order. | ENG-06 pre-COMMIT retry; OPS-49 |
 | `w5_settlement_reply` | Success and deterministic-release settlements commit, then acknowledgement is lost. Guarded whole repeats and successor preserve complete status, machine, money, exclusion and seed rows; debit/release occurs once. | ENG-06; STO-3/23/28, OPS-49 |
 | `w5_stop_record` | Second stop enters real existing-deadline arbitration. Post-call record/deadline remain identical, fatal later-stop result is observed and no later BEGIN occurs. Cut-off/returned precommit and sent-record arms accept actual server fate; returned-land keeps final outcome. Actual successors classify only remaining running rows. | OPS-21/22/49; CNF-362 selected create/record arms |
 | `w5_lock_loss` | Independently attributed idle lock backend is terminated. No claim after detection; older record keeps deadline, returned outcome survives. A real SyncRep freeze expires at original stop bound with unobserved work logged; successor follows durable state. | ENG-02/07; selected CNF-366 create/record and freeze arms |
 | `w5_retained_checkouts` | All configured API write slots (one) wait in SyncRep; HTTP handler cancels while original live transport, pooled checkout and permit remain owned. Fresh key gets 503 before BEGIN/receipt/provider, established checked read works. Restore produces original actual Acknowledged classification; identify receipt/operation before exact-identity replay. Fresh checked SHOW remains on; one purchase succeeds. | DB-02, CNF-296 retained-write arm; CNF-299 named overload arm |
 | `w5_process_death` | Precisely kill API with residual SyncRep backend. Two backed-off replacements fail closed and stop; ordinary pools exclude the old backend. Quiesce, restore the same standby, observe residual completion and original persisted receipt/operation before restart/resend. Replay equals original; one purchase succeeds. No posthumous client acknowledgement is claimed. | DB-03, CNF-373 local residual/replacement/unchanged-history subset |
 | `w5_connection_check` | Independently establish healthy authenticated designated history/catch-up before withholding each API/engine check reply. Uncertain connection closes unused at existing bound; no fallback, check write, business entry or check-created SyncRep. Actual later startup succeeds. | DB-09; CNF-365 withheld-check arm only |
-| `w5_contention` | Owned business-row blocker is observed in server blocking identities while standby is paused. Per retried attempt, attributed ROLLBACK/idle acknowledgement and actual pool/semaphore release precede backoff. Bounded exhaustion exits with retained provider outcome, one order and no settlement; actual successor leaves marked create unresolved. | ENG-06, OPS-49; selected CNF-296 contention arm |
+| `w5_contention` | Owned business-row blocker is observed in server blocking identities while standby is paused. Per retried attempt, attributed ROLLBACK/idle acknowledgement, zero outstanding worker checkouts and a released semaphore precede backoff. Bounded exhaustion exits with retained provider outcome, one order and no settlement; actual successor leaves marked create unresolved. | ENG-06, OPS-49; selected CNF-296 contention arm |
 | `w5_remote_completion` | Simulator accepts before held effect; lock loss causes actual record/exit. Independent resource appears afterward. Generation fencing never claims cancellation; no machine/debit or repeat across unresolved successor. | OPS-47/50 limitation; ENG-05 no-repeat subset |
 | `w5_generation_record` | Out-of-band unequal generation refuses a real record immediately, without retry/new transaction. Separate lost-record-reply arm preserves the earlier commit before refusal. Actual successors preserve the server's result; no provider order. | ENG-01 selected record path; CNF-367, OPS-50 |
 | `w5_default_hooks` | Separately built ordinary binaries ignore fault files, blind-retry environment and deadline-reset environment. One create succeeds and one dropped-reply create remains unresolved, one order each. | Default-feature inertness; no runtime fault activation claimed |
 | `w5_claim_precommit` | Definitely unsent claim fails verification, releases owner resources and repeats the complete claim within bound. One worker/order succeeds; successor remains succeeded. | OPS-49 unsent-claim exception; protected baseline red |
 | `w5_backoff_budget` | Real defer primitive fails just before retry exhaustion; ordinary backoff crosses the bound. No subsequent BEGIN, fatal exit 71, no provider call; null-marker successor fails/releases. | OPS-49 pre-next-attempt exhaustion; protected baseline red |
 | `w5_accounting_reply` | Healthy replication, completed settlement, repeated independent idle:ClientRead samples, delayed/lost COMMIT reply. No in-flight exit. At receipt death, delay charges the bound, exits 1 without retry, preserves one purchase/money and succeeded successor. | OPS-49 non-standby reply charging; protected baseline red |
-| `w5_accounting_syncrep` | Actual long SyncRep exceeds retry bound with sent owner retained; no accounting-triggered exit. Measured wait is exempt; lost reply allows guarded database repeat at 187 ms charged. One purchase and full row equality through succeeded successor. | OPS-49/STO-7 actual standby exemption and completion-only accounting |
-| `w5_accounting_mixed` | Actual long SyncRep followed by independently observed completed-COMMIT idle delay. Wait is exempt; later 2264 ms reply hold charges. Exit 1 without repeat after receipt death; succeeded successor and unchanged money. | OPS-49 mixed interval attribution |
+| `w5_accounting_syncrep` | Actual long SyncRep exceeds retry bound with sent owner retained; no accounting-triggered exit. Measured wait is exempt; lost reply allows guarded database repeat within the measured charged budget. One purchase and full row equality through succeeded successor. | OPS-49/STO-7 actual standby exemption and completion-only accounting |
+| `w5_accounting_mixed` | Actual long SyncRep followed by independently observed completed-COMMIT idle delay. Wait is exempt; later independently observed idle reply hold charges. Exit 1 without repeat after receipt death; succeeded successor and unchanged money. | OPS-49 mixed interval attribution |
 | `w5_accounting_unavailable` | Withhold actual observer response through its existing call deadline while settlement reply is delayed. Loud observer timeout, zero exemption, charged delay and exit 1 on receipt death; money and succeeded successor unchanged. | OPS-49 failed/unavailable sample charging |
 | `w5_accounting_mismatch` | Alter only backend_start in actual observer DataRows. Identity refusal/loud failure, zero exemption despite same pid, delayed reply charges and exits 1; succeeded successor with unchanged money. | OPS-49 exact backend identity |
 | `w5_accounting_stop` | Sent settlement actually waits in SyncRep while first after-return stop starts its original bound. Original stop expiry exits 71 before COMMIT receipt; restore observes residual completion and succeeded successor. No fictitious acknowledgement. | OPS-21 original bound precedes accounting; STO-7 ownership |
 | `w5_accounting_reconnect` | Precisely terminate attributed idle observer, alarm and open a checked replacement. Replacement actually attributes SyncRep on a later settlement; one purchase succeeds and stays succeeded across successor. | OPS-49 observer re-establishment for later attempts |
+| `w5_accounting_failure_run` | Independently observe real settlement SyncRep and an established matching sample run before precisely terminating its idle observer. Test-only state shows closure; the skip-closure control observes the run still open and fails that invariant. In the ordinary run, independent server samples and completion arithmetic show over two seconds of unobserved wait charged while the original sent checkout stays retained. Restore the same standby, admit a checked replacement, lose the reply and observe ordinary exhaustion, unchanged money and one purchase through succeeded successor. | OPS-49 failed-run closure invariant plus separate actual charging; no reconnect during stall assumed |
 
 All phase and control cleanup records are pass. The runner reaped its children, shut down only
 its own database directories, removed registered build directories and released its ten-port
@@ -124,9 +131,15 @@ that exemption is charged once, including verification, handoff, idle reply dela
 ordinary backoff charges separately. [Accounting evidence](accounting.json) retains attributed
 run endpoints, counts, round trips and exact arithmetic, with raw-sample hashes mapped privately.
 
-The long SyncRep case exempts 2298605 microseconds and charges 187 ms before its database repeat.
-Mixed wait exempts 2298406 microseconds, but the later 2264 ms idle hold still exhausts. Healthy
-2273 ms idle reply hold exempts zero. Unavailable/mismatched observation also exempts zero.
+The long SyncRep case exempts the measured matching span and permits its bounded database repeat.
+The mixed case exempts standby wait but charges the later idle reply hold; healthy idle delay and
+unavailable/mismatched idle observation exempt zero. The failed-run case additionally establishes
+positive matching endpoints before observer death, closes that run, retains its measured exemption
+and charges the independently observed gap at completion. [Accounting evidence](accounting.json)
+retains registration, failure/closure, checked replacement and completion identities and arithmetic.
+The isolated skip-closure control rejects an open run at failure, an internal invariant proof.
+The ordinary completion trace supplies the separate end-to-end charging proof; no second SyncRep
+wait or impossible checked reconnect during the stall is synthesized.
 Application-role visibility and checked observer replacement are executed observations. Under the
 one-contiguous-wait premise, normal edge error is only toward charging, approximately
 `2 × (period + sample round trip)` per uninterrupted run; missing observation can charge much more.
@@ -143,18 +156,23 @@ Original OPS-21 bounds and process exit remain independent. Two accepted known l
 
 ## Negative demonstrations and source protection
 
-[Controls](final-controls.json) lists all 34 exact assertions, child exits and individual red evidence.
+[Controls](final-controls.json) lists all 35 exact assertions, child exits and individual red evidence.
 Recognition requires actual activation/unsafe observation, child exit 1 at the intended assertion
-and cleanup pass; setup failure, inactive hook or timeout cannot count. The four W5 controls are:
+and cleanup pass; setup failure, inactive hook or timeout cannot count. The five W5 controls are:
 
 | Defect | Actual unsafe observation / intended assertion |
 |---|---|
+| `w5_observer_run` | A genuinely established SyncRep sample run remains open after observer transport death when only `end_run` is skipped; `OPS-49 observer failure must close an established SyncRep sample run`. |
 | `w5_stop_reset` | Real second-stop arbitration changes the original deadline and returns nonfatal success; `OPS-21 later stop arbitration must preserve original absolute deadline`. |
 | `w5_generation` | Unequal generation permits a stale record; `OPS-50 stale generation record must refuse without retry`. |
 | `w5_checkout` | Actual original pooled checkout is absent despite live cancelled-handler transport/process in SyncRep; `STO-7 HTTP cancellation must retain original sent-COMMIT checkout`. |
 | `w5_blind_retry` | Two independently accepted orders and actual resources; `OPS-12 lost reply must not dispatch a second purchase`. |
 
-The first is a test-driver sensitivity correction, not an old-runtime deadline-reset bug. The
+The deadline-reset control is a test-driver sensitivity correction, not an old-runtime deadline-reset bug.
+The run-closure control is also sensitivity coverage; the ordinary runtime already closed the run.
+[Release-assertion evidence](release-assertion.json) records the original helper accepting a retained
+checkout count of one and the corrected helper rejecting it while accepting zero. Its canonical
+child exits are checked independently of the real blocked-settlement/contention greens. The
 earlier complete-record parser correction remains tested by the final Python command, without
 crediting another runtime regression. A first continuation full run stopped on the old capacity
 diagnostic assertion; the final core fixture checks the changed budget and the complete rerun passes.
@@ -183,19 +201,22 @@ The historical 2197 ms / 21 ms accounting reproducer remains identified in that 
 - Full operation-kind coverage, rescue installation, customer UI, real drivers/funds and W9–W11
   remain outside this work. Deferred rail-history response delivery, descriptor startup deadlines
   and receive-WAL fixture hardening were not implemented.
-- Source premise inspection and the live-transport-forever/triple-fault known-limit histories are
-  **not run** here. Their accepted limits remain explicit; no bounded outage promise follows.
+- Source premise inspection and the live-transport-forever history remain **not run**. The
+  failure-run scenario executes one observer-loss/stall/lost-reply history and observes the accepted
+  conservative exhaustion limit without money loss. Neither this history nor the measured checked
+  replacement supplies a production recovery-duration guarantee.
 
 Review-followup: the raw harness's top-level W5 external-effects label predates the W5 selector and
 says “not applicable” despite the nested independent simulator traces. Final sanitized summaries
-explicitly identify simulator evidence; the raw label supplies no behavioral authority. No additional
-review-nit or review-preexisting blocking finding is recorded by this implementation pass. This is
-source inspection, not an independent clean-review verdict. No specification conflict remains stopped.
+explicitly identify simulator evidence; the raw label supplies no behavioral authority. This implementation report
+does not supply an independent acceptance verdict. No specification conflict remains stopped.
 
 Only final sanitized manifests, assertions, reds, source protection, this report and audit remain
-under `evidence/w5/`. `<private-run>`, `<private-harness>`, `<private-allocation>`, `<supervised-unit>`, `<repo>` and
-`<dependency-path>` are documented
-sanitized placeholders; the private raw-path/hash mapping retains exact identities. Raw logs, source
+under `evidence/w5/`. `<private-run>`, `<private-harness>`, `<private-allocation>`, `<supervised-unit>`,
+`<repo>`, `<owned-run>`, `<dependency-path>` and `<python>` denote sanitized paths or environment
+identities; `<credential>` and `<redacted>` replace private values. The private raw-path/hash mapping
+retains exact identities. `<raw-final-manifest>` and `<private-baseline-manifest>` denote private
+manifest output files. Raw logs, source
 exports, status files, database/WAL, credentials and superseded attempts remain outside git.
 Incomplete final diagnostic tails are **inconclusive** diagnostics only and cannot establish behavior.
 The [audit](audit.json) records source equality, stream status/hash checks, cleanup and redaction.

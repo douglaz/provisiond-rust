@@ -2,6 +2,13 @@
   "result": "pass",
   "controls": [
     {
+      "defect": "w5_observer_run",
+      "result": "expected negative demonstration",
+      "exit_status": 1,
+      "intended_assertion": "OPS-49 observer failure must close an established SyncRep sample run",
+      "evidence": "evidence/w5/red-control-w5_observer_run.json"
+    },
+    {
       "defect": "w5_stop_reset",
       "result": "expected negative demonstration",
       "exit_status": 1,
@@ -239,5 +246,101 @@
       "intended_assertion": "lock-loss fanout must retain original record identity and absolute deadline",
       "evidence": "evidence/w5/red-control-lock_record_reset.json"
     }
-  ]
+  ],
+  "release_assertion_sensitivity": {
+    "result": "pass",
+    "method": "synthetic records passed to actual failed_attempt_release helper",
+    "probes": [
+      {
+        "checked_out": 0,
+        "exit_status": 0,
+        "result": "pass",
+        "assertion": null,
+        "application_release": [
+          {
+            "event": "w5_failed_attempt_release",
+            "session": 101,
+            "application_release": {
+              "event": "transaction_resources_released",
+              "transaction": 17,
+              "session": 101,
+              "component_available": 1,
+              "pool_checked_out": 0,
+              "discarded": false
+            },
+            "rollback": {
+              "event": "transaction_rollback_acknowledged",
+              "transaction": 17,
+              "session": 101,
+              "ready_status": 73
+            },
+            "server_end": {
+              "event": "protocol_response",
+              "session": 101,
+              "command_tag": "ROLLBACK",
+              "query": "ROLLBACK /* store transaction 17 */"
+            },
+            "release_before_backoff": true
+          }
+        ],
+        "command": [
+          "<dependency-path>",
+          "-B",
+          "tests/postgres/w5_release_control.py",
+          "--checked-out",
+          "0",
+          "--evidence",
+          "<private-run>/full/controls-bhbc5wka/release-checkout-0.json"
+        ]
+      },
+      {
+        "checked_out": 1,
+        "exit_status": 1,
+        "result": "expected negative demonstration",
+        "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+        "application_release": null,
+        "command": [
+          "<dependency-path>",
+          "-B",
+          "tests/postgres/w5_release_control.py",
+          "--checked-out",
+          "1",
+          "--evidence",
+          "<private-run>/full/controls-bhbc5wka/release-checkout-1.json"
+        ]
+      },
+      {
+        "checked_out": 2,
+        "exit_status": 1,
+        "result": "expected negative demonstration",
+        "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+        "application_release": null,
+        "command": [
+          "<dependency-path>",
+          "-B",
+          "tests/postgres/w5_release_control.py",
+          "--checked-out",
+          "2",
+          "--evidence",
+          "<private-run>/full/controls-bhbc5wka/release-checkout-2.json"
+        ]
+      },
+      {
+        "checked_out": 3,
+        "exit_status": 1,
+        "result": "expected negative demonstration",
+        "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+        "application_release": null,
+        "command": [
+          "<dependency-path>",
+          "-B",
+          "tests/postgres/w5_release_control.py",
+          "--checked-out",
+          "3",
+          "--evidence",
+          "<private-run>/full/controls-bhbc5wka/release-checkout-3.json"
+        ]
+      }
+    ]
+  }
 }

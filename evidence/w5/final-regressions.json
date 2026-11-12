@@ -1,8 +1,8 @@
 {
   "result": "pass",
   "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-  "implementation_commit": "d21297c57a7351b68def0d5a1d015c7e5166017f",
-  "tested_source_sha256": "4052ccd12e43c1cc8b9ddb14ac6f4853721dd6a5c68dc97be0d9099305cc8fb8",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "tested_source_sha256": "328c0aebc46bb8315f3b3f8617f05a1196875effab122ad6f5d0e10878958fc6",
   "source_dirty": false,
   "seed": 20261112,
   "versions": {
@@ -206,35 +206,35 @@
     {
       "test": "precommit-deadline-session",
       "result": "pass",
-      "session": 3650944,
-      "new_session": 3650969,
+      "session": 3989528,
+      "new_session": 3989579,
       "establishes": "activated withheld reply on admitted session; local transport closed while object retained; no dirty reuse; server fate separately observed"
     },
     {
       "test": "precommit-deadline-transaction",
       "result": "pass",
-      "session": 3650980,
-      "new_session": 3651071,
+      "session": 3989591,
+      "new_session": 3989653,
       "establishes": "activated withheld reply on admitted session; local transport closed while object retained; no dirty reuse; server fate separately observed"
     },
     {
       "test": "sent-commit-caller-runtime-drop",
       "result": "pass",
-      "session": 3651084,
+      "session": 3989666,
       "establishes": "SyncRep observed before initiating reactor destroyed; original transport/checkout retained; replacement refused; real reply consumed on standby restoration"
     },
     {
       "test": "cancelled-query-not-reused",
       "result": "pass",
-      "session": 3651169,
-      "new_session": 3651172,
+      "session": 3989771,
+      "new_session": 3989790,
       "establishes": "reply withheld; caller drops the in-flight call; client closes that transport; next checkout is a new backend"
     },
     {
       "test": "cancelled-destination-not-reused",
       "result": "pass",
-      "session": 3651172,
-      "new_session": 3651200,
+      "session": 3989790,
+      "new_session": 3989794,
       "establishes": "reply withheld; caller drops the in-flight call; client closes that transport; next checkout is a new backend"
     },
     {
@@ -264,39 +264,319 @@
     "DB-10 full saturation: not run (W8)"
   ],
   "events": [
-    {"event":"backup_provenance_retained","timestamp":1794498995.2710032,"elapsed":16.865758480038494,"path":"<private-run>/regressions-934ebv_9/standby-backup-manifest.json","sha256":"620cee2b07ac12a21240c75a3aee188657a6007b32def0086f590cc8ddfccd3b"},
-    {"event":"backup_complete","timestamp":1794498995.2711945,"elapsed":16.865949306171387,"destination":"standby","verified":true,"elapsed_seconds":0.7058673158753663},
-    {"event":"identity_catchup","timestamp":1794498995.976401,"elapsed":17.571156200021505,"system_identifier":"7707314490458907770","sampled_primary_flush":"0/3003A90","standby_system_identifier":"7707314490458907770","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"effective_configuration_observed","timestamp":1794498995.986816,"elapsed":17.58157114102505,"configuration":{"archive_command":"test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f","archive_mode":"on","lc_messages":"C","listen_addresses":"127.0.0.1","max_connections":"24","port":"55500","restart_after_crash":"on","shared_buffers":"4096","superuser_reserved_connections":"3","synchronous_commit":"on","synchronous_standby_names":"FIRST 1 (provisiond_sync)","tcp_keepalives_count":"2","tcp_keepalives_idle":"2","tcp_keepalives_interval":"1","wal_level":"replica"},"sha256":"fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"},
-    {"event":"bootstrap_complete","timestamp":1794498996.0360274,"elapsed":17.630782505031675,"maintenance_mode_exception":false,"bootstrap_role":"initdb administrator; offline replication identity only","backup_name":"bootstrap_backup","designated_name":"provisiond_sync"},
-    {"event":"fault_activated","timestamp":1794498996.2060864,"elapsed":17.80084145301953,"fault":"transport_gate","direction":"reply","session":3650944,"statement_kind":"fixture statement"},
-    {"event":"deadline_fault_observed","timestamp":1794498996.2157629,"elapsed":17.810517966048792,"call_kind":"session","session":3650944,"backend_state":"idle","object_retained":true},
-    {"event":"deadline_closure_observed","timestamp":1794498998.2185934,"elapsed":19.813348249997944,"call_kind":"session","session":3650944,"transport_closed":true,"backend_count":"0","closure_source":"client_eof","object_retained":true,"elapsed_seconds":2.0127146649174392,"server_timeout":"idle_in_transaction_session_timeout=1000ms; independent of local closure"},
-    {"event":"fault_activated","timestamp":1794498998.3574302,"elapsed":19.95218512811698,"fault":"transport_gate","direction":"execute_reply","session":3650980,"statement_kind":"fixture statement"},
-    {"event":"deadline_fault_observed","timestamp":1794498998.3680065,"elapsed":19.962761288974434,"call_kind":"transaction","session":3650980,"backend_state":"idle in transaction","object_retained":true},
-    {"event":"deadline_closure_observed","timestamp":1794499000.3685079,"elapsed":21.963262781035155,"call_kind":"transaction","session":3650980,"transport_closed":true,"backend_count":"0","closure_source":"client_eof","object_retained":true,"elapsed_seconds":2.0117489949334413,"server_timeout":"idle_in_transaction_session_timeout=1000ms; independent of local closure"},
-    {"event":"fault_activated","timestamp":1794499000.518605,"elapsed":22.113359875045717,"fault":"standby_receiver_pause","pid":3650893},
-    {"event":"runtime_drop_observed","timestamp":1794499002.8033798,"elapsed":24.398134959163144,"session":3651084,"transport_open":true,"checked_out":1,"terminal_outcomes":[],"backend_in_syncrep":true},
-    {"event":"identity_catchup","timestamp":1794499003.1859117,"elapsed":24.780666733160615,"system_identifier":"7707314490458907770","sampled_primary_flush":"0/3057460","standby_system_identifier":"7707314490458907770","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794499003.2621205,"elapsed":24.856875309022143,"fault":"transport_gate","direction":"reply","session":3651169,"statement_kind":"fixture statement"},
-    {"event":"cancelled_call_fault_observed","timestamp":1794499003.2622278,"elapsed":24.856982729164883,"call_kind":"query","session":3651169},
-    {"event":"cancelled_call_observed","timestamp":1794499003.6124237,"elapsed":25.20717862714082,"call_kind":"query","session":3651169,"ok":true,"error":null,"value":{"new_session":3651172,"old_session":3651169}},
-    {"event":"fault_activated","timestamp":1794499003.623021,"elapsed":25.21777577814646,"fault":"transport_gate","direction":"reply","session":3651172,"statement_kind":"fixture statement"},
-    {"event":"cancelled_call_fault_observed","timestamp":1794499003.6230912,"elapsed":25.217846289044246,"call_kind":"destination","session":3651172},
-    {"event":"cancelled_call_observed","timestamp":1794499003.9728177,"elapsed":25.56757267215289,"call_kind":"destination","session":3651172,"ok":true,"error":null,"value":{"new_session":3651200,"old_session":3651172}},
-    {"event":"fault_activated","timestamp":1794499004.0029995,"elapsed":25.59775447100401,"fault":"transport_gate","direction":"reply","session":null,"statement_kind":"fixture statement"},
-    {"event":"construction_cancel_observed","timestamp":1794499004.0518932,"elapsed":25.64664811315015,"stage":"authentication","session":null,"new_session":3651214,"transport_closed":true,"closure_source":"client_eof"},
-    {"event":"fault_activated","timestamp":1794499004.122182,"elapsed":25.71693696011789,"fault":"transport_gate","direction":"reply","session":3651223,"statement_kind":"read-only check"},
-    {"event":"construction_cancel_observed","timestamp":1794499004.1713893,"elapsed":25.766144406050444,"stage":"admission","session":3651223,"new_session":3651226,"transport_closed":true,"closure_source":"client_eof"},
-    {"event":"fault_activated","timestamp":1794499004.1943407,"elapsed":25.789095594082028,"fault":"transport_gate","direction":"reply","session":null,"statement_kind":"fixture statement"},
-    {"event":"construction_deadline_observed","timestamp":1794499004.4445949,"elapsed":26.03934982116334,"transport_closed":true,"closure_source":"client_eof","elapsed_seconds":0.2521738871000707},
-    {"event":"proxy_cleanup","timestamp":1794499004.6457818,"elapsed":26.24053690303117,"cancel_requests":0},
-    {"event":"cleanup_removed","timestamp":1794499005.1753879,"elapsed":26.770143005996943,"path":"<private-run>/regressions-934ebv_9/primary"},
-    {"event":"cleanup_removed","timestamp":1794499005.1990316,"elapsed":26.793786694062874,"path":"<private-run>/regressions-934ebv_9/standby"},
-    {"event":"cleanup_removed","timestamp":1794499005.2956452,"elapsed":26.89040034916252,"path":"<private-run>/regressions-934ebv_9/target"},
-    {"event":"allocation_released","timestamp":1794499005.2958677,"elapsed":26.89062253315933,"ports":[55500,55501,55502,55503,55504,55505,55506,55507,55508,55509]},
-    {"event":"cleanup_complete","timestamp":1794499005.2959034,"elapsed":26.890658350195736,"result":"pass","errors":[],"raw_evidence":"<private-run>/regressions-934ebv_9"}
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794503401.7875743,
+      "elapsed": 17.24408039706759,
+      "path": "<private-run>/regressions-isrubscs/standby-backup-manifest.json",
+      "sha256": "3bd5d19b321ed48faa558dc14b88e2599a2f764ce09bc5703d7743fb321419c4"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794503401.787816,
+      "elapsed": 17.244321827078238,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.6445231940597296
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503402.4803362,
+      "elapsed": 17.93684209813364,
+      "system_identifier": "7707333416680378214",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707333416680378214",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794503402.4923918,
+      "elapsed": 17.948898058151826,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794503402.539604,
+      "elapsed": 17.99611016199924,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503402.699335,
+      "elapsed": 18.1558410320431,
+      "fault": "transport_gate",
+      "direction": "reply",
+      "session": 3989528,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "deadline_fault_observed",
+      "timestamp": 1794503402.710075,
+      "elapsed": 18.166580768069252,
+      "call_kind": "session",
+      "session": 3989528,
+      "backend_state": "idle",
+      "object_retained": true
+    },
+    {
+      "event": "deadline_closure_observed",
+      "timestamp": 1794503404.7109942,
+      "elapsed": 20.16750018298626,
+      "call_kind": "session",
+      "session": 3989528,
+      "transport_closed": true,
+      "backend_count": "0",
+      "closure_source": "client_eof",
+      "object_retained": true,
+      "elapsed_seconds": 2.0119057199917734,
+      "server_timeout": "idle_in_transaction_session_timeout=1000ms; independent of local closure"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503404.8405845,
+      "elapsed": 20.297090472187847,
+      "fault": "transport_gate",
+      "direction": "execute_reply",
+      "session": 3989591,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "deadline_fault_observed",
+      "timestamp": 1794503404.850675,
+      "elapsed": 20.307181218173355,
+      "call_kind": "transaction",
+      "session": 3989591,
+      "backend_state": "idle in transaction",
+      "object_retained": true
+    },
+    {
+      "event": "deadline_closure_observed",
+      "timestamp": 1794503406.8611271,
+      "elapsed": 22.317633047001436,
+      "call_kind": "transaction",
+      "session": 3989591,
+      "transport_closed": true,
+      "backend_count": "0",
+      "closure_source": "client_eof",
+      "object_retained": true,
+      "elapsed_seconds": 2.021111415931955,
+      "server_timeout": "idle_in_transaction_session_timeout=1000ms; independent of local closure"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503407.00452,
+      "elapsed": 22.461025793105364,
+      "fault": "standby_receiver_pause",
+      "pid": 3989466
+    },
+    {
+      "event": "runtime_drop_observed",
+      "timestamp": 1794503409.2890291,
+      "elapsed": 24.74553524213843,
+      "session": 3989666,
+      "transport_open": true,
+      "checked_out": 1,
+      "terminal_outcomes": [],
+      "backend_in_syncrep": true
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503409.6733258,
+      "elapsed": 25.129831726197153,
+      "system_identifier": "7707333416680378214",
+      "sampled_primary_flush": "0/3057460",
+      "standby_system_identifier": "7707333416680378214",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503409.7506604,
+      "elapsed": 25.207166237058118,
+      "fault": "transport_gate",
+      "direction": "reply",
+      "session": 3989771,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "cancelled_call_fault_observed",
+      "timestamp": 1794503409.7507253,
+      "elapsed": 25.207231478998438,
+      "call_kind": "query",
+      "session": 3989771
+    },
+    {
+      "event": "cancelled_call_observed",
+      "timestamp": 1794503410.0993984,
+      "elapsed": 25.555904319044203,
+      "call_kind": "query",
+      "session": 3989771,
+      "ok": true,
+      "error": null,
+      "value": {
+        "new_session": 3989790,
+        "old_session": 3989771
+      }
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503410.1100628,
+      "elapsed": 25.566568894078955,
+      "fault": "transport_gate",
+      "direction": "reply",
+      "session": 3989790,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "cancelled_call_fault_observed",
+      "timestamp": 1794503410.1101623,
+      "elapsed": 25.56666802917607,
+      "call_kind": "destination",
+      "session": 3989790
+    },
+    {
+      "event": "cancelled_call_observed",
+      "timestamp": 1794503410.4626474,
+      "elapsed": 25.91915342817083,
+      "call_kind": "destination",
+      "session": 3989790,
+      "ok": true,
+      "error": null,
+      "value": {
+        "new_session": 3989794,
+        "old_session": 3989790
+      }
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503410.4940648,
+      "elapsed": 25.95057107019238,
+      "fault": "transport_gate",
+      "direction": "reply",
+      "session": null,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "construction_cancel_observed",
+      "timestamp": 1794503410.5425966,
+      "elapsed": 25.99910244415514,
+      "stage": "authentication",
+      "session": null,
+      "new_session": 3989809,
+      "transport_closed": true,
+      "closure_source": "client_eof"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503410.6093442,
+      "elapsed": 26.065850094193593,
+      "fault": "transport_gate",
+      "direction": "reply",
+      "session": 3989837,
+      "statement_kind": "read-only check"
+    },
+    {
+      "event": "construction_cancel_observed",
+      "timestamp": 1794503410.6630938,
+      "elapsed": 26.11959963804111,
+      "stage": "admission",
+      "session": 3989837,
+      "new_session": 3989840,
+      "transport_closed": true,
+      "closure_source": "client_eof"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503410.6830192,
+      "elapsed": 26.139525311999023,
+      "fault": "transport_gate",
+      "direction": "reply",
+      "session": null,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "construction_deadline_observed",
+      "timestamp": 1794503410.9332771,
+      "elapsed": 26.38978301314637,
+      "transport_closed": true,
+      "closure_source": "client_eof",
+      "elapsed_seconds": 0.2531500938348472
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794503411.1345222,
+      "elapsed": 26.59102874319069,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503411.5646932,
+      "elapsed": 27.021199748152867,
+      "path": "<private-run>/regressions-isrubscs/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503411.5866334,
+      "elapsed": 27.043139678193256,
+      "path": "<private-run>/regressions-isrubscs/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503411.6848297,
+      "elapsed": 27.1413360692095,
+      "path": "<private-run>/regressions-isrubscs/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794503411.6850855,
+      "elapsed": 27.141591475112364,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794503411.6851203,
+      "elapsed": 27.141626100055873,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/regressions-isrubscs"
+    }
   ],
-  "raw_manifest_sha256": "0abbd2198ab99e780502c085a5022bdce09899ae74f705b3fa7bf94d0d740cfe",
+  "raw_manifest_sha256": "3c32118d8869388d8002d8f4192e1ce9ff90ee1f81b5dea717ab56e234f5eace",
   "external_provider_rail_evidence": "not applicable to this phase"
 }

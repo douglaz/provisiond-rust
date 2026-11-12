@@ -1181,9 +1181,11 @@ An independent simulator hold separates acceptance from resource creation. Defau
 ignore the fault files and defect environment, demonstrated by `w5_default_hooks` with actual
 executable hashes and one order per operation.
 
-The W5 parent requires all twenty-five selectors and successful cleanup; a focused child cannot
-satisfy that inventory. The four W5 controls require an activated unsafe observation, exit 1
-at the exact assertion and cleanup, preserving all thirty earlier controls. Trace readers parse
+The W5 parent requires all twenty-six selectors and successful cleanup; a focused child cannot
+satisfy that inventory. The five W5 controls require an activated unsafe observation, exit 1
+at the exact assertion and cleanup, preserving all thirty earlier controls. A separate direct-helper
+probe accepts zero outstanding checkouts and rejects retained counts one through three at its exact assertion; it
+demonstrates fixture sensitivity and makes no claim of a runtime checkout leak. Trace readers parse
 only complete newline-terminated byte records. An incomplete final UTF-8/JSON tail is an
 `inconclusive` diagnostic and cannot establish application behavior; malformed complete records
 still fail. The [final fixture tests](../evidence/w5/python-units.json) record exit 0 for the
@@ -1193,11 +1195,12 @@ publication, avoiding consumption of an empty operation UUID. Expiry-session clo
 accepts either attributed proxy read direction before the same original deadline.
 
 D-34/D-35's final measured basis is runtime/fixtures
-`d21297c57a7351b68def0d5a1d015c7e5166017f`, unchanged specification pin, PostgreSQL 18.6,
+`c7e71c803f7c10158636ff908856507713a608cb`, unchanged specification pin, PostgreSQL 18.6,
 Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and tokio-postgres 0.7.18.
 `nix develop --command bash tools/check.sh` exited 0 and
 `nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <raw-final-manifest>`
-exited 0 with all ten phases, twenty-five W5 selectors and thirty-four expected negative controls.
+exited 0 with all ten phases, twenty-six W5 selectors and thirty-five expected negative controls,
+plus the direct release-helper probe.
 `nix develop --command python3 tests/postgres/w5_baseline.py --evidence <private-baseline-manifest>`
 exited 0 after all three protected-base children exited 1 at their intended assertions.
 [Validation](../evidence/w5/validation.json), [source](../evidence/w5/tested-source.json),
@@ -1218,10 +1221,13 @@ The [canonical comparison](../evidence/w5/regressions.json) preserves that histo
 and repeats the same final assertion driver against protected unchanged
 `aceea4eea8382c8d3b6fa554706c54920999369c`: intended child exit 1, actual non-standby delay,
 unsafe retry and cleanup. Protected source/dependency hashes are equal before/after, and driver
-hashes match the final green. On `d21297c57a7351b68def0d5a1d015c7e5166017f`, the
+hashes match the final green. On `c7e71c803f7c10158636ff908856507713a608cb`, the
 [complete final W5 phase](../evidence/w5/final-w5.json) exits 0: healthy post-COMMIT delay is
 charged, real SyncRep is conservatively exempted, mixed intervals are separated, unavailable
-observations charge time, checked observation resumes, and original stop bounds still win.
+observations charge time, a real observer failure closes an established matching run, checked
+observation resumes, and original stop bounds still win. The skip-closure sensitivity fails its
+internal invariant assertion after the open run is observed; separate completion arithmetic
+and independent server samples establish the executed unobserved interval remains charged.
 The exact commands, versions and exit statuses are in the preceding final basis and
 [validation](../evidence/w5/validation.json). D-39 records precision, source-premise status and limits.
 No specification, provider policy or production parameter was changed.
@@ -1301,10 +1307,17 @@ Error/timeout/closure/missing visibility is logged at error level. Re-establishm
 ordinary checked construction path and existing connection/check bounds, with one observer and
 no pool increase. Unobserved gaps remain charged. The [accounting evidence](../evidence/w5/accounting.json)
 contains exact backend identities, first/last sample send/receive instants, run arithmetic, sample
-counts/round trips, actual observer failures and passing checked replacement. The real long wait
-exempts 2298605 microseconds and permits one guarded database repeat at 187 ms charged; the mixed
-case exempts 2298406 microseconds but charges the subsequent 2264 ms idle reply hold and exits
-without retry. Healthy idle reply hold 2273 ms exempts zero. These are fixture measurements.
+counts/round trips, actual observer failures and passing checked replacement. The long-wait, mixed
+and idle cases retain their
+measured exemption and charge arithmetic there. `w5_accounting_failure_run` first establishes a
+real matching run and independently observed settlement SyncRep, then terminates only its idle
+observer. A test-only observation records the run endpoints before/after failure; the isolated
+`w5_observer_run` defect skips only `end_run` and fails the closure assertion with a genuinely
+open run. The ordinary run separately measures more than two seconds of unobserved SyncRep,
+retains the sent checkout, restores the same standby and admits a checked replacement. Receipt
+death charges that interval, causes the ordinary exhaustion exit, and preserves the full succeeded
+state and one purchase through actual successor startup. These are fixture measurements; the
+mutation proves the internal closure invariant rather than a second SyncRep wait on that COMMIT.
 
 Normal sampling can only overcharge under the premise of one contiguous SyncRep wait per COMMIT;
 edge error is approximately `2 × (period + sample round trip)` per uninterrupted run.
@@ -1343,7 +1356,14 @@ Unique transaction identifiers associate retry, rollback command/reply, backend 
 actual semaphore/pool observations. Contention records server ROLLBACK/idle acknowledgement;
 severed settlement records independent backend absence. These observations supplement actual
 pool/semaphore release, rather than treating a proxy closed flag as component ownership.
-Provider outcome and confirming-read time remain outside the retry closure.
+Provider outcome and confirming-read time remain outside the retry closure. The quiesced
+single-operation fixtures now require exactly zero checked-out worker write connections as well
+as the released component permit before backoff. The direct helper accepts actual release and
+rejects otherwise-identical retained-checkout records; the original helper accepted count one.
+Blocked settlement also executes ordinary successor startup for the same operation, asserting
+complete durable snapshot, provider evidence and single-order preservation before its final trace.
+[Release evidence](../evidence/w5/release-assertion.json) retains the direct comparison and real
+PostgreSQL observations.
 
 [Scenario assertions](../evidence/w5/scenario-assertions.json), [controls](../evidence/w5/final-controls.json),
 [regressions](../evidence/w5/regressions.json) and the final measured basis above record exact

@@ -84,8 +84,13 @@ Only spans inside uninterrupted matching runs are exempt; missing/failed/mismatc
 reconnect gaps, idle reply delay and ordinary backoff stay charged. A receipt's completion charges
 its complete attempt once, without abandoning a sent COMMIT. Engine startup includes the observer
 and transient generation session in its ordinary capacity check; the API gets no such observer.
-The final run records real wait, mixed wait/reply delay, observer failure and checked re-establishment,
-original stop precedence, and same-driver unchanged-runtime reds. D-36 is settled by that evidence.
+The final run records real wait, mixed wait/reply delay, failure during an established SyncRep
+sample run, checked re-establishment, original stop precedence, and same-driver unchanged-runtime
+reds. A test-only closure observation rejects skipping `end_run`; separate completion arithmetic
+checks charging of the unobserved interval. Failed-attempt fixtures require zero outstanding
+worker write checkouts before backoff. Blocked settlement runs an actual successor and preserves
+the same operation, complete durable snapshot and single provider order. D-36 is settled by that
+evidence.
 
 The accepted limits remain: observer loss during a standby stall followed by a lost COMMIT reply
 can cause one alarmed ordinary exhaustion exit without money loss; a live transport that answers
@@ -286,7 +291,8 @@ Supported traffic configurations must allow list, balance and machine reads at t
 not select production capacities or close D-6/7/8/9.
 
 The canonical runner requires ten phases and retains the full W1–W3 inventory plus the workflow,
-default-feature workflow, W5 and thirty-four sensitivity controls. Historical W3 evidence above
+default-feature workflow, W5 and thirty-five sensitivity controls, plus the direct release-assertion
+probe. Historical W3 evidence above
 retains its original source identity. Fresh W4 evidence is recorded separately. Default API startup
 checks build into a separate target directory. The workflow records executable hashes and feature
 modes for API/engine/migrator builds

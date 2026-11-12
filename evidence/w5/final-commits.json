@@ -1,8 +1,8 @@
 {
   "result": "pass",
   "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-  "implementation_commit": "d21297c57a7351b68def0d5a1d015c7e5166017f",
-  "tested_source_sha256": "4052ccd12e43c1cc8b9ddb14ac6f4853721dd6a5c68dc97be0d9099305cc8fb8",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "tested_source_sha256": "328c0aebc46bb8315f3b3f8617f05a1196875effab122ad6f5d0e10878958fc6",
   "source_dirty": false,
   "seed": 20261112,
   "versions": {
@@ -218,30 +218,30 @@
     {
       "test": "DB-01-independent-client-pools",
       "result": "pass",
-      "engine_fixture_backend": 3647904,
-      "api_fixture_backend": 3647907,
+      "engine_fixture_backend": 3986275,
+      "api_fixture_backend": 3986278,
       "establishes": "both state-changing fixture commits simultaneously wait for the sole designated standby; pre-admitted read remains usable",
       "not_run": "product engine/API business workflows and alarms"
     },
     {
       "test": "DB-02-timeout_request",
       "result": "pass",
-      "session": 3647947,
-      "read_session": 3647943,
+      "session": 3986336,
+      "read_session": 3986331,
       "establishes": "real SyncRep preceded cancellation; original checkout retained, extra write refused, same read session usable; clean terminal result after release"
     },
     {
       "test": "DB-02-drop_request",
       "result": "pass",
-      "session": 3648085,
-      "read_session": 3648084,
+      "session": 3986408,
+      "read_session": 3986405,
       "establishes": "real SyncRep preceded cancellation; original checkout retained, extra write refused, same read session usable; clean terminal result after release"
     },
     {
       "test": "DB-02-cancel_worker",
       "result": "pass",
-      "session": 3648129,
-      "read_session": 3648125,
+      "session": 3986472,
+      "read_session": 3986469,
       "establishes": "real SyncRep preceded cancellation; original checkout retained, extra write refused, same read session usable; clean terminal result after release"
     },
     {
@@ -281,13 +281,13 @@
     {
       "test": "lost-COMMIT-reply",
       "result": "pass",
-      "session": 3648248,
+      "session": 3986630,
       "establishes": "COMMIT reached server and fixture committed; withheld terminal reply then socket death yields unresolved, never rollback; replacement checked"
     },
     {
       "test": "DB-03",
       "result": "pass",
-      "old_backend": 3648272,
+      "old_backend": 3986653,
       "establishes": "backend outlives process during SyncRep, outside replacement pool accounting; replacement check remains enabled"
     },
     {
@@ -295,20 +295,20 @@
       "result": "pass",
       "exit_status": 75,
       "stop_bound_ms": 1000,
-      "elapsed_seconds": 1.0162532299291342,
+      "elapsed_seconds": 1.0165027910843492,
       "establishes": "original sent COMMIT owned while process survives; stop bound exits whole fixture with unresolved report",
       "not_run": "product stop-record/ENG-07 implementation"
     },
     {
       "test": "DB-04-backend",
       "result": "pass",
-      "old_backend": 3648376,
+      "old_backend": 3986779,
       "establishes": "real waiting COMMIT becomes unresolved; same pool cannot expose new session until read-only admission passes after recovery"
     },
     {
       "test": "DB-04-primary",
       "result": "pass",
-      "old_backend": 3648456,
+      "old_backend": 3986855,
       "establishes": "real waiting COMMIT becomes unresolved; same pool cannot expose new session until read-only admission passes after recovery"
     },
     {
@@ -328,45 +328,382 @@
     "DB-10 full saturation: not run (W8)"
   ],
   "events": [
-    {"event":"backup_provenance_retained","timestamp":1794498967.8347259,"elapsed":17.060005740029737,"path":"<private-run>/commits-hdn56tnd/standby-backup-manifest.json","sha256":"384f422469abecfe686b2af2ca875df0f3d8784f8cdadc850a6aa20cbfc9f9e6"},
-    {"event":"backup_complete","timestamp":1794498967.8349113,"elapsed":17.060191195923835,"destination":"standby","verified":true,"elapsed_seconds":0.6786770441103727},
-    {"event":"identity_catchup","timestamp":1794498968.5302453,"elapsed":17.755525280954316,"system_identifier":"7707314372637808878","sampled_primary_flush":"0/3003A90","standby_system_identifier":"7707314372637808878","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"effective_configuration_observed","timestamp":1794498968.5409582,"elapsed":17.76623805705458,"configuration":{"archive_command":"test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f","archive_mode":"on","lc_messages":"C","listen_addresses":"127.0.0.1","max_connections":"24","port":"55500","restart_after_crash":"on","shared_buffers":"4096","superuser_reserved_connections":"3","synchronous_commit":"on","synchronous_standby_names":"FIRST 1 (provisiond_sync)","tcp_keepalives_count":"2","tcp_keepalives_idle":"2","tcp_keepalives_interval":"1","wal_level":"replica"},"sha256":"fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"},
-    {"event":"bootstrap_complete","timestamp":1794498968.5879433,"elapsed":17.813223280012608,"maintenance_mode_exception":false,"bootstrap_role":"initdb administrator; offline replication identity only","backup_name":"bootstrap_backup","designated_name":"provisiond_sync"},
-    {"event":"fault_activated","timestamp":1794498968.8961213,"elapsed":18.12140110693872,"fault":"standby_receiver_pause","pid":3647784},
-    {"event":"identity_catchup","timestamp":1794498969.0398104,"elapsed":18.265090303029865,"system_identifier":"7707314372637808878","sampled_primary_flush":"0/3057690","standby_system_identifier":"7707314372637808878","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794498969.2201934,"elapsed":18.445473161991686,"fault":"standby_receiver_pause","pid":3647784},
-    {"event":"identity_catchup","timestamp":1794498969.384233,"elapsed":18.609512764960527,"system_identifier":"7707314372637808878","sampled_primary_flush":"0/30577F0","standby_system_identifier":"7707314372637808878","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794498969.5201278,"elapsed":18.74540758691728,"fault":"standby_receiver_pause","pid":3647784},
-    {"event":"identity_catchup","timestamp":1794498972.4342346,"elapsed":21.659514501923695,"system_identifier":"7707314372637808878","sampled_primary_flush":"0/30578A0","standby_system_identifier":"7707314372637808878","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794498972.5753844,"elapsed":21.800664021866396,"fault":"standby_receiver_pause","pid":3647784},
-    {"event":"identity_catchup","timestamp":1794498972.9703763,"elapsed":22.195656060939655,"system_identifier":"7707314372637808878","sampled_primary_flush":"0/3057950","standby_system_identifier":"7707314372637808878","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794498973.1071842,"elapsed":22.33246396598406,"fault":"standby_receiver_pause","pid":3647784},
-    {"event":"identity_catchup","timestamp":1794498973.442251,"elapsed":22.66753104305826,"system_identifier":"7707314372637808878","sampled_primary_flush":"0/3057A00","standby_system_identifier":"7707314372637808878","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794498973.5297563,"elapsed":22.75503636407666,"fault":"standby_receiver_pause","pid":3647784},
-    {"event":"fault_activated","timestamp":1794498973.6178563,"elapsed":22.843136243056506,"fault":"real_replication_warning","session":3648160,"diagnostic":{"detail":"The transaction has already committed locally, but might not have been replicated to the standby.","event":"driver_notice","message":"canceling wait for synchronous replication due to user request","severity":"WARNING","sqlstate":"01000"},"apparent_completion":"COMMIT","control":"warning"},
-    {"event":"identity_catchup","timestamp":1794498973.6767607,"elapsed":22.902040560962632,"system_identifier":"7707314372637808878","sampled_primary_flush":"0/3057AB0","standby_system_identifier":"7707314372637808878","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794498973.7485929,"elapsed":22.973872726084664,"fault":"standby_receiver_pause","pid":3647784},
-    {"event":"fault_activated","timestamp":1794498973.8387377,"elapsed":23.064017578959465,"fault":"real_replication_warning","session":3648193,"diagnostic":{"detail":"The transaction has already committed locally, but might not have been replicated to the standby.","event":"driver_notice","message":"canceling wait for synchronous replication due to user request","severity":"WARNING","sqlstate":"01000"},"apparent_completion":"COMMIT","control":null},
-    {"event":"identity_catchup","timestamp":1794498973.901235,"elapsed":23.126515178009868,"system_identifier":"7707314372637808878","sampled_primary_flush":"0/3057B60","standby_system_identifier":"7707314372637808878","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794498973.9860415,"elapsed":23.211322227027267,"fault":"transport_gate","direction":"commit_reply","session":3648248,"statement_kind":"COMMIT"},
-    {"event":"fault_activated","timestamp":1794498974.1883237,"elapsed":23.41360359895043,"fault":"standby_receiver_pause","pid":3647784},
-    {"event":"residual_backend_observed","timestamp":1794498974.470641,"elapsed":23.695920733967796,"session":3648272,"client_exit_status":74,"live_new_pool_usable_sessions":0,"observation":"same pre-established physical observer; no global occupancy bound inferred"},
-    {"event":"identity_catchup","timestamp":1794498974.5318594,"elapsed":23.757139377994463,"system_identifier":"7707314372637808878","sampled_primary_flush":"0/3057D70","standby_system_identifier":"7707314372637808878","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794498974.672558,"elapsed":23.897837987868115,"fault":"standby_receiver_pause","pid":3647784},
-    {"event":"identity_catchup","timestamp":1794498975.7607975,"elapsed":24.98607738991268,"system_identifier":"7707314372637808878","sampled_primary_flush":"0/3057E20","standby_system_identifier":"7707314372637808878","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794498975.8891525,"elapsed":25.11443226202391,"fault":"standby_receiver_pause","pid":3647784},
-    {"event":"fault_activated","timestamp":1794498976.4774005,"elapsed":25.70268052490428,"fault":"owned_backend_crash","pid":3648376,"postmaster_pid":3647733},
-    {"event":"identity_catchup","timestamp":1794498976.6016219,"elapsed":25.82690155901946,"system_identifier":"7707314372637808878","sampled_primary_flush":"0/3057F48","standby_system_identifier":"7707314372637808878","authenticated_role":"replicator","primary_checkpoint":"1|0/3057ED0","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794498976.7780778,"elapsed":26.003357724985108,"fault":"standby_receiver_pause","pid":3648428},
-    {"event":"identity_catchup","timestamp":1794498977.5850313,"elapsed":26.810311136068776,"system_identifier":"7707314372637808878","sampled_primary_flush":"0/306A9E0","standby_system_identifier":"7707314372637808878","authenticated_role":"replicator","primary_checkpoint":"1|0/306A968","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"proxy_cleanup","timestamp":1794498977.7862885,"elapsed":27.011568638961762,"cancel_requests":0},
-    {"event":"cleanup_removed","timestamp":1794498978.2159746,"elapsed":27.441254721023142,"path":"<private-run>/commits-hdn56tnd/primary"},
-    {"event":"cleanup_removed","timestamp":1794498978.2386107,"elapsed":27.463890740880743,"path":"<private-run>/commits-hdn56tnd/standby"},
-    {"event":"cleanup_removed","timestamp":1794498978.3307927,"elapsed":27.556072891922668,"path":"<private-run>/commits-hdn56tnd/target"},
-    {"event":"allocation_released","timestamp":1794498978.3310006,"elapsed":27.55628037895076,"ports":[55500,55501,55502,55503,55504,55505,55506,55507,55508,55509]},
-    {"event":"cleanup_complete","timestamp":1794498978.3310382,"elapsed":27.55631794896908,"result":"pass","errors":[],"raw_evidence":"<private-run>/commits-hdn56tnd"}
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794503373.5991197,
+      "elapsed": 16.9638515568804,
+      "path": "<private-run>/commits-kddks55m/standby-backup-manifest.json",
+      "sha256": "8ed291dfbb5b2cd0a1d7beea4ccff1146334ba2d6bdbc3385d7fc348ecdacb1a"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794503373.5993295,
+      "elapsed": 16.9640614988748,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.7098361679818481
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503374.2891457,
+      "elapsed": 17.65387766691856,
+      "system_identifier": "7707333295354040949",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707333295354040949",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794503374.2989974,
+      "elapsed": 17.663729446940124,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794503374.344505,
+      "elapsed": 17.70923709194176,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503374.6580193,
+      "elapsed": 18.022751171840355,
+      "fault": "standby_receiver_pause",
+      "pid": 3986157
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503374.8015087,
+      "elapsed": 18.166240758961067,
+      "system_identifier": "7707333295354040949",
+      "sampled_primary_flush": "0/3057690",
+      "standby_system_identifier": "7707333295354040949",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503374.984228,
+      "elapsed": 18.348959784023464,
+      "fault": "standby_receiver_pause",
+      "pid": 3986157
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503375.1458323,
+      "elapsed": 18.510564307915047,
+      "system_identifier": "7707333295354040949",
+      "sampled_primary_flush": "0/30577F0",
+      "standby_system_identifier": "7707333295354040949",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503375.2823443,
+      "elapsed": 18.647076493827626,
+      "fault": "standby_receiver_pause",
+      "pid": 3986157
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503378.2514994,
+      "elapsed": 21.616231514839455,
+      "system_identifier": "7707333295354040949",
+      "sampled_primary_flush": "0/30578A0",
+      "standby_system_identifier": "7707333295354040949",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503378.389261,
+      "elapsed": 21.753992900950834,
+      "fault": "standby_receiver_pause",
+      "pid": 3986157
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503378.7860525,
+      "elapsed": 22.150784353958443,
+      "system_identifier": "7707333295354040949",
+      "sampled_primary_flush": "0/3057950",
+      "standby_system_identifier": "7707333295354040949",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503378.925366,
+      "elapsed": 22.290097943041474,
+      "fault": "standby_receiver_pause",
+      "pid": 3986157
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503379.3214107,
+      "elapsed": 22.686142513994128,
+      "system_identifier": "7707333295354040949",
+      "sampled_primary_flush": "0/3057A00",
+      "standby_system_identifier": "7707333295354040949",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503379.4086177,
+      "elapsed": 22.773349663009867,
+      "fault": "standby_receiver_pause",
+      "pid": 3986157
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503379.4369478,
+      "elapsed": 22.80167962796986,
+      "fault": "real_replication_warning",
+      "session": 3986520,
+      "diagnostic": {
+        "detail": "The transaction has already committed locally, but might not have been replicated to the standby.",
+        "event": "driver_notice",
+        "message": "canceling wait for synchronous replication due to user request",
+        "severity": "WARNING",
+        "sqlstate": "01000"
+      },
+      "apparent_completion": "COMMIT",
+      "control": "warning"
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503379.5012217,
+      "elapsed": 22.865953786997125,
+      "system_identifier": "7707333295354040949",
+      "sampled_primary_flush": "0/3057AB0",
+      "standby_system_identifier": "7707333295354040949",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503379.5750153,
+      "elapsed": 22.939747435040772,
+      "fault": "standby_receiver_pause",
+      "pid": 3986157
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503379.662515,
+      "elapsed": 23.027246869867668,
+      "fault": "real_replication_warning",
+      "session": 3986570,
+      "diagnostic": {
+        "detail": "The transaction has already committed locally, but might not have been replicated to the standby.",
+        "event": "driver_notice",
+        "message": "canceling wait for synchronous replication due to user request",
+        "severity": "WARNING",
+        "sqlstate": "01000"
+      },
+      "apparent_completion": "COMMIT",
+      "control": null
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503379.723331,
+      "elapsed": 23.08806325099431,
+      "system_identifier": "7707333295354040949",
+      "sampled_primary_flush": "0/3057B60",
+      "standby_system_identifier": "7707333295354040949",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503379.8147936,
+      "elapsed": 23.17952584498562,
+      "fault": "transport_gate",
+      "direction": "commit_reply",
+      "session": 3986630,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503380.018899,
+      "elapsed": 23.383630807045847,
+      "fault": "standby_receiver_pause",
+      "pid": 3986157
+    },
+    {
+      "event": "residual_backend_observed",
+      "timestamp": 1794503380.3621988,
+      "elapsed": 23.726930646924302,
+      "session": 3986653,
+      "client_exit_status": 74,
+      "live_new_pool_usable_sessions": 0,
+      "observation": "same pre-established physical observer; no global occupancy bound inferred"
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503380.4260483,
+      "elapsed": 23.790780463954434,
+      "system_identifier": "7707333295354040949",
+      "sampled_primary_flush": "0/3057D70",
+      "standby_system_identifier": "7707333295354040949",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503380.5649524,
+      "elapsed": 23.929684340022504,
+      "fault": "standby_receiver_pause",
+      "pid": 3986157
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503381.7745376,
+      "elapsed": 25.139269510051236,
+      "system_identifier": "7707333295354040949",
+      "sampled_primary_flush": "0/3057E20",
+      "standby_system_identifier": "7707333295354040949",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503381.905406,
+      "elapsed": 25.27013787184842,
+      "fault": "standby_receiver_pause",
+      "pid": 3986157
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503382.5555923,
+      "elapsed": 25.92032432486303,
+      "fault": "owned_backend_crash",
+      "pid": 3986779,
+      "postmaster_pid": 3986062
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503382.6790614,
+      "elapsed": 26.043793610995635,
+      "system_identifier": "7707333295354040949",
+      "sampled_primary_flush": "0/3057F48",
+      "standby_system_identifier": "7707333295354040949",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/3057ED0",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503382.8553624,
+      "elapsed": 26.220094367861748,
+      "fault": "standby_receiver_pause",
+      "pid": 3986827
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503383.7068148,
+      "elapsed": 27.071546899853274,
+      "system_identifier": "7707333295354040949",
+      "sampled_primary_flush": "0/306A9E0",
+      "standby_system_identifier": "7707333295354040949",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/306A968",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794503383.908218,
+      "elapsed": 27.272950294893235,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503384.337378,
+      "elapsed": 27.702110263053328,
+      "path": "<private-run>/commits-kddks55m/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503384.361548,
+      "elapsed": 27.726280310889706,
+      "path": "<private-run>/commits-kddks55m/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503384.4576335,
+      "elapsed": 27.82236567605287,
+      "path": "<private-run>/commits-kddks55m/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794503384.4578407,
+      "elapsed": 27.822572751902044,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794503384.4578767,
+      "elapsed": 27.822608669055626,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/commits-kddks55m"
+    }
   ],
-  "raw_manifest_sha256": "b7297167139be8d2981538bf01f723b4c6a840aaa1fb1dde48344cd518364206",
+  "raw_manifest_sha256": "015d5383cc1b48586070a6ac0e512167d4547960d0a088c42d8003015758b217",
   "external_provider_rail_evidence": "not applicable to this phase"
 }

@@ -1,8 +1,8 @@
 {
   "result": "pass",
   "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-  "implementation_commit": "d21297c57a7351b68def0d5a1d015c7e5166017f",
-  "tested_source_sha256": "4052ccd12e43c1cc8b9ddb14ac6f4853721dd6a5c68dc97be0d9099305cc8fb8",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "tested_source_sha256": "328c0aebc46bb8315f3b3f8617f05a1196875effab122ad6f5d0e10878958fc6",
   "source_dirty": false,
   "seed": 20261112,
   "versions": {
@@ -206,7 +206,7 @@
     {
       "test": "fresh-pooled-settings-and-idle-check",
       "result": "pass",
-      "session": 3644588,
+      "session": 3982889,
       "settings": [
         "statement_timeout=1s",
         "lock_timeout=500ms",
@@ -242,7 +242,7 @@
     {
       "test": "DB-06",
       "result": "pass",
-      "reader_session": 3644588,
+      "reader_session": 3982889,
       "fixture": "deliberate contract violation: cancel isolated SyncRep backend; no sync settings lowered",
       "establishes": "post-read fixed target blocks exposure on the original physical session until catch-up"
     },
@@ -253,12 +253,12 @@
         {
           "attempt": 1,
           "event": "destination_read",
-          "session": 3644739
+          "session": 3983021
         },
         {
           "attempt": 2,
           "event": "destination_read",
-          "session": 3644742
+          "session": 3983024
         }
       ],
       "establishes": "failed value discarded; SELECT/check repeated on new admitted session"
@@ -266,7 +266,7 @@
     {
       "test": "DB-09",
       "result": "pass",
-      "session": 3644752,
+      "session": 3983033,
       "establishes": "reply withheld and unused transport closed at deadline; no check writes/SyncRep waiter"
     },
     {
@@ -302,37 +302,275 @@
     "DB-10 full saturation: not run (W8)"
   ],
   "events": [
-    {"event":"backup_provenance_retained","timestamp":1794498922.7492485,"elapsed":17.334641040069982,"path":"<private-run>/checks-wuiad8r0/standby-backup-manifest.json","sha256":"7b004974e9eab766dc9b0a8554820f8a96d0db44cb668d118fad9a49e16b5704"},
-    {"event":"backup_complete","timestamp":1794498922.749431,"elapsed":17.334823300130665,"destination":"standby","verified":true,"elapsed_seconds":0.6338726577814668},
-    {"event":"identity_catchup","timestamp":1794498923.442407,"elapsed":18.02779940702021,"system_identifier":"7707314179243019309","sampled_primary_flush":"0/3003A90","standby_system_identifier":"7707314179243019309","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"effective_configuration_observed","timestamp":1794498923.4514742,"elapsed":18.036866615060717,"configuration":{"archive_command":"test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f","archive_mode":"on","lc_messages":"C","listen_addresses":"127.0.0.1","max_connections":"24","port":"55500","restart_after_crash":"on","shared_buffers":"4096","superuser_reserved_connections":"3","synchronous_commit":"on","synchronous_standby_names":"FIRST 1 (provisiond_sync)","tcp_keepalives_count":"2","tcp_keepalives_idle":"2","tcp_keepalives_interval":"1","wal_level":"replica"},"sha256":"fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"},
-    {"event":"bootstrap_complete","timestamp":1794498923.4990168,"elapsed":18.084409227129072,"maintenance_mode_exception":false,"bootstrap_role":"initdb administrator; offline replication identity only","backup_name":"bootstrap_backup","designated_name":"provisiond_sync"},
-    {"event":"fault_activated","timestamp":1794498923.8193421,"elapsed":18.404734395211563,"fault":"transport_gate","direction":"send","session":3644598,"statement_kind":"fixture statement"},
-    {"event":"fault_activated","timestamp":1794498924.2438564,"elapsed":18.82924886420369,"fault":"standby_receiver_pause","pid":3644545},
-    {"event":"fault_activated","timestamp":1794498924.3349183,"elapsed":18.920310627203435,"fault":"deliberate_contract_violation_backend_cancel","session":3644691,"independently_visible":true},
-    {"event":"fault_activated","timestamp":1794498924.3444092,"elapsed":18.929801755119115,"fault":"transport_gate","direction":"send","session":3644588,"statement_kind":"read-only check"},
-    {"event":"identity_catchup","timestamp":1794498924.4578693,"elapsed":19.043261723127216,"system_identifier":"7707314179243019309","sampled_primary_flush":"0/305B760","standby_system_identifier":"7707314179243019309","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794498924.5179427,"elapsed":19.10333521105349,"fault":"transport_gate","direction":"send","session":3644739,"statement_kind":"read-only check"},
-    {"event":"fault_activated","timestamp":1794498924.6398892,"elapsed":19.22528145322576,"fault":"transport_gate","direction":"reply","session":3644752,"statement_kind":"read-only check"},
-    {"event":"identity_catchup","timestamp":1794498925.1672974,"elapsed":19.752689818153158,"system_identifier":"7707314179243019309","sampled_primary_flush":"0/305B760","standby_system_identifier":"7707314179243019309","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"fault_activated","timestamp":1794498925.334881,"elapsed":19.920273500028998,"fault":"standby_receiver_pause","pid":3644795},
-    {"event":"fault_activated","timestamp":1794498925.4419985,"elapsed":20.027391131035984,"fault":"deliberate_contract_violation_backend_cancel","session":3644852,"independently_visible":true},
-    {"event":"backup_sender_observed","timestamp":1794498925.7316167,"elapsed":20.31700937100686,"observation":"bootstrap_probe|backup|NULL\nbootstrap_probe|streaming|0/4000000","note":"backup-command NULL is unknown; streaming sender is separately checked through the exact admission target"},
-    {"event":"backup_wal_segment_release_observed","timestamp":1794498925.8118954,"elapsed":20.397287735017017,"target":"0/40000F8","switch_lsn":"0/4000110"},
-    {"event":"non_designated_admission_prefix_observed","timestamp":1794498926.9329555,"elapsed":21.518347898032516,"target":"0/5000000","backup_ahead":true,"checkout_ms":250},
-    {"event":"identity_catchup","timestamp":1794498928.8978765,"elapsed":23.48326895222999,"system_identifier":"7707314179243019309","sampled_primary_flush":"0/5000000","standby_system_identifier":"7707314179243019309","authenticated_role":"replicator","primary_checkpoint":"1|0/4000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"identity_catchup","timestamp":1794498949.8373091,"elapsed":44.42270164121874,"system_identifier":"7707314179243019309","sampled_primary_flush":"0/6000FB0","standby_system_identifier":"7707314179243019309","authenticated_role":"replicator","primary_checkpoint":"1|0/4000028","standby_checkpoint":"1|0/4000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
-    {"event":"proxy_cleanup","timestamp":1794498950.1041942,"elapsed":44.6895872510504,"cancel_requests":0},
-    {"event":"cleanup_removed","timestamp":1794498950.5270298,"elapsed":45.11242235917598,"path":"<private-run>/checks-wuiad8r0/identity-backup"},
-    {"event":"cleanup_removed","timestamp":1794498950.5653543,"elapsed":45.15074699209072,"path":"<private-run>/checks-wuiad8r0/primary"},
-    {"event":"cleanup_removed","timestamp":1794498950.5968988,"elapsed":45.182291373144835,"path":"<private-run>/checks-wuiad8r0/standby"},
-    {"event":"cleanup_removed","timestamp":1794498950.6904197,"elapsed":45.27581240120344,"path":"<private-run>/checks-wuiad8r0/target"},
-    {"event":"cleanup_removed","timestamp":1794498950.6929824,"elapsed":45.27837514015846,"path":"<private-run>/checks-wuiad8r0/wal-stream-1"},
-    {"event":"cleanup_removed","timestamp":1794498950.69793,"elapsed":45.28332296619192,"path":"<private-run>/checks-wuiad8r0/wal-stream-2"},
-    {"event":"cleanup_removed","timestamp":1794498950.698049,"elapsed":45.28344134707004,"path":"<private-run>/checks-wuiad8r0/wal-stream-5"},
-    {"event":"allocation_released","timestamp":1794498950.698169,"elapsed":45.2835615510121,"ports":[55500,55501,55502,55503,55504,55505,55506,55507,55508,55509]},
-    {"event":"cleanup_complete","timestamp":1794498950.6982012,"elapsed":45.28359342017211,"result":"pass","errors":[],"raw_evidence":"<private-run>/checks-wuiad8r0"}
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794503328.599509,
+      "elapsed": 17.00440488383174,
+      "path": "<private-run>/checks-mz8pm7_i/standby-backup-manifest.json",
+      "sha256": "2359bb2e0260676cc39a51008654276fba73cb6e7700c42570f48f00c4c89446"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794503328.5996757,
+      "elapsed": 17.00457127392292,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.6486448170617223
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503329.309708,
+      "elapsed": 17.714603967033327,
+      "system_identifier": "7707333101678470509",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707333101678470509",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794503329.319027,
+      "elapsed": 17.723922783043236,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794503329.36714,
+      "elapsed": 17.772035765927285,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503329.6926773,
+      "elapsed": 18.097573034930974,
+      "fault": "transport_gate",
+      "direction": "send",
+      "session": 3982918,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503330.1171377,
+      "elapsed": 18.52203322900459,
+      "fault": "standby_receiver_pause",
+      "pid": 3982846
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503330.2041876,
+      "elapsed": 18.60908347601071,
+      "fault": "deliberate_contract_violation_backend_cancel",
+      "session": 3982990,
+      "independently_visible": true
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503330.2144203,
+      "elapsed": 18.619315956020728,
+      "fault": "transport_gate",
+      "direction": "send",
+      "session": 3982889,
+      "statement_kind": "read-only check"
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503330.3868232,
+      "elapsed": 18.791719035012648,
+      "system_identifier": "7707333101678470509",
+      "sampled_primary_flush": "0/305B760",
+      "standby_system_identifier": "7707333101678470509",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503330.448702,
+      "elapsed": 18.853597855893895,
+      "fault": "transport_gate",
+      "direction": "send",
+      "session": 3983021,
+      "statement_kind": "read-only check"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503330.5680323,
+      "elapsed": 18.97292798385024,
+      "fault": "transport_gate",
+      "direction": "reply",
+      "session": 3983033,
+      "statement_kind": "read-only check"
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503331.146931,
+      "elapsed": 19.55182663886808,
+      "system_identifier": "7707333101678470509",
+      "sampled_primary_flush": "0/305B760",
+      "standby_system_identifier": "7707333101678470509",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503331.3822525,
+      "elapsed": 19.78714816784486,
+      "fault": "standby_receiver_pause",
+      "pid": 3983077
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503331.4903116,
+      "elapsed": 19.895207499852404,
+      "fault": "deliberate_contract_violation_backend_cancel",
+      "session": 3983130,
+      "independently_visible": true
+    },
+    {
+      "event": "backup_sender_observed",
+      "timestamp": 1794503331.7798932,
+      "elapsed": 20.184789233841002,
+      "observation": "bootstrap_probe|backup|NULL\nbootstrap_probe|streaming|0/4000000",
+      "note": "backup-command NULL is unknown; streaming sender is separately checked through the exact admission target"
+    },
+    {
+      "event": "backup_wal_segment_release_observed",
+      "timestamp": 1794503331.8528945,
+      "elapsed": 20.25779022485949,
+      "target": "0/40000F8",
+      "switch_lsn": "0/4000110"
+    },
+    {
+      "event": "non_designated_admission_prefix_observed",
+      "timestamp": 1794503332.9722996,
+      "elapsed": 21.37719516805373,
+      "target": "0/5000000",
+      "backup_ahead": true,
+      "checkout_ms": 250
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503334.9524033,
+      "elapsed": 23.357299021910876,
+      "system_identifier": "7707333101678470509",
+      "sampled_primary_flush": "0/5000000",
+      "standby_system_identifier": "7707333101678470509",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/4000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503355.8192306,
+      "elapsed": 44.2241262558382,
+      "system_identifier": "7707333101678470509",
+      "sampled_primary_flush": "0/6000FB0",
+      "standby_system_identifier": "7707333101678470509",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/4000028",
+      "standby_checkpoint": "1|0/4000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794503356.0654576,
+      "elapsed": 44.47035364084877,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503356.388745,
+      "elapsed": 44.793640934862196,
+      "path": "<private-run>/checks-mz8pm7_i/identity-backup"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503356.4237714,
+      "elapsed": 44.8286672658287,
+      "path": "<private-run>/checks-mz8pm7_i/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503356.4553893,
+      "elapsed": 44.86028549191542,
+      "path": "<private-run>/checks-mz8pm7_i/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503356.5457752,
+      "elapsed": 44.950670938938856,
+      "path": "<private-run>/checks-mz8pm7_i/target"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503356.548117,
+      "elapsed": 44.953012865036726,
+      "path": "<private-run>/checks-mz8pm7_i/wal-stream-1"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503356.5533764,
+      "elapsed": 44.95827223197557,
+      "path": "<private-run>/checks-mz8pm7_i/wal-stream-2"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503356.5534766,
+      "elapsed": 44.958372288849205,
+      "path": "<private-run>/checks-mz8pm7_i/wal-stream-5"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794503356.553597,
+      "elapsed": 44.95849265297875,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794503356.5536275,
+      "elapsed": 44.95852308999747,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/checks-mz8pm7_i"
+    }
   ],
-  "raw_manifest_sha256": "244577383b79c578bc111c6e42c79d9ccb9fe86ff1248f3a86630b8358cc1869",
+  "raw_manifest_sha256": "b56c00daf1bb43d8e9489dd7c8033f4e07c4cb33729110f96f65792061f533f4",
   "external_provider_rail_evidence": "not applicable to this phase"
 }
