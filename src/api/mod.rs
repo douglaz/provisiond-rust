@@ -1267,7 +1267,23 @@ async fn connection(mut socket: TcpStream, peer: SocketAddr, state: Arc<State>) 
             let mut peek = [0];
             tokio::select! {result=state.handle(&r,peer.ip(),&correlation)=>result,_=socket.peek(&mut peek)=>{(state.trace)(json!({"event":"token_request_abandoned","correlation_id":correlation}));return Ok(());}}
         } else {
-            state.handle(&r, peer.ip(), &correlation).await
+            // STO-7/CNF-296: cancel a real HTTP handler in a fixture while its
+            // sent COMMIT remains owned by Process. Ordinary builds ignore it.
+            tokio::select! {
+                result = state.handle(&r, peer.ip(), &correlation) => result,
+                _ = async {
+                    #[cfg(feature = "store-test-hooks")]
+                    if std::env::var("PROVISIOND_TEST_CONTROL").is_ok_and(|root|std::path::Path::new(&root).join("cancel-disconnected").exists()) {
+                        let mut peek = [0];
+                        let _ = socket.peek(&mut peek).await;
+                        return;
+                    }
+                    std::future::pending::<()>().await;
+                } => {
+                    (state.trace)(json!({"event":"http_handler_cancelled","correlation_id":correlation}));
+                    return Ok(());
+                }
+            }
         };
         match result {
             Ok(v) => v,
@@ -1289,6 +1305,24 @@ async fn connection(mut socket: TcpStream, peer: SocketAddr, state: Arc<State>) 
     (state.trace)(
         json!({"event":"http_response","method":r.method,"path":r.target.split('?').next(),"status":status,"correlation_id":correlation}),
     );
+    // API-11: lose delivery only after the actual transaction acknowledged.
+    #[cfg(feature = "store-test-hooks")]
+    if let Ok(root) = std::env::var("PROVISIOND_TEST_CONTROL") {
+        let hold = std::path::Path::new(&root).join("hold-http-response");
+        if hold.exists() {
+            (state.trace)(
+                json!({"event":"http_response_held","correlation_id":correlation,"status":status}),
+            );
+            let mut peek = [0];
+            tokio::select! {
+                _ = async {while hold.exists() {tokio::time::sleep(Duration::from_millis(2)).await;}} => {},
+                _ = socket.peek(&mut peek) => {
+                    (state.trace)(json!({"event":"http_reply_lost","correlation_id":correlation}));
+                    return Ok(());
+                }
+            }
+        }
+    }
     http::respond(&mut socket, status, &body, &headers).await
 }
 

@@ -53,6 +53,10 @@ impl Store {
     /// Synchronous registration/ownership transfer has no cancellation gap. Only
     /// the receipt is request-owned; the process observes completion regardless.
     pub fn commit(&self, transaction: Transaction) -> Result<CommitReceipt> {
+        #[cfg(feature = "store-test-hooks")]
+        if super::test_defect("w5_checkout") {
+            return self.test_commit(transaction, TestCommitDefect::ReleaseCheckout);
+        }
         self.commit_inner(transaction, Mode::Normal)
     }
     #[cfg(feature = "store-test-hooks")]

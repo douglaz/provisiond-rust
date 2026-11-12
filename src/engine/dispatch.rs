@@ -385,6 +385,13 @@ impl Engine {
             match provider_io(e, d.client.call_entered(descriptor, "/order", &command)).await {
                 Ok(reply) => reply,
                 Err(error) => {
+                    // OPS-12/49 sensitivity control: deliberately repeat an
+                    // uncertain mutation only in an isolated fixture build.
+                    #[cfg(feature = "store-test-hooks")]
+                    if crate::store::test_defect("w5_blind_retry") {
+                        component.trace(json!({"event":"defect_provider_retry","operation":c.id}));
+                        let _ = d.client.call_entered(descriptor, "/order", &command).await;
+                    }
                     if owned_key
                         && error.downcast_ref::<Error>().is_some_and(|error| {
                             error.0["details"]["accepted"] == false

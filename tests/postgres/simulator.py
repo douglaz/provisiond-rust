@@ -158,6 +158,10 @@ def main():
                 if mode=='reject_order':
                     self.reply({'error':{'kind':'authentication','message':'controlled order rejection','retryable':False,'details':{'accepted':False}}});return
                 accepted=record('accepted',**identity)
+                # OPS-47/50: independent remote effect can outlive its caller.
+                effect=args.root/'hold-before-effect'
+                if effect.exists():record('effect_held',**identity)
+                while effect.exists():time.sleep(.002)
                 if args.concurrent_order_barrier:accepted_pair.wait()
                 # PRV-26/OPS-27 test evidence: the fsync'd acceptance owns this
                 # identity. A later global sequence can belong to another order.
