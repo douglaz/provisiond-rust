@@ -342,15 +342,15 @@ def pause_dispatch(w,p):
 def stop_record(w):
     """OPS-21: later stop at an actual record boundary, before/after outcome."""
     from harness import eventually
-    for arm in ('cut_off','returned','returned_land'):
+    for arm in ('cut_off','returned','returned_land','cut_off_commit','returned_commit'):
         t,body,op=admit(w,'w5-record-'+arm);h=w.h
         hold=w.control/'hold-step-9'
-        if arm=='cut_off':hold.touch()
-        gate=h.proxy.arm('SET status=$3,result=','send') if arm!='cut_off' else None
-        pause=None
+        if arm.startswith('cut_off'):hold.touch()
+        gate=h.proxy.arm('SET status=$3,result=','send') if not arm.startswith('cut_off') else None
+        pause=None;reply=None
         try:
             p=w.start_engine()
-            if arm=='cut_off':
+            if arm.startswith('cut_off'):
                 eventually(lambda:any(e.get('operation')==op for e in events(p,'dispatch_step_held')))
                 pause=pause_dispatch(w,p)
                 gate=h.proxy.arm('SET status=$3,result=','send')
@@ -366,6 +366,12 @@ def stop_record(w):
             eventually(lambda:events(p,'test_record_snapshot'))
             original=events(p,'test_record_snapshot')[-1]['record']
             assert original['deadline'] is not None
+            if arm.endswith('_commit'):
+                reply=h.proxy.arm('store COMMIT','commit_reply',session=connection['pid'])
+                gate.release();reply.wait()
+                committed=snapshot(w,op)
+                assert committed['operation']['status']==('failed' if arm.startswith('cut_off') else 'succeeded')
+                h.event('w5_stop_record_committed_unobserved',operation=op,arm=arm,session=connection['pid'],state=committed,record=original,command_complete_received=True,application_acknowledgement=False)
             if arm=='returned_land':
                 gate.release();reaped(w,p)
                 assert w.status(op)=='succeeded'
@@ -382,11 +388,13 @@ def stop_record(w):
                 h.event('w5_later_stop_activated',operation=op,arm=arm,session=connection['pid'],original_record=start[0],record_state=original,record_count=started,no_transaction_after_later_stop=True,engine_exit=p.returncode)
         finally:
             if gate:gate.release()
+            if reply:reply.release()
             for path in (hold,w.control/'later-stop',w.control/'stop-operation',w.control/'hold-dispatch'):
                 if path.exists():path.unlink()
         before=snapshot(w,op)['operation']['status']
         successor(w,op,'needs_reconciliation' if before=='running' else before)
         trace(w,op,'later stop during stop record',arm=arm,server_outcome_before_restart=before)
+        if arm.endswith('_commit'):assert snapshot(w,op)==committed
 
 
 def generation_record(w):
@@ -419,6 +427,7 @@ def generation_record(w):
             if path.exists():path.unlink()
     successor(w,op,'needs_reconciliation')
     trace(w,op,'generation refusal during stop record',no_retry=True)
+    if w.defect is None:generation_after_lost_record(w)
 
 
 def lock_loss(w):
@@ -473,7 +482,7 @@ def lock_loss(w):
             loss=next(i for i,e in enumerate(events(p)) if e.get('event')=='startup_lock_lost')
             assert not any(e.get('event')=='claim_attempt_started' for e in events(p)[loss+1:])
             if arm=='freeze':
-                assert 'stop bound expired' in p.log.read_text() and op in p.log.read_text()
+                assert any('stop bound expired' in e.get('reason','') and op in e['reason'] for e in events(p,'engine_fatal'))
                 assert h.sql(f"SELECT count(*) FROM pg_stat_activity WHERE pid={connection['pid']} AND wait_event='SyncRep'")=='1'
             else:
                 finished=events(p,'settlement_finished' if arm=='returned_retry' else 'stop_record_finished')
@@ -516,8 +525,12 @@ def retained_checkouts(w):
         # Let the isolated defect's closed-receiver branch run before checking.
         if w.defect=='w5_checkout':
             eventually(lambda:any(e.get('owner')==owner for e in events(w.api,'defect_checkout_released')))
-        retained=not any(e.get('owner')==owner for e in events(w.api,'defect_checkout_released'))
-        h.event('w5_checkout_retention_observed',session=pid,owner=owner,cancelled=True,syncrep=True,retained=retained,api_alive=w.api.poll() is None,configured_write_checkouts=1)
+        (w.control/'observe-commit-owner').write_text(str(owner))
+        eventually(lambda:any(e.get('owner')==owner for e in events(w.api,'test_commit_checkout')))
+        ownership=[e for e in events(w.api,'test_commit_checkout') if e.get('owner')==owner][-1]
+        assert ownership['session']==pid and ownership['transport_dead'] is False
+        retained=ownership['pooled_checkout_held']
+        h.event('w5_checkout_retention_observed',session=pid,owner=owner,cancelled=True,syncrep=True,retained=retained,ownership=ownership,api_alive=w.api.poll() is None,configured_write_checkouts=1)
         assert retained, 'STO-7 HTTP cancellation must retain original sent-COMMIT checkout'
         assert not connection['closed'] and w.api.poll() is None
         assert not any(e.get('owner')==owner for e in events(w.api,'commit_owner_completed'))
@@ -654,7 +667,7 @@ def contention(w):
         eventually(lambda:h.sql(f"SELECT count(*) FROM pg_stat_activity WHERE pid<>{pid} AND {pid}=ANY(pg_blocking_pids(pid))")!='0')
         reaped(w,p)
         retries=events(p,'whole_transaction_retry');assert len(retries)>=3
-        assert 'store retry exhausted' in p.log.read_text()
+        assert any('store retry exhausted' in e.get('reason','') for e in events(p,'engine_fatal'))
         assert w.status(op)=='running' and external(w,op)==provider
         h.event('w5_contention_activated',operation=op,locker_backend=pid,engine_session=connection['pid'],standby_paused=True,retries=retries,engine_exit=p.returncode,final_outcome_retained_until_exit=True,no_provider_repeat=True)
     finally:
@@ -752,6 +765,116 @@ def inventory_complete(manifest):
     actual=[r.get('test') for r in manifest.get('scenarios',[]) if r.get('test') in expected and r.get('result')=='pass']
     inventory=[e for e in manifest.get('events',[]) if e.get('event')=='w5_inventory_complete']
     cleanup=[e for e in manifest.get('events',[]) if e.get('event')=='cleanup_complete']
-    return (manifest.get('result')=='pass' and len(expected)==16 and actual==expected
+    return (manifest.get('result')=='pass' and len(expected)==18 and actual==expected
         and len(inventory)==1 and inventory[0].get('required')==expected and inventory[0].get('observed')==expected
         and bool(cleanup) and cleanup[-1].get('result')=='pass')
+
+
+def claim_precommit(w):
+    """OPS-49: a known pre-dispatch claim failure is ordinary store failure."""
+    from harness import eventually
+    t,body,op=admit(w,'w5-claim-precommit');h=w.h
+    claim=h.proxy.arm("SET status='running',claim_number=claim_number+1",'send');verify=None
+    try:
+        p=w.start_engine();connection=claim.wait();pid=connection['pid']
+        marker=len(h.events)
+        verify=h.proxy.arm('SHOW synchronous_commit /* precommit verify */','reply',session=pid)
+        claim.release();verify.wait()
+        assert not any(e['event']=='bytes_transmitted' and e.get('session')==pid and 'store COMMIT' in e.get('query','') for e in h.events[marker:])
+        assert w.status(op)=='queued' and not orders(w,op)
+        h.proxy.close_connection(connection,'w5_claim_known_precommit_failure');verify.release()
+        eventually(lambda:p.poll() is not None or w.status(op)=='succeeded')
+        h.event('w5_claim_precommit_observed',operation=op,session=pid,commit_dispatched=False,
+                engine_exit=p.poll(),status=w.status(op),retry_events=events(p,'claim_precommit_retry'))
+        assert p.poll() is None and w.status(op)=='succeeded', 'OPS-49 known pre-COMMIT claim failure must retry the whole transaction'
+        w.stop_engine();assert len(orders(w,op))==1
+        successor(w,op,'succeeded')
+        trace(w,op,'claim failed definitely before COMMIT dispatch',whole_claim_retried=True)
+    finally:
+        claim.release()
+        if verify:verify.release()
+
+
+CASES.append('w5_claim_precommit')
+SCENARIOS['w5_claim_precommit']=claim_precommit
+
+
+def backoff_budget(w):
+    """OPS-49 supplemental real-runtime probe: backoff cannot buy another attempt."""
+    import json
+    import time
+    from core import core_probe
+    h=w.h;t,body,op=admit(w,'w5-backoff-budget')
+    h.run(['cargo','build','--example','core-probe','--features','store-test-hooks','--locked'],timeout=120)
+    executable=h.target/'debug/examples/core-probe'
+    h.event('workflow_binary_started',component='core-probe',case=w.case,**w.build_identity(executable,['store-test-hooks']))
+    p=core_probe(h);p.command('engine_start');claim=p.command('claim')['value']
+    assert claim['id']==op
+    gate=h.proxy.arm('BEGIN READ WRITE','send')
+    try:
+        marker=len(h.events)
+        p.send('defer '+json.dumps(claim))
+        connection=gate.wait()
+        # Hold an idle physical session before BEGIN, so the independent idle-
+        # transaction timeout cannot supply this failure. The actual retry trace
+        # below must prove activation in the final backoff window, or fail.
+        time.sleep(1.993)
+        h.proxy.close_connection(connection,'w5_backoff_last_window');gate.release()
+        from harness import eventually
+        eventually(lambda:p.p.poll() is not None or any(e.get('event')=='result' and e.get('command')=='defer' for e in p.events))
+        result=next((e for e in p.events if e.get('event')=='result' and e.get('command')=='defer'),None)
+        fatal=any(e.get('event')=='engine_fatal' and 'store retry exhausted' in e.get('reason','') for e in p.events)
+        p.expected_status=71 if fatal else 0;p.finish()
+        retries=[e for e in p.events if e.get('event')=='whole_transaction_retry']
+        assert len(retries)==1 and 1990<=retries[0]['spent_ms']<2000, 'backoff exhaustion boundary did not activate'
+        begins=[e for e in h.events[marker:] if e['event']=='bytes_transmitted' and e.get('query')=='BEGIN READ WRITE']
+        h.event('w5_backoff_budget_observed',operation=op,spent_before_backoff_ms=retries[0]['spent_ms'],backoff_ms=10,
+                retry_bound_ms=2000,new_begin_after_backoff=len(begins),result=result,probe_exit=p.p.returncode,fatal_exhaustion=fatal)
+        assert not begins and fatal and p.p.returncode==71, 'OPS-49 backoff exhaustion must forbid another transaction'
+    finally:
+        gate.release()
+    successor(w,op,'failed')
+    assert not orders(w,op)
+    trace(w,op,'backoff crosses original retry bound',supplemental_runtime_probe=True)
+
+
+CASES.append('w5_backoff_budget')
+SCENARIOS['w5_backoff_budget']=backoff_budget
+
+
+
+def generation_after_lost_record(w):
+    """OPS-50: a refused repeat cannot undo an earlier unobserved COMMIT."""
+    from harness import eventually
+    t,body,op=admit(w,'w5-generation-after-record');h=w.h
+    hold=w.control/'hold-step-9';hold.touch();statement=None;reply=None;repeat=None
+    try:
+        p=w.start_engine()
+        eventually(lambda:any(e.get('operation')==op and e.get('step')==9 for e in events(p,'dispatch_step_held')))
+        pause_dispatch(w,p)
+        statement=h.proxy.arm('SET status=$3,result=','send')
+        (w.control/'stop-operation').write_text(op)
+        connection=statement.wait();pid=connection['pid']
+        reply=h.proxy.arm('store COMMIT','commit_reply',session=pid)
+        statement.release();reply.wait()
+        committed=snapshot(w,op)
+        assert committed['operation']['status']=='failed' and committed['commitment']['state']=='closed'
+        repeat=h.proxy.arm('FOR SHARE /* OPS-50 first statement */','send')
+        h.proxy.close_connection(connection,'w5_record_commit_lost_before_supersession');reply.release()
+        refused=repeat.wait();assert len(events(p,'whole_transaction_retry'))==1
+        old=h.sql('SELECT generation FROM provisiond.startup_generation')
+        new=h.sql('UPDATE provisiond.startup_generation SET generation=gen_random_uuid() RETURNING generation')
+        assert new!=old
+        marker=len(h.events);repeat.release();reaped(w,p)
+        assert events(p,'engine_superseded') and snapshot(w,op)==committed
+        assert not any(e['event']=='bytes_transmitted' and e.get('query','').startswith('BEGIN') for e in h.events[marker:])
+        h.event('w5_generation_after_lost_commit',operation=op,committed_session=pid,refused_session=refused['pid'],old_generation=old,new_generation=new,
+                prior_record_committed=True,prior_application_acknowledgement=False,whole_retries=1,engine_exit=p.returncode,unchanged_rows=committed)
+    finally:
+        for gate in (statement,reply,repeat):
+            if gate:gate.release()
+        for path in (hold,w.control/'hold-dispatch',w.control/'stop-operation'):
+            if path.exists():path.unlink()
+    successor(w,op,'failed')
+    assert snapshot(w,op)==committed and not orders(w,op)
+    trace(w,op,'generation refusal after earlier record COMMIT reply lost',earlier_commit_preserved=True)

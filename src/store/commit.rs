@@ -8,14 +8,23 @@ use tokio::sync::oneshot;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommitOutcome {
     Acknowledged,
-    Rejected { reason: String },
-    Unresolved { reason: String },
+    /// OPS-49: ordinary failure before possible COMMIT dispatch; unlike an
+    /// unresolved claim, the caller may repeat the whole transaction.
+    NotDispatched {
+        reason: String,
+    },
+    Rejected {
+        reason: String,
+    },
+    Unresolved {
+        reason: String,
+    },
 }
 impl CommitOutcome {
     pub fn label(&self) -> &'static str {
         match self {
             Self::Acknowledged => "acknowledged",
-            Self::Rejected { .. } => "rejected",
+            Self::NotDispatched { .. } | Self::Rejected { .. } => "rejected",
             Self::Unresolved { .. } => "unresolved",
         }
     }
@@ -80,7 +89,7 @@ impl Store {
                 json!({"event":"precommit_rejected","session":transaction.session_id(),"commit_not_dispatched":true}),
             );
             let _ = sender.send((
-                CommitOutcome::Rejected {
+                CommitOutcome::NotDispatched {
                     reason: "failed/cancelled pre-COMMIT statement; COMMIT not dispatched".into(),
                 },
                 std::time::Duration::ZERO,
@@ -141,8 +150,12 @@ async fn own_commit(
         if !matches!(verified.as_deref(), Ok("on")) {
             session.close();
             trace(json!({"event":"precommit_rejected","session":pid,"commit_not_dispatched":true}));
+            // OPS-49: a caller can retry as soon as delivery wakes it. Release
+            // this failed session/component before publishing that permission.
+            checkout.take().expect("checkout").discard();
+            drop(_permit);
             let _ = sender.send((
-                CommitOutcome::Rejected {
+                CommitOutcome::NotDispatched {
                     reason: "synchronous_commit verification failed; COMMIT not dispatched".into(),
                 },
                 started.elapsed(),
@@ -174,19 +187,23 @@ async fn own_commit(
     #[cfg(not(feature = "store-test-hooks"))]
     let release = false;
     let mut unpooled: Option<Session> = None;
-    let result = if release {
+    let result = loop {
         tokio::select! {
-            result=&mut execution=>result,
-            _=sender.closed()=> {
+            result=&mut execution=>break result,
+            _=sender.closed(), if release && checkout.is_some()=> {
                 // Deliberate disposable defect: keep the session live, but lose
                 // the original checkout on request cancellation. Never default.
                 unpooled=Some(checkout.take().expect("checkout").unpool());
                 trace(json!({"event":"defect_checkout_released","session":pid,"owner":owner}));
-                execution.await
+            }
+            request=ownership_request(owner)=> {
+                // CNF-296: inspect the actual owner's checkout in both builds;
+                // the sensitivity mutation's diagnostic is not this evidence.
+                let pooled=matches!(checkout.as_ref(),Some(Connection::Pooled(_)));
+                trace(json!({"event":"test_commit_checkout","session":pid,"owner":owner,"pooled_checkout_held":pooled,"transport_dead":protocol.snapshot().dead}));
+                let _=std::fs::remove_file(request);
             }
         }
-    } else {
-        execution.await
     };
     // ErrorResponse alone is insufficient: consume terminal response or death.
     let reply = protocol.complete(before.ready).await;
@@ -258,4 +275,24 @@ async fn own_commit(
     drop(_permit);
     trace(json!({"event":"commit_owner_completed","owner":owner,"session":pid}));
     let _ = sender.send((outcome, verification_time));
+}
+
+// Concrete opt-in fixture observation, inert in ordinary builds. It never
+// changes COMMIT ownership, sends a cancel packet or supplies a deadline.
+async fn ownership_request(owner: u64) -> std::path::PathBuf {
+    #[cfg(feature = "store-test-hooks")]
+    if let Ok(root) = std::env::var("PROVISIOND_TEST_CONTROL") {
+        let request = std::path::Path::new(&root).join("observe-commit-owner");
+        loop {
+            if std::fs::read_to_string(&request)
+                .ok()
+                .is_some_and(|value| value == owner.to_string())
+            {
+                return request;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        }
+    }
+    let _ = owner;
+    std::future::pending().await
 }

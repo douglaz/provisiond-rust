@@ -13,14 +13,16 @@ with patch.dict(os.environ, PROVISIOND_HARNESS_ROOT=str(Path.cwd()/'target'/'tra
 class TraceRecords(unittest.TestCase):
     def test_exit_tail_is_not_completed_evidence(self):
         path=Mock()
-        path.read_text.return_value='{"event":"engine_superseded"}\n{"event":'
+        path.read_bytes.return_value=b'{"event":"engine_superseded"}\n{"event":'
         self.assertEqual(trace_events(path),[dict(event='engine_superseded')])
-        path.read_text.return_value='{"event":"unfinished"}'
+        path.read_bytes.return_value=b'{"event":"unfinished"}'
         self.assertEqual(trace_events(path),[])
+        path.read_bytes.return_value=b'{"event":"engine_superseded"}\n{"message":"\xe2'
+        self.assertEqual(trace_events(path),[dict(event='engine_superseded')])
 
     def test_malformed_complete_record_fails(self):
         path=Mock()
-        path.read_text.return_value='{"event":\n'
+        path.read_bytes.return_value=b'{"event":\n'
         with self.assertRaises(json.JSONDecodeError):trace_events(path)
 
 

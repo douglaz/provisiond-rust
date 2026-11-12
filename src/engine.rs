@@ -208,6 +208,9 @@ impl Engine {
         let mut spent = Duration::ZERO;
         loop {
             check_stop()?;
+            if spent >= self.retry_bound {
+                return self.fatal("store retry exhausted; outcome retained until process exit");
+            }
             let started = Instant::now();
             let attempt = async {
                 let mut tx = component.begin().await?;
@@ -363,6 +366,9 @@ impl Engine {
         // Once a claim might have committed, a lost reply is fatal, never retried.
         let mut spent = Duration::ZERO;
         let claim = loop {
+            if spent >= self.retry_bound {
+                return self.fatal("claim store retry exhausted before dispatch");
+            }
             #[cfg(feature = "store-test-hooks")]
             component.trace(json!({"event":"claim_attempt_started"}));
             self.database.ensure_new_work()?;
@@ -374,14 +380,20 @@ impl Engine {
             }
             .await;
             match attempt {
-                Ok((tx, claim)) => match component.commit(tx)?.wait().await? {
-                    CommitOutcome::Acknowledged => break claim,
-                    CommitOutcome::Rejected { reason } if reason.contains("40001") => continue,
-                    _ => {
-                        return self
-                            .fatal("claim acknowledgment lost or rejected; no blind claim retry");
+                Ok((tx, claim)) => {
+                    let work_time = started.elapsed();
+                    let (outcome, verification) = component.commit(tx)?.wait_accounted().await?;
+                    match outcome {
+                        CommitOutcome::Acknowledged => break claim,
+                        CommitOutcome::Rejected { reason } if reason.contains("40001") => continue,
+                        CommitOutcome::NotDispatched { .. } => spent += work_time + verification,
+                        _ => {
+                            return self.fatal(
+                                "claim acknowledgment lost or rejected; no blind claim retry",
+                            );
+                        }
                     }
-                },
+                }
                 Err(error) => {
                     if self.database.lock_loss_state().is_some()
                         || error.downcast_ref::<FatalEngine>().is_some()
@@ -399,17 +411,15 @@ impl Engine {
                         return Err(error);
                     }
                     spent += started.elapsed();
-                    if spent >= self.retry_bound {
-                        return self.fatal("claim store retry exhausted before dispatch");
-                    }
-                    component.trace(
-                        json!({"event":"claim_precommit_retry","spent_ms":spent.as_millis()}),
-                    );
-                    let backoff = Instant::now();
-                    tokio::time::sleep(Duration::from_millis(10)).await;
-                    spent += backoff.elapsed();
                 }
             }
+            if spent >= self.retry_bound {
+                return self.fatal("claim store retry exhausted before dispatch");
+            }
+            component.trace(json!({"event":"claim_precommit_retry","spent_ms":spent.as_millis()}));
+            let backoff = Instant::now();
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            spent += backoff.elapsed();
         };
         self.test_boundary("claim_registration").await;
         if let Some(c) = &claim {

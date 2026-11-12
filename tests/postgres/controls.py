@@ -62,7 +62,7 @@ def controls(seed,evidence,w5_only=False):
         if defect=='w5_generation':
             valid=valid and observed[-1].get('refused') is False and observed[-1].get('unsafe_record') is True and observed[-1].get('unequal_checks')
         if defect=='w5_checkout':
-            valid=valid and observed[-1].get('retained') is False and observed[-1].get('syncrep') is True and observed[-1].get('cancelled') is True and observed[-1].get('api_alive') is True
+            valid=valid and observed[-1].get('retained') is False and observed[-1].get('ownership',{}).get('pooled_checkout_held') is False and observed[-1].get('ownership',{}).get('transport_dead') is False and observed[-1].get('syncrep') is True and observed[-1].get('cancelled') is True and observed[-1].get('api_alive') is True
         if defect=='w5_blind_retry':
             valid=valid and observed[-1].get('orders')==2 and observed[-1].get('resources')==2 and observed[-1].get('accepted')==2 and observed[-1].get('retry_activated') is True and observed[-1].get('reply_dropped') is True
         if defect=='caller_sql':valid=valid and observed[-1].get('observed_synchronous_commit')=='off'
