@@ -1370,6 +1370,106 @@ PostgreSQL observations.
 versions, commands/exits, driver/source identity and cleanup. API retry semantics, ordinary pool
 bounds, money guards and the accepted deployment profile are unchanged.
 
+### D-41. Delete the machine as W6's non-create mutation
+
+**Settled 2026-11-12 by a four-reader implementation consultation, four of four** (the fifth seat
+was unavailable). W6's non-create mutation is `delete_machine` on the local immediate-destroy
+simulator profile, with no surviving billable attachments. It is implemented only after the create
+reconciliation scenarios pass.
+
+The first private pilot's scenarios end on a termination path, and only a delete ends provider
+cost: a powered-off machine still bills (`LDG-37`), and `PRV-13b` requires an API path that stops
+the cost. Power on/off was the alternative and was not chosen. The local profile narrows the
+provider shape to `PRV-13`'s immediate destroy; it waives no rule the delete reaches. The scheduled
+cancellation shape is not built.
+
+### D-42. W6's delete covers every cleanup W6 makes reachable
+
+**Decided 2026-11-12, accepted under the owner's 2026-11-05 panel rule (four of four readers;
+the fifth seat was unavailable).** The delete worker runs the caller's delete and every
+exposure-reducing cancellation W6 itself makes reachable, `OPS-36`'s late-attach cleanup included,
+with `OPS-39`, `OPS-41`, `OPS-42`, `OPS-44` and `OPS-48` applied in full. All four readers rejected
+a caller-only worker that leaves system deletes refused.
+
+Reachability: a create whose reply is lost stays unresolved; once `OPS-33`'s bounded negative
+window elapses its commitment is released while the operation stays open, and the account sweep
+keeps searching (`03-operation-lifecycle.md:1735-1738`). A later exact correlator match is
+`OPS-27`'s row 1, "`OPS-36` where it was already released" (`:570`), whose transaction attaches the
+machine and enqueues its cleanup (`:663`). Refusing that cleanup leaves an attached, unfunded
+machine billing with nothing to stop it; refusing the attach instead is the hole `OPS-36` closes
+(`:716`).
+
+Conditions, each four of four:
+
+- **(a)** The late-attach cleanup runs with `OPS-42`'s fence column (`machines.destroy_committed`),
+  `OPS-41`'s ordered decision in the `LDG-35` transaction that writes the fence, `OPS-48`'s episode
+  states and close reasons as `STO-52` stores them, and `LDG-40`'s wind-down floor or `LDG-66`'s
+  deficiency in the attach transaction.
+- **(b)** `OPS-41`'s restore deferral is `not run`, owned by W7, and ordinary startup keeps refusing
+  an open recovery incident. The exhaustion sweep and the suspension fan-out stay refused entry
+  points, reported `not run`.
+
+No narrowing or widening of an earlier owner pick.
+
+### D-43. Stalled-episode retry and keep are built in W6
+
+**Decided 2026-11-12, accepted under the owner's 2026-11-05 panel rule (three of four readers,
+with the reader the rule requires in the majority; the fifth seat was unavailable).** `API-64`
+retry and `API-68` keep are built for a stalled episode. A cleanup attempt that settles `failed` or
+`not_applied` leaves its episode `stalled` (`OPS-48`), and these two operator routes are its only
+exits; today both are hidden. One reader would have kept them refused. No narrowing or widening of
+an earlier owner pick.
+
+### D-44. No extend-runway for a late-attached machine
+
+**Decided 2026-11-12 by the owner.** Asked whether W6 builds `LDG-62` extend-runway, which lets a
+tenant fund an `OPS-36` late-attached machine and keep it, the owner chose **"Leave out
+(Recommended)"**. The late-attach cleanup always runs. A four-reader panel stayed tied 2-2 after
+one consensus round, so the question went to the owner.
+
+**Known limit.** `OPS-36`'s survival path, in which the tenant extends the runway and the machine
+is kept, is `not run`. W6 adds no extend-runway route.
+
+### D-45. A queued suspension cleanup runs through the same worker
+
+**Decided 2026-11-12 by the owner.** Asked how W6 treats a queued delete whose enqueue reason is
+`tenant_suspended`, the owner chose **"Same worker"**. The cleanup worker runs every queued
+exposure-reducing cancellation whatever its enqueue reason, including a queued `tenant_suspended`
+attempt. `OPS-41`'s ordered decision handles it on the tenant's current state, by step 2 while the
+tenant is still suspended. The suspension fan-out
+enqueuer itself stays refused, `not run`. The panel had no majority on this point.
+
+### D-46. The no-rate wait is not run
+
+**Decided 2026-11-12 by the owner.** Asked whether W6 builds `OPS-41` steps 4-5, the branches
+taken when the machine's currency has no rate, the owner chose **"Leave out (Recommended)"**.
+Steps 4-5 are `not run`. If an attempt reaches the no-rate branch, it stops safely: it makes no
+provider call and writes no fence, and the path is stopped and reported. Only fixtures write rates
+in this profile. The panel had no majority on this point.
+
+### D-47. A delete reply that reports gone settles the delete
+
+**Decided 2026-11-12 by the owner.** Asked whether a delete reply that itself reports the machine
+gone settles the delete, the owner chose **"Yes, reply settles (Recommended)"**. That reply is the
+mutation endpoint's own report that the goal state holds, the strongest source `PRV-36` ranks
+(`02-provider-contract.md:1147`). It settles the attempt `succeeded` and is the gone-write and
+meter stop in the terminal transaction, at the reply's observation instant (`PRV-29`, `LDG-74`). A
+read inside the visibility window that still shows the machine is no evidence (`:1172`) and does
+not override it. Three of four readers chose this form, but the reader the owner's 2026-11-05 rule
+requires was in the minority, so it went to the owner.
+
+### D-48. An acceptance-only delete reply goes to reconciliation
+
+**Decided 2026-11-12, accepted under the owner's 2026-11-05 panel rule (three of four readers,
+with the reader the rule requires in the majority; the fifth seat was unavailable).** A successful
+immediate-delete reply that reports acceptance but not that the machine is gone does not
+establish absence (`PRV-29`, `02-provider-contract.md:480-485`). The attempt enters
+`needs_reconciliation` as known acceptance, with no gone-write on the reply. `OPS-27`'s non-create
+evidence path resolves it after the visibility window without repeating the delete: absent
+resolves `applied` with the gone-write, and present past the window resolves `not_applied`.
+`WIR-35` is the operator fallback. A reply that reports gone is D-47's case. One reader would have
+settled every successful reply as gone. No narrowing or widening of an earlier owner pick.
+
 ## Open
 
 
