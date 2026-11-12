@@ -176,7 +176,7 @@ fn main() -> anyhow::Result<()> {
                     let mut tx=store.begin().await?;
                     anyhow::ensure!(tx.execute("SELECT 1/0").await.is_err(),"expected failure");
                     let outcome=store.commit(tx)?.wait().await?;
-                    anyhow::ensure!(matches!(outcome,provisiond::store::CommitOutcome::Rejected{..}),"failed transaction dispatched");
+                    anyhow::ensure!(matches!(outcome,provisiond::store::CommitOutcome::NotDispatched{..}),"failed transaction dispatched");
                     Ok(json!({"outcome":outcome.label()}))
                 }
                 "deferred" => {
