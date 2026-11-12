@@ -1,0 +1,765 @@
+{
+  "fix_commit": "c81fae6a16c86b68329eba8d44e72b8126b8f070",
+  "scope": "Complete workflow phase, default-workflow phase, and two affected exact controls; full nine-phase suite not run.",
+  "runs": [
+    {
+      "name": "workflow-final",
+      "result": "pass",
+      "observed_child_result": "pass",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "workflow",
+        "--seed",
+        "20261110",
+        "--evidence",
+        "<run-dir>/workflow-final.json"
+      ],
+      "command_exit_status": 0,
+      "fix_commit": "c81fae6a16c86b68329eba8d44e72b8126b8f070",
+      "tested_source_sha256": "c8be4c5e0383f6f0b5291fa3afa8981664a43362815f5d25b330b068cdc58ef1",
+      "measured_head": "096d31cfd994031808b7f11e5d9280cab43df600",
+      "measured_source_dirty": true,
+      "operational_hashes_match_fix_commit": true,
+      "build_features": [
+        "store-test-hooks"
+      ],
+      "builds": {
+        "api": {
+          "executable": "<run-dir>/harness/workflow-1f8nbhrp/target/debug/api",
+          "sha256": "e344390e578844b70fad9e3eca576b8960f51313ee7a4472b100b2c0d8e4db59",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "engine": {
+          "executable": "<run-dir>/harness/workflow-1f8nbhrp/target/debug/engine",
+          "sha256": "7601c35216b6fb2f3308ecc45d3211f34149a12f82d321726cc7543fc1d1a001",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "migrate": {
+          "executable": "<run-dir>/harness/workflow-1f8nbhrp/target/debug/migrate",
+          "sha256": "2740fdf8cdf7abd8ee3f6d0e14dd27e416e775c9f9768388f0441b616600e3e0",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "default_startup_api": {
+          "executable": "<run-dir>/harness/workflow-1f8nbhrp/default-startup-target/debug/api",
+          "sha256": "19cecdd74ae83bb6410a6e35bbc015f3c029a505063f8dda4242a6a28a3a3b0b",
+          "features": []
+        }
+      },
+      "scenarios": [
+        {
+          "test": "W4-concurrent-simulator-resources",
+          "result": "pass",
+          "limits": "tooling regression; no automatic application reconciliation"
+        },
+        {
+          "test": "W4-search-during-simulator-create",
+          "result": "pass",
+          "limits": "tooling regression; no automatic application reconciliation"
+        },
+        {
+          "test": "W4-fresh-HTTP-workflow",
+          "result": "pass"
+        },
+        {
+          "test": "W4-wire-auth",
+          "result": "pass"
+        },
+        {
+          "test": "W4-dropped-reply",
+          "result": "pass",
+          "limits": "automatic reconciliation not run"
+        },
+        {
+          "test": "W4-overload-new-and-lost-reply-old-key",
+          "result": "pass"
+        },
+        {
+          "test": "W4-worker-first-refusals-and-zero-unit",
+          "result": "pass",
+          "cases": 13
+        },
+        {
+          "test": "W4-step8-acknowledgement",
+          "result": "pass"
+        },
+        {
+          "test": "W4-verified-settlement-reply-loss",
+          "result": "pass"
+        },
+        {
+          "test": "W4-HTTP-destination-checks",
+          "result": "pass",
+          "arms": [
+            "new",
+            "read",
+            "replay"
+          ]
+        },
+        {
+          "test": "W4-payment-atomicity",
+          "result": "pass"
+        },
+        {
+          "test": "W4-accepted-verification-error",
+          "result": "pass"
+        },
+        {
+          "test": "W4-provider-identifiers-search_network",
+          "result": "pass"
+        },
+        {
+          "test": "W4-provider-identifiers-search_non_authoritative",
+          "result": "pass"
+        },
+        {
+          "test": "W4-provider-identifiers-search_many",
+          "result": "pass"
+        },
+        {
+          "test": "W4-provider-identifiers-get_error",
+          "result": "pass"
+        },
+        {
+          "test": "W4-provider-identifiers-get_absent",
+          "result": "pass"
+        },
+        {
+          "test": "W4-provider-identifiers-search_malformed",
+          "result": "pass"
+        },
+        {
+          "test": "W4-lock-loss-during-dispatch-syncrep",
+          "result": "pass"
+        },
+        {
+          "test": "W4-lock-loss-during-dispatch-late_claim",
+          "result": "pass"
+        },
+        {
+          "test": "W4-lock-loss-during-dispatch-empty_claim",
+          "result": "pass"
+        },
+        {
+          "test": "W4-verification-stop-search",
+          "result": "pass"
+        },
+        {
+          "test": "W4-verification-stop-get",
+          "result": "pass"
+        },
+        {
+          "test": "W4-decoded-query-and-raw-fingerprint",
+          "result": "pass"
+        },
+        {
+          "test": "W4-admission-field-repetition",
+          "result": "pass"
+        },
+        {
+          "test": "W4-step8-row-contention-and-crash",
+          "result": "pass"
+        },
+        {
+          "test": "W4-rich-admission-tail",
+          "result": "pass"
+        },
+        {
+          "test": "W4-temporary-key-ownership",
+          "result": "pass",
+          "limits": "settled-key sweep cleanup not run"
+        },
+        {
+          "test": "W4-HTTP-concurrent-admission",
+          "result": "pass"
+        },
+        {
+          "test": "W4-no-healthy-activation",
+          "result": "pass",
+          "limits": "later assignment sweep not run"
+        },
+        {
+          "test": "W4-lost-step8-ack-guard-refusal",
+          "result": "pass"
+        },
+        {
+          "test": "W4-durable-ceiling-restart",
+          "result": "pass"
+        },
+        {
+          "test": "W4-enrolment-limits-TTL-orphan",
+          "result": "pass"
+        },
+        {
+          "test": "W4-authenticated-pending-expiry",
+          "result": "pass"
+        },
+        {
+          "test": "W4-provider-error-redaction",
+          "result": "pass"
+        },
+        {
+          "test": "W4-halt-cancellation-and-under-floor-chain-credit",
+          "result": "pass"
+        },
+        {
+          "test": "W4-forwarded-key-validation",
+          "result": "pass"
+        },
+        {
+          "test": "W4-live-provider-stop",
+          "result": "pass"
+        },
+        {
+          "test": "W4-native-price-coverage",
+          "result": "pass"
+        },
+        {
+          "test": "W4-empty-user-data-admission-worker",
+          "result": "pass"
+        },
+        {
+          "test": "W4-exhausted-spend-precedence",
+          "result": "pass"
+        },
+        {
+          "test": "W4-plain-query-token-abandonment",
+          "result": "pass"
+        },
+        {
+          "test": "W4-unauthenticated-source-pacing",
+          "result": "pass"
+        },
+        {
+          "test": "W4-polling-budget-window-boundaries",
+          "result": "pass"
+        },
+        {
+          "test": "W4-enrolment-pacing-no-delay-oracle",
+          "result": "pass"
+        },
+        {
+          "test": "W4-rational-floor-clamp-deficiencies",
+          "result": "pass",
+          "cases": 3
+        },
+        {
+          "test": "W4-admission-race-dispatch-zero-row",
+          "result": "pass"
+        },
+        {
+          "test": "W4-accepted-suspended-attach-enqueue",
+          "result": "pass",
+          "limits": "cancellation execution not run"
+        },
+        {
+          "test": "W4-no-rate-accepted-settlement",
+          "result": "pass",
+          "limits": "later ordinary runway rederivation not run"
+        },
+        {
+          "test": "W4-absent-rate-accepted-settlement",
+          "result": "pass"
+        },
+        {
+          "test": "W4-stop-cost-driver-adapter",
+          "result": "pass"
+        },
+        {
+          "test": "W4-accepted-reserve-record-validation",
+          "result": "pass",
+          "cases": 4
+        },
+        {
+          "test": "W4-accepted-rate-record-validation",
+          "result": "pass",
+          "cases": 10
+        },
+        {
+          "test": "W4-accepted-conversion-record-validation",
+          "result": "pass",
+          "cases": 7
+        },
+        {
+          "test": "W4-accepted-offer-record-validation",
+          "result": "pass",
+          "cases": 5
+        },
+        {
+          "test": "W4-observed-under-credit",
+          "result": "pass"
+        },
+        {
+          "test": "W4-observed-over-credit",
+          "result": "pass"
+        },
+        {
+          "test": "W4-complete-operator-hiding",
+          "result": "pass",
+          "customer_requests": 88
+        },
+        {
+          "test": "W4-required-startup-configuration",
+          "result": "pass",
+          "default_binary": true,
+          "negative_cases": 8
+        },
+        {
+          "test": "W4-idle-background-task-failure",
+          "result": "pass"
+        },
+        {
+          "test": "W4-housekeeping-checkout-lifecycle",
+          "result": "pass"
+        },
+        {
+          "test": "W4-sent-COMMIT-and-pending-request-lifecycle",
+          "result": "pass"
+        },
+        {
+          "test": "W4-provider-observation-reply_loss",
+          "result": "pass"
+        },
+        {
+          "test": "W4-provider-observation-constraint_timeout",
+          "result": "pass"
+        },
+        {
+          "test": "W4-provider-observation-stop_after_read",
+          "result": "pass"
+        },
+        {
+          "test": "W4-preflight-recover-account",
+          "result": "pass"
+        },
+        {
+          "test": "W4-preflight-recover-tenant",
+          "result": "pass"
+        },
+        {
+          "test": "W4-preflight-recover-channel",
+          "result": "pass"
+        },
+        {
+          "test": "W4-preflight-exhaust-account",
+          "result": "pass"
+        },
+        {
+          "test": "W4-preflight-stop-tenant",
+          "result": "pass"
+        }
+      ],
+      "observations": [
+        {
+          "event": "defect_overload_entry_observed",
+          "timestamp": 1794276283.9132428,
+          "elapsed": 27.623781820992008,
+          "business_entries": 0
+        },
+        {
+          "event": "w4_payment_atomicity_observed",
+          "timestamp": 1794276296.1865885,
+          "elapsed": 39.897127220989205,
+          "counts": "1:1",
+          "adapter_acknowledged": true
+        },
+        {
+          "event": "cleanup_complete",
+          "timestamp": 1794276439.2648468,
+          "elapsed": 182.9753853790462,
+          "result": "pass",
+          "errors": [],
+          "raw_evidence": "<run-dir>/harness/workflow-1f8nbhrp"
+        }
+      ],
+      "artifacts": {
+        "manifest": "<run-dir>/workflow-final.json",
+        "manifest_sha256": "19bcd70fe05f4e1a5d4fb17aa84408529d2604811d6d49659e8896db16eb18e3",
+        "combined_output": "<run-dir>/workflow-final.log",
+        "combined_output_sha256": "26f665dfca40a1dbc48f230b353ef28f05e552cd205c0265df8dac2e95c50861"
+      },
+      "trace": {
+        "path": "<run-dir>/harness/workflow-1f8nbhrp/events.jsonl",
+        "sha256": "e990948a7b719d950d7fd6859bf2aa1f5a3fd7685742e7be6dcca8225a737043"
+      },
+      "raw_evidence": "<run-dir>/harness/workflow-1f8nbhrp"
+    },
+    {
+      "name": "default-final",
+      "result": "pass",
+      "observed_child_result": "pass",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "default-workflow",
+        "--seed",
+        "20261110",
+        "--evidence",
+        "<run-dir>/default-final.json"
+      ],
+      "command_exit_status": 0,
+      "fix_commit": "c81fae6a16c86b68329eba8d44e72b8126b8f070",
+      "tested_source_sha256": "c8be4c5e0383f6f0b5291fa3afa8981664a43362815f5d25b330b068cdc58ef1",
+      "measured_head": "096d31cfd994031808b7f11e5d9280cab43df600",
+      "measured_source_dirty": true,
+      "operational_hashes_match_fix_commit": true,
+      "build_features": [],
+      "builds": {
+        "api": {
+          "executable": "<run-dir>/harness/default-workflow-08cjx7me/target/debug/api",
+          "sha256": "19cecdd74ae83bb6410a6e35bbc015f3c029a505063f8dda4242a6a28a3a3b0b",
+          "features": []
+        },
+        "engine": {
+          "executable": "<run-dir>/harness/default-workflow-08cjx7me/target/debug/engine",
+          "sha256": "108e8ccdcf0e7cff451e0a6f514fd90ef8bc06e6a92e2e0eccea9184924604d2",
+          "features": []
+        },
+        "migrate": {
+          "executable": "<run-dir>/harness/default-workflow-08cjx7me/target/debug/migrate",
+          "sha256": "303c877358170dffd583951380f15cc5c94b3ec7f2d7bbb0546f756e47f08cb3",
+          "features": []
+        }
+      },
+      "scenarios": [
+        {
+          "test": "W4-step8-acknowledgement",
+          "result": "pass"
+        },
+        {
+          "test": "W4-default-binaries-refuse-defect-environment",
+          "result": "pass"
+        }
+      ],
+      "observations": [
+        {
+          "event": "cleanup_complete",
+          "timestamp": 1794276465.2511497,
+          "elapsed": 25.43405200704001,
+          "result": "pass",
+          "errors": [],
+          "raw_evidence": "<run-dir>/harness/default-workflow-08cjx7me"
+        }
+      ],
+      "artifacts": {
+        "manifest": "<run-dir>/default-final.json",
+        "manifest_sha256": "bf0a187b210e86f8f627f981a1c65c6b18b8c080e35239fb50aac0b1b254bc23",
+        "combined_output": "<run-dir>/default-final.log",
+        "combined_output_sha256": "a77af55fc2dec3009c35c8374f5029e62bb81072dba27542f6484f5e78bf3858"
+      },
+      "trace": {
+        "path": "<run-dir>/harness/default-workflow-08cjx7me/events.jsonl",
+        "sha256": "411a9fa587c2014c35aaeb4a48d4b15006d6ffba0ceeda483517275e094d5dbb"
+      },
+      "raw_evidence": "<run-dir>/harness/default-workflow-08cjx7me"
+    },
+    {
+      "name": "control-atomic",
+      "result": "expected negative demonstration",
+      "observed_child_result": "fail",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "workflow",
+        "--case",
+        "w4_atomic",
+        "--defect",
+        "w4_atomic",
+        "--seed",
+        "20261110",
+        "--evidence",
+        "<run-dir>/control-atomic.json"
+      ],
+      "command_exit_status": 1,
+      "fix_commit": "c81fae6a16c86b68329eba8d44e72b8126b8f070",
+      "tested_source_sha256": "c8be4c5e0383f6f0b5291fa3afa8981664a43362815f5d25b330b068cdc58ef1",
+      "measured_head": "096d31cfd994031808b7f11e5d9280cab43df600",
+      "measured_source_dirty": true,
+      "operational_hashes_match_fix_commit": true,
+      "build_features": [
+        "store-test-hooks"
+      ],
+      "builds": {
+        "api": {
+          "executable": "<run-dir>/harness/workflow-uq8cm2vi/target/debug/api",
+          "sha256": "e344390e578844b70fad9e3eca576b8960f51313ee7a4472b100b2c0d8e4db59",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "engine": {
+          "executable": "<run-dir>/harness/workflow-uq8cm2vi/target/debug/engine",
+          "sha256": "7601c35216b6fb2f3308ecc45d3211f34149a12f82d321726cc7543fc1d1a001",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "migrate": {
+          "executable": "<run-dir>/harness/workflow-uq8cm2vi/target/debug/migrate",
+          "sha256": "2740fdf8cdf7abd8ee3f6d0e14dd27e416e775c9f9768388f0441b616600e3e0",
+          "features": [
+            "store-test-hooks"
+          ]
+        }
+      },
+      "scenarios": [
+        {
+          "test": "w4_atomic",
+          "result": "fail",
+          "reason": "rail payment and credit must be atomic"
+        }
+      ],
+      "observations": [
+        {
+          "event": "w4_payment_atomicity_observed",
+          "timestamp": 1794276488.3425913,
+          "elapsed": 22.85642107296735,
+          "counts": "0:1",
+          "adapter_acknowledged": true
+        },
+        {
+          "event": "failure",
+          "timestamp": 1794276488.3502927,
+          "elapsed": 22.864122540922835,
+          "type": "AssertionError",
+          "message": "rail payment and credit must be atomic"
+        },
+        {
+          "event": "cleanup_complete",
+          "timestamp": 1794276489.7092013,
+          "elapsed": 24.223031141911633,
+          "result": "pass",
+          "errors": [],
+          "raw_evidence": "<run-dir>/harness/workflow-uq8cm2vi"
+        }
+      ],
+      "artifacts": {
+        "manifest": "<run-dir>/control-atomic.json",
+        "manifest_sha256": "174b88dd20008b1a77714c9521c5be2fb5c13afea25e640812a8502679a79fa1",
+        "combined_output": "<run-dir>/control-atomic.log",
+        "combined_output_sha256": "b92ce295391e6800d17033f87cc4c31db7cded225245d595602619b34dac8934"
+      },
+      "trace": {
+        "path": "<run-dir>/harness/workflow-uq8cm2vi/events.jsonl",
+        "sha256": "825fabc2b34f6e5f7a24c18c20e3f25c6eb5c6797b36d36955b0bb00ab7b9e77"
+      },
+      "raw_evidence": "<run-dir>/harness/workflow-uq8cm2vi"
+    },
+    {
+      "name": "control-overload",
+      "result": "expected negative demonstration",
+      "observed_child_result": "fail",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "workflow",
+        "--case",
+        "w4_overload",
+        "--defect",
+        "w4_overload",
+        "--seed",
+        "20261110",
+        "--evidence",
+        "<run-dir>/control-overload.json"
+      ],
+      "command_exit_status": 1,
+      "fix_commit": "c81fae6a16c86b68329eba8d44e72b8126b8f070",
+      "tested_source_sha256": "c8be4c5e0383f6f0b5291fa3afa8981664a43362815f5d25b330b068cdc58ef1",
+      "measured_head": "096d31cfd994031808b7f11e5d9280cab43df600",
+      "measured_source_dirty": true,
+      "operational_hashes_match_fix_commit": true,
+      "build_features": [
+        "store-test-hooks"
+      ],
+      "builds": {
+        "api": {
+          "executable": "<run-dir>/harness/workflow-drjnsqi0/target/debug/api",
+          "sha256": "e344390e578844b70fad9e3eca576b8960f51313ee7a4472b100b2c0d8e4db59",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "engine": {
+          "executable": "<run-dir>/harness/workflow-drjnsqi0/target/debug/engine",
+          "sha256": "7601c35216b6fb2f3308ecc45d3211f34149a12f82d321726cc7543fc1d1a001",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "migrate": {
+          "executable": "<run-dir>/harness/workflow-drjnsqi0/target/debug/migrate",
+          "sha256": "2740fdf8cdf7abd8ee3f6d0e14dd27e416e775c9f9768388f0441b616600e3e0",
+          "features": [
+            "store-test-hooks"
+          ]
+        }
+      },
+      "scenarios": [
+        {
+          "test": "w4_overload",
+          "result": "fail",
+          "reason": "overload must precede request business BEGIN"
+        }
+      ],
+      "observations": [
+        {
+          "event": "defect_overload_entry_observed",
+          "timestamp": 1794276520.1871603,
+          "elapsed": 30.261834666947834,
+          "business_entries": 1
+        },
+        {
+          "event": "failure",
+          "timestamp": 1794276527.900734,
+          "elapsed": 37.97540814103559,
+          "type": "AssertionError",
+          "message": "overload must precede request business BEGIN"
+        },
+        {
+          "event": "cleanup_complete",
+          "timestamp": 1794276529.4121757,
+          "elapsed": 39.48684987297747,
+          "result": "pass",
+          "errors": [],
+          "raw_evidence": "<run-dir>/harness/workflow-drjnsqi0"
+        }
+      ],
+      "artifacts": {
+        "manifest": "<run-dir>/control-overload.json",
+        "manifest_sha256": "5461671422f824f1ceaa1a4c1cfee84fc06994def4b54913a64b200484eea950",
+        "combined_output": "<run-dir>/control-overload.log",
+        "combined_output_sha256": "4988a7670e74d12c25cc0df3f75fea8e25f4f69cbc22a386cfe63741d5f5e67b"
+      },
+      "trace": {
+        "path": "<run-dir>/harness/workflow-drjnsqi0/events.jsonl",
+        "sha256": "2bbda6653700d8bd2930029967c26149a0bbcd7274cfd3632040b313395215a9"
+      },
+      "raw_evidence": "<run-dir>/harness/workflow-drjnsqi0"
+    }
+  ],
+  "gate": {
+    "command": [
+      "nix",
+      "develop",
+      "--command",
+      "bash",
+      "tools/check.sh"
+    ],
+    "exit_status": 0,
+    "result": "pass",
+    "combined_output": "<run-dir>/gate-final.log",
+    "combined_output_sha256": "0396c869690df6f43aaa7fbce43fdfddafa90f4d8e77f166ed31d557109b9a21"
+  },
+  "selector_validation": {
+    "command": [
+      "nix",
+      "develop",
+      "--command",
+      "python3",
+      "tests/postgres/harness.py",
+      "--phase",
+      "core",
+      "--case",
+      "w4_expiry"
+    ],
+    "exit_status": 2,
+    "result": "expected negative demonstration",
+    "assertion": "--case is incompatible with the selected phase",
+    "combined_output": "<run-dir>/selector-invalid.log",
+    "combined_output_sha256": "bdd5d53bc90eaa14577aeb3d8de9d041fb1b83d320e9e8b31ba17c466993481e"
+  },
+  "unit": {
+    "memory_max_bytes": 17179869184,
+    "memory_swap_max_bytes": 0,
+    "oom_policy": "continue",
+    "kill_mode": "mixed",
+    "inherited_cgroup_verified": true,
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503,
+      55504,
+      55505,
+      55506,
+      55507,
+      55508,
+      55509
+    ]
+  },
+  "post_run_cleanup_audit": {
+    "result": "pass",
+    "owned_resources": [
+      {
+        "run": "red-final",
+        "children_reaped": 3,
+        "removed_paths_verified": 3,
+        "credentials_absent": true
+      },
+      {
+        "run": "green-final",
+        "children_reaped": 3,
+        "removed_paths_verified": 3,
+        "credentials_absent": true
+      },
+      {
+        "run": "workflow-final",
+        "children_reaped": 145,
+        "removed_paths_verified": 4,
+        "credentials_absent": true
+      },
+      {
+        "run": "default-final",
+        "children_reaped": 4,
+        "removed_paths_verified": 3,
+        "credentials_absent": true
+      },
+      {
+        "run": "control-atomic",
+        "children_reaped": 3,
+        "removed_paths_verified": 3,
+        "credentials_absent": true
+      },
+      {
+        "run": "control-overload",
+        "children_reaped": 3,
+        "removed_paths_verified": 3,
+        "credentials_absent": true
+      }
+    ],
+    "ports_rebound_after_all_children": [
+      55500,
+      55501,
+      55502,
+      55503,
+      55504,
+      55505,
+      55506,
+      55507,
+      55508,
+      55509
+    ]
+  }
+}

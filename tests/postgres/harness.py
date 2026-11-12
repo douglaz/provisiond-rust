@@ -37,21 +37,21 @@ def cap_check():
 
 
 def free_port(port):
-    assert 55430 <= port <= 55479
+    assert 55500 <= port <= 55559
     with socket.socket() as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('127.0.0.1', port))
 
 
 def allocation():
-    """Required private four-port allocation, validated before starting any child."""
+    """Required private ten-port allocation, validated before starting any child."""
     raw = os.environ.get('PROVISIOND_HARNESS_PORT_BASE', '')
     if not raw.isascii() or not raw.isdecimal():
         raise ValueError('PROVISIOND_HARNESS_PORT_BASE must be an integer')
     base = int(raw)
-    if not 55430 <= base <= 55476:
-        raise ValueError('four harness ports must fit within 55430..55479')
-    return list(range(base, base + 4))
+    if base not in range(55500, 55560, 10):
+        raise ValueError('ten harness ports require a slot base in 55500..55550')
+    return list(range(base, base + 10))
 
 
 def preflight_ports():
@@ -90,24 +90,25 @@ class Harness:
         self.pgpass = self.root / 'pgpass'
         self.pgpass.write_text(''.join(f'127.0.0.1:*:*:{r}:{p}\n' for r, p in self.passwords.items()))
         self.pgpass.chmod(0o600)
-        self.env = dict(os.environ, PGPASSFILE=str(self.pgpass), PGCONNECT_TIMEOUT='2')
+        self.target = self.root/'target'
+        self.env = dict(os.environ, PGPASSFILE=str(self.pgpass), PGCONNECT_TIMEOUT='2', CARGO_TARGET_DIR=str(self.target))
         self.config = dict(synchronous_commit='on', synchronous_standby_names='FIRST 1 (provisiond_sync)',
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
-                           archive_mode='on', restart_after_crash='on', ports=self.ports[:3],
+                           archive_mode='on', restart_after_crash='on', ports=self.ports[:3],bootstrap_readiness_seconds=60,postgres_stop_wait_seconds=60,bootstrap_command_seconds=180,
                            authentication='scram-sha-256 loopback only', standby_role='replicator')
-        if phase in ('checks','commits','regressions','corrections','core'):
+        if phase in ('checks','commits','regressions','corrections','core','workflow','default-workflow'):
             self.config['store'] = dict(read_pool=1,write_pool=1,statement_ms=1000,lock_ms=500,
                 idle_transaction_ms=1000,call_ms=2000,check_ms=3000,checkout_ms=250,
                 keepalive_idle_seconds=2,keepalive_interval_seconds=1,keepalive_count=2,
                 isolation='read committed',search_path='pg_catalog,fixture',stop_fixture_ms=1000,
                 transport='direct TCP; loopback proxy for faults; sslmode=disable')
             self.config['ports'].append(self.ports[3])
-        if phase=='core':
+        if phase in ('core','workflow','default-workflow'):
             self.config['engine']=dict(workers=3,write_pool=3,compatibility_read_pool=1,
                 startup_lock_outside_pool=True,startup_wait_ms=500,store_retry_ms=2000,stop_record_ms=1000,
                 startup_lock_keepalives=dict(idle_seconds=2,interval_seconds=1,count=2,profile_assignment="shared with pooled local values"),
-                runtime_build=dict(features=["store-test-hooks"],target_directory="target"),
-                migration_lock_ms=500,migration_lock_retries=2,schema_version=1,semantic_version=1,notice_cap=16)
+                runtime_build=dict(features=["store-test-hooks"],target_directory=str(self.target)),
+                migration_lock_ms=500,migration_lock_retries=2,schema_version=2,semantic_version=2,notice_cap=16)
         self.archive = self.root / 'archive'
         self.archive.mkdir()
         self.event('invocation', seed=seed, specification=SPEC, phase=phase,
@@ -193,12 +194,12 @@ class Harness:
         pw = self.root / 'init-password'
         pw.write_text(self.passwords['administrator'])
         self.run(['initdb','-D',str(data),'-U','administrator','--pwfile='+str(pw),
-                  '--auth=scram-sha-256','--no-locale','--encoding=UTF8'])
+                  '--auth=scram-sha-256','--no-locale','--encoding=UTF8'],timeout=self.config['bootstrap_command_seconds'])
         # Offline cluster initialization, before any server accepts connections.
         # Like initdb's catalog initialization, this creates only the replication
         # identity. synchronous_commit stays on; no component or migration exists.
         self.run(['postgres','--single','-D',str(data),'postgres'],
-                 sql=f"CREATE ROLE replicator LOGIN REPLICATION PASSWORD '{self.passwords['replicator']}';\n")
+                 sql=f"CREATE ROLE replicator LOGIN REPLICATION PASSWORD '{self.passwords['replicator']}';\n",timeout=self.config['bootstrap_command_seconds'])
         (data / 'pg_hba.conf').write_text(
             'host replication replicator 127.0.0.1/32 scram-sha-256\n'
             'host all all 127.0.0.1/32 scram-sha-256\n')
@@ -261,18 +262,19 @@ tcp_keepalives_count = 2
         self.release_port(n['port'])
         free_port(n['port'])
         log = (self.root / f'{name}.log').open('ab', buffering=0)
+        readiness_started=time.monotonic()
         n['process'] = subprocess.Popen(['postgres','-D',str(n['data'])], env=self.env,
                                          stdout=log, stderr=log)
         n['command'] = dict(command=['postgres','-D',str(n['data'])],exit_status=None)
         self.commands.append(n['command'])
         log.close()
-        eventually(lambda: self.sql('SELECT 1',node=name,role=role,ok=False)=='1')
-        self.event('server_started', node=name, pid=n['process'].pid, port=n['port'])
+        eventually(lambda: self.sql('SELECT 1',node=name,role=role,ok=False)=='1',seconds=self.config['bootstrap_readiness_seconds'])
+        self.event('server_started', node=name, pid=n['process'].pid, port=n['port'],bootstrap_readiness_seconds=self.config['bootstrap_readiness_seconds'],readiness_elapsed_seconds=time.monotonic()-readiness_started)
 
     def stop(self, name, mode='fast'):
         n = self.nodes[name]
         if n.get('process') and n['process'].poll() is None:
-            self.run(['pg_ctl','-D',str(n['data']),'stop','-m',mode,'-w','-t','15'])
+            self.run(['pg_ctl','-D',str(n['data']),'stop','-m',mode,'-w','-t',str(self.config['postgres_stop_wait_seconds'])],timeout=75)
             status=n['process'].wait(timeout=5)
             n['command']['exit_status']=status
             self.event('server_stopped', node=name, mode=mode,exit_status=status)
@@ -296,10 +298,11 @@ tcp_keepalives_count = 2
 
     def backup(self, name, standby=False):
         dest = self.root / name
-        self.event('backup_requested', destination=name, wal_mode='stream', application_name='bootstrap_backup')
+        started=time.monotonic()
+        self.event('backup_requested', destination=name, wal_mode='stream', application_name='bootstrap_backup',command_bound_seconds=self.config['bootstrap_command_seconds'])
         self.run(['pg_basebackup','-d',f'host=127.0.0.1 port={self.ports[0]} user=replicator dbname=postgres application_name=bootstrap_backup',
-                  '-D',str(dest),'-X','stream','--checkpoint=fast','--no-password'])
-        self.run(['pg_verifybackup',str(dest)])
+                  '-D',str(dest),'-X','stream','--checkpoint=fast','--no-password'],timeout=self.config['bootstrap_command_seconds'])
+        self.run(['pg_verifybackup',str(dest)],timeout=self.config['bootstrap_command_seconds'])
         provenance=self.root/(name+'-backup-manifest.json')
         provenance.write_bytes((dest/'backup_manifest').read_bytes())
         self.event('backup_provenance_retained',path=str(provenance),sha256=hashlib.sha256(provenance.read_bytes()).hexdigest())
@@ -308,7 +311,7 @@ tcp_keepalives_count = 2
             # Set the final application name and authenticated role before startup.
             (dest/'postgresql.auto.conf').write_text(
                 f"primary_conninfo = 'host=127.0.0.1 port={self.ports[0]} user=replicator application_name=provisiond_sync passfile={self.pgpass}'\n")
-        self.event('backup_complete', destination=name, verified=True)
+        self.event('backup_complete', destination=name, verified=True,elapsed_seconds=time.monotonic()-started)
 
     def identity(self):
         target = self.sql('SELECT pg_current_wal_flush_lsn()')
@@ -398,10 +401,20 @@ tcp_keepalives_count = 2
         paths = {n['data'] for n in self.nodes.values()}
         paths.update(self.root/n for n in ['primary','restored','restore-backup','standby','rebuilt'])
         paths.update(getattr(self,'owned_extra_paths',[]))
+        paths.add(self.target)  # invocation-owned build output, after every child is reaped
         for path in sorted(paths):
             if path.exists() and not errors:
                 shutil.rmtree(path)
                 self.event('cleanup_removed', path=str(path))
+        startup_binary=self.config.get('workflow',{}).get('builds',{}).get('default_startup_api')
+        if startup_binary:
+            startup=Path(startup_binary['executable']).parent.parent
+            used=any(e['event']=='workflow_binary_started' and e.get('executable')==str(startup/'debug/api') and e.get('features')==[] for e in self.events)
+            removed=not startup.exists() and not self.target.exists()
+            self.event('startup_build_cleanup_observed',default_binary_used=used,
+                       normal_target_removed=not self.target.exists(),startup_target_removed=not startup.exists())
+            if not used or not removed:
+                errors.append('isolated startup build output must be used and removed after child completion')
         for path in [self.pgpass,self.root/'init-password']:
             if path.exists():
                 path.unlink()
@@ -435,7 +448,7 @@ tcp_keepalives_count = 2
                     command=['nix','develop','--command','python3',*sys.argv], commands=self.commands,
                     scenarios=self.results, events=observations, raw_evidence=str(self.root),
                     trace=dict(path=str(raw),sha256=hashlib.sha256(raw.read_bytes()).hexdigest()),
-                    external_provider_rail_evidence='simulator only; no real effects' if self.phase=='core' else 'not applicable: no external effects',
+                    external_provider_rail_evidence='simulator only; no real effects' if self.phase in ('core','workflow','default-workflow') else 'not applicable: no external effects',
                     limitations=['local processes only; no separate-host durability or fencing proof',
                                  'no product recovery incidents, automatic provider reconciliation, full meter or production alarms',
                                  'DB-10 full saturation: not run (W8)'])
@@ -449,14 +462,15 @@ tcp_keepalives_count = 2
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','all'],default='all')
-    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup'],help='one focused regression; default runs all')
-    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset'])
+    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','default-workflow','all'],default='all')
+    ap.add_argument('--case',choices=['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'],help='one focused regression; default runs all')
+    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset','w4_atomic','w4_ack','w4_overload'])
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
     preflight_ports()
     cases={
+        'workflow':{'w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'},
         'regressions':{'session','transaction','runtime','cancelled'},
         'corrections':{'execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency'},
         'core':{'migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup'},
@@ -464,6 +478,7 @@ def main():
     if args.case and args.case not in cases.get(args.phase,set()):
         ap.error('--case is incompatible with the selected phase')
     defect_cases={
+        **{d:('workflow',d) for d in ('w4_atomic','w4_ack','w4_overload')},
         **{d:('corrections',d) for d in ('execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel')},
         'generation':('core','generation'),'claim_guard':('core','claims'),'payment_atomic':('core','money'),
         **{d:('core',d) for d in ('claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch')},
@@ -482,7 +497,7 @@ def main():
     if args.phase=='all':
         cap_check()
         records=[]
-        for phase in ['w1','checks','commits','regressions','corrections','core','controls']:
+        for phase in ['w1','checks','commits','regressions','corrections','core','workflow','default-workflow','controls']:
             command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed)]
             # Explicit evidence names; every child command remains foreground.
             if args.evidence:
@@ -493,7 +508,7 @@ def main():
                                 result='pass' if result.returncode==0 else 'fail'))
             if result.returncode!=0:
                 break
-        status=0 if len(records)==7 and all(r['exit_status']==0 for r in records) else 1
+        status=0 if len(records)==9 and all(r['exit_status']==0 for r in records) else 1
         if args.evidence:
             args.evidence.write_text(json.dumps(dict(result='pass' if status==0 else 'fail',phases=records),indent=2)+'\n')
         return status
@@ -518,6 +533,12 @@ def main():
             from core import core_scenarios
             h.run(['cargo','build','--bins','--examples','--features','store-test-hooks','--locked'],timeout=120)
             core_scenarios(h,args.case,args.defect)
+        elif args.phase=='default-workflow':
+            from workflow import workflow
+            workflow(h,'w4_default')
+        elif args.phase=='workflow':
+            from workflow import workflow
+            workflow(h,args.case,args.defect)
         elif args.phase=='commits':
             from scenarios import commit_scenarios
             h.run(['cargo','build','--example','store-probe','--features','store-test-hooks','--locked'],timeout=120)

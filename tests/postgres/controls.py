@@ -6,6 +6,9 @@ from harness import ROOT, cap_check
 import tempfile
 
 CONTROLS=[
+    ('w4_atomic','workflow','w4_atomic','rail payment and credit must be atomic','w4_payment_atomicity_observed'),
+    ('w4_ack','workflow','w4_ack','step 8 must be acknowledged before provider mutation','defect_ack_boundary_observed'),
+    ('w4_overload','workflow','w4_overload','overload must precede request business BEGIN','defect_overload_entry_observed'),
     ('execute_cancel','corrections','execute_cancel','cancelled execute must close retained transaction transport','execute_cancellation_observed'),
     ('checkout','corrections','checkout','whole checkout exceeded 250ms plus 150ms scheduling tolerance','whole_checkout_observed'),
     ('caller_sql','corrections','caller_sql','caller SQL must not change protected settings','caller_sql_policy_observed'),
@@ -53,7 +56,7 @@ def controls(seed,evidence):
         valid=(child.returncode==1 and len(failures)==1 and failures[0].get('type')=='AssertionError'
             and failures[0].get('message')==assertion and cleanup and cleanup[-1]['result']=='pass' and observed)
         if defect=='caller_sql':valid=valid and observed[-1].get('observed_synchronous_commit')=='off'
-        if defect=='payment_atomic':valid=valid and observed[-1].get('counts')=='0:1'
+        if defect in ('payment_atomic','w4_atomic'):valid=valid and observed[-1].get('counts')=='0:1'
         if defect=='claim_guard':valid=valid and observed[-1].get('affected') is True
         if defect=='defer_cancel':
             activation=observed[-1] if observed else {}
@@ -71,7 +74,7 @@ def controls(seed,evidence):
             # The raw child retains its actual fail. The final red manifest records
             # why the parent recognizes that precise failure as the expected control.
             if evidence:
-                path=evidence.parent/('w3-red-'+defect+'.json')
+                path=evidence.parent/(('w4-red-' if defect.startswith('w4_') else 'w3-red-')+defect+'.json')
                 manifest['command']=['nix','develop','--command',*command[:-1],'<run-dir>/control-manifest.json']
                 path.write_text(json.dumps(manifest,indent=2)+'\n')
                 results[-1]['evidence']=str(path)

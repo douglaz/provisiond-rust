@@ -74,6 +74,7 @@ async fn main() -> Result<()> {
                     let result=json!({"generation":e.generation(),"lock_pid":e.lock_pid()});
                     component=e.component();engine=Some(e);Ok(result)
                 }
+                "dispatch_provider"=> {let e=engine.as_ref().context("no engine")?;let dispatcher=std::sync::Arc::new(provisiond::engine::Dispatcher::load(e).await?);e.dispatch_next(&dispatcher).await?;Ok(json!({}))}
                 "generation_holder"=> {let (t,c)=store.test_generation_holder().await?;tx=Some(t);Ok(match c {Some(c)=>json!({"id":c.id,"number":c.number}),None=>Value::Null})}
                 "pair_hold"=> {let tenants:Vec<String>=serde_json::from_str(arg)?;let refs:Vec<_>=tenants.iter().map(String::as_str).collect();let mut t=component.begin().await?;t.serialize_tenants(&refs).await?;tx=Some(t);Ok(json!({}))}
                 "begin"=> {tx=Some(component.begin().await?);Ok(json!({"session":tx.as_ref().unwrap().session_id()}))}
@@ -88,7 +89,7 @@ async fn main() -> Result<()> {
                 }
                 "admit"=> {
                     let v:Value=serde_json::from_str(arg)?;
-                    let r=CreateRequest {tenant:v["tenant"].as_str().context("tenant")?.into(),scope_kind:v["scope_kind"].as_str().unwrap_or("tenant").into(),scope_id:v["scope_id"].as_str().or(v["tenant"].as_str()).context("scope")?.into(),key:v["key"].as_str().context("key")?.into(),fingerprint:v["key"].as_str().context("key")?.into(),provider_account:"simulator".into(),channel:"simulated-channel".into(),offer:v["offer"].as_str().unwrap_or("catalogue").into(),offer_is_resource:v["resource"].as_bool().unwrap_or(false),reserved_sats:v["reserve"].as_i64().context("reserve")?,setup:v["setup"].clone(),first_unit:v.get("first_unit").cloned(),offer_snapshot:v["snapshot"].clone()};
+                    let r=CreateRequest {receipt_seconds:86400,tenant:v["tenant"].as_str().context("tenant")?.into(),scope_kind:v["scope_kind"].as_str().unwrap_or("tenant").into(),scope_id:v["scope_id"].as_str().or(v["tenant"].as_str()).context("scope")?.into(),key:v["key"].as_str().context("key")?.into(),fingerprint:v["key"].as_str().context("key")?.into(),provider_account:"simulator".into(),channel:"simulated-channel".into(),offer:v["offer"].as_str().unwrap_or("catalogue").into(),offer_is_resource:v["resource"].as_bool().unwrap_or(false),reserved_sats:v["reserve"].as_i64().context("reserve")?,setup:v["setup"].clone(),first_unit:v.get("first_unit").cloned(),offer_snapshot:v["snapshot"].clone()};
                     Ok(json!({"id":component.admit_create(&r).await?}))
                 }
                 "payment"=> {

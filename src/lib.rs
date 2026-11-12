@@ -7,6 +7,7 @@ pub mod engine;
 pub mod entry;
 pub mod ledger;
 pub mod store;
+pub mod wire;
 
 /// The specification commit this crate is written against.
 pub const SPEC_COMMIT: &str = "ac37c7cae5d3ff746515137774a4cdd5a3531375";
@@ -37,3 +38,14 @@ mod tests {
         assert!(not_implemented("engine").starts_with("provisiond engine: not implemented"));
     }
 }
+
+pub mod pricing;
+
+mod auth;
+mod http;
+
+mod local;
+
+pub mod api;
+
+mod provider;

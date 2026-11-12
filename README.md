@@ -10,7 +10,8 @@ adapters remain future work.
 
 **Status: not a conforming service.** The local prototype has an admitted database client,
 offline migrations, fenced engine transactions and atomic money primitives. The API checks schema
-compatibility but has no HTTP service. Provider execution is simulator-only; automatic reconciliation,
+compatibility before serving a loopback customer HTTP subset. The engine dispatches local simulated
+creates through acknowledged licensing and verified settlement. Provider execution is simulator-only; automatic reconciliation,
 metering and recovery incidents remain unimplemented. No real provider accounts or funds may be used.
 
 ## Where to start
@@ -36,11 +37,11 @@ the path of an existing private directory outside `/tmp` as well. Choose a free 
 under the private harness root so a drill does not overwrite the recorded acceptance manifests:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence "$PROVISIOND_HARNESS_ROOT/w1.json"
+PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence "$PROVISIOND_HARNESS_ROOT/w1.json"
 ```
 
 This single foreground command creates fresh private directories under the owned harness
-root, checks its four-port allocation within 55430–55479 before starting any server, bootstraps one primary and one authenticated
+root, checks its entire ten-port slot within 55500–55559 before starting any server, bootstraps one primary and one authenticated
 synchronous standby, rebuilds the standby, verifies a physical backup, restores a post-backup
 fixture from archived WAL, explicitly promotes with components stopped, and tears down.
 Its exit status includes assertions and cleanup. Raw logs remain outside git; the optional
@@ -51,7 +52,7 @@ isolated test allocation. See [scope](docs/scope.md) for limits.
 The store connection/destination spike is exercised with:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command python3 tests/postgres/harness.py --phase checks --seed 20261105 --evidence "$PROVISIOND_HARNESS_ROOT/checks.json"
+PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command python3 tests/postgres/harness.py --phase checks --seed 20261105 --evidence "$PROVISIOND_HARNESS_ROOT/checks.json"
 ```
 
 It uses the actual Rust client and ordinary bounded pools. The opt-in `store-probe` example is
@@ -62,20 +63,20 @@ separate real server faults from focused identity-predicate fixtures.
 Run the complete database, transactional-core and defect-control inventory from fresh private directories:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55430 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence "$PROVISIOND_HARNESS_ROOT/all.json"
+PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence "$PROVISIOND_HARNESS_ROOT/acceptance.json"
 ```
 
-The aggregate `all.json` retains absolute paths in its child-command records. Redact identifying
+The aggregate manifest retains absolute paths in its child-command records. Redact identifying
 paths before sharing or committing it.
 
 It performs bootstrap, replication loss/rebuild, physical backup/archive restore, connection and
 destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, backend crash,
 primary restart, residual-backend and bounded-process-stop fixtures, retained-object deadline
 closure, caller-runtime shutdown, constructor cancellation/deadlines, the transactional core,
-twenty-seven additional defect controls, and cleanup. The parent accepts a failing control only with its
+the complete HTTP funding/create workflow, a default-feature workflow, thirty defect controls, and cleanup. The parent accepts a failing control only with its
 exact exit code and intended assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
-non-zero. The aggregate manifest requires all seven phases (W1, checks, commits, regressions, corrections,
-core, controls);
+non-zero. The aggregate manifest requires all nine phases (W1, checks, commits, regressions, corrections,
+core, workflow, default-workflow, controls);
 each writes its own sanitized manifest and retains raw evidence under the private harness root.
 
 The `commits` and `regressions` phases can also run alone with the same harness options.
@@ -87,6 +88,16 @@ implemented subset. DB-10 saturation remains not run (W8).
 
 
 ## Local prototype entry points
+
+The API validates its required loopback API/rail addresses before readiness, owns its periodic and
+request tasks, and exits nonzero on a failed required background component after bounded cleanup.
+Sent COMMITs retain their existing process ownership through reply, transport death or process exit.
+The [W4 evidence](evidence/w4/report.md) records actual-value funding, operator hiding, startup and
+lifecycle regressions alongside the complete local workflow. Verified creates retain the confirming
+provider read time across later constraint I/O and settlement retries; their billing seed still uses
+the billable creation instant. Worker preflight reads retry store failures within the existing bound,
+retain their running claim and reserve, and exit nonzero on exhaustion. Automatic reconciliation
+remains deferred.
 
 The named `local-simulator` profile uses D-6's provisional settings. Configure
 `PROVISIOND_PROFILE=local-simulator`, `PROVISIOND_DATABASE_URL` (private, never committed),
@@ -105,15 +116,59 @@ preparatory database command. This bootstrap fixture is not a production deploym
 
 For an offline release, first stop old components, prevent their restart, and establish that their
 sessions cannot write. Run `nix develop --command cargo run --bin migrate`; only an acknowledged
-migration permits new components to start. Release/schema/semantic version 1/1 is supported exactly;
+migration permits new components to start. Schema/semantic history must be exactly 1/1 followed by 2/2;
 there is no down-migration. Lock-timeout retries are bounded; failed initial/reconnect acquisition
 exits immediately. Uncertain completion requires a later invocation to inspect durable history.
 
 `api --check-schema` and `engine --check-schema` perform the real compatibility check and exit 0
-only for a supported database. Ordinary `api` exits 78 after a successful check and explicitly
-reports that HTTP service is unimplemented. Ordinary `engine` advances the generation, performs
-the ordinary restart pass and monitors its lifetime lock; it has no provider dispatcher or full
-operation scheduler. The integration fixtures invoke the same library paths directly.
+only for a supported database. Ordinary `api` also requires a local parameter file
+(`PROVISIOND_LOCAL_PARAMETERS`), an explicit loopback listener (`PROVISIOND_API_LISTEN`) and
+the independent rail simulator (`PROVISIOND_RAIL_SIMULATOR`). Ordinary `engine` requires the
+independent provider simulator (`PROVISIOND_PROVIDER_SIMULATOR`), advances the generation,
+performs the ordinary restart pass, dispatches queued creates and monitors its lifetime lock.
+Missing local configuration refuses startup. Only the isolated test profile is supported.
+
+The customer subset supports enrolment token issuance, enrolment and status; deposit creation and
+detail; assigned providers and offers; create; machine and operation list/detail; balance and optional
+commitments; and unauthenticated OPTIONS. All other mutations, recovery and operator endpoints are
+unsupported. Fleet callers should poll `GET /v1/operations?terminal=false`, plus balance and machines,
+at the server's advertised cadence. Use the same idempotency key after a lost reply. A fresh key
+creates a fresh operation and can buy a second machine; `needs_reconciliation` is never an invitation
+to buy again. Automatic reconciliation remains deferred.
+
+Deposits expose only literal `TEST/SIMULATOR/NONPAYABLE` destinations. They are not Bitcoin
+addresses or Lightning invoices and must never receive real funds. Both simulated destinations can
+credit one deposit, each by its own payment identity and actual settled value. Credits below the
+cumulative activation threshold leave enrolment pending. There are no refunds; orphan recovery
+requires an operator workflow outside this prototype. Lightning expiry/cancellation and the continued
+payability of an on-chain destination are distinct; the local disclosures describe watching and halt
+limits. Healthy account assignment occurs atomically at activation; later assignment sweeps are deferred.
+
+The complete local parameter and descriptor fixtures live in
+[workflow.py](tests/postgres/workflow.py). They disclose admission delay, expiry/finality, pending
+capacity, traffic budgets, durable principal ceilings, retention, floors, confirmation depth, margin,
+conversion and sequential wind-down inputs. Configuration validation admits the three fleet reads at
+the finest advertised cadence. These fixture settings do not settle production capacities or D-6.
+
+STO-33/API-11 operation replay and readability share one **86400-second** local fixture
+horizon, measured from receipt admission's database transaction timestamp. Both configuration
+names, `retention_seconds` and `receipt_seconds`, must express that same positive duration.
+Each operation uses the latest stored expiry among all receipts resolving to it; changing
+configuration or replaying a key never renews or shortens an existing receipt. Queued, running
+and `needs_reconciliation` operations remain readable, listed and replayable beyond expiry.
+Once settled and expired, detail and matching-key replay return non-retryable `410 gone`,
+and collections omit the operation, independently of the physical sweep. A late settlement
+receives no new horizon. `details.retained_until` renders the stored deadline at wire second
+precision; comparisons use the full database timestamp, so formatting never cuts an unexpired
+receipt short. Receipts and fingerprints refuse reuse permanently: a changed body conflicts,
+and a matching post-horizon key cannot purchase again. Read machines and balance after `gone`.
+Deposit receipts use the same configured duration, so the fixture's 86400 seconds keep their
+one-day lifetime. This fixture chooses no production
+horizon; historical bodies already deleted by the old sweep cannot be reconstructed.
+
+The focused keyed-retention regression is `--phase workflow --case w4_retention`; its four
+checks also run in the complete workflow phase. The [retention supplement](evidence/retention-horizon/report.md)
+records the unchanged-baseline failure, fixed outcomes and tested limits.
 
 Focused commands use `--phase corrections --case verify_cancel`, `--phase core --case migrations`,
 `--case money`, `--case claims`, `--case generation`, `--case stops` or `--case external`.
@@ -130,11 +185,51 @@ zero-row record and B's refusal without its own result, then settles B's distinc
 Queued waits require one pending attempt with no precommit retry and actual checked-entry
 refusal. `--case queued_claim_pool --defect queued_claim_pool` isolates the pool defect;
 the canonical controls include both queued entry and pool windows.
-`--phase controls` runs all twenty-seven required defects. Each defect requires its exact phase/case;
+`--phase controls` runs all thirty required defects. Each defect requires its exact phase/case;
 unknown or mismatched selectors exit nonzero before setup. The canonical command includes every
 control and accepts only its intended assertion failure after activation and successful cleanup.
 ENG-05 automatic reconciliation, ENG-07's dedicated replication-freeze stop-record drill and
 DB-10 saturation remain `not run` for their later work packages.
 [Historical W3 acceptance](evidence/w3.md) retains its original tested source. The
-[defer cancellation supplement](evidence/defer/report.md) records the current seven-phase run,
+[defer cancellation supplement](evidence/defer/report.md) records its seven-phase run,
 27 negative controls, original-runtime reproduction and claim-specific capacity return.
+
+[W4 local workflow evidence](evidence/w4/report.md) records the nine-phase acceptance run,
+30 activated sensitivity controls, 32 original-runtime regression arms and three tooling regressions
+(startup cleanup, concurrent simulator resource retention and search during creation). The focused preflight case is
+`--phase workflow --case w4_preflight`; its
+`w4_restart_error` and `w4_stop_error` selectors isolate the existing restart and survived-stop arms.
+These cases check complete operation errors through authenticated detail and list HTTP reads.
+The restart selector also interrupts a create after acknowledged licensing and checks that
+its reconciliation-pending error and operation view both return `retryable: false`.
+The `--phase workflow --case w4_simulator` selector forces two separate-process HTTP orders through
+overlapping acceptance/allocation, checks their four effect stages, and retains both resources through
+simulator restart and durable replay. It also holds an active search iterator while another order
+creates its resource, then checks both HTTP responses and live/replayed search/get associations.
+Search filters a snapshot copied under the existing simulator lock. The complete runner includes both cases.
+This is a simulator-only pre-conformance subset; the report identifies the tested source and limits.
+
+The focused `--phase workflow --case w4_expiry` selector uses default-feature binaries to
+exercise deletion of a pending tenant after successful authentication and before request
+serialization. It checks the exact 401 refusal, service and periodic-task liveness, session/lock
+release, no invented business effects, valid deposits and replay/suspension ordering. The same
+case runs in the complete workflow. [Expiry evidence](evidence/expiry/report.md) records the
+original-runtime red and fixed-runtime green.
+
+The focused `--phase workflow --case w4_lock_dispatch` selector runs the real executable with an
+active worker and a claim held in PostgreSQL `SyncRep`, then loses only the lifetime-lock session.
+It also checks late and empty claim replies during the original record drain. Lock observation
+continues independently of dispatch, with sent transactions retained until their reply, transport
+death or process exit. The `--case w4_search_error` selector checks seven accepted verification
+failures, retained provider identifiers in stored errors and authenticated detail/list reads,
+open reserves and unchanged evidence across ordinary restart. Identifiers remain evidence for an
+unresolved outcome. Both selectors run in the complete canonical workflow.
+
+The `--phase workflow --case w4_verify_stop` selector checks survived cancellation during an
+accepted create's pending search and confirming get. Use `w4_search_stop` or `w4_get_stop` to
+isolate either window. Only the exact idle lifetime-lock session is terminated; the provider
+request stays held through acknowledged cut-off recording and autonomous engine exit. Stored
+errors and authenticated detail/list reads retain learned identifiers, accepted knowledge,
+frozen terms and the open reserve across ordinary successor startup, with no second purchase.
+Both windows also run in the complete canonical workflow. These are additional checks of the
+existing identifier correction, with no new runtime defect established.

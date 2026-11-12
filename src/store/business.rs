@@ -18,6 +18,8 @@ pub struct CreateRequest {
     pub scope_id: String,
     pub key: String,
     pub fingerprint: String,
+    /// STO-33/35: admission-origin replay/readability duration, never renewed.
+    pub receipt_seconds: i64,
     pub provider_account: String,
     pub channel: String,
     pub offer: String,
@@ -190,6 +192,7 @@ impl Transaction {
         result
     }
     async fn admit_create_inner(&mut self, r: &CreateRequest) -> Result<String> {
+        ensure!(r.receipt_seconds > 0, "invalid receipt horizon");
         ensure!(
             r.reserved_sats > 0 && matches!(r.scope_kind.as_str(), "tenant" | "operator"),
             "invalid admitting request"
@@ -206,6 +209,8 @@ impl Transaction {
             offer.keys().all(|k| matches!(
                 k.as_str(),
                 "offer_id"
+                    | "billing_unit_seconds"
+                    | "accepted_terms"
                     | "machine_kind"
                     | "install_strategies"
                     | "recurring_price"
@@ -280,7 +285,7 @@ impl Transaction {
         let summary = summary.to_string();
         self.rows("INSERT INTO provisiond.operations(id,tenant_id,idempotency_key,kind,status,provider_account,request,request_summary,correlation_id,commitment_id) VALUES($1::text::uuid,$2,$3,'create','queued',$4,'{}',$5::text::jsonb,$1,$6::text::uuid) RETURNING id",&[&id,&r.tenant,&r.key,&r.provider_account,&summary,&commitment]).await?;
         let receipt = json!({"operation_id":id}).to_string();
-        self.rows("INSERT INTO provisiond.idempotency_records(scope_kind,scope_id,key,fingerprint,resource_kind,resource_id,status,response_body,expires_at) VALUES($1,$2,$3,$4,'operation',$5::text::uuid,202,$6::text::jsonb,transaction_timestamp()+interval '1 day') RETURNING resource_id",&[&r.scope_kind,&r.scope_id,&r.key,&r.fingerprint,&id,&receipt]).await?;
+        self.rows("INSERT INTO provisiond.idempotency_records(scope_kind,scope_id,key,fingerprint,resource_kind,resource_id,status,response_body,expires_at) VALUES($1,$2,$3,$4,'operation',$5::text::uuid,202,$6::text::jsonb,transaction_timestamp()+$7::bigint*interval '1 second') RETURNING resource_id",&[&r.scope_kind,&r.scope_id,&r.key,&r.fingerprint,&id,&receipt,&r.receipt_seconds]).await?;
         Ok(id)
     }
     async fn credit_payment_inner(&mut self, p: &Payment) -> Result<String> {
@@ -385,12 +390,12 @@ impl Transaction {
         let result = if result.is_null() {
             None
         } else {
-            Some(result.to_string())
+            Some(crate::wire::redact(result.clone()).to_string())
         };
         let error = if error.is_null() {
             None
         } else {
-            Some(error.to_string())
+            Some(crate::wire::redact(error.clone()).to_string())
         };
         let rows=self.rows("UPDATE provisiond.operations SET status=$3,result=$4::text::jsonb,error=$5::text::jsonb,request=NULL,revision=CASE WHEN status='running' THEN revision+1 ELSE revision END,updated_at=CASE WHEN status='running' THEN clock_timestamp() ELSE updated_at END WHERE id=$1::text::uuid AND tenant_id=$7 AND kind=$8 AND (claim_number=$2 OR $6) AND (status='running' OR (status=$3 AND result IS NOT DISTINCT FROM $4::text::jsonb AND error IS NOT DISTINCT FROM $5::text::jsonb AND request IS NULL)) RETURNING kind,commitment_id::text",&[&c.id,&guard,&target,&result,&error,&bypass,&c.tenant,&c.kind]).await?;
         let Some(row) = rows.first() else {
@@ -446,7 +451,10 @@ impl Transaction {
         let offer_id = offer["offer_id"]
             .as_str()
             .context("missing accepted offer")?;
-        let seconds = summary["first_unit"]["seconds"].as_i64().unwrap_or(0);
+        let seconds = offer["billing_unit_seconds"]
+            .as_i64()
+            .or_else(|| summary["first_unit"]["seconds"].as_i64())
+            .unwrap_or(0);
         let declared = offer["declared_cancellation_bound"].as_str();
         let strategies = offer["install_strategies"].to_string();
         let rows=self.rows("INSERT INTO provisiond.machines(tenant_id,provider_account,external_id,offer_id,kind,state,install_strategies,billing_unit_seconds,declared_cancellation_bound,earliest_cancellation_date) VALUES($1,$2,$3,$4,$5,'running',$6::text::jsonb,$7,$8::text::timestamptz,$9::text::timestamptz) ON CONFLICT(provider_account,external_id) DO UPDATE SET external_id=EXCLUDED.external_id WHERE provisiond.machines.tenant_id=EXCLUDED.tenant_id RETURNING id::text",&[&c.tenant,&account,&external_id,&offer_id,&machine_kind,&strategies,&seconds,&declared,&earliest_date]).await?;
@@ -506,7 +514,9 @@ impl Transaction {
                 }
             }
             if debit < requested {
-                self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) VALUES($1,$2::text::uuid,$3::text::uuid,'clamp_overflow',$4,$5,$6,$7,$8,$9) ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&machine,&c.id,&(native-customer_native),&charge["currency"].as_str(),&(requested-debit),&charge["rate_num"].as_i64(),&charge["rate_den"].as_i64(),&key]).await?;
+                // LDG-66: opening evidence is independent of the debit's accepted
+                // conversion. An unavailable opening rate remains null on repeats.
+                self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,absorbed_seconds,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) SELECT $1,$2::text::uuid,'machine',$2::text::uuid,0,$3::text::uuid,'clamp_overflow',$4,$5,$6,(r.value->>'rate_num')::bigint,(r.value->>'rate_den')::bigint,$7 FROM (VALUES(1)) AS one(n) LEFT JOIN provisiond.rates r ON r.currency=$5 AND r.available ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&machine,&c.id,&(native-customer_native),&charge["currency"].as_str(),&(requested-debit),&key]).await?;
             }
         }
         self.rows("DELETE FROM provisiond.resource_exclusions WHERE operation_id=$1::text::uuid RETURNING operation_id",&[&c.id]).await?;
@@ -514,7 +524,7 @@ impl Transaction {
         Ok(true)
     }
 }
-fn validate_charge(c: &Value) -> Result<()> {
+pub(crate) fn validate_charge(c: &Value) -> Result<()> {
     ensure!(
         c.as_object().is_some_and(|o| o.keys().all(|k| matches!(
             k.as_str(),

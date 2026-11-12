@@ -11,7 +11,8 @@ exposed as a public provisiond service, pointed at real provider accounts, or gi
 
 | Category | Contents | Status |
 |---|---|---|
-| Implemented behaviour | The two-node harness bootstraps/rebuilds a standby and restores an archived-WAL fixture. The store spike applies physical-session settings, checks a fixed flushed prefix before admission and after destination reads, discards interrupted reads/transactions, closes retained pre-COMMIT connections on deadline, and supervises sent COMMITs with warning-aware outcomes on process-owned I/O. The `migrate` binary applies offline versioned migrations through the same COMMIT owner. The engine checks compatibility, holds a lifetime lock, advances a UUID generation, fences transactions and performs ordinary restart recovery. Process-owned claims and defers retain worker capacity through caller cancellation. Acknowledged defer completion retires only its claim. Execution cancellation covers licensing through dispatch; stop records preserve returned outcomes and enforce absolute deadlines without a caller waiter. Concurrent observers share one lock-loss fan-out. Terminal stop records retire only their execution, report zero-row refusals accurately and return capacity after acknowledgment. Detection and user stops share a consistent ordering. Engine-only methods reject unfenced transactions. Typed library methods implement claims, guarded settlements, reservations and payment credits. The API checks compatibility and remains non-serving. | demonstrated subset; [historical W3 evidence](../evidence/w3.md), [defer supplement](../evidence/defer/report.md) |
+| Implemented behaviour | The two-node harness bootstraps/rebuilds a standby and restores an archived-WAL fixture. The store spike applies physical-session settings, checks a fixed flushed prefix before admission and after destination reads, discards interrupted reads/transactions, closes retained pre-COMMIT connections on deadline, and supervises sent COMMITs with warning-aware outcomes on process-owned I/O. The `migrate` binary applies offline versioned migrations through the same COMMIT owner. The engine checks compatibility, holds a lifetime lock, advances a UUID generation, fences transactions and performs ordinary restart recovery. Process-owned claims and defers retain worker capacity through caller cancellation. Acknowledged defer completion retires only its claim. Execution cancellation covers licensing through dispatch; stop records preserve returned outcomes and enforce absolute deadlines without a caller waiter. Concurrent observers share one lock-loss fan-out. Terminal stop records retire only their execution, report zero-row refusals accurately and return capacity after acknowledgment. Detection and user stops share a consistent ordering. Engine-only methods reject unfenced transactions. Typed library methods implement claims, guarded settlements, reservations and payment credits. | demonstrated subset; [historical W3 evidence](../evidence/w3.md), [defer supplement](../evidence/defer/report.md) |
+| Local service behaviour | Loopback customer HTTP funding/create subset, common simulated rail ingestion and automatic healthy assignment, ordered local create dispatch and verified atomic settlement. The supported path and its limits are described below. | demonstrated subset; [W4 evidence](../evidence/w4/report.md) |
 | Simulator-only behaviour | Deterministic acceptance/reply pause hooks and Rust simulator entries; verified-create outcomes drive the atomic settlement primitive, without real provider/rail drivers. Simulator evidence is never substituted for provider evidence. | simulator paths implemented |
 | Unsupported behaviour | Everything in "Not supported in this profile" below, and every v1 requirement not marked implemented or demonstrated in `docs/conformance-map.md`. | by design |
 | Production work not yet attempted | Real-provider drivers, rescue installation, every operation kind beyond the first slice, a customer UI, security review, key custody, billing operations, separate-host deployment rehearsal, operator runbooks, exposure limits. | not attempted |
@@ -107,9 +108,43 @@ reply. The dedicated replication-freeze stop-record drill (ENG-07) remains not r
 provider reconciliation and DB-10 deployment-wide saturation also remain not run. Local pool
 budgets do not guarantee observer access or bound residual backends across process lifetimes.
 
-The API has no listener: after a supported-schema check its ordinary entry explicitly exits 78.
-The engine entry is a startup/lifetime monitor, with transactional worker primitives exercised by
-the integration fixture. It is not a complete customer service or provider dispatcher. The local
+The API serves only the explicit loopback `local-simulator` profile after schema compatibility.
+It validates required parameter files and both API/rail socket addresses before binding or reporting
+readiness. Missing, malformed, zero-port and nonloopback addresses refuse startup; standalone
+`api --check-schema` requires no unused service parameters. Dedicated operator namespaces and the
+method-scoped operator list return 404 on the customer listener, including for pending credentials.
+Shared customer methods retain their ordinary projections or explicit unsupported outcome.
+
+Periodic task errors, unexpected completion and panics are observed independently of customer
+connections. A failure closes the listener, cancels and joins both periodic tasks, and gives owned
+request handlers one second to finish before cancelling and joining the remainder. The existing
+Process then has its unchanged one-second drain bound. A sent COMMIT remains process-owned even
+after its handler is cancelled; unresolved work at that bound requires exit 1, with no rollback or
+nonexecution inferred. Ordinary background checkout exhaustion also exits 1 with its component/error
+diagnostic; it has no in-process engine retry loop. Recovery requires a separate supervisor/operator
+restart after the underlying capacity/configuration problem is addressed, followed by ordinary keyed
+request or adapter replay. This is bounded failure handling, not an availability guarantee.
+The engine dispatches queued creates after its acknowledged startup generation and ordinary restart
+pass. Executable lock observation runs independently of dispatch/claim COMMIT waits. A dispatch
+refusal after loss joins the original record drain; late acknowledged claims inherit the original
+loss bound. Pending sent transactions and worker capacity retain their existing owners.
+The local executable regression covers actual SyncRep and separate late/empty reply cases; the full
+older record/outcome matrix remains in core tests. This selects no guaranteed detection time.
+Unsupported operation kinds are refused. OPS-49 also covers each worker preflight account, tenant
+and channel SELECT as a complete autocommit read. Checkout, connection, check, query and backoff consume the existing 2000 ms
+store-retry budget; sessions are released before backoff. Transient errors retain the running claim
+and commitment. Exhaustion exits nonzero without worker classification, leaving ordinary restart
+to classify the null-marker create. A survived stop cancels the read/retry and uses the existing
+shielded cut-off record. No provider call is inside this retry loop; API reads keep their semantics.
+Generated ordinary-restart errors include an empty details object. A create moved to
+`needs_reconciliation` receives `retryable: false` in its generated stored error and HTTP view;
+the null-marker failed-create exception retains `true`. Survived-stop cut-offs include a
+human-readable message alongside their existing reason and retryability. Authenticated operation
+detail and list reads check the exact four-field inner error, its types, agreement with the
+authoritative view retryability and the view-level correlation identity for both restart branches
+and both stop classifications. Ordinary errors and null-error successes share those HTTP checks.
+Existing stored errors remain preserved under OPS-16.
+This is a reduced customer service, with no real provider or rail adapter. The local
 profile's three workers, pool sizes, timeouts and retry/stop bounds remain provisional under D-6.
 
 [Historical W3 acceptance](../evidence/w3.md) records its complete seven-phase run on committed source,
@@ -125,3 +160,152 @@ Four cancelled defers reuse three slots; delayed true/false completions preserve
 worker and its state. Cancelled and unpolled fatal receipts cannot suppress supersession exit.
 The earlier evidence retains its original implementation identities. These checks add no service
 conformance claim or production availability guarantee.
+
+
+## Local funding and provisioning subset
+
+The loopback customer listener supports `POST /v1/enrol/token`, `POST /v1/enrol`,
+`GET /v1/enrol/{handle}`, deposit create/detail, assigned providers/offers, machine create/list/detail,
+operation list/detail, balance with optional commitments, and unauthenticated OPTIONS. Credentials
+are shown once and stored hashed. Recovery credentials do not authenticate ordinary routes; recovery,
+maintenance and operator APIs remain unsupported. Traffic and enrolment concurrency state stays in
+memory without persisted caller addresses. Ordinary checked credential verification precedes the
+failed-auth source allowance, so a full abuse bucket cannot refuse a valid principal sharing the
+address. This source allowance is not a pre-database work bound. Principal create/spend ceilings are
+durable and share the admitted operation's transaction. Replays precede suspension and ceiling refusal.
+
+Deposits use nonpayable literal `TEST/SIMULATOR/NONPAYABLE` strings, with two independent simulator
+destinations bound to one retained deposit. Final settled Lightning and sufficiently confirmed
+on-chain observations enter one trusted internal credit boundary, using payment hash/outpoint identity
+and actual settled amounts. Trusted positive final Lightning underpayments and overpayments credit
+the received value while preserving the deposit intent. Nonfinal observations cannot activate or credit.
+Both destinations can credit; there is no refund. Below-threshold credits leave enrolment pending until its original expiry.
+Destination responses, including replay, require a new post-read flush check on the same uninterrupted
+PostgreSQL session. Orphan credit remains retained; recovery by re-attribution is unsupported here.
+
+Activation atomically credits and assigns one healthy assignable account by least-assigned count,
+with account-name order breaking ties. Activation without any healthy assignable account still
+succeeds and emits a diagnostic, leaving assignment empty. A later assignment sweep is not implemented.
+Lightning expiry and cancellation are modeled separately from on-chain expiry: an expired on-chain
+destination remains payable but unwatched; during a solvency halt the simulated invoice is cancelled
+and observed on-chain credits remain unsecured claims. No simulator string can receive actual funds.
+
+The stored listing supplies create's capability gate, ordered refusal collection, price and frozen
+summary. Admission conditionally guards the account and resource offer, then atomically opens the
+commitment, queued operation, receipt and principal counter increments. The worker repeats ordered
+checks against one current listing, compares native coverage at the accepted conversion basis, validates
+forwarded values, and awaits acknowledged account/tenant/correlator licensing before temporary-key
+registration or ordering. The independent provider process records request, acceptance, creation and
+returned-response stages outside PostgreSQL. Each order derives its resource ID from its own
+fsync'd acceptance event. A separate-process HTTP regression forces overlapping acceptance/allocation,
+checks two distinct commands and resources with their account/correlator/channel associations, and
+checks inspection, search and direct reads before and after replay of the same durable store. This
+is simulator evidence for the supported channel, without an automatic reconciliation claim.
+Search copies the resource values under the existing lock before filtering, so concurrent creation
+cannot invalidate its iterator. A separate-process HTTP case holds that iterator after its first
+value while another order accepts, creates and returns, then checks the completed response, both
+resources and replay. The explicit test-only barrier is absent from ordinary invocations.
+Verification searches the configured channel and directly reads the resource before the post-order
+cancellation-constraint read and atomic settlement.
+The successful confirming read captures `state_observed_at` in its retained outcome. Later constraint
+I/O, shielded stop records and whole-transaction repeats persist that same instant. The local first
+seed still uses the billable row's creation instant, plus copied billing seconds only when the first
+unit was actually debited. Its high-water mark and settlement effects commit together. General
+metering remains deferred.
+
+Only one virtual simulator product, one reachable ordering channel per account, hourly native pricing,
+no billable attachments, unlimited traffic and an already-effective cancellation bound are supported.
+The driver adapter can stop a separate simulator fixture and confirm absence. Production deletion,
+suspension fan-out and settled-key cleanup are not demonstrated: a verified attach while suspended
+retains its required queued cancellation obligation without claiming a complete cancellation worker.
+An accepted order with a dropped reply remains `needs_reconciliation`, with its reserve intact and no
+blind resend. This is a partial lost-reply demonstration, not ENG-05 automatic reconciliation.
+Accepted verification failures retain safe opaque provider IDs from the order reply, searches and
+direct reads in `error.details.provider_identifiers`, grouped by observation source. These are
+unverified evidence, never attachment or debit authority. Actual error kind/details, accepted
+knowledge, frozen terms and the open reserve survive payload purge and ordinary restart.
+
+The same retained evidence is demonstrated for survived stops during a pending search
+and confirming get, before confirmation succeeds. The simulator publishes selected search IDs
+before sending the response that permits get; the subsequent held get proves receipt. This
+ordering check alone does not claim response delivery. Both real-executable windows acknowledge
+their shielded cut-off record, exit nonzero and preserve errors/terms/reserve through ordinary
+successor startup without another purchase. Their finite per-account simulator call allowance is
+5 seconds, restored after the assertions; the original 1000 ms stop record and all application
+startup, checkout, store-call and retry bounds remain unchanged. This adds cancellation coverage
+of the existing correction, without establishing a new runtime defect.
+
+The rail simulator returns its entire retained observation history, while the client caps response
+bodies at 2 MiB. Bounded local fixtures do not demonstrate ingestion of arbitrary retained histories;
+bounded delivery remains follow-up work.
+
+Pricing uses checked rational native amounts, margin on machine time, one conversion/haircut and
+upward commitment rounding. Settlement retains accepted setup/unit authorization, pairs customer
+debit with commitment decrement, clamps at remaining authority and records native operator remainder.
+The first-unit debit reference exists only for a nonzero customer debit; paid-first-unit seed and
+protected runway projections are implemented. If the current currency rate is unavailable, accepted
+settlement and the eligible seed still commit; runway re-derivation stops and the new machine's
+runway/rate/protection fields stay null. No exhaustion is inferred. Later re-derivation, general rate
+construction, recurring metering, late attach and reconciliation remain deferred. Rate fixtures are
+controlled inputs, not a real market feed.
+
+`tests/postgres/workflow.py` owns the disclosed local parameter fixture: activation 100 sats, a 3600 s
+deposit, 600 s finality allowance, 10800 s pending lifetime, 64 pending tenants, a 50 ms admission delay,
+60 s token validity, 256 spent nonces, two held token requests per source, separate 1000-request read
+and write budgets per 1000 ms, 100 creates and 1000000 sats per 3600 s principal interval, 86400 s
+operation replay/readability and receipt horizon, 3600 s listing age, 1/20 sat Lightning/on-chain floors
+and confirmation depth two. Enrolment concurrency pacing is a constant 1000 ms independent of delay.
+Supported traffic configurations must allow list, balance and machine reads at the finest advertised
+1000 ms cadence. Parameter/descriptor files and simulator addresses are required; these settings do
+not select production capacities or close D-6/7/8/9.
+
+The canonical runner requires nine phases and retains the full W1–W3 inventory plus the workflow,
+default-feature workflow and three additional sensitivity controls. Historical W3 evidence above
+retains its original source identity. Fresh W4 evidence is recorded separately. Default API startup
+checks build into a separate target directory. The workflow records executable hashes and feature
+modes for API/engine/migrator builds
+and every API/engine invocation, plus the observation fixture's probe. Later lifecycle cases retain
+the original hook-enabled API; the independent default workflow uses no test features. The delayed
+observation cases use the independent simulator's attributed constraint hold. The existing
+default-build defect-environment check remains part of acceptance.
+The separate startup target is registered before building. Cleanup explicitly checks that its
+default API was used and that both build directories were removed after child completion. Earlier
+cleanup results covered registered resources only and did not cover the unregistered startup target.
+
+The local fixtures have observed cold API/engine setup refusals at the unchanged 250 ms checkout
+bound. Their underlying cause is not established. The application process exits on that refusal.
+For ordinary API setup only, the fixture may make at most three separate deployment attempts after
+recording a failed process that never opened its listener or began business/funding/external work.
+It records each actual exit and both log hashes, and repeats nothing while a transport fault is
+armed or a defect build is selected. Engine startup and negative startup tests receive no such
+retry. These are fixture deployment attempts, not runtime recovery or a production availability
+claim; failed or unactivated fault scenarios remain failures or inconclusive observations.
+
+Physical database fixture setup has explicit 180 s command bounds for initdb, offline replication-role
+creation, pg_basebackup and pg_verifybackup; server readiness is bounded at 60 s. Backup verification,
+fsync and synchronous commit remain enabled. Fixture shutdown uses pg_ctl wait 60 s inside a 75 s
+command bound. Recorded setup fsync exceeded the old 20 s readiness bound, a checkpoint shutdown took
+21.907 s, and a later base backup exceeded the old 45 s command bound. These are fixture I/O allowances,
+not changes to the 250 ms application checkout, 1000 ms stop record or deferred pg_receivewal path.
+The cause of occasional host setup delays is not established. Failed earlier runs remain failures.
+
+The [W4 report](../evidence/w4/report.md) and source inventory record the committed runtime/fixtures
+used by the final nine-phase run. Later documentation/evidence changes preserve those hashes.
+
+For ordinary authenticated, keyed POST requests to deposits/machines that expect success, the fixture
+client makes at most three HTTP attempts with identical bytes and key after a retryable checkout
+overload. It follows both body and HTTP pacing hints, waiting at most one second per resend, and records
+every such response with correlation and key/body digests. Expected errors, reads, enrolment, armed
+transport faults and defect controls receive the first response directly. Engine startup and business
+errors gain no retry. This is test-client protocol handling, not a runtime timeout or capacity policy.
+Core fixture setup similarly makes at most three API admission requests with the same key and body,
+only after a whole-checkout refusal, mirroring its funding helper. Target fault probes and engine
+startups are direct.
+
+The [refusal and pacing supplement](../evidence/refusal-pacing/report.md) records separate unchanged-runtime
+reds and fixed-runtime greens for definitive provider/400 rejection and mixed-source caller pacing.
+The three focused workflow selectors are `w4_provider_refusal`, `w4_provider_ambiguity` and
+`w4_mixed_pacing`; all also run in the complete workflow. Definitive refusal releases the original
+commitment/exclusion without a debit, while dispatched provider 5xx/no-status and known acceptance
+retain unresolved reservations. This supplement runs the complete workflow, focused default-feature
+checks and six affected controls; it makes no new nine-phase or production-conformance claim.

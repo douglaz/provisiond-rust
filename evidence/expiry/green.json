@@ -1,0 +1,588 @@
+{
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "implementation_commit": "096d31cfd994031808b7f11e5d9280cab43df600",
+  "tested_source_sha256": "c8be4c5e0383f6f0b5291fa3afa8981664a43362815f5d25b330b068cdc58ef1",
+  "source_dirty": true,
+  "seed": 20261110,
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "workflow",
+    "--case",
+    "w4_expiry",
+    "--seed",
+    "20261110",
+    "--evidence",
+    "<run-dir>/green-final.json"
+  ],
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "engine": {
+      "workers": 3,
+      "write_pool": 3,
+      "compatibility_read_pool": 1,
+      "startup_lock_outside_pool": true,
+      "startup_wait_ms": 500,
+      "store_retry_ms": 2000,
+      "stop_record_ms": 1000,
+      "startup_lock_keepalives": {
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "count": 2,
+        "profile_assignment": "shared with pooled local values"
+      },
+      "runtime_build": {
+        "features": [],
+        "target_directory": "<run-dir>/harness/workflow-t7682chg/target"
+      },
+      "migration_lock_ms": 500,
+      "migration_lock_retries": 2,
+      "schema_version": 2,
+      "semantic_version": 2,
+      "notice_cap": 16
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    },
+    "workflow": {
+      "parameters": {
+        "activation_sats": 100,
+        "deposit_seconds": 3600,
+        "finality_seconds": 600,
+        "tenant_seconds": 10800,
+        "pending_limit": 64,
+        "admission_delay_ms": 50,
+        "admission_validity_seconds": 60,
+        "admission_capacity": 256,
+        "source_concurrency": 2,
+        "rate_interval_ms": 1000,
+        "read_limit": 1000,
+        "write_limit": 1000,
+        "created_limit": 100,
+        "spend_limit": 1000000,
+        "ceiling_seconds": 3600,
+        "retention_seconds": 3600,
+        "receipt_seconds": 86400,
+        "listing_age_seconds": 3600,
+        "lightning_floor_sats": 1,
+        "onchain_floor_sats": 20,
+        "confirmation_depth": 2
+      },
+      "descriptor": {
+        "account": "sim-a",
+        "kind": "local_simulator",
+        "capabilities": [
+          "provision_virtual",
+          "list_offers",
+          "delete_machine"
+        ],
+        "channel": "orders",
+        "channels": [
+          "orders"
+        ],
+        "offer_is_resource": false,
+        "temporary_keys": false,
+        "currency": "USD",
+        "stop_cost": true,
+        "allow_orders": true,
+        "correlator": "operation_id",
+        "margin_bps": 1000,
+        "order_budget": {
+          "limit": 20,
+          "per_seconds": 86400
+        },
+        "cancellation_bound": "2026-11-10",
+        "meter_seconds": 1,
+        "call_seconds": 1,
+        "visibility_seconds": 1,
+        "resolution_seconds": 1,
+        "read_seconds": 1,
+        "hold_seconds": 1,
+        "margin_seconds": 1,
+        "max_correlator_bytes": 128,
+        "max_rate_outage_seconds": 600
+      },
+      "offer": {
+        "id": "test-small",
+        "name": "Nonpayable simulator virtual machine",
+        "kind": "virtual",
+        "regions": [
+          "test"
+        ],
+        "recurring_price": "0.01",
+        "setup_fee": "0.02",
+        "currency": "USD",
+        "period_seconds": 3600,
+        "billing_unit": {
+          "seconds": 3600,
+          "native_floor": null
+        },
+        "install_strategies": [],
+        "cancellation_bound": null,
+        "traffic_bound": "unlimited",
+        "attachments": [],
+        "sellable": true
+      },
+      "rate": {
+        "currency": "USD",
+        "minor_scale": 2,
+        "rate_num": 10,
+        "rate_den": 1,
+        "margin_bps": 1000,
+        "haircut_bps": 0,
+        "source": "simulator-fixed-rational",
+        "observed_at": "2026-11-10T02:04:11Z"
+      },
+      "listeners": {
+        "api": 55504,
+        "provider": 55505,
+        "rail": 55506
+      },
+      "test_build_features": [],
+      "builds": {
+        "api": {
+          "executable": "<run-dir>/harness/workflow-t7682chg/target/debug/api",
+          "sha256": "19cecdd74ae83bb6410a6e35bbc015f3c029a505063f8dda4242a6a28a3a3b0b",
+          "features": []
+        },
+        "engine": {
+          "executable": "<run-dir>/harness/workflow-t7682chg/target/debug/engine",
+          "sha256": "108e8ccdcf0e7cff451e0a6f514fd90ef8bc06e6a92e2e0eccea9184924604d2",
+          "features": []
+        },
+        "migrate": {
+          "executable": "<run-dir>/harness/workflow-t7682chg/target/debug/migrate",
+          "sha256": "303c877358170dffd583951380f15cc5c94b3ec7f2d7bbb0546f756e47f08cb3",
+          "features": []
+        }
+      }
+    }
+  },
+  "configuration_sha256": "f80aed9f5c0ad59dca2436a4061626a074942026adf05f95b947bf1eb2e3eb3f",
+  "scenarios": [
+    {
+      "test": "W4-authenticated-pending-expiry",
+      "result": "pass"
+    }
+  ],
+  "trace": {
+    "path": "<run-dir>/harness/workflow-t7682chg/events.jsonl",
+    "sha256": "6a3b9b2a7561dcd8d5eb734a961d44ab864318afa75f8eedda1a8ce63af49c37"
+  },
+  "raw_evidence": "<run-dir>/harness/workflow-t7682chg",
+  "limitations": [
+    "local processes only; no separate-host durability or fencing proof",
+    "no product recovery incidents, automatic provider reconciliation, full meter or production alarms",
+    "DB-10 full saturation: not run (W8)"
+  ],
+  "result": "pass",
+  "observed_child_result": "pass",
+  "command_exit_status": 0,
+  "fix_commit": "c81fae6a16c86b68329eba8d44e72b8126b8f070",
+  "artifacts": {
+    "manifest": "<run-dir>/green-final.json",
+    "manifest_sha256": "441a1a20142f2154755aace8917ea981ce62332a81863f8fbe97b321ed88b8f5",
+    "combined_output": "<run-dir>/green-final.log",
+    "combined_output_sha256": "532d6cece93ea32df899d993fad00f0b6e01c656a79195eaaccc4f502bff6527"
+  },
+  "events": [
+    {
+      "event": "workflow_binary_started",
+      "timestamp": 1794276252.4789965,
+      "elapsed": 22.163154540001415,
+      "component": "api",
+      "case": "setup",
+      "executable": "<run-dir>/harness/workflow-t7682chg/target/debug/api",
+      "sha256": "19cecdd74ae83bb6410a6e35bbc015f3c029a505063f8dda4242a6a28a3a3b0b",
+      "features": []
+    },
+    {
+      "event": "fault_requested",
+      "timestamp": 1794276253.7077017,
+      "elapsed": 23.391859562019818,
+      "fault": "transport_gate",
+      "pattern": "SELECT COALESCE((SELECT jsonb_build_object('fingerprint'",
+      "direction": "send"
+    },
+    {
+      "event": "fault_requested",
+      "timestamp": 1794276253.7078018,
+      "elapsed": 23.391959338099696,
+      "fault": "transport_gate",
+      "pattern": "SELECT status FROM provisiond.tenants WHERE id=$1",
+      "direction": "execute_reply"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794276253.709973,
+      "elapsed": 23.394130527041852,
+      "fault": "transport_gate",
+      "direction": "send",
+      "session": 1259560,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "expiry_authentication_returned",
+      "timestamp": 1794276253.710335,
+      "elapsed": 23.394492621999234,
+      "tenant": "c84387f7-4796-454e-b1fb-fa200c894e2b",
+      "session": 1259560,
+      "boundary": "first receipt Parse after successful authenticate return; before business BEGIN"
+    },
+    {
+      "event": "expiry_deletion_acknowledged",
+      "timestamp": 1794276253.7392445,
+      "elapsed": 23.423402269021608,
+      "tenant": "c84387f7-4796-454e-b1fb-fa200c894e2b",
+      "tenant_absent": true,
+      "enrolment_absent": true,
+      "mechanism": "housekeeping-owned serialization/deletion transaction via app fixture session",
+      "capacity_lock": 1347572816,
+      "tenant_lock": 1347572814,
+      "synchronous_commit": "on",
+      "deposits_inside_finality_window": 0,
+      "application_deadlines_unchanged": true
+    },
+    {
+      "event": "fault_released",
+      "timestamp": 1794276253.7393029,
+      "elapsed": 23.42346040706616,
+      "fault": "transport_gate",
+      "pattern": "SELECT COALESCE((SELECT jsonb_build_object('fingerprint'",
+      "direction": "send",
+      "activated": true
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794276253.7957883,
+      "elapsed": 23.479945985018276,
+      "fault": "transport_gate",
+      "direction": "execute_reply",
+      "session": 1259743,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "expiry_status_boundary_reached",
+      "timestamp": 1794276253.7962508,
+      "elapsed": 23.48040842707269,
+      "tenant": "c84387f7-4796-454e-b1fb-fa200c894e2b",
+      "session": 1259743
+    },
+    {
+      "event": "fault_released",
+      "timestamp": 1794276253.7963061,
+      "elapsed": 23.480463670101017,
+      "fault": "transport_gate",
+      "pattern": "SELECT status FROM provisiond.tenants WHERE id=$1",
+      "direction": "execute_reply",
+      "activated": true
+    },
+    {
+      "event": "expiry_response_observed",
+      "timestamp": 1794276253.8090808,
+      "elapsed": 23.493238461087458,
+      "status": 401,
+      "body": {
+        "correlation_id": "pending-expiry-refusal",
+        "error": {
+          "details": {
+            "reason": "token"
+          },
+          "kind": "authentication",
+          "message": "authentication required",
+          "retryable": false
+        }
+      },
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Length": "160",
+        "Connection": "close",
+        "X-Correlation-Id": "pending-expiry-refusal",
+        "Access-Control-Expose-Headers": "Retry-After, X-Correlation-Id",
+        "Access-Control-Allow-Origin": "*",
+        "Vary": "Origin"
+      },
+      "transport_error": null,
+      "api_exit_status": null,
+      "api_stderr": "",
+      "api_stopping": [],
+      "listener_after_exit": null,
+      "status_row_count": 0,
+      "transaction_session_closed": true,
+      "backend_absent": true
+    },
+    {
+      "event": "expiry_liveness_no_effects_observed",
+      "timestamp": 1794276254.6637497,
+      "elapsed": 24.347907595103607,
+      "tenant": "c84387f7-4796-454e-b1fb-fa200c894e2b",
+      "same_api_process": true,
+      "exact_401": true,
+      "unrelated_authenticated_balance": 115,
+      "post_refusal_deposit_replayed": true,
+      "periodic_housekeeping_progress": true,
+      "periodic_rail_progress": true,
+      "business_counts_unchanged": {
+        "deposits": 2,
+        "idempotency_records": 2,
+        "payments": 2,
+        "ledger_entries": 2,
+        "operations": 0,
+        "machines": 0,
+        "commitments": 0,
+        "tenant_provider_accounts": 1,
+        "counters": "[]",
+        "provider": {
+          "events": [],
+          "resources": {},
+          "keys": {}
+        },
+        "rail": {
+          "events": [
+            {
+              "sequence": 1,
+              "stage": "rail_observation",
+              "timestamp": 1794276252.8148668,
+              "value": {
+                "amount_sats": 60,
+                "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/583b9ae2-edce-4b40-b7cc-24fcf5ac5c8c/EXPIRES/1794279852",
+                "payment_hash": "c4f0e11e3e8ad5a6ea74583e1970cee2784ad4066dfab23242a4d4ab5c4c9188",
+                "preimage_known": false,
+                "rail": "lightning",
+                "settled": false,
+                "settled_at": "2026-11-10T02:04:12Z"
+              }
+            },
+            {
+              "sequence": 2,
+              "stage": "rail_observation",
+              "timestamp": 1794276252.9455793,
+              "value": {
+                "amount_sats": 60,
+                "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/583b9ae2-edce-4b40-b7cc-24fcf5ac5c8c/EXPIRES/1794279852",
+                "payment_hash": "c4f0e11e3e8ad5a6ea74583e1970cee2784ad4066dfab23242a4d4ab5c4c9188",
+                "preimage_known": true,
+                "rail": "lightning",
+                "settled": true,
+                "settled_at": "2026-11-10T02:04:12Z"
+              }
+            },
+            {
+              "sequence": 3,
+              "stage": "rail_observation",
+              "timestamp": 1794276253.0659332,
+              "value": {
+                "amount_sats": 55,
+                "confirmations": 1,
+                "destination": "TEST/SIMULATOR/NONPAYABLE/ONCHAIN/583b9ae2-edce-4b40-b7cc-24fcf5ac5c8c",
+                "rail": "onchain",
+                "settled_at": "2026-11-10T02:04:12Z",
+                "txid": "4cbd5f3e664637a5aa02ab19f9a3ca7a83f11d99bd02d9de52835a60a19a766d",
+                "vout": 0
+              }
+            },
+            {
+              "sequence": 4,
+              "stage": "rail_observation",
+              "timestamp": 1794276253.156854,
+              "value": {
+                "amount_sats": 55,
+                "confirmations": 2,
+                "destination": "TEST/SIMULATOR/NONPAYABLE/ONCHAIN/583b9ae2-edce-4b40-b7cc-24fcf5ac5c8c",
+                "rail": "onchain",
+                "settled_at": "2026-11-10T02:04:12Z",
+                "txid": "4cbd5f3e664637a5aa02ab19f9a3ca7a83f11d99bd02d9de52835a60a19a766d",
+                "vout": 0
+              }
+            },
+            {
+              "sequence": 5,
+              "stage": "rail_observation",
+              "timestamp": 1794276253.2763398,
+              "value": {
+                "amount_sats": 60,
+                "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/583b9ae2-edce-4b40-b7cc-24fcf5ac5c8c/EXPIRES/1794279852",
+                "event_id": "replay-0",
+                "payment_hash": "c4f0e11e3e8ad5a6ea74583e1970cee2784ad4066dfab23242a4d4ab5c4c9188",
+                "preimage_known": true,
+                "rail": "lightning",
+                "settled": true,
+                "settled_at": "2026-11-10T02:04:12Z"
+              }
+            },
+            {
+              "sequence": 6,
+              "stage": "rail_observation",
+              "timestamp": 1794276253.2828267,
+              "value": {
+                "amount_sats": 60,
+                "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/583b9ae2-edce-4b40-b7cc-24fcf5ac5c8c/EXPIRES/1794279852",
+                "event_id": "replay-1",
+                "payment_hash": "c4f0e11e3e8ad5a6ea74583e1970cee2784ad4066dfab23242a4d4ab5c4c9188",
+                "preimage_known": true,
+                "rail": "lightning",
+                "settled": true,
+                "settled_at": "2026-11-10T02:04:12Z"
+              }
+            },
+            {
+              "sequence": 7,
+              "stage": "rail_observation",
+              "timestamp": 1794276253.2892256,
+              "value": {
+                "amount_sats": 55,
+                "confirmations": 2,
+                "destination": "TEST/SIMULATOR/NONPAYABLE/ONCHAIN/583b9ae2-edce-4b40-b7cc-24fcf5ac5c8c",
+                "event_id": "replay-2",
+                "rail": "onchain",
+                "settled_at": "2026-11-10T02:04:12Z",
+                "txid": "4cbd5f3e664637a5aa02ab19f9a3ca7a83f11d99bd02d9de52835a60a19a766d",
+                "vout": 0
+              }
+            },
+            {
+              "sequence": 8,
+              "stage": "rail_observation",
+              "timestamp": 1794276253.2981794,
+              "value": {
+                "amount_sats": 55,
+                "confirmations": 2,
+                "destination": "TEST/SIMULATOR/NONPAYABLE/ONCHAIN/583b9ae2-edce-4b40-b7cc-24fcf5ac5c8c",
+                "event_id": "replay-3",
+                "rail": "onchain",
+                "settled_at": "2026-11-10T02:04:12Z",
+                "txid": "4cbd5f3e664637a5aa02ab19f9a3ca7a83f11d99bd02d9de52835a60a19a766d",
+                "vout": 0
+              }
+            }
+          ],
+          "resources": {},
+          "keys": {}
+        }
+      },
+      "tenant_and_enrolment_removed": 1,
+      "retained_identity_unchanged": true,
+      "transaction_discarded": true,
+      "tenant_lock_reacquired": true,
+      "default_features": true,
+      "unused_key_sha256": "5d3fb32c7b0957b050ed7b90fbefb4fa28a7840b8f8ed9f3c7aa6e88a70c8275"
+    },
+    {
+      "event": "workflow_children_reaped",
+      "timestamp": 1794276254.6727085,
+      "elapsed": 24.356866180081852,
+      "count": 3
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794276254.7886088,
+      "elapsed": 24.47276656702161,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794276255.8246055,
+      "elapsed": 25.50876356905792,
+      "path": "<run-dir>/harness/workflow-t7682chg/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794276255.853212,
+      "elapsed": 25.537370111094788,
+      "path": "<run-dir>/harness/workflow-t7682chg/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794276255.9696448,
+      "elapsed": 25.653802550048567,
+      "path": "<run-dir>/harness/workflow-t7682chg/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794276255.969855,
+      "elapsed": 25.654012572020292,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794276255.9698906,
+      "elapsed": 25.65404804807622,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<run-dir>/harness/workflow-t7682chg"
+    }
+  ],
+  "status_query_zero_rows": {
+    "command_tag": "SELECT 0",
+    "elapsed": 23.480530996108428,
+    "event": "protocol_response",
+    "query": "SELECT status FROM provisiond.tenants WHERE id=$1",
+    "ready_status": null,
+    "session": 1259743,
+    "tag": "C",
+    "timestamp": 1794276253.7963736
+  }
+}

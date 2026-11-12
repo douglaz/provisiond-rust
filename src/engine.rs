@@ -1,5 +1,6 @@
 //! OPS-15/16/21/47/49/50: prototype startup, claims and bounded shielded records.
-//! Provider execution/reconciliation and later operation kinds remain unimplemented.
+//! Independent local create dispatch is in dispatch; automatic reconciliation and later kinds remain unsupported.
+mod dispatch;
 use crate::store::{
     Claim, CommitOutcome, Component, EngineDatabase, FatalEngine, Store, Transaction,
 };
@@ -17,6 +18,12 @@ use std::{
 
 #[derive(Clone, Debug)]
 pub enum Outcome {
+    VerifiedCreateDetails {
+        external_id: String,
+        earliest_date: Option<String>,
+        machine: Value,
+        observed_at: chrono::DateTime<chrono::Utc>,
+    },
     VerifiedCreate {
         external_id: String,
         earliest_date: Option<String>,
@@ -232,7 +239,9 @@ impl Engine {
                     }
                 }
                 Err(error) => {
-                    if error.downcast_ref::<FatalEngine>().is_some() {
+                    if error.downcast_ref::<FatalEngine>().is_some()
+                        || error.downcast_ref::<crate::wire::Error>().is_some()
+                    {
                         return Err(error);
                     }
                     let code = error
@@ -291,10 +300,14 @@ impl Engine {
                 let tenant: String = row.get(1);
                 let mut tx = component.begin().await?;
                 crate::ledger::serialize(&mut tx, &[&tenant]).await?;
-                // The about-to-order predicate is inside the guarded write.
-                let mut rows=tx.rows("UPDATE provisiond.operations SET status='failed',error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',true)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' AND kind='create' AND about_to_order_at IS NULL RETURNING kind,status,commitment_id::text",&[&id]).await?;
+                // OPS-15: the about-to-order predicate is inside the guarded write.
+                // WIR-9/10b: generated errors carry the complete inner object;
+                // OPS-16 preserves an existing error and its evidence verbatim.
+                let mut rows=tx.rows("UPDATE provisiond.operations SET status='failed',error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',true,'details','{}'::jsonb)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' AND kind='create' AND about_to_order_at IS NULL RETURNING kind,status,commitment_id::text",&[&id]).await?;
                 if rows.is_empty() {
-                    rows=tx.rows("UPDATE provisiond.operations SET status=CASE WHEN kind='refresh' THEN 'failed' ELSE 'needs_reconciliation' END,error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',true)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' RETURNING kind,status,commitment_id::text",&[&id]).await?;
+                    // WIR-9b/API-51: unresolved mutations cannot safely be repeated;
+                    // the read-only refresh exception retains retryable advice.
+                    rows=tx.rows("UPDATE provisiond.operations SET status=CASE WHEN kind='refresh' THEN 'failed' ELSE 'needs_reconciliation' END,error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',kind='refresh','details','{}'::jsonb)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' RETURNING kind,status,commitment_id::text",&[&id]).await?;
                 }
                 if let Some(row) = rows.first() {
                     if row.get::<_, String>(0) == "create" && row.get::<_, String>(1) == "failed" {
@@ -895,7 +908,10 @@ impl Engine {
                             tx.rows("SELECT about_to_order_at IS NOT NULL FROM provisiond.operations WHERE id=$1::text::uuid", &[&claim.id]).await?[0].get::<_,bool>(0)
                         } else {dispatched}
                     },"refresh"=>false,"power"=>row.get::<_,bool>(1),_=>anyhow::bail!("unsupported stop kind")};
-                    tx.settle(&claim,if ambiguous {"needs_reconciliation"}else{"failed"},&Value::Null,&json!({"kind":"conflict","details":{"reason":"cut_off"},"retryable":!ambiguous})).await
+                    // OPS-21, WIR-9/10b: retain cut-off classification and detail
+                    // while supplying the mandatory human-readable message.
+                    let error=crate::wire::Error::new("conflict","operation execution was cut off by a stop",!ambiguous,json!({"reason":"cut_off"}));
+                    tx.settle(&claim,if ambiguous {"needs_reconciliation"}else{"failed"},&Value::Null,&error.0).await
                 })
             }).await.map_err(|e|format!("{e:#}"));
             engine.finish_record(&record, result.clone(), &operation_id, number);
@@ -989,6 +1005,21 @@ impl Engine {
 }
 async fn apply_outcome(tx: &mut Transaction, c: &Claim, outcome: &Outcome) -> Result<bool> {
     match outcome {
+        Outcome::VerifiedCreateDetails {
+            external_id,
+            earliest_date,
+            machine,
+            observed_at,
+        } => {
+            if !tx
+                .settle_verified_create(c, external_id, earliest_date.as_deref())
+                .await?
+            {
+                return Ok(false);
+            }
+            tx.attach_details(c, machine, observed_at).await?;
+            Ok(true)
+        }
         Outcome::VerifiedCreate {
             external_id,
             earliest_date,
@@ -1002,4 +1033,50 @@ async fn apply_outcome(tx: &mut Transaction, c: &Claim, outcome: &Outcome) -> Re
             error,
         } => tx.settle(c, status, result, error).await,
     }
+}
+
+/// OVR-9/10a: API enqueue surface carries transactions and authorization, no credentials.
+pub trait Enqueue: Send + Sync {
+    fn enqueue<'a>(
+        &self,
+        tx: &'a mut Transaction,
+        request: &'a crate::store::CreateRequest,
+    ) -> BoxFuture<'a, Result<String>>;
+}
+pub struct Queue;
+impl Enqueue for Queue {
+    fn enqueue<'a>(
+        &self,
+        tx: &'a mut Transaction,
+        request: &'a crate::store::CreateRequest,
+    ) -> BoxFuture<'a, Result<String>> {
+        Box::pin(tx.admit_create(request))
+    }
+}
+
+pub use dispatch::Dispatcher;
+
+/// Test tooling only; no customer route or production cancellation workflow.
+#[cfg(feature = "store-test-hooks")]
+pub async fn test_simulator_stop_cost(store: Store, account: &str, external: &str) -> Result<bool> {
+    let component = Arc::new(store).component();
+    let descriptor = component
+        .value(
+            "SELECT descriptor::text FROM provisiond.provider_accounts WHERE account=$1",
+            &[&account],
+        )
+        .await?;
+    ensure!(
+        crate::pricing::has(&descriptor, "delete_machine"),
+        "stop-cost capability absent"
+    );
+    let response = crate::provider::Client::configured()?
+        .call(
+            &component,
+            &descriptor,
+            "/delete",
+            &json!({"account":account,"external_id":external,"operation":"stop-cost-fixture"}),
+        )
+        .await?;
+    Ok(response["gone"] == true && response["confirmed"] == true)
 }

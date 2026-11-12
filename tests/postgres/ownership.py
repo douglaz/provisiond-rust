@@ -14,6 +14,14 @@ def accepted(p,op):
     return [e for e in p.events if e.get('event')=='simulator_accepted' and e.get('operation')==op]
 
 
+def terminate_lock(h,p,pid):
+    # OPS-47 fixture: server termination returning is not client loss observation.
+    marker=len(p.events)
+    h.sql(f"SELECT pg_terminate_backend({pid})")
+    eventually(lambda:any(e.get('event')=='driver_dead' for e in p.events[marker:]))
+    h.event('lock_transport_death_observed',pid=pid,probe=p.index)
+
+
 def defer_cancel(h,defect=None):
     # OPS-8/6, STO-3/7/55: receipt cancellation cannot own defer retirement.
     empty_queue(h)
@@ -160,7 +168,7 @@ def queued_claim(h,defect=None,only=None):
             eventually(lambda:any(e.get('event')==waiting for e in p.events[client_marker:]))
             assert not any(e.get('event')=='send_requested' and e.get('query')=='BEGIN READ WRITE' for e in h.events[marker:])
             assert h.sql(f"SELECT status||':'||claim_number FROM provisiond.operations WHERE id='{queued}'")=='queued:0'
-        h.sql(f"SELECT pg_terminate_backend({startup['lock_pid']})")
+        terminate_lock(h,p,startup['lock_pid'])
         p.command('observe_pair');held(p,'lock_registration')
         assert any(e.get('event')=='startup_lock_lost' for e in p.events)
         pending_at_release=p.command('claim_pending')['value']['pending']
@@ -208,7 +216,7 @@ def displaced_record(h,defect=None):
         assert p.command('owners')['value']==dict(workers=1,available_slots=1)
         p.command('wait_start');eventually(lambda:any(e.get('event')=='waiter_polled' for e in p.events))
         if mode=='lock_loss':
-            h.sql(f"SELECT pg_terminate_backend({startup['lock_pid']})")
+            terminate_lock(h,p,startup['lock_pid'])
             p.command('observe_pair');held(p,'lock_registration');p.command('boundary_release')
             eventually(lambda:any(e.get('event')=='lock_registration_complete' for e in p.events))
             eventually(lambda:any(e.get('event')=='stop_record_finished' and e.get('operation')==op for e in p.events))
@@ -258,7 +266,7 @@ def loss_stop(h,defect=None):
         if window=='sent_record':
             p.command('record_stop '+op);gate.wait();original=p.command('record_state '+op)['value']
         generation=h.sql('SELECT generation FROM provisiond.startup_generation')
-        h.sql(f"SELECT pg_terminate_backend({startup['lock_pid']})")
+        terminate_lock(h,p,startup['lock_pid'])
         p.command('observe_pair');held(p,'lock_registration')
         assert any(e.get('event')=='startup_lock_lost' for e in p.events)
         assert h.sql('SELECT generation FROM provisiond.startup_generation')==generation
@@ -551,8 +559,8 @@ def startup(h,defect=None):
     empty_queue(h)
     for mode in ('newer','older','semantics','uninitialized','missing_history','missing_schema'):
         if mode in ('newer','older','semantics'):
-            version,semantics={'newer':(2,1),'older':(0,1),'semantics':(1,2)}[mode]
-            h.sql(f'UPDATE provisiond.schema_migrations SET version={version},semantics={semantics}')
+            version,semantics={'newer':(3,2),'older':(0,2),'semantics':(2,3)}[mode]
+            h.sql(f'UPDATE provisiond.schema_migrations SET version={version},semantics={semantics} WHERE version<>1')
         elif mode=='uninitialized':h.sql('DELETE FROM provisiond.schema_migrations')
         elif mode=='missing_history':h.sql('ALTER TABLE provisiond.schema_migrations RENAME TO saved_migrations')
         else:h.sql('ALTER SCHEMA provisiond RENAME TO missing_schema_fixture')
@@ -566,12 +574,12 @@ def startup(h,defect=None):
         assert h.sql(f'SELECT generation FROM {schema}.startup_generation')==generation
         if mode=='missing_schema':h.sql('ALTER SCHEMA missing_schema_fixture RENAME TO provisiond')
         elif mode=='missing_history':h.sql('ALTER TABLE provisiond.saved_migrations RENAME TO schema_migrations')
-        elif mode=='uninitialized':h.sql('INSERT INTO provisiond.schema_migrations(version,semantics) VALUES(1,1)')
-        else:h.sql('UPDATE provisiond.schema_migrations SET version=1,semantics=1')
+        elif mode=='uninitialized':h.sql('INSERT INTO provisiond.schema_migrations(version,semantics) VALUES(1,1),(2,2)')
+        else:h.sql('UPDATE provisiond.schema_migrations SET version=2,semantics=2 WHERE version<>1')
     # Ordinary supported startup, no --check-schema: terminate only its lock session.
     log=h.root/'supported-engine-startup.log'
     with log.open('w') as output:
-        p=subprocess.Popen(['target/debug/engine'],env=dict(h.env,**environment(h)),stdout=output,stderr=output,text=True)
+        p=subprocess.Popen([str(h.target/'debug/engine')],env=dict(h.env,**environment(h)),stdout=output,stderr=output,text=True)
     h.extra.append(p)
     eventually(lambda:'restart_pass_complete' in log.read_text())
     events=[json.loads(line) for line in log.read_text().splitlines() if line.startswith('{')]

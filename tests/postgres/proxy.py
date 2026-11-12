@@ -54,6 +54,8 @@ class Proxy:
         self.cancel_requests = 0
         self.nodelay = True
         self.refuse_after = None
+        # Focused worker preflight regression: kill only matching read transports.
+        self.fail_query = None
         self.spawn(self.accept)
 
     def spawn(self, fn, *args):
@@ -61,8 +63,9 @@ class Proxy:
         self.threads.append(t)
         t.start()
 
-    def arm(self, pattern, direction='reply'):
+    def arm(self, pattern, direction='reply', session=None):
         gate = Gate(pattern,direction)
+        gate.session_filter=session
         gate.on_release=lambda:self.h.event('fault_released',fault='transport_gate',pattern=pattern,direction=direction,activated=gate.activated.is_set())
         self.gates.append(gate)
         self.h.event('fault_requested', fault='transport_gate', pattern=pattern,direction=direction)
@@ -100,7 +103,7 @@ class Proxy:
 
     def gate(self,c,direction,tag=None):
         for g in self.gates:
-            if (g.direction==direction and g.pattern in c['query'] and
+            if (not g.released.is_set() and (g.session_filter is None or g.session_filter==c['pid']) and g.direction==direction and g.pattern in c['query'] and
                 (not g.activated.is_set() or g.connection is c) and
                 (direction not in ('commit_reply','execute_reply') or tag==b'C')):
                 if not g.activated.is_set():
@@ -129,6 +132,10 @@ class Proxy:
                     c['query']=(body.rstrip(b'\0') if tag==b'Q' else body.split(b'\0',2)[1]).decode()
                     self.h.event('send_requested',query=c['query'],session=c['pid'],protocol=tag.decode())
                     self.gate(c,'send')
+                    if self.fail_query and self.fail_query in c['query']:
+                        self.h.event('fault_activated',fault='preflight_read_transport',query=c['query'],session=c['pid'])
+                        self.close_connection(c,'preflight_read_transport')
+                        return
                 try:
                     c['server'].sendall(tag+length+body)
                 except OSError:
@@ -161,6 +168,12 @@ class Proxy:
                 self.gate(c,'commit_reply',tag)
                 self.gate(c,'execute_reply',tag)
                 c['client'].sendall(tag+length+body)
+                if tag==b'E':
+                    # Attribute an idle lock's fatal response without recording
+                    # provider data, SQL parameters or PostgreSQL error prose.
+                    fields={v[:1]:v[1:].decode() for v in body.split(b'\0') if v}
+                    self.h.event('server_error_forwarded',session=c['pid'],
+                                 sqlstate=fields.get(b'C'),severity=fields.get(b'V'))
                 if tag in (b'C',b'Z',b'N',b'E'):
                     self.h.event('protocol_response',tag=tag.decode(),session=c['pid'],query=c['query'],command_tag=body.rstrip(b'\0').decode() if tag==b'C' else None,ready_status=body.decode() if tag==b'Z' else None)
         except (EOFError,OSError):

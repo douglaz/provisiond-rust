@@ -23,10 +23,22 @@ async fn main() {
             Duration::from_secs(1),
         )
         .await?;
-        loop {
-            engine.observe_lock().await?;
-            tokio::time::sleep(Duration::from_millis(5)).await;
-        }
+        let dispatcher = Arc::new(provisiond::engine::Dispatcher::load(&engine).await?);
+        // OPS-47/STO-7: observe independently of a dispatch's possibly indefinite
+        // claim COMMIT. Keep both futures alive until whole-process exit: neither
+        // a pending claim receipt nor its sent transaction is a shutdown lever.
+        let dispatch = dispatch(engine.clone(), dispatcher);
+        let observation = observe(engine);
+        tokio::pin!(dispatch, observation);
+        let stopped = tokio::select! {
+            result = &mut dispatch => result,
+            result = &mut observation => result,
+        };
+        eprintln!("provisiond engine loop stopped: {stopped:?}");
+        // Observe completion/failure of either required path. The lock observer
+        // has already applied the original OPS-21 record bounds/exits. Exit
+        // before either pinned future or any process-owned work can be dropped.
+        std::process::exit(1)
     }
     .await;
     if let Err(error) = &result {
@@ -43,6 +55,28 @@ async fn main() {
         .await;
     if result.is_err() || shutdown.is_err() {
         std::process::exit(1);
+    }
+}
+async fn dispatch(
+    engine: Arc<Engine>,
+    dispatcher: Arc<provisiond::engine::Dispatcher>,
+) -> anyhow::Result<()> {
+    loop {
+        if let Err(error) = engine.dispatch_next(&dispatcher).await {
+            // OPS-47: a pre-loss claim may finish during fan-out. Its next
+            // new-work refusal must join the ongoing record drain, not win the
+            // outer select and bypass it. Both paths remain polled while this
+            // serialized observation waits; fatal engine errors still exit.
+            engine.observe_lock().await?;
+            return Err(error);
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+}
+async fn observe(engine: Arc<Engine>) -> anyhow::Result<()> {
+    loop {
+        engine.observe_lock().await?;
+        tokio::time::sleep(Duration::from_millis(5)).await;
     }
 }
 fn process_refcount(process: &Arc<Process>) -> usize {
