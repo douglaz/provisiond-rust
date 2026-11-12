@@ -31,7 +31,7 @@ impl Engine {
     /// OPS-49: each preflight SELECT is a complete autocommit store unit.
     /// Release its session before backoff; never repeat any provider I/O here.
     /// OPS-21: cancelling a read is safe (unlike a sent COMMIT) and stops dispatch.
-    async fn preflight_value(
+    pub(super) async fn preflight_value(
         &self,
         c: &Claim,
         component: &Component,
@@ -91,7 +91,7 @@ impl Engine {
             return Ok(());
         }
         if let Some(c) = self.claim().await? {
-            if c.kind != "create" {
+            if !matches!(c.kind.as_str(), "create" | "delete") {
                 self.settle(
                     &c,
                     &Outcome::Settled {
@@ -135,7 +135,7 @@ impl Engine {
         let engine = self.clone();
         self.process.submit(async move{
    let _execution_slot=slot;
-   let returned=engine.run_order(&claim,&component,&execution,&dispatcher).await;
+   let returned=if claim.kind=="delete" {engine.run_delete(&claim,&component,&execution,&dispatcher).await} else {engine.run_order(&claim,&component,&execution,&dispatcher).await};
    match returned{
     Ok(Some(value))=>{*outcome.lock().expect("outcome")=Some(value);component.trace(json!({"event":"execute_returned","operation":claim.id,"claim_number":claim.number}));}
     Ok(None)=>{execution.done.store(true,Ordering::Release);engine.retire(&claim.id,claim.number);return;}
@@ -148,8 +148,8 @@ impl Engine {
      let uncertain_kind=matches!(error.0["kind"].as_str(),Some("network"|"timeout"|"internal")) || error.0["kind"]=="provider" && error.0["details"]["status"].as_u64().is_none_or(|code|code>=500) || error.0["kind"]=="conflict" && error.0["details"]["reason"]=="cut_off";
      let ambiguous=dispatched&&(uncertain_kind||error.0["details"]["accepted"]==true);
      if !dispatched && uncertain_kind {error.0["retryable"]=json!(true);}
-     if ambiguous{error.0["retryable"]=json!(false);error.0["details"]["attempted"]=json!("create_machine");}
-     *outcome.lock().expect("outcome")=Some(Outcome::Settled{status:if ambiguous{"needs_reconciliation"}else{"failed"}.into(),result:Value::Null,error:error.0});
+     if ambiguous{error.0["retryable"]=json!(false);error.0["details"]["attempted"]=json!(if claim.kind=="delete" {"delete_machine"}else{"create_machine"});}
+     *outcome.lock().expect("outcome")=Some(if claim.kind=="delete" {Outcome::DeleteFailure{error:error.0}} else {Outcome::Settled{status:if ambiguous{"needs_reconciliation"}else{"failed"}.into(),result:Value::Null,error:error.0}});
     }
    }
    execution.done.store(true,Ordering::Release);
@@ -158,7 +158,7 @@ impl Engine {
   })?;
         Ok(())
     }
-    async fn order_step(
+    pub(super) async fn order_step(
         &self,
         c: &Claim,
         component: &Component,
@@ -388,7 +388,9 @@ impl Engine {
                     // OPS-12/49 sensitivity control: deliberately repeat an
                     // uncertain mutation only in an isolated fixture build.
                     #[cfg(feature = "store-test-hooks")]
-                    if crate::store::test_defect("w5_blind_retry") {
+                    if crate::store::test_defect("w5_blind_retry")
+                        || crate::store::test_defect("w6_blind_repeat")
+                    {
                         component.trace(json!({"event":"defect_provider_retry","operation":c.id}));
                         let _ = d.client.call_entered(descriptor, "/order", &command).await;
                     }
@@ -439,6 +441,9 @@ impl Engine {
                 .into());
             }
             for resource in found["resources"].as_array().context("search resources")? {
+                if resource["correlator"]!=c.id || resource["account"]!=account || resource["channel"]!=*channel {
+                    return Err(Error::new("provider","non-exact correlator evidence",false,json!({"accepted":true})).into());
+                }
                 resources.insert(
                     resource["external_id"]
                         .as_str()
@@ -477,7 +482,7 @@ impl Engine {
         // WIR-11/STO-48: this read establishes state. OPS-21/49 retain its
         // instant with the verified outcome across constraint I/O and settlement.
         let observed_at = chrono::Utc::now();
-        if machine["present"] != true {
+        if machine["present"] != true || machine["account"]!=account || machine["external_id"]!=*external || machine["correlator"]!=c.id {
             return Err(Error::new(
                 "provider",
                 "resource presence unconfirmed",
@@ -710,7 +715,7 @@ fn validate_admission_fields(
 
 // OPS-21: cancel external I/O only. Licensing/sent-COMMIT ownership stays in its
 // existing transaction future. A ready provider return wins over a concurrent stop.
-async fn provider_io<T>(
+pub(super) async fn provider_io<T>(
     execution: &Execution,
     call: impl std::future::Future<Output = std::result::Result<T, Error>>,
 ) -> Result<T> {

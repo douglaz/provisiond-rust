@@ -1,5 +1,6 @@
 //! API-7/33/43/57, WIR-4/4a: local customer service; no provider dependency.
 mod funding;
+mod operator;
 use crate::{
     auth::{self, Admission},
     engine::{Enqueue, Queue},
@@ -64,6 +65,7 @@ struct State {
     sources: Mutex<BTreeMap<IpAddr, Arc<Semaphore>>>,
     rates: Mutex<BTreeMap<String, (Instant, i64)>>,
     trace: Trace,
+    operators: Option<operator::Authority>,
 }
 fn unsupported() -> Error {
     Error::new(
@@ -448,7 +450,20 @@ impl State {
             .into());
         }
         let v = wire::parse(&r.body)?;
-        if path == "/v1/machines" {
+        let delete_machine = path
+            .strip_prefix("/v1/machines/")
+            .and_then(|s| s.strip_suffix("/actions/delete"));
+        if let Some(machine) = delete_machine {
+            let owned=self.store.value("SELECT to_json(EXISTS(SELECT 1 FROM provisiond.machines WHERE id::text=$1 AND tenant_id=$2))::text",&[&machine,&id]).await?;
+            if owned != true {
+                return Err(Error::missing().into());
+            }
+            let mut bad = wire::unknown(&v, &["acknowledge_destruction"]);
+            if v["acknowledge_destruction"] != true {
+                bad.push("/acknowledge_destruction".into());
+            }
+            wire::least(bad)?;
+        } else if path == "/v1/machines" {
             if let Some(account) = v["provider_account"].as_str() {
                 self.authorize_account(id, account, false).await?;
             }
@@ -523,6 +538,9 @@ impl State {
         }
         let response = if path == "/v1/deposits" {
             self.deposit(&mut tx, id, key, &fingerprint, &v, &status)
+                .await?
+        } else if let Some(machine) = delete_machine {
+            self.delete(&mut tx, id, machine, key, &fingerprint, correlation)
                 .await?
         } else {
             self.create(&mut tx, id, key, &fingerprint, &v, correlation)
@@ -650,7 +668,24 @@ impl State {
             .catalog
             .get(account)
             .context("missing configured descriptor")?;
-        let snapshot:Value=serde_json::from_str(&tx.rows("SELECT jsonb_build_object('status',s.status,'offers',COALESCE(l.offers,'[]'::jsonb),'stale',l.read_at IS NULL OR l.read_at<transaction_timestamp()-$2::bigint*interval '1 second','solvency',(SELECT solvency_halt FROM provisiond.funding_health WHERE singleton),'rate',r.value,'rate_available',COALESCE(r.available,false),'closed_ms',COALESCE((SELECT greatest(0,ceil(extract(epoch FROM closed_until-transaction_timestamp())*1000))::bigint FROM provisiond.channel_closures WHERE provider_account=$1 AND channel=$3),0),'ledger_valid',(SELECT ledger_valid FROM provisiond.spending_health WHERE singleton))::text FROM provisiond.provider_account_status s LEFT JOIN provisiond.offer_listings l USING(provider_account) LEFT JOIN provisiond.rates r ON r.currency=$4 WHERE s.provider_account=$1",&[&account,&self.p.n("listing_age_seconds"),&descriptor["channel"].as_str(),&descriptor["currency"].as_str()]).await?[0].get::<_,String>(0))?;
+        let snapshot:Value=serde_json::from_str(&tx.rows("SELECT jsonb_build_object('status',s.status,'offers',COALESCE(l.offers,'[]'::jsonb),'stale',l.read_at IS NULL OR l.read_at<transaction_timestamp()-$2::bigint*interval '1 second','solvency',(SELECT solvency_halt FROM provisiond.funding_health WHERE singleton),'rate',r.value,'rate_available',COALESCE(r.available,false),'closed_ms',COALESCE((SELECT greatest(0,ceil(extract(epoch FROM closed_until-transaction_timestamp())*1000))::bigint FROM provisiond.channel_closures WHERE provider_account=$1 AND channel=$3),0),'ledger_valid',(SELECT ledger_valid FROM provisiond.spending_health WHERE singleton),'effective_visibility',ceil(COALESCE((SELECT max(extract(epoch FROM observed_at-dispatched_at)) FROM provisiond.provider_observations WHERE provider_account=$1),0)))::text FROM provisiond.provider_account_status s LEFT JOIN provisiond.offer_listings l USING(provider_account) LEFT JOIN provisiond.rates r ON r.currency=$4 WHERE s.provider_account=$1",&[&account,&self.p.n("listing_age_seconds"),&descriptor["channel"].as_str(),&descriptor["currency"].as_str()]).await?[0].get::<_,String>(0))?;
+        let effective = pricing::with_visibility(
+            descriptor,
+            snapshot["effective_visibility"].as_i64().unwrap_or(0),
+        );
+        let descriptor = &effective;
+        if v["runway_seconds"]
+            .as_i64()
+            .is_some_and(|n| n < pricing::wind_seconds(descriptor).unwrap_or(i64::MAX))
+        {
+            return Err(Error::new(
+                "invalid_request",
+                "runway below effective wind-down bound",
+                false,
+                json!({"field":"/runway_seconds"}),
+            )
+            .into());
+        }
         let offer = snapshot["offers"]
             .as_array()
             .and_then(|a| a.iter().find(|o| o["id"] == offer_id));
@@ -1118,6 +1153,10 @@ pub async fn serve(store: Store, trace: Trace) -> Result<()> {
         &std::env::var("PROVISIOND_RAIL_SIMULATOR").context("missing PROVISIOND_RAIL_SIMULATOR")?,
     )
     .context("PROVISIOND_RAIL_SIMULATOR must be a loopback socket address with a positive port")?;
+    let operators = operator::Authority::load()?;
+    if let Some(authority) = &operators {
+        authority.exclude_customer_credentials(&store).await?;
+    }
     let descriptors=store.value("SELECT COALESCE(jsonb_object_agg(account,descriptor),'{}'::jsonb)::text FROM provisiond.provider_accounts",&[]).await?;
     for descriptor in descriptors
         .as_object()
@@ -1146,7 +1185,13 @@ pub async fn serve(store: Store, trace: Trace) -> Result<()> {
         sources: Mutex::new(BTreeMap::new()),
         rates: Mutex::new(BTreeMap::new()),
         trace: trace.clone(),
+        operators,
     });
+    let operator_listener = if let Some(authority) = &state.operators {
+        Some(TcpListener::bind(authority.address).await?)
+    } else {
+        None
+    };
     let listener = TcpListener::bind(address).await?;
     let maintenance_store = store.clone();
     let maintenance_parameters = p.clone();
@@ -1178,14 +1223,19 @@ pub async fn serve(store: Store, trace: Trace) -> Result<()> {
                     let state = state.clone();
                     requests.spawn(async move {
                         // Caller disconnects carry no secret diagnostic.
-                        let _ = connection(socket, peer, state).await;
+                        let _ = connection(socket, peer, state, false).await;
                     });
+                }
+                accepted = async {match &operator_listener {Some(listener)=>listener.accept().await,None=>std::future::pending().await}} => {
+                    let (socket,peer)=accepted?;let state=state.clone();
+                    requests.spawn(async move {let _=connection(socket,peer,state,true).await;});
                 }
             }
         }
     }
     .await;
     drop(listener);
+    drop(operator_listener);
     trace(json!({"event":"api_stopping","pending_requests":requests.len()}));
     // STO-7/55, OPS-49: cancellation drops only caller work. The existing
     // Process still owns every sent COMMIT, including one whose waiter ends here.
@@ -1230,7 +1280,12 @@ fn task_stopped(
         Err(_) => anyhow::bail!("API {name} panicked or was cancelled"),
     }
 }
-async fn connection(mut socket: TcpStream, peer: SocketAddr, state: Arc<State>) -> Result<()> {
+async fn connection(
+    mut socket: TcpStream,
+    peer: SocketAddr,
+    state: Arc<State>,
+    operator: bool,
+) -> Result<()> {
     let r = tokio::time::timeout(Duration::from_secs(5), http::read(&mut socket)).await??;
     let correlation = r
         .headers
@@ -1247,7 +1302,15 @@ async fn connection(mut socket: TcpStream, peer: SocketAddr, state: Arc<State>) 
         ("Access-Control-Allow-Origin".into(), "*".into()),
         ("Vary".into(), "Origin".into()),
     ];
-    let (status, body) = if r.method == "OPTIONS" && r.target.starts_with("/v1") {
+    let hidden = operator_route(&r.method, r.target.split('?').next().unwrap_or(&r.target));
+    if operator || hidden {
+        headers.retain(|(k, _)| k == "X-Correlation-Id");
+    }
+    let (status, body) = if !operator
+        && !hidden
+        && r.method == "OPTIONS"
+        && r.target.starts_with("/v1")
+    {
         headers.extend([
             (
                 "Access-Control-Allow-Methods".into(),
@@ -1262,8 +1325,9 @@ async fn connection(mut socket: TcpStream, peer: SocketAddr, state: Arc<State>) 
         (200, json!({}))
     } else {
         // WIR-49: dropping the held caller cancels issuance and frees its source slot.
-        let result = if r.target.split('?').next() == Some("/v1/enrol/token") && r.method == "POST"
-        {
+        let result = if operator {
+            state.operator_handle(&r, &correlation).await
+        } else if r.target.split('?').next() == Some("/v1/enrol/token") && r.method == "POST" {
             let mut peek = [0];
             tokio::select! {result=state.handle(&r,peer.ip(),&correlation)=>result,_=socket.peek(&mut peek)=>{(state.trace)(json!({"event":"token_request_abandoned","correlation_id":correlation}));return Ok(());}}
         } else {

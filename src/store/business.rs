@@ -372,7 +372,7 @@ impl Transaction {
     }
     /// STO-3: exact repeats preserve revision and timestamp. Status guard always
     /// precedes money. A zero row prevents every related effect.
-    async fn settle_inner(
+    pub(crate) async fn settle_inner(
         &mut self,
         c: &Claim,
         target: &str,
@@ -402,6 +402,16 @@ impl Transaction {
             return Ok(false);
         };
         if row.get::<_, String>(0) == "create" && target == "failed" {
+            self.release_create(&c.id, row.get::<_, Option<String>>(1).as_deref())
+                .await?;
+        }
+        if c.kind == "delete" {
+            self.delete_episode_state(&c.id, target, None).await?;
+        }
+        if c.kind == "create"
+            && target == "needs_reconciliation"
+            && super::test_defect("w6_release_timeout")
+        {
             self.release_create(&c.id, row.get::<_, Option<String>>(1).as_deref())
                 .await?;
         }

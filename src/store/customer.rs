@@ -109,6 +109,7 @@ impl super::Transaction {
         let id: String = row.get(0);
         let summary: Value = serde_json::from_str(&row.get::<_, String>(1))?;
         let terms = &summary["offer"]["accepted_terms"];
+        self.rows("UPDATE provisiond.machines SET native_terms=$2::text::jsonb WHERE id=$1::text::uuid AND native_terms IS NULL RETURNING id",&[&id,&terms.to_string()]).await?;
         let offer = &terms["offer"];
         let rate: Value = serde_json::from_str(
             &self
@@ -119,15 +120,9 @@ impl super::Transaction {
                 .await?[0]
                 .get::<_, String>(0),
         )?;
-        let descriptor: Value = serde_json::from_str(
-            &self
-                .rows(
-                    "SELECT descriptor::text FROM provisiond.provider_accounts WHERE account=$1",
-                    &[&summary["provider_account"].as_str()],
-                )
-                .await?[0]
-                .get::<_, String>(0),
-        )?;
+        let descriptor = self
+            .effective_descriptor(summary["provider_account"].as_str().context("account")?)
+            .await?;
         // LDG-33/40: settle the accepted effect even without a current rate,
         // but halt re-derivation rather than publishing a stale-rate runway.
         let price = (rate["available"] == true)

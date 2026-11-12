@@ -61,3 +61,39 @@ GRANT SELECT ON provisiond.pending_order_obligations TO app;
 ALTER TABLE provisiond.operator_deficiencies DROP CONSTRAINT operator_deficiencies_subject_kind_check;
 ALTER TABLE provisiond.operator_deficiencies ADD CHECK(subject_kind IN ('machine','operation'));
 ALTER TABLE provisiond.operator_deficiencies ALTER COLUMN machine_id DROP NOT NULL;
+CREATE VIEW provisiond.episode_views AS SELECT e.id,m.tenant_id,e.opened_at,e.state,
+ jsonb_build_object('id',e.id,'machine_id',e.machine_id,'key',e.key,'reasons',e.reasons,
+ 'state',e.state,'opened_at',provisiond.wire_time(e.opened_at),'current_operation_id',e.current_operation_id,
+ 'closed_at',provisiond.wire_time(e.closed_at),'close_reason',e.close_reason,
+ 'kept_by',e.kept_by,'keep_evidence',e.keep_evidence) AS body
+ FROM provisiond.episodes e JOIN provisiond.machines m ON m.id=e.machine_id;
+GRANT SELECT ON provisiond.episode_views TO app;
+-- LDG-38/72: exact exit increments, including no-entry tails and period splits.
+ALTER TABLE provisiond.meter_totals ADD COLUMN credit_num numeric NOT NULL DEFAULT 0,
+ ADD COLUMN credit_den numeric NOT NULL DEFAULT 1 CHECK(credit_den>0);
+ALTER TABLE provisiond.machines ADD COLUMN native_terms jsonb,
+ ADD COLUMN meter_quarantined boolean NOT NULL DEFAULT false;
+UPDATE provisiond.machines m SET native_terms=o.request_summary->'offer'->'accepted_terms'
+ FROM provisiond.operations o WHERE o.machine_id=m.id AND o.kind='create';
+-- LDG-72: older rows without retained pricing evidence can still be deleted,
+-- but cannot invent a usage charge or meter history during this upgrade.
+UPDATE provisiond.machines SET meter_quarantined=true WHERE native_terms IS NULL;
+-- Only fixtures supply rates in this profile. Retain their acceptance boundaries
+-- so an exit cannot reprice earlier elapsed time using the last fixture value.
+CREATE TABLE provisiond.fixture_rate_history (
+ sequence bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,currency text NOT NULL,
+ accepted_at timestamptz NOT NULL DEFAULT clock_timestamp(),value jsonb NOT NULL,available boolean NOT NULL);
+INSERT INTO provisiond.fixture_rate_history(currency,value,available)
+ SELECT currency,value,available FROM provisiond.rates;
+CREATE FUNCTION provisiond.retain_fixture_rate() RETURNS trigger LANGUAGE plpgsql
+SET search_path=pg_catalog AS $$ BEGIN
+ INSERT INTO provisiond.fixture_rate_history(currency,value,available) VALUES(NEW.currency,NEW.value,NEW.available);
+ RETURN NEW;
+END $$;
+CREATE TRIGGER fixture_rate_changed AFTER INSERT OR UPDATE ON provisiond.rates
+ FOR EACH ROW EXECUTE FUNCTION provisiond.retain_fixture_rate();
+GRANT SELECT,INSERT ON provisiond.fixture_rate_history TO app;
+GRANT USAGE ON SEQUENCE provisiond.fixture_rate_history_sequence_seq TO app;
+ALTER TABLE provisiond.operator_deficiencies DROP CONSTRAINT operator_deficiencies_absorbed_seconds_check;
+ALTER TABLE provisiond.operator_deficiencies ADD CHECK(absorbed_seconds>=0 AND (cause='rate_outage' OR absorbed_seconds=0)),
+ ADD COLUMN absorbed_from timestamptz,ADD COLUMN absorbed_until timestamptz;

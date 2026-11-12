@@ -4,6 +4,7 @@ mod business;
 mod commit;
 mod component;
 mod customer;
+mod deletion;
 mod reconciliation;
 pub(crate) use business::validate_charge;
 pub use business::{Claim, CreateRequest, Payment};

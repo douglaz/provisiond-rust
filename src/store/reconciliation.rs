@@ -16,6 +16,13 @@ pub(crate) struct Resolution {
     pub observed_at: chrono::DateTime<chrono::Utc>,
 }
 impl Transaction {
+    pub(crate) async fn effective_descriptor(&mut self, account: &str) -> Result<Value> {
+        let row=self.rows("SELECT descriptor::text,ceil(greatest((descriptor->>'visibility_seconds')::numeric,COALESCE((SELECT max(extract(epoch FROM observed_at-dispatched_at)) FROM provisiond.provider_observations WHERE provider_account=$1),0)))::bigint FROM provisiond.provider_accounts WHERE account=$1",&[&account]).await?.remove(0);
+        Ok(pricing::with_visibility(
+            &serde_json::from_str::<Value>(&row.get::<_, String>(0))?,
+            row.get(1),
+        ))
+    }
     /// STO-52/OPS-39: insert/index arbitration is the dedup; joining adds a set member.
     pub(crate) async fn enqueue_cleanup(&mut self, machine: &str, reason: &str) -> Result<String> {
         let rows=self.rows("INSERT INTO provisiond.episodes(machine_id,key,reasons,state) VALUES($1::text::uuid,'delete',jsonb_build_array($2::text),'attempting') ON CONFLICT(machine_id,key) WHERE state<>'closed' DO NOTHING RETURNING id::text",&[&machine,&reason]).await?;
@@ -65,7 +72,27 @@ impl Transaction {
             return Ok(false);
         };
         let kind: String = row.get(0);
-        ensure!(kind == "create", "non-create resolution not yet supported");
+        if kind == "delete" {
+            if r.verb == "applied" {
+                let machine:String=self.rows("SELECT machine_id::text FROM provisiond.operations WHERE id=$1::text::uuid",&[&r.id]).await?[0].get(0);
+                self.record_gone(&machine, &r.observed_at).await?;
+                if r.resolver == "engine" {
+                    self.record_visibility(&r.id, &r.observed_at).await?;
+                }
+            } else {
+                self.delete_episode_state(
+                    &r.id,
+                    "failed",
+                    if r.verb == "abandoned" {
+                        Some("abandoned")
+                    } else {
+                        None
+                    },
+                )
+                .await?;
+            }
+            return Ok(true);
+        }
         let commitment: Option<String> = row.get(2);
         let summary: Value = serde_json::from_str(&row.get::<_, String>(3))?;
         if r.verb == "observed" {
@@ -109,7 +136,7 @@ impl Transaction {
                 }
             }
         }
-        if r.verb == "observed" {
+        if r.verb == "observed" && r.resolver == "engine" {
             self.record_visibility(&r.id, &r.observed_at).await?;
         }
         Ok(true)
@@ -145,15 +172,7 @@ impl Transaction {
             .as_str()
             .context("provider account")?;
         let offer = &summary["offer"]["accepted_terms"]["offer"];
-        let descriptor: Value = serde_json::from_str(
-            &self
-                .rows(
-                    "SELECT descriptor::text FROM provisiond.provider_accounts WHERE account=$1",
-                    &[&account],
-                )
-                .await?[0]
-                .get::<_, String>(0),
-        )?;
+        let descriptor = self.effective_descriptor(account).await?;
         let rate = self
             .rows(
                 "SELECT value::text FROM provisiond.rates WHERE currency=$1 AND available",

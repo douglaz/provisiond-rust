@@ -1,5 +1,6 @@
 //! OPS-15/16/21/47/49/50: prototype startup, claims and bounded shielded records.
-//! Independent local create dispatch is in dispatch; automatic reconciliation and later kinds remain unsupported.
+//! Independent create/delete dispatch and non-mutating evidence reconciliation.
+mod deletion;
 mod dispatch;
 mod reconciliation;
 use crate::store::{
@@ -19,6 +20,12 @@ use std::{
 
 #[derive(Clone, Debug)]
 pub enum Outcome {
+    DeleteGone {
+        observed_at: chrono::DateTime<chrono::Utc>,
+    },
+    DeleteFailure {
+        error: Value,
+    },
     VerifiedCreateDetails {
         external_id: String,
         earliest_date: Option<String>,
@@ -301,6 +308,12 @@ impl Engine {
                 "open recovery incident unsupported: ordinary restart forbidden"
             );
             let rows=tx.rows("SELECT id::text,tenant_id FROM provisiond.operations WHERE status='running' ORDER BY id LIMIT 32",&[]).await?;
+            if crate::store::test_defect("w6_skip_startup") && !tx.rows("SELECT id FROM provisiond.recovery_incidents WHERE closed_at IS NOT NULL LIMIT 1",&[]).await?.is_empty() {
+                tx.rollback().await?;
+                component.trace(json!({"event":"defect_running_pass_skipped","closed_marker":true}));
+                component.trace(json!({"event":"restart_pass_complete","running_found":0}));
+                return Ok(());
+            }
             ensure!(
                 component.commit(tx)?.wait().await? == CommitOutcome::Acknowledged,
                 "startup discovery unacknowledged"
@@ -931,10 +944,11 @@ impl Engine {
                         if crate::store::test_defect("predispatch") {
                             tx.rows("SELECT about_to_order_at IS NOT NULL FROM provisiond.operations WHERE id=$1::text::uuid", &[&claim.id]).await?[0].get::<_,bool>(0)
                         } else {dispatched}
-                    },"refresh"=>false,"power"=>row.get::<_,bool>(1),_=>anyhow::bail!("unsupported stop kind")};
+                    },"refresh"=>false,"power"|"delete"=>row.get::<_,bool>(1),_=>anyhow::bail!("unsupported stop kind")};
                     // OPS-21, WIR-9/10b: retain cut-off classification and detail
                     // while supplying the mandatory human-readable message.
                     let error=crate::wire::Error::new("conflict","operation execution was cut off by a stop",!ambiguous,json!({"reason":"cut_off"}));
+                    if kind=="delete" {return tx.delete_failure(&claim,&error.0).await;}
                     tx.settle(&claim,if ambiguous {"needs_reconciliation"}else{"failed"},&Value::Null,&error.0).await
                 })
             }).await.map_err(|e|format!("{e:#}"));
@@ -1029,6 +1043,8 @@ impl Engine {
 }
 async fn apply_outcome(tx: &mut Transaction, c: &Claim, outcome: &Outcome) -> Result<bool> {
     match outcome {
+        Outcome::DeleteGone { observed_at } => tx.settle_delete_gone(c, observed_at).await,
+        Outcome::DeleteFailure { error } => tx.delete_failure(c, error).await,
         Outcome::VerifiedCreateDetails {
             external_id,
             earliest_date,
@@ -1103,5 +1119,29 @@ pub async fn test_simulator_stop_cost(store: Store, account: &str, external: &st
             &json!({"account":account,"external_id":external,"operation":"stop-cost-fixture"}),
         )
         .await?;
-    Ok(response["gone"] == true && response["confirmed"] == true)
+    if response["gone"] == true {
+        return Ok(true);
+    }
+    // The opt-in adapter probe also measures a separate read after an
+    // acceptance-only response. Production execution reconciles that outcome.
+    if response["accepted"] == true {
+        let observed = crate::provider::Client::configured()?
+            .call(
+                &component,
+                &descriptor,
+                "/get",
+                &json!({"account":account,"external_id":external,"operation":"stop-cost-fixture"}),
+            )
+            .await
+            .map_err(|_| {
+                crate::wire::Error::new(
+                    "network",
+                    "stop-cost read unavailable",
+                    false,
+                    json!({"accepted":true}),
+                )
+            })?;
+        return Ok(observed.is_null() || observed["present"] == false);
+    }
+    Ok(false)
 }
