@@ -964,6 +964,17 @@ impl State {
         Err(unsupported().into())
     }
     async fn page(&self, r: &Request, tenant: &str, collection: &str) -> Result<Value> {
+        self.scoped_page(r, Some(tenant), tenant, collection).await
+    }
+    // OPS-26/API-23: optional effective tenant is available only to authenticated
+    // operator reads. Customer callers always supply their own tenant above.
+    async fn scoped_page(
+        &self,
+        r: &Request,
+        tenant: Option<&str>,
+        scope: &str,
+        collection: &str,
+    ) -> Result<Value> {
         let limit = query(&r.target, "limit")
             .map(|s| s.parse::<i64>().map_err(|_| Error::field("/limit")))
             .transpose()?
@@ -1052,7 +1063,7 @@ impl State {
                 .open(&cursor)
                 .ok_or_else(|| Error::field("/cursor"))?;
             let value: Value = serde_json::from_str(&data).map_err(|_| Error::field("/cursor"))?;
-            if value["tenant"] != tenant
+            if value["tenant"] != scope
                 || value["collection"] != collection
                 || value["filter"] != filter
                 || value["requested"] != requested
@@ -1073,8 +1084,8 @@ impl State {
         // STO-33/CNF-158: logical expiry also excludes settled collection rows,
         // independently of physical sweep timing. Unsettled rows never expire.
         let history = operation_history(
-            "candidate.tenant_id=$1",
-            "i.resource_id IN (SELECT id FROM provisiond.operations WHERE tenant_id=$1)",
+            "($1::text IS NULL OR candidate.tenant_id=$1)",
+            "i.resource_id IN (SELECT id FROM provisiond.operations WHERE $1::text IS NULL OR tenant_id=$1)",
         );
         let operation_table = format!("(SELECT * FROM {history} h WHERE NOT h.expired)");
         let table = match collection {
@@ -1090,7 +1101,7 @@ impl State {
             "status"
         };
         let sql = format!(
-            "SELECT COALESCE(jsonb_agg(jsonb_build_object('body',body,'time',created_at::text,'id',id) ORDER BY created_at DESC,id),'[]'::jsonb)::text FROM (SELECT * FROM {table} v WHERE tenant_id=$1 AND ($2='' OR body->>'{status_field}'=ANY(string_to_array($2,','))) AND ($3='' OR body->>'requested_by'=ANY(string_to_array($3,','))) AND ($4='' OR body->>'system_reason'=ANY(string_to_array($4,','))) AND ($5='' OR (body->>'terminal')::boolean=$5::boolean) AND ($6='' OR created_at<NULLIF($6,'')::timestamptz OR (created_at=NULLIF($6,'')::timestamptz AND id::text>$7)) ORDER BY created_at DESC,id LIMIT $8) page"
+            "SELECT COALESCE(jsonb_agg(jsonb_build_object('body',body,'time',created_at::text,'id',id) ORDER BY created_at DESC,id),'[]'::jsonb)::text FROM (SELECT * FROM {table} v WHERE ($1::text IS NULL OR tenant_id=$1) AND body IS NOT NULL AND ($2='' OR body->>'{status_field}'=ANY(string_to_array($2,','))) AND ($3='' OR body->>'requested_by'=ANY(string_to_array($3,','))) AND ($4='' OR body->>'system_reason'=ANY(string_to_array($4,','))) AND ($5='' OR (body->>'terminal')::boolean=$5::boolean) AND ($6='' OR created_at<NULLIF($6,'')::timestamptz OR (created_at=NULLIF($6,'')::timestamptz AND id::text>$7)) ORDER BY created_at DESC,id LIMIT $8) page"
         );
         let rows = self
             .store
@@ -1112,7 +1123,7 @@ impl State {
         let selected: Vec<_> = rows.iter().take(limit as usize).collect();
         let next = if rows.len() > limit as usize {
             let last = selected.last().context("last row")?;
-            Some(self.admission.seal(&json!({"tenant":tenant,"collection":collection,"filter":filter,"requested":requested,"reason":reason,"terminal":terminal,"time":last["time"],"id":last["id"]}).to_string()))
+            Some(self.admission.seal(&json!({"tenant":scope,"collection":collection,"filter":filter,"requested":requested,"reason":reason,"terminal":terminal,"time":last["time"],"id":last["id"]}).to_string()))
         } else {
             None
         };

@@ -124,6 +124,16 @@ impl State {
         let parts: Vec<_> = path.split('/').collect();
         if r.method == "GET" {
             return match parts.as_slice() {
+                ["", "v1", "operations"] => {
+                    let scope = json!(["operator", principal, tenant_override]).to_string();
+                    let page = self
+                        .scoped_page(r, tenant_override, &scope, "operations")
+                        .await?;
+                    Ok((
+                        200,
+                        json!({"operations":page["items"],"next_cursor":page["next_cursor"],"poll_after_ms":1000}),
+                    ))
+                }
                 ["", "v1", "episodes"] => {
                     Ok((200, self.episode_page(r, principal, tenant_override).await?))
                 }

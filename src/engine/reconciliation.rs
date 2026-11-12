@@ -109,6 +109,14 @@ impl Engine {
         // pool checkout is retained across the provider reads below.
         let component = self.component();
         let pending=self.transaction(&component,|tx|Box::pin(async move {
+            // OPS-33: inability to search an account must not freeze money.
+            // This is local bookkeeping, independent of provider read eligibility.
+            // A retained positive in-progress match remains exempt from this timer.
+            let expired=tx.rows("SELECT o.id::text,o.tenant_id FROM provisiond.operations o JOIN provisiond.provider_accounts a ON a.account=o.provider_account JOIN provisiond.provider_account_status s ON s.provider_account=o.provider_account WHERE o.kind='create' AND o.status='needs_reconciliation' AND o.resolution IS NULL AND s.status<>'healthy' AND COALESCE(o.error->'details'->'reconciliation'->>'in_progress','false')<>'true' AND clock_timestamp()>=COALESCE(o.mutation_wait_ended_at,o.updated_at)+(a.descriptor->>'negative_seconds')::bigint*interval '1 second' AND EXISTS(SELECT 1 FROM provisiond.commitments c WHERE c.id=o.commitment_id AND c.state='open') ORDER BY o.tenant_id,o.id",&[]).await?;
+            for row in expired {
+                let id:String=row.get(0);let tenant:String=row.get(1);
+                tx.release_negative(&id,&tenant).await?;
+            }
             let rows=tx.rows("SELECT COALESCE(jsonb_agg(to_jsonb(o)||jsonb_build_object('wait_ended',COALESCE(o.mutation_wait_ended_at,o.updated_at),'effective_visibility',greatest(COALESCE((a.descriptor->>'visibility_seconds')::numeric,1),COALESCE((SELECT max(extract(epoch FROM p.observed_at-p.dispatched_at)) FROM provisiond.provider_observations p WHERE p.provider_account=o.provider_account),0)))),'[]')::text FROM provisiond.operations o JOIN provisiond.provider_accounts a ON a.account=o.provider_account WHERE o.status='needs_reconciliation' AND o.resolution IS NULL AND EXISTS(SELECT 1 FROM provisiond.provider_account_status s WHERE s.provider_account=o.provider_account AND s.status='healthy')",&[]).await?;
             Ok(serde_json::from_str::<Value>(&rows[0].get::<_,String>(0))?)
         })).await?;
@@ -382,6 +390,10 @@ impl Engine {
                 }
             }
         }
+        // OPS-27/33: a failed/partial reread does not retract the last positive
+        // in-progress match. Only complete evidence of delivered resources clears it.
+        in_progress |= row["error"]["details"]["reconciliation"]["in_progress"] == true
+            && !(authoritative && !resources.is_empty());
         self.reconciliation_read_boundary(component, id).await?;
         let evidence = json!({"source":"all_channel_search","authoritative":authoritative,"matches":resources.len(),"provider_identifiers":identifiers,"in_progress":in_progress});
         component.trace(json!({"event":"resolution_search","operation":id,"evidence":evidence}));

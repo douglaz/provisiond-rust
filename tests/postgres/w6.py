@@ -127,6 +127,11 @@ def delayed(w):
     w.start_engine();wait_search(w,other)
     assert pending(w,other)['commitment']['state']=='open','matched in-progress keeps original commitment beyond negative window'
     checkpoint(w,other,'matched in-progress past negative window; actual remote allocation still held',negative_seconds=60)
+    proof(w,other,search='incomplete')
+    eventually(lambda:snapshot(w,other)['operation']['error']['details'].get('reconciliation',{}).get('authoritative') is False)
+    reread=snapshot(w,other)
+    w.h.event('w6_in_progress_reread_activated',operation=other,negative_seconds=60,fixture_age_seconds=61,allocation_still_held=True,snapshot=reread,provider=external(w,other))
+    assert reread['commitment']['state']=='open','OPS-33 failed reread must preserve known in-progress reservation'
     effect.unlink()
     eventually(lambda:any(e['stage']=='resource_created' for e in external(w,other)))
     proof(w,other,search='normal');w.wait_status(other,'succeeded')
@@ -201,9 +206,29 @@ def startup(w):
         restore_resource(w,t)
 
 def human(w):
+    # OPS-26/API-23/WIR-26/36: real unresolved history makes cursor branches mandatory.
+    _,_,listing_seed,barrier=lost(w,'operator-list-seed',search='incomplete')
+    w.start_engine();barrier.unlink();wait_search(w,listing_seed);w.stop_engine();one_purchase(w,listing_seed)
     for verb in ['absent','abandoned','observed']:
         t,_,op,hold=lost(w,'human-'+verb,search='incomplete')
         w.start_engine();hold.unlink();wait_search(w,op);w.stop_engine()
+        listing='/v1/operations?status=needs_reconciliation&requested_by=caller&terminal=false&limit=1'
+        page=operator(w,listing,method='GET')
+        assert page['operations'][0]['id']==op and page['poll_after_ms']==1000
+        selected=operator(w,listing,method='GET',headers={'X-Provisiond-Tenant':t['tenant_id']})
+        assert selected['operations'][0]['id']==op
+        assert page['next_cursor'],'operator pagination fixture must have another unresolved row'
+        if page['next_cursor']:
+            cursor_path=listing+'&cursor='+page['next_cursor']
+            operator(w,cursor_path,method='GET',token=w.operator_tokens[1],status=400)
+            operator(w,cursor_path,method='GET',headers={'X-Provisiond-Tenant':t['tenant_id']},status=400)
+            second=operator(w,cursor_path,method='GET')
+            assert all(row['id']!=op for row in second['operations'])
+        operator(w,'/v1/operations?status=invalid',method='GET',status=400)
+        intersection=operator(w,'/v1/operations?status=needs_reconciliation&requested_by=caller&system_reason=tenant_suspended',method='GET')
+        assert intersection['operations']==[]
+        operator(w,listing,method='GET',token=t['spending_token'],status=404)
+        w.h.event('w6_operator_listing',operation=op,page=page,selected_tenant=selected,intersection_empty=True,principal_and_override_cursor_scope=True)
         body=dict(resolution=verb,operator_ref='opref-resolution')
         if verb=='observed':body.update(external_id=next(e['resource'] for e in external(w,op) if e['stage']=='resource_created'))
         path=f'/v1/operations/{op}/actions/resolve'
@@ -222,6 +247,15 @@ def human(w):
         if verb=='observed':assert state['machines'][0]['earliest_cancellation_date'] is None
         if verb=='abandoned':assert w.h.sql(f"SELECT count(*) FROM provisiond.operator_deficiencies WHERE operation_id='{op}'")=='2'
         checkpoint(w,op,'authenticated synchronous '+verb,operator_reply=first)
+        if verb=='absent':
+            # Real terminal prefix, explicit fixture retention age, then actual
+            # housekeeping. A global operator page must exclude receipt-only rows.
+            w.h.sql(f"UPDATE provisiond.operations SET updated_at=clock_timestamp()-interval '365 days' WHERE id='{op}'; UPDATE provisiond.idempotency_records SET expires_at=clock_timestamp()-interval '1 second' WHERE resource_id='{op}'")
+            eventually(lambda:w.h.sql(f"SELECT count(*) FROM provisiond.operations WHERE id='{op}'")=='0')
+            after_retention=operator(w,'/v1/operations?limit=200',method='GET')
+            assert all(isinstance(row,dict) and row['id']!=op for row in after_retention['operations'])
+            w.h.event('w6_operator_retention_listing',operation=op,physically_retired=True,receipt_retained=True,page=after_retention)
+
 
 def caller_delete(w):
     t,create_op,machine=create(w,'caller-delete')
@@ -292,11 +326,25 @@ def episodes(w):
     w.h.event('w6_causal_trace',scenario=w.case,operation=fresh,boundary='suspension cleanup, fenced operator retry, keep',snapshot=after,prior=stalled,provider=external(w,fresh))
 
 def late(w):
-    for arm in ['covered','insufficient','no_rate']:
+    for arm in ['covered','insufficient','no_rate','unsearchable']:
         t,_,op,hold=lost(w,'late-'+arm,resource=True,search='incomplete')
         w.h.sql(f"UPDATE provisiond.operations SET mutation_wait_ended_at=clock_timestamp()-interval '61 seconds' WHERE id='{op}'")
-        w.start_engine();hold.unlink();wait_search(w,op)
-        eventually(lambda:snapshot(w,op)['commitment']['state']=='closed');w.stop_engine()
+        if arm=='unsearchable':
+            w.h.sql(f"UPDATE provisiond.provider_account_status SET status='credentials_rejected' WHERE provider_account='{t['account']}'")
+            reads=len([e for e in external(w,op) if e['path']=='/search'])
+            assert w.h.sql(f"SELECT status FROM provisiond.provider_account_status WHERE provider_account='{t['account']}'")=='credentials_rejected'
+            w.h.event('w6_unsearchable_expiry_activated',operation=op,account_state='credentials_rejected',negative_seconds=60,fixture_age_seconds=61,before=snapshot(w,op))
+        w.start_engine();hold.unlink()
+        if arm!='unsearchable':wait_search(w,op)
+        try:eventually(lambda:snapshot(w,op)['commitment']['state']=='closed')
+        except AssertionError:
+            if arm=='unsearchable':raise AssertionError('OPS-33 unavailable account must release expired original reservation') from None
+            raise
+        w.stop_engine()
+        if arm=='unsearchable':
+            assert len([e for e in external(w,op) if e['path']=='/search'])==reads,'unsearchable-account expiry is bookkeeping without provider reads'
+            w.h.event('w6_unsearchable_expiry',operation=op,reservation_closed=True,provider_reads=0,snapshot=snapshot(w,op))
+            w.h.sql(f"UPDATE provisiond.provider_account_status SET status='healthy' WHERE provider_account='{t['account']}'")
         released=pending(w,op);assert released['exclusions'],'negative-window release must retain outcome exclusion'
         if arm=='covered':
             counts=w.h.sql(f"SELECT count(*) FROM provisiond.operations WHERE tenant_id='{t['tenant_id']}'")
@@ -315,8 +363,8 @@ def late(w):
         assert state['machine']['first_unit_debit_id'] is None and not state['ledger']
         assert state['meter'][0]['high_water_mark']==state['machine']['created_at'],'unpaid first seed has no prepaid offset'
         assert len([d for d in state['deficiencies'] if d['cause'].startswith('unrecoverable_')])==2
-        assert sum(c['state']=='open' for c in state['commitments'])==(arm=='covered')
-        assert sum(d['cause']=='late_attach_cleanup' for d in state['deficiencies'])==(arm!='covered')
+        assert sum(c['state']=='open' for c in state['commitments'])==(arm in ('covered','unsearchable'))
+        assert sum(d['cause']=='late_attach_cleanup' for d in state['deficiencies'])==(arm not in ('covered','unsearchable'))
         if arm=='no_rate':assert all(d['rate_num'] is None for d in state['deficiencies'])
         cut.unlink()
         if arm=='no_rate':
