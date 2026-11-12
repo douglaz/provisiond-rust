@@ -113,9 +113,17 @@ COMMIT;""", role='app')
                 transport_error = error
             zero = eventually(lambda: next((e for e in h.events if e['event']=='protocol_response' and e.get('session')==session and e.get('query')==STATUS and e.get('command_tag')=='SELECT 0'), None))
             assert zero
-            # Drop of a pre-COMMIT transaction discards its session; witness EOF
-            # and backend disappearance, rather than merely assuming rollback.
-            eventually(lambda: any(e['event']=='transport_closed' and e.get('session')==session and e.get('source')=='client_eof' for e in h.events))
+            # Drop discards the session. Either proxy direction may observe the
+            # close first; reverse EOF shuts down the front socket and can turn
+            # its subsequent read into client_error instead of client_eof.
+            # Require prompt physical closure after the actual SELECT completion,
+            # before the 1000ms idle timeout could supply backend disappearance.
+            closure=eventually(lambda: next((e for e in h.events if e['event']=='transport_closed'
+                and e.get('session')==session and e.get('source') in
+                ('client_eof','client_error','server_eof_or_error')),None))
+            activated=next(e for e in h.events if e['event']=='fault_activated'
+                and e.get('session')==session and e.get('direction')=='execute_reply' and e.get('query')==STATUS)
+            assert closure['elapsed']-activated['elapsed']<.5, 'pre-COMMIT discard must close before idle timeout'
             eventually(lambda: h.sql(f'SELECT count(*) FROM pg_stat_activity WHERE pid={session}') == '0')
             assert any(e.get('event')=='precommit_session_discarded' and e.get('session')==session for e in trace())
             listener_after_exit = None
@@ -132,7 +140,8 @@ COMMIT;""", role='app')
                     api_exit_status=original.poll(),api_stderr=original.error.read_text(),
                     api_stopping=[e for e in trace() if e.get('event')=='api_stopping'],
                     listener_after_exit=listener_after_exit,status_row_count=0,
-                    transaction_session_closed=True,backend_absent=True)
+                    transaction_session_closed=True,backend_absent=True,closure_source=closure['source'],
+                    close_after_status_ms=round((closure['elapsed']-activated['elapsed'])*1000))
             if transport_error:
                 raise AssertionError(REFUSAL) from transport_error
             code, body, headers = response
