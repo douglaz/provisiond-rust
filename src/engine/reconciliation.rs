@@ -76,7 +76,7 @@ impl Engine {
             }
             _ => None,
         };
-        self.reconciliation_read_boundary(component,id).await?;
+        self.reconciliation_read_boundary(component, id).await?;
         component.trace(json!({"event":"delete_resolution_read","operation":id,"resolution":verb}));
         if let Some(verb) = verb {
             let r = Resolution {
