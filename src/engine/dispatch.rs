@@ -385,6 +385,13 @@ impl Engine {
             match provider_io(e, d.client.call_entered(descriptor, "/order", &command)).await {
                 Ok(reply) => reply,
                 Err(error) => {
+                    // OPS-12/49 sensitivity control: deliberately repeat an
+                    // uncertain mutation only in an isolated fixture build.
+                    #[cfg(feature = "store-test-hooks")]
+                    if crate::store::test_defect("w5_blind_retry") {
+                        component.trace(json!({"event":"defect_provider_retry","operation":c.id}));
+                        let _ = d.client.call_entered(descriptor, "/order", &command).await;
+                    }
                     if owned_key
                         && error.downcast_ref::<Error>().is_some_and(|error| {
                             error.0["details"]["accepted"] == false
@@ -492,7 +499,7 @@ impl Engine {
         .await
         .ok()
         .and_then(|v| v["earliest_cancellation_date"].as_str().map(str::to_owned));
-        component.trace(json!({"event":"provider_verified","operation":c.id,"matches":1,"direct_read":true,"post_order_read":date.is_some()}));
+        component.trace(json!({"event":"provider_verified","operation":c.id,"matches":1,"direct_read":true,"post_order_read":date.is_some(),"state_observed_at":observed_at.to_rfc3339()}));
         Ok(Some(Outcome::VerifiedCreateDetails {
             external_id: external.clone(),
             earliest_date: date,

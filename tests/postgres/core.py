@@ -645,10 +645,14 @@ def startup_contracts(h):
     r=subprocess.run([str(h.target/'debug/engine')],env=dict(h.env,**env),capture_output=True,text=True,timeout=8)
     assert r.returncode==1 and 'generation_advanced' not in r.stdout
     h.commands.append(dict(command=[str(h.target/'debug/engine')],configuration='missing startup wait bound',exit_status=r.returncode))
-    r=subprocess.run([str(h.target/'debug/engine')],env=dict(h.env,**environment(h),PROVISIOND_WORKERS='25'),capture_output=True,text=True,timeout=8)
-    assert r.returncode==1 and 'engine pools plus lock exceed ordinary PostgreSQL capacity' in r.stderr
-    assert 'startup_lock_acquired' not in r.stdout
-    h.commands.append(dict(command=[str(h.target/'debug/engine')],configuration='oversized engine pool',exit_status=r.returncode))
+    # STO-55/OPS-49: 18 workers fit the former pool+lock budget (20),
+    # but pool+lock+observer+transient generation session need 22 ordinary slots.
+    for workers in (18,25):
+        r=subprocess.run([str(h.target/'debug/engine')],env=dict(h.env,**environment(h),PROVISIOND_WORKERS=str(workers)),capture_output=True,text=True,timeout=8)
+        assert r.returncode==1 and 'engine pools plus lock, observer and startup advance exceed ordinary PostgreSQL capacity' in r.stderr
+        assert 'startup_lock_acquired' not in r.stdout and 'generation_advanced' not in r.stdout
+        h.commands.append(dict(command=[str(h.target/'debug/engine')],configuration='oversized engine startup budget',workers=workers,required_ordinary_slots=workers+4,available_ordinary_slots=21,exit_status=r.returncode))
+    h.results.append(dict(test='observer-in-startup-capacity',result='pass',arms='dedicated observer and transient advance included before lock/work'))
     r=h.run(['psql','-XAt','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p',str(h.ports[0]),'-U','app','-d','postgres'],sql='BEGIN READ ONLY; SELECT generation FROM provisiond.startup_generation FOR SHARE;',ok=False)
     assert r.returncode!=0 and 'read-only transaction' in r.stderr
     h.event('provider_licensing_mode_observed',read_only_share_refused=True,engine_share_mode='BEGIN READ WRITE',app_has_generation_update_privilege=True)

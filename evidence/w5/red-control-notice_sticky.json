@@ -1,0 +1,205 @@
+{
+  "result": "expected negative demonstration",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "seed": 20261112,
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    }
+  },
+  "exit_status": 1,
+  "intended_assertion": "COMMIT warning after notice cap must remain unresolved",
+  "source_reference": "evidence/w5/tested-source.json",
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "corrections",
+    "--case",
+    "notice_sticky",
+    "--defect",
+    "notice_sticky",
+    "--seed",
+    "20261112",
+    "--evidence",
+    "<private-run>/control-manifest.json"
+  ],
+  "events": [
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794504209.292605,
+      "elapsed": 18.64970142720267,
+      "path": "<private-run>/corrections-c3scz1cq/standby-backup-manifest.json",
+      "sha256": "f2398c88037a8e84ed11a242f69a0f49d1d6efdbd76803d3ca295fc7bd901c65"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794504209.2928305,
+      "elapsed": 18.64992672810331,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 1.130918248090893
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794504210.00527,
+      "elapsed": 19.362366635119542,
+      "system_identifier": "7707336882584947963",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707336882584947963",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794504210.0150607,
+      "elapsed": 19.372157292207703,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794504210.0631614,
+      "elapsed": 19.420257873134688,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "commit_warning_after_flood_observed",
+      "timestamp": 1794504210.2751453,
+      "elapsed": 19.632241600193083,
+      "initial": 0,
+      "outcome": "acknowledged",
+      "retained": 16
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794504210.4081445,
+      "elapsed": 19.765241159126163,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504210.8385906,
+      "elapsed": 20.19568733405322,
+      "path": "<private-run>/corrections-c3scz1cq/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504210.8617508,
+      "elapsed": 20.218847420066595,
+      "path": "<private-run>/corrections-c3scz1cq/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504210.956847,
+      "elapsed": 20.31394338211976,
+      "path": "<private-run>/corrections-c3scz1cq/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794504210.957054,
+      "elapsed": 20.31415043817833,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794504210.9570918,
+      "elapsed": 20.31418809806928,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/corrections-c3scz1cq"
+    },
+    {
+      "event": "failure",
+      "timestamp": 1794504210.2752116,
+      "elapsed": 19.63230798416771,
+      "type": "AssertionError",
+      "message": "COMMIT warning after notice cap must remain unresolved"
+    }
+  ]
+}

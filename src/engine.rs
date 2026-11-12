@@ -208,11 +208,24 @@ impl Engine {
         let mut spent = Duration::ZERO;
         loop {
             check_stop()?;
+            if spent >= self.retry_bound {
+                return self.fatal("store retry exhausted; outcome retained until process exit");
+            }
             let started = Instant::now();
+            let mut transaction_id = None;
             let attempt = async {
                 let mut tx = component.begin().await?;
+                transaction_id = Some(tx.identity());
                 check_stop()?;
-                let value = operation(&mut tx).await?;
+                let value = match operation(&mut tx).await {
+                    Ok(value) => value,
+                    Err(error) => {
+                        // OPS-49: end the failed transaction and release its
+                        // checkout/component before deciding any backoff.
+                        let _ = tx.rollback().await;
+                        return Err(error);
+                    }
+                };
                 anyhow::Ok((value, tx))
             }
             .await;
@@ -220,11 +233,10 @@ impl Engine {
             match attempt {
                 Ok((value, tx)) => {
                     check_stop()?;
-                    let work_time = started.elapsed();
-                    let (outcome, verification) = component.commit(tx)?.wait_accounted().await?;
+                    let (outcome, standby_wait) = component.commit(tx)?.wait_accounted().await?;
                     if !matches!(&outcome,CommitOutcome::Rejected{reason} if reason.contains("40001"))
                     {
-                        spent += work_time + verification;
+                        spent += started.elapsed().saturating_sub(standby_wait);
                     }
                     check_stop()?;
                     match outcome {
@@ -261,7 +273,7 @@ impl Engine {
             if spent >= self.retry_bound {
                 return self.fatal("store retry exhausted; outcome retained until process exit");
             }
-            component.trace(json!({"event":"whole_transaction_retry","spent_ms":spent.as_millis(),"serialization":serialization,"external_call_repeated":false}));
+            component.trace(json!({"event":"whole_transaction_retry","transaction":transaction_id,"spent_ms":spent.as_millis(),"serialization":serialization,"external_call_repeated":false}));
             if stop.is_some() {
                 self.test_boundary("licensing_retry").await;
             }
@@ -363,6 +375,9 @@ impl Engine {
         // Once a claim might have committed, a lost reply is fatal, never retried.
         let mut spent = Duration::ZERO;
         let claim = loop {
+            if spent >= self.retry_bound {
+                return self.fatal("claim store retry exhausted before dispatch");
+            }
             #[cfg(feature = "store-test-hooks")]
             component.trace(json!({"event":"claim_attempt_started"}));
             self.database.ensure_new_work()?;
@@ -374,14 +389,20 @@ impl Engine {
             }
             .await;
             match attempt {
-                Ok((tx, claim)) => match component.commit(tx)?.wait().await? {
-                    CommitOutcome::Acknowledged => break claim,
-                    CommitOutcome::Rejected { reason } if reason.contains("40001") => continue,
-                    _ => {
-                        return self
-                            .fatal("claim acknowledgment lost or rejected; no blind claim retry");
+                Ok((tx, claim)) => {
+                    match component.commit(tx)?.wait().await? {
+                        CommitOutcome::Acknowledged => break claim,
+                        CommitOutcome::Rejected { reason } if reason.contains("40001") => continue,
+                        // No COMMIT was sent, so none of this interval is a
+                        // standby wait. Include owner queueing and delivery too.
+                        CommitOutcome::NotDispatched { .. } => spent += started.elapsed(),
+                        _ => {
+                            return self.fatal(
+                                "claim acknowledgment lost or rejected; no blind claim retry",
+                            );
+                        }
                     }
-                },
+                }
                 Err(error) => {
                     if self.database.lock_loss_state().is_some()
                         || error.downcast_ref::<FatalEngine>().is_some()
@@ -399,17 +420,15 @@ impl Engine {
                         return Err(error);
                     }
                     spent += started.elapsed();
-                    if spent >= self.retry_bound {
-                        return self.fatal("claim store retry exhausted before dispatch");
-                    }
-                    component.trace(
-                        json!({"event":"claim_precommit_retry","spent_ms":spent.as_millis()}),
-                    );
-                    let backoff = Instant::now();
-                    tokio::time::sleep(Duration::from_millis(10)).await;
-                    spent += backoff.elapsed();
                 }
             }
+            if spent >= self.retry_bound {
+                return self.fatal("claim store retry exhausted before dispatch");
+            }
+            component.trace(json!({"event":"claim_precommit_retry","spent_ms":spent.as_millis()}));
+            let backoff = Instant::now();
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            spent += backoff.elapsed();
         };
         self.test_boundary("claim_registration").await;
         if let Some(c) = &claim {
@@ -841,6 +860,10 @@ impl Engine {
                 }
                 if state.deadline.is_some() {
                     if lock_loss {
+                        return Ok(());
+                    }
+                    if crate::store::test_defect("w5_stop_reset") {
+                        state.deadline = Some(stopped_at + self.stop_bound);
                         return Ok(());
                     }
                     return self.fatal("later stop: exit without repeating pending record");

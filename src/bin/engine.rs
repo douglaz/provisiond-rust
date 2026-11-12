@@ -28,11 +28,13 @@ async fn main() {
         // claim COMMIT. Keep both futures alive until whole-process exit: neither
         // a pending claim receipt nor its sent transaction is a shutdown lever.
         let dispatch = dispatch(engine.clone(), dispatcher);
-        let observation = observe(engine);
-        tokio::pin!(dispatch, observation);
+        let observation = observe(engine.clone());
+        let controls = test_stops(engine);
+        tokio::pin!(dispatch, observation, controls);
         let stopped = tokio::select! {
             result = &mut dispatch => result,
             result = &mut observation => result,
+            result = &mut controls => result,
         };
         eprintln!("provisiond engine loop stopped: {stopped:?}");
         // Observe completion/failure of either required path. The lock observer
@@ -57,11 +59,66 @@ async fn main() {
         std::process::exit(1);
     }
 }
+// OPS-21: opt-in fixture requests use the executable's real record arbitration.
+// Default builds cannot request stops through files or environment variables.
+async fn test_stops(engine: Arc<Engine>) -> anyhow::Result<()> {
+    #[cfg(feature = "store-test-hooks")]
+    if let Ok(root) = std::env::var("PROVISIOND_TEST_CONTROL") {
+        let root = std::path::Path::new(&root);
+        let request = root.join("stop-operation");
+        loop {
+            if request.exists() {
+                let id = std::fs::read_to_string(&request)?;
+                std::fs::remove_file(&request)?;
+                println!(
+                    "{}",
+                    serde_json::json!({"event":"test_stop_requested","operation":id})
+                );
+                engine.record_stop(&id)?;
+                println!(
+                    "{}",
+                    serde_json::json!({"event":"test_record_snapshot","operation":id,"record":engine.test_record(&id)})
+                );
+                tokio::select! {
+                    result = engine.wait_records() => {result?; anyhow::bail!("fixture stop recorded");},
+                    _ = async {
+                        loop {
+                            let snapshot = root.join("snapshot-record");
+                            if snapshot.exists() {
+                                std::fs::remove_file(&snapshot).expect("fixture snapshot request");
+                                println!("{}", serde_json::json!({"event":"test_record_snapshot","operation":id,"record":engine.test_record(&id)}));
+                            }
+                            if root.join("later-stop").exists() {break;}
+                            tokio::time::sleep(Duration::from_millis(2)).await;
+                        }
+                    } => {
+                        let result = engine.record_stop(&id);
+                        println!("{}", serde_json::json!({"event":"test_later_stop_arbitrated","operation":id,"record":engine.test_record(&id),"fatal":engine.is_fatal(),"error":result.as_ref().err().map(|e|format!("{e:#}"))}));
+                        result?;
+                    }
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+    }
+    let _ = engine;
+    std::future::pending().await
+}
 async fn dispatch(
     engine: Arc<Engine>,
     dispatcher: Arc<provisiond::engine::Dispatcher>,
 ) -> anyhow::Result<()> {
     loop {
+        #[cfg(feature = "store-test-hooks")]
+        if let Ok(root) = std::env::var("PROVISIOND_TEST_CONTROL") {
+            let hold = std::path::Path::new(&root).join("hold-dispatch");
+            if hold.exists() {
+                println!("{}", serde_json::json!({"event":"test_dispatch_paused"}));
+                while hold.exists() {
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                }
+            }
+        }
         if let Err(error) = engine.dispatch_next(&dispatcher).await {
             // OPS-47: a pre-loss claim may finish during fan-out. Its next
             // new-work refusal must join the ongoing record drain, not win the

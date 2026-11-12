@@ -1152,7 +1152,226 @@ executable reds, final greens and cleanup. The one-second statement, two-second 
 250 ms checkout bounds, permanent receipts and task-failure handling remain unchanged. Independent
 Run review is pending. No new nine-phase run is claimed.
 
+### D-34. Distinguish definitely unsent claims and check exhaustion before another attempt
+
+**Measured 2026-11-12.** OPS-49 distinguishes ordinary pre-COMMIT claim errors from uncertain
+claim completion. `CommitOutcome::NotDispatched` carries the former without interpreting a
+sent COMMIT's transport loss as rollback. `own_commit` closes a failed verification checkout and
+releases its component permit before publishing this outcome. `Engine::claim_owned` may then
+repeat the whole claim under the existing bound, charging the complete known-pre-dispatch
+interval including owner handoff. Its external label remains `rejected`; this is a transaction
+interface distinction for the retry decision, with startup ordering unchanged. Sent/unknown claim
+completion still exits fatally before worker registration or provider work.
+
+Both claim and worker transaction loops check charged exhaustion before beginning another
+attempt. Their existing backoff cannot authorize another transaction after consuming the bound.
+The two [unchanged-runtime reds](../evidence/w5/regressions.json) used fixture-only overlays on
+`aceea4eea8382c8d3b6fa554706c54920999369c`, with protected runtime/migration/dependency hashes.
+Both exited 1 at their intended assertions; the recognizing comparison exited 0. Their final
+green selectors are `w5_claim_precommit` and `w5_backoff_budget`. The latter supplements the
+real-binary scenarios with the actual runtime's defer primitive; claim-loop symmetry is source
+inspection, not a separate claim-backoff red. D-36 and D-39 record the final accounting implementation and proof.
+
+### D-35. Observe test boundaries without changing ordinary builds
+
+**Measured 2026-11-12.** Narrow `store-test-hooks` controls expose handler disconnect/reply
+loss and real engine stop-record boundaries. Checkout observation samples the owner's actual
+retained pooled object and transport, rather than inferring ownership from a live backend.
+An independent simulator hold separates acceptance from resource creation. Default builds
+ignore the fault files and defect environment, demonstrated by `w5_default_hooks` with actual
+executable hashes and one order per operation.
+
+The W5 parent requires all twenty-six selectors and successful cleanup; a focused child cannot
+satisfy that inventory. The five W5 controls require an activated unsafe observation, exit 1
+at the exact assertion and cleanup, preserving all thirty earlier controls. A separate direct-helper
+probe accepts zero outstanding checkouts and rejects retained counts one through three at its exact assertion; it
+demonstrates fixture sensitivity and makes no claim of a runtime checkout leak. Trace readers parse
+only complete newline-terminated byte records. An incomplete final UTF-8/JSON tail is an
+`inconclusive` diagnostic and cannot establish application behavior; malformed complete records
+still fail. The [final fixture tests](../evidence/w5/python-units.json) record exit 0 for the
+complete-record and inventory assertions; the earlier parser correction is a fixture change,
+not another runtime defect. Test control payloads are closed before atomic path
+publication, avoiding consumption of an empty operation UUID. Expiry-session closure evidence
+accepts either attributed proxy read direction before the same original deadline.
+
+D-34/D-35's final measured basis is runtime/fixtures
+`c7e71c803f7c10158636ff908856507713a608cb`, unchanged specification pin, PostgreSQL 18.6,
+Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and tokio-postgres 0.7.18.
+`nix develop --command bash tools/check.sh` exited 0 and
+`nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <raw-final-manifest>`
+exited 0 with all ten phases, twenty-six W5 selectors and thirty-five expected negative controls,
+plus the direct release-helper probe.
+`nix develop --command python3 tests/postgres/w5_baseline.py --evidence <private-baseline-manifest>`
+exited 0 after all three protected-base children exited 1 at their intended assertions.
+[Validation](../evidence/w5/validation.json), [source](../evidence/w5/tested-source.json),
+[baseline protection](../evidence/w5/source-baseline.json), [audit](../evidence/w5/audit.json)
+and [report](../evidence/w5/report.md) retain commands, hashes, configuration, assertions and cleanup.
+D-6 stays Open for W8.
+
+### D-36. Attribute actual standby wait before closing OPS-49 accounting
+
+**Measured 2026-11-12; settled by D-37/D-38 and the final proof below.** The historical
+reproducer gated a real settlement's COMMIT reply after the server finished, observed the same
+backend `idle:ClientRead` with healthy synchronous replication for 2197 ms, then severed only its
+reply transport. The old runtime charged 21 ms against a 2000 ms bound, retried and remained alive.
+Its exit 1 was at `OPS-49 non-standby COMMIT reply delay must consume retry budget`.
+Money and one purchase remained intact: this demonstrated a budget violation, not duplicate debit.
+
+The [canonical comparison](../evidence/w5/regressions.json) preserves that historical reproducer
+and repeats the same final assertion driver against protected unchanged
+`aceea4eea8382c8d3b6fa554706c54920999369c`: intended child exit 1, actual non-standby delay,
+unsafe retry and cleanup. Protected source/dependency hashes are equal before/after, and driver
+hashes match the final green. On `c7e71c803f7c10158636ff908856507713a608cb`, the
+[complete final W5 phase](../evidence/w5/final-w5.json) exits 0: healthy post-COMMIT delay is
+charged, real SyncRep is conservatively exempted, mixed intervals are separated, unavailable
+observations charge time, a real observer failure closes an established matching run, checked
+observation resumes, and original stop bounds still win. The skip-closure sensitivity fails its
+internal invariant assertion after the open run is observed; separate completion arithmetic
+and independent server samples establish the executed unobserved interval remains charged.
+The exact commands, versions and exit statuses are in the preceding final basis and
+[validation](../evidence/w5/validation.json). D-39 records precision, source-premise status and limits.
+No specification, provider policy or production parameter was changed.
+
+### D-37. Attribute sent-COMMIT standby wait with an observer on stock PostgreSQL
+
+**Decided 2026-11-12 by the owner (owner pick 2026-11-12).** This settles D-36's design
+question; W5 implements it with evidence. Asked how the engine tells actual standby wait from
+other sent-COMMIT time, the owner chose **"A: stock database (Recommended)"**: stock PostgreSQL
+with an application-side observer, in its observer re-establishment form.
+
+- One dedicated, lifetime, read-only engine observer session, opened at startup through the
+  existing checked `Store::dedicated()` path, outside every pool, counted in the startup capacity
+  check and in a D-6 connection-budget row. The API process gets none.
+- While a sent COMMIT is registered, the observer samples `pg_stat_activity` for its backend at
+  a fixed period. The exempt span runs from the first to the last sample that matches the
+  backend's pid and start time as `active`, waiting on `SyncRep`, running the store COMMIT.
+  Everything else is charged, including missing or failed samples and identity mismatch.
+- The engine charges the attempt's elapsed time, from attempt start to receipt delivery, minus
+  that span. Sampling error only overcharges.
+- Observer loss is logged loudly and the time no observer saw is charged. The engine then
+  re-establishes the observer through the ordinary checked connection path within the existing
+  bounds, with no pool or bound increase, so attribution resumes for later attempts.
+- Attribution never changes the commit outcome, checkout or permit retention, or stop
+  deadlines. No PostgreSQL change, no new privilege grant and no new build dependency.
+
+A four-reader panel (the fifth seat was unavailable) stayed tied 2-2 after one consensus round:
+two readers chose this form, two chose a patched PostgreSQL 18.6 build that meters the SyncRep
+wait inside the server. The tie went to the owner.
+
+- Strongest argument for the stock observer: no checked session can open while a standby stall
+  lasts, so even exact server-side attribution would not change the outcome of the case that
+  splits the panel, and a patched server would still need this charging rule once a primary
+  restart erases its meter.
+- Strongest argument for the patched server: it measures exactly the interval OPS-49 excludes
+  (pinned `03-operation-lifecycle.md:1976-1977`, STO-7 `05-persistence.md:180-182`), while a lost
+  observer charges real standby wait and can turn it into exhaustion.
+
+**Known limit.** If the observer is lost during a standby stall and the COMMIT reply is then
+lost, that standby time stays charged. The result is at most one alarmed engine exit on OPS-49's
+ordinary exhaustion path, with no money loss.
+
+### D-38. Charge sent-COMMIT time at completion only
+
+**Decided 2026-11-12, accepted under the owner's 2026-11-05 panel rule (three of four readers).**
+The engine charges a sent COMMIT's time to the OPS-49 retry bound when its receipt resolves: the
+reply arrives, or keepalives find the transport dead. Accounting triggers no exit while a COMMIT
+is still outstanding; TCP keepalives bound the difference. Three of four readers picked this;
+one picked in-flight exhaustion, in which the receipt resolves early as unresolved once charged
+time reaches the remaining budget and the engine takes its fatal exit. No narrowing or widening.
+
+**Known limit.** A live transport that keeps answering keepalives but withholds the COMMIT reply
+forever never triggers an accounting exit.
+
+### D-39. Conservative matching runs and completion-only attempt arithmetic
+
+**Measured 2026-11-12.** Implement D-37/D-38 on stock PostgreSQL 18.6 from D-3, with
+no dependency or privilege change. `EngineDatabase::start` acquires the startup lock, opens one
+read-only observer through `Store::dedicated()`, then advances generation as its first write.
+The observer is outside all pools, separate from the lock and compatibility checkout. The API
+gets none. Capacity checks include seven possible engine startup sessions: three worker checkouts,
+one compatibility read, lock, observer and transient generation session; steady engine capacity is
+six. The core run refuses both the formerly-fitting 18-worker configuration and 25 workers before
+lock acquisition/work. The local ordinary capacity is 24 minus three reserved slots.
+
+`own_commit` registers owner, pid, backend start and dispatch instant before first polling COMMIT,
+then deregisters at completion. `Accounting::observe` samples one autocommit statement per fixed
+20 ms period while registrations exist. Identity, `active`, `SyncRep` and exact store COMMIT text
+must match. Choose the conservative unbroken-run adjustment: a failed/missing/nonmatching sample
+or reconnect ends the run. Do not hold a span open through reconnect. Each run exempts
+`max(0, last_sample_sent - first_sample_received)`. The engine charges attempt-start to receipt
+delivery minus summed exemptions, once, including precommit verification, queueing, non-standby
+reply delay and read-back; ordinary backoff is also charged. Serialization/constraint treatment,
+claim uncertainty and startup exceptions remain unchanged.
+
+Error/timeout/closure/missing visibility is logged at error level. Re-establishment uses the
+ordinary checked construction path and existing connection/check bounds, with one observer and
+no pool increase. Unobserved gaps remain charged. The [accounting evidence](../evidence/w5/accounting.json)
+contains exact backend identities, first/last sample send/receive instants, run arithmetic, sample
+counts/round trips, actual observer failures and passing checked replacement. The long-wait, mixed
+and idle cases retain their
+measured exemption and charge arithmetic there. `w5_accounting_failure_run` first establishes a
+real matching run and independently observed settlement SyncRep, then terminates only its idle
+observer. A test-only observation records the run endpoints before/after failure; the isolated
+`w5_observer_run` defect skips only `end_run` and fails the closure assertion with a genuinely
+open run. The ordinary run separately measures more than two seconds of unobserved SyncRep,
+retains the sent checkout, restores the same standby and admits a checked replacement. Receipt
+death charges that interval, causes the ordinary exhaustion exit, and preserves the full succeeded
+state and one purchase through actual successor startup. These are fixture measurements; the
+mutation proves the internal closure invariant rather than a second SyncRep wait on that COMMIT.
+
+Normal sampling can only overcharge under the premise of one contiguous SyncRep wait per COMMIT;
+edge error is approximately `2 × (period + sample round trip)` per uninterrupted run.
+Lost/missing observations can overcharge much more. The PostgreSQL 18.6 source check of that
+contiguous-wait premise is **unverified**: this run inspected no server source to establish it.
+Executed real-server samples demonstrate the named histories, not every possible server schedule.
+This selects measurement precision for the prototype, not production values or an outage bound.
+
+The two accepted limits remain as D-37/D-38 state: observer loss during a standby stall followed
+by lost COMMIT reply can cause one alarmed ordinary exhaustion exit without money loss; a live
+transport answering keepalives while withholding the COMMIT reply forever causes no accounting
+exit. No in-flight exhaustion, sent-COMMIT timeout or stop-bound extension was added.
+
+Basis: final runtime/fixtures, versions, gate/full-suite/baseline exits 0 and evidence paths in
+D-34/D-35's final measured basis above. [Source](../evidence/w5/tested-source.json) and
+[validation](../evidence/w5/validation.json) bind the exact bytes and commands.
+
+### D-40. Observe arbitration, original admissions and failed-attempt release
+
+**Measured 2026-11-12.** The executable's second test stop calls real `record_stop` arbitration,
+then captures deadline, record identity, error and fatal state, including the fatal return. The
+isolated reset sensitivity changes the pending-deadline branch to reset and return success; its
+child exits 1 at `OPS-21 later stop arbitration must preserve original absolute deadline`, after
+observing the changed deadline and nonfatal return. The final unmutated create arms pass.
+This is a fixture sensitivity correction, not an old-runtime deadline-reset defect.
+
+Healthy designated history/identity/catch-up is independently asserted before each withheld
+API/engine connection-check response. Cancelled admission requires its original owner's actual
+Acknowledged classification, then identifies the original persisted receipt/operation before
+replay. Process-death recovery identifies that original durable admission and residual completion
+before restart/replay; it makes no posthumous application-acknowledgement claim.
+
+Failed engine statements use an acknowledged ROLLBACK when transport permits, then release their
+original checkout and component permit before backoff; transport failures discard the session.
+Unique transaction identifiers associate retry, rollback command/reply, backend identity and
+actual semaphore/pool observations. Contention records server ROLLBACK/idle acknowledgement;
+severed settlement records independent backend absence. These observations supplement actual
+pool/semaphore release, rather than treating a proxy closed flag as component ownership.
+Provider outcome and confirming-read time remain outside the retry closure. The quiesced
+single-operation fixtures now require exactly zero checked-out worker write connections as well
+as the released component permit before backoff. The direct helper accepts actual release and
+rejects otherwise-identical retained-checkout records; the original helper accepted count one.
+Blocked settlement also executes ordinary successor startup for the same operation, asserting
+complete durable snapshot, provider evidence and single-order preservation before its final trace.
+[Release evidence](../evidence/w5/release-assertion.json) retains the direct comparison and real
+PostgreSQL observations.
+
+[Scenario assertions](../evidence/w5/scenario-assertions.json), [controls](../evidence/w5/final-controls.json),
+[regressions](../evidence/w5/regressions.json) and the final measured basis above record exact
+versions, commands/exits, driver/source identity and cleanup. API retry semantics, ordinary pool
+bounds, money guards and the accepted deployment profile are unchanged.
+
 ## Open
+
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
 |---|---|---|---|---|
@@ -1171,7 +1390,8 @@ both client and server. Isolation is read committed; search path is `pg_catalog,
 `max_connections=24` with three reserved slots accommodates two store sessions plus bootstrap,
 fixture/observer and replication-test headroom; it is not a product capacity budget. W3 adds
 three engine worker write slots, one compatibility read slot and a dedicated startup-lock session;
-W3 did not implement a periodic scheduler. W4 adds local create dispatch polling; general
+W5 adds one dedicated read-only observer and includes the transient generation-advance session
+in startup capacity checking. W3 did not implement a periodic scheduler. W4 adds local create dispatch polling; general
 maintenance/reconciliation remains deferred. The Store-retry bound is 2000 ms. Production capacity,
 retry policy, alarm thresholds and restart policy remain unselected.
 The lifecycle fixture uses a 1000 ms stop bound and exits unresolved at that bound; two complete
@@ -1182,13 +1402,13 @@ not outage guarantees.
 |---|---|---|
 | Store timeouts | STO-7, STO-55 | statement 1000 ms; lock 500 ms; idle transaction 1000 ms |
 | API read/write concurrency | STO-55 | one checkout in each ordinary pool |
-| Engine worker concurrency | STO-55 | three retained worker permits and three write checkouts; one compatibility read checkout; startup lock outside pools |
+| Engine worker concurrency | STO-55 | three retained worker permits and three write checkouts; one compatibility read checkout; startup lock and one read-only accounting observer outside pools |
 | Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms |
 | Pool checkout bound | STO-55 | 250 ms |
 | Startup-lock connection keepalives | OPS-47, OVR-19 | explicit local assignment sharing pooled values; client/server idle 2 s, interval 1 s, count 2; validated and observed on lock session |
 | Pooled-connection keepalives | STO-7 | client/server idle 2 s, interval 1 s, count 2 |
 | Stop-record bound | OPS-21 | 1000 ms in lifecycle and W3 worker record fixtures |
-| Connection budget | STO-55 | local max 24, reserved 3; fixture pools/observer/replication headroom only |
+| Connection budget | STO-55 | local max 24, reserved 3 (21 ordinary); engine 6 steady / 7 startup; API 2; offline migrator plus waiting runner 2 with components stopped; remaining operator/fixture/replication headroom, no residual-backend upper bound |
 
 Client call/connect 2000 ms and check 3000 ms are implementation bounds obeying STO-7/OPS-49's
 server-timeout floor. The store owner has no commit deadline. D-6 selects no production retry,

@@ -6,6 +6,11 @@ from harness import ROOT, cap_check
 import tempfile
 
 CONTROLS=[
+    ('w5_observer_run','w5','w5_accounting_failure_run','OPS-49 observer failure must close an established SyncRep sample run','w5_observer_run_closure_observed'),
+    ('w5_stop_reset','w5','w5_stop_record','OPS-21 later stop arbitration must preserve original absolute deadline','w5_later_stop_arbitration_observed'),
+    ('w5_generation','w5','w5_generation_record','OPS-50 stale generation record must refuse without retry','w5_generation_observed'),
+    ('w5_checkout','w5','w5_retained_checkouts','STO-7 HTTP cancellation must retain original sent-COMMIT checkout','w5_checkout_retention_observed'),
+    ('w5_blind_retry','w5','w5_accepted_lost','OPS-12 lost reply must not dispatch a second purchase','w5_blind_retry_observed'),
     ('w4_atomic','workflow','w4_atomic','rail payment and credit must be atomic','w4_payment_atomicity_observed'),
     ('w4_ack','workflow','w4_ack','step 8 must be acknowledged before provider mutation','defect_ack_boundary_observed'),
     ('w4_overload','workflow','w4_overload','overload must precede request business BEGIN','defect_overload_entry_observed'),
@@ -39,11 +44,17 @@ CONTROLS=[
 ]
 
 
-def controls(seed,evidence):
+def controls(seed,evidence,w5_only=False):
     cap_check()
     root=Path(tempfile.mkdtemp(prefix='controls-',dir=ROOT))
     results=[]
-    for defect,phase,case,assertion,observation in CONTROLS:
+    required=[c for c in CONTROLS if c[0].startswith('w5_')] if w5_only else CONTROLS
+    # OPS-49: exercise the actual release helper with a retained checkout record,
+    # without claiming a runtime leak. Keep these separate from runtime controls.
+    from w5_release_control import sensitivity
+    release_probe=sensitivity(root)
+    if release_probe['result']!='pass':return 1
+    for defect,phase,case,assertion,observation in required:
         raw=root/(defect+'.json')
         command=['python3','tests/postgres/harness.py','--phase',phase,'--case',case,
                  '--defect',defect,'--seed',str(seed),'--evidence',str(raw)]
@@ -55,6 +66,17 @@ def controls(seed,evidence):
         observed=[e for e in events if e['event']==observation]
         valid=(child.returncode==1 and len(failures)==1 and failures[0].get('type')=='AssertionError'
             and failures[0].get('message')==assertion and cleanup and cleanup[-1]['result']=='pass' and observed)
+        if defect=='w5_observer_run':
+            activated=observed[-1] if observed else {}
+            valid=valid and activated.get('real_syncrep') is True and activated.get('established_run') is True and activated.get('run_still_open') is True and activated['closure']['before']==activated['closure']['after']
+        if defect=='w5_stop_reset':
+            valid=valid and observed[-1]['after']['record']['deadline']!=observed[-1]['original']['deadline'] and observed[-1]['after']['fatal'] is False and observed[-1]['after']['error'] is None
+        if defect=='w5_generation':
+            valid=valid and observed[-1].get('refused') is False and observed[-1].get('unsafe_record') is True and observed[-1].get('unequal_checks')
+        if defect=='w5_checkout':
+            valid=valid and observed[-1].get('retained') is False and observed[-1].get('ownership',{}).get('pooled_checkout_held') is False and observed[-1].get('ownership',{}).get('transport_dead') is False and observed[-1].get('syncrep') is True and observed[-1].get('cancelled') is True and observed[-1].get('api_alive') is True
+        if defect=='w5_blind_retry':
+            valid=valid and observed[-1].get('orders')==2 and observed[-1].get('resources')==2 and observed[-1].get('accepted')==2 and observed[-1].get('retry_activated') is True and observed[-1].get('reply_dropped') is True
         if defect=='caller_sql':valid=valid and observed[-1].get('observed_synchronous_commit')=='off'
         if defect in ('payment_atomic','w4_atomic'):valid=valid and observed[-1].get('counts')=='0:1'
         if defect=='claim_guard':valid=valid and observed[-1].get('affected') is True
@@ -74,14 +96,14 @@ def controls(seed,evidence):
             # The raw child retains its actual fail. The final red manifest records
             # why the parent recognizes that precise failure as the expected control.
             if evidence:
-                path=evidence.parent/(('w4-red-' if defect.startswith('w4_') else 'w3-red-')+defect+'.json')
+                path=evidence.parent/(('w5-red-' if defect.startswith('w5_') else 'w4-red-' if defect.startswith('w4_') else 'w3-red-')+defect+'.json')
                 manifest['command']=['nix','develop','--command',*command[:-1],'<run-dir>/control-manifest.json']
                 path.write_text(json.dumps(manifest,indent=2)+'\n')
                 results[-1]['evidence']=str(path)
         else:
             break
-    status=0 if len(results)==len(CONTROLS) and all(r['result']=='expected negative demonstration' for r in results) else 1
+    status=0 if len(results)==len(required) and all(r['result']=='expected negative demonstration' for r in results) else 1
     if evidence:
-        evidence.write_text(json.dumps(dict(result='pass' if status==0 else 'fail',controls=results),indent=2)+'\n')
+        evidence.write_text(json.dumps(dict(result='pass' if status==0 else 'fail',controls=results,release_assertion_sensitivity=release_probe),indent=2)+'\n')
     print(json.dumps(dict(result='pass' if status==0 else 'fail',controls=results)),flush=True)
     return status

@@ -1,0 +1,259 @@
+{
+  "result": "expected negative demonstration",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "seed": 20261112,
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "engine": {
+      "workers": 3,
+      "write_pool": 3,
+      "compatibility_read_pool": 1,
+      "startup_lock_outside_pool": true,
+      "startup_wait_ms": 500,
+      "store_retry_ms": 2000,
+      "stop_record_ms": 1000,
+      "startup_lock_keepalives": {
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "count": 2,
+        "profile_assignment": "shared with pooled local values"
+      },
+      "runtime_build": {
+        "features": [
+          "store-test-hooks"
+        ],
+        "target_directory": "<private-run>/core-dnyvd0ew/target"
+      },
+      "migration_lock_ms": 500,
+      "migration_lock_retries": 2,
+      "schema_version": 2,
+      "semantic_version": 2,
+      "notice_cap": 16
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    }
+  },
+  "exit_status": 1,
+  "intended_assertion": "lock-loss fanout must retain original record identity and absolute deadline",
+  "source_reference": "evidence/w5/tested-source.json",
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "core",
+    "--case",
+    "lock_observers",
+    "--defect",
+    "lock_record_reset",
+    "--seed",
+    "20261112",
+    "--evidence",
+    "<private-run>/control-manifest.json"
+  ],
+  "events": [
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794504675.8204675,
+      "elapsed": 19.012092902092263,
+      "path": "<private-run>/core-dnyvd0ew/standby-backup-manifest.json",
+      "sha256": "d33e90fa77dc2f3f757f1d34eb0c1469aae7737a3cad7912d4f605fa90537165"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794504675.8207142,
+      "elapsed": 19.012339492095634,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.6745864560361952
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794504676.5218654,
+      "elapsed": 19.71349090198055,
+      "system_identifier": "7707338888053192574",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707338888053192574",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794504676.5320528,
+      "elapsed": 19.723678167909384,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794504676.5788915,
+      "elapsed": 19.77051708707586,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794504677.8378434,
+      "elapsed": 21.029468887019902,
+      "fault": "tenant_lock_contention",
+      "label": "lock-pair",
+      "tenants": [
+        "lock-pair-2"
+      ]
+    },
+    {
+      "event": "concurrent_lock_observers_observed",
+      "timestamp": 1794504678.0474503,
+      "elapsed": 21.239075903082266,
+      "states": "succeeded,failed,needs_reconciliation",
+      "starts": 3,
+      "registration_windows": 1,
+      "original_record": {
+        "deadline": "Instant { tv_sec: 1117326, tv_nsec: 927255427 }",
+        "identity": "0x555555b7ea00",
+        "result": null
+      },
+      "after_detection": {
+        "deadline": "Instant { tv_sec: 1117326, tv_nsec: 927255427 }",
+        "identity": "0x555555b7ea00",
+        "result": null
+      },
+      "after_registration": {
+        "deadline": "Instant { tv_sec: 1117326, tv_nsec: 999245874 }",
+        "identity": "0x555555b7ea00",
+        "result": null
+      },
+      "post_registration_read": true,
+      "new_work_refused": true,
+      "claim_refused": true
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794504678.1609955,
+      "elapsed": 21.35262145800516,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504678.9959357,
+      "elapsed": 22.187561318045482,
+      "path": "<private-run>/core-dnyvd0ew/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504679.022487,
+      "elapsed": 22.214112777961418,
+      "path": "<private-run>/core-dnyvd0ew/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504679.1834435,
+      "elapsed": 22.375069177011028,
+      "path": "<private-run>/core-dnyvd0ew/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794504679.1836624,
+      "elapsed": 22.37528775492683,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794504679.183717,
+      "elapsed": 22.375342486891896,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/core-dnyvd0ew"
+    },
+    {
+      "event": "failure",
+      "timestamp": 1794504678.0475183,
+      "elapsed": 21.23914364911616,
+      "type": "AssertionError",
+      "message": "lock-loss fanout must retain original record identity and absolute deadline"
+    }
+  ]
+}

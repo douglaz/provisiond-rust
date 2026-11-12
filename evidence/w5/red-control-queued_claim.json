@@ -1,0 +1,265 @@
+{
+  "result": "expected negative demonstration",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "seed": 20261112,
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "engine": {
+      "workers": 3,
+      "write_pool": 3,
+      "compatibility_read_pool": 1,
+      "startup_lock_outside_pool": true,
+      "startup_wait_ms": 500,
+      "store_retry_ms": 2000,
+      "stop_record_ms": 1000,
+      "startup_lock_keepalives": {
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "count": 2,
+        "profile_assignment": "shared with pooled local values"
+      },
+      "runtime_build": {
+        "features": [
+          "store-test-hooks"
+        ],
+        "target_directory": "<private-run>/core-p87becs6/target"
+      },
+      "migration_lock_ms": 500,
+      "migration_lock_retries": 2,
+      "schema_version": 2,
+      "semantic_version": 2,
+      "notice_cap": 16
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    }
+  },
+  "exit_status": 1,
+  "intended_assertion": "queued claim must not dispatch BEGIN after detected lock loss",
+  "source_reference": "evidence/w5/tested-source.json",
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "core",
+    "--case",
+    "queued_claim",
+    "--defect",
+    "queued_claim",
+    "--seed",
+    "20261112",
+    "--evidence",
+    "<private-run>/control-manifest.json"
+  ],
+  "events": [
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794504585.246574,
+      "elapsed": 19.22364166099578,
+      "path": "<private-run>/core-p87becs6/standby-backup-manifest.json",
+      "sha256": "ff15cc3ff53f853e4f4bbb2b805070474954f2a73cc74a5292995f0baeb3f295"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794504585.2468433,
+      "elapsed": 19.223911044187844,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.7441249310504645
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794504586.3997667,
+      "elapsed": 20.37683459604159,
+      "system_identifier": "7707338498864528659",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707338498864528659",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794504586.40951,
+      "elapsed": 20.386577554047108,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794504586.4572482,
+      "elapsed": 20.434315930120647,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794504587.4188764,
+      "elapsed": 21.39594413107261,
+      "fault": "transport_gate",
+      "direction": "execute_reply",
+      "session": 4149082,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "lock_transport_death_observed",
+      "timestamp": 1794504587.4886346,
+      "elapsed": 21.465702237095684,
+      "pid": 4149069,
+      "probe": 4
+    },
+    {
+      "event": "queued_claim_observed",
+      "timestamp": 1794504587.6237469,
+      "elapsed": 21.600814445177093,
+      "window": "entry",
+      "operation": "c9cc563e-9214-405f-8c86-1f180c59bfb6",
+      "detected_before_release": true,
+      "reply": {
+        "command": "claim_join",
+        "event": "result",
+        "ok": true,
+        "value": {
+          "id": "c9cc563e-9214-405f-8c86-1f180c59bfb6",
+          "number": 1
+        }
+      },
+      "new_begin_count": 2,
+      "claim_registered": 1,
+      "durable_state": "running:1",
+      "external_entries": 0,
+      "forbidden_entry": true,
+      "pending_at_release": true,
+      "attempts": 1,
+      "retries": [],
+      "checked_refusals": 0
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794504587.7409818,
+      "elapsed": 21.718049718998373,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504588.773688,
+      "elapsed": 22.750756117980927,
+      "path": "<private-run>/core-p87becs6/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504588.8002279,
+      "elapsed": 22.777295655105263,
+      "path": "<private-run>/core-p87becs6/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504588.963448,
+      "elapsed": 22.940516015980393,
+      "path": "<private-run>/core-p87becs6/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794504588.9636674,
+      "elapsed": 22.940734984120354,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794504588.9637127,
+      "elapsed": 22.940780389122665,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/core-p87becs6"
+    },
+    {
+      "event": "failure",
+      "timestamp": 1794504587.6380806,
+      "elapsed": 21.61514819203876,
+      "type": "AssertionError",
+      "message": "queued claim must not dispatch BEGIN after detected lock loss"
+    }
+  ]
+}

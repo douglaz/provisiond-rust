@@ -18,6 +18,16 @@ PARAMETERS=dict(activation_sats=100,deposit_seconds=3600,finality_seconds=600,te
  listing_age_seconds=3600,lightning_floor_sats=1,onchain_floor_sats=20,confirmation_depth=2)
 
 
+def trace_events(path):
+    """Only newline-terminated records are evidence; malformed full records fail.
+
+    OPS-50 immediate process exit can interrupt the final diagnostic write.
+    Keep its bytes in the raw file without manufacturing a completed event.
+    """
+    return [json.loads(line) for line in path.read_bytes().splitlines(keepends=True)
+            if line.startswith(b'{') and line.endswith(b'\n')]
+
+
 def http(port,method,path,body=None,token=None,key=None,raw=None,headers=None):
     conn=HTTPConnection('127.0.0.1',port,timeout=8)
     hs={'Content-Type':'application/json'}
@@ -120,10 +130,8 @@ class Workflow:
         result=[]
         for p in self.children:
             if getattr(p,'name',None)!=name:continue
-            for line in p.log.read_text().splitlines():
-                if line.startswith('{'):
-                    e=json.loads(line)
-                    if event is None or e.get('event')==event:result.append(e)
+            for e in trace_events(p.log):
+                if event is None or e.get('event')==event:result.append(e)
         return result
     def provider_control(self,**value):return http(self.h.ports[5],'POST','/control',value)[1]
     def external(self):return http(self.h.ports[5],'GET','/inspect')[1]
@@ -244,10 +252,16 @@ class Workflow:
             p.wait(timeout=5)
         assert all(p.poll() is not None for p in self.children)
         selected={'api_listening','api_stopping','api_tasks_finished','api_background_task_failed','api_request_task_failed','http_business_begin','http_response','dispatch_step','dispatch_step_held','dispatch_license_acknowledged','provider_verified','execute_returned','settlement_finished','external_entry','rail_credit_acknowledged','rail_observation_processed','activation_without_healthy_assignment','whole_transaction_retry','generation_checked','worker_zero_row','destination_read','destination_exposed','token_request_held','token_issued','token_request_abandoned','funding_held','preflight_read_retry','preflight_read_exhausted'}
-        selected.update({'startup_lock_acquired','startup_lock_lost','claim_attempt_started','claim_registered','stop_record_started','stop_record_finished','commit_possible_dispatch','commit_owner_completed','engine_fatal'})
+        selected.update({'claim_precommit_retry','test_commit_checkout','http_handler_cancelled','http_response_held','http_reply_lost','test_stop_requested','test_record_snapshot','test_later_stop_requested','test_dispatch_paused','engine_superseded','defect_provider_retry','defect_checkout_released','session_admitted','commit_classified','startup_lock_acquired','startup_lock_lost','claim_attempt_started','claim_registered','stop_record_started','stop_record_finished','commit_possible_dispatch','commit_owner_completed','engine_fatal'})
         for child in self.children:
             if getattr(child,'name',None) in ['api','engine']:
-                trace=[json.loads(line) for line in child.log.read_text().splitlines() if line.startswith('{')]
+                trace=trace_events(child.log)
+                data=child.log.read_bytes()
+                if data and not data.endswith(b'\n'):
+                    tail=data.rsplit(b'\n',1)[-1]
+                    self.h.event('application_trace_incomplete_tail',component=child.name,
+                        exit_status=child.returncode,bytes=len(tail),sha256=hashlib.sha256(tail).hexdigest(),
+                        result='inconclusive',establishes='unfinished diagnostic only; no scenario assertion uses this tail')
                 self.h.event('application_trace',component=child.name,path=str(child.log),sha256=hashlib.sha256(child.log.read_bytes()).hexdigest(),events=[e for e in trace if e.get('event') in selected])
         for kind in ['provider','rail']:
             path=self.h.root/kind/'effects.jsonl'

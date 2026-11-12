@@ -56,6 +56,7 @@ class Proxy:
         self.refuse_after = None
         # Focused worker preflight regression: kill only matching read transports.
         self.fail_query = None
+        self.observer_identity_mismatch = False
         self.spawn(self.accept)
 
     def spawn(self, fn, *args):
@@ -167,6 +168,18 @@ class Proxy:
                 self.gate(c,'reply',tag)
                 self.gate(c,'commit_reply',tag)
                 self.gate(c,'execute_reply',tag)
+                if tag==b'D' and self.observer_identity_mismatch and 'OPS-49 observer' in c['query']:
+                    # OPS-49 exact identity sensitivity: alter only backend_start
+                    # in an actual observer DataRow, preserving all protocol types.
+                    count=struct.unpack('!H',body[:2])[0];offset=2;fields=[]
+                    for index in range(count):
+                        size=struct.unpack('!i',body[offset:offset+4])[0];offset+=4
+                        value=body[offset:offset+size] if size>=0 else None
+                        if size>=0:offset+=size
+                        if index==1 and value is not None:value=b'identity-mismatch'
+                        fields.append(struct.pack('!i',len(value))+value if value is not None else struct.pack('!i',-1))
+                    body=body[:2]+b''.join(fields);length=struct.pack('!I',len(body)+4)
+                    self.h.event('fault_activated',fault='observer_identity_mismatch',session=c['pid'])
                 c['client'].sendall(tag+length+body)
                 if tag==b'E':
                     # Attribute an idle lock's fatal response without recording

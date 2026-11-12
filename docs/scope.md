@@ -70,6 +70,35 @@ not full service conformance.
 
 ## Evidence limits
 
+The [W5 report](../evidence/w5/report.md) records activated local interruption scenarios through
+real API/engine processes and independent simulators, with complete inventory, default-feature
+checks and exact-assertion controls. It demonstrates selected create/record and connection arms,
+not every operation kind in CNF-366, complete CNF-365, or deployment-wide CNF-373 recovery.
+The process-death drill restores the same designated standby on unchanged history; it does not
+exercise a promotion incident, production supervisor policy or loss of observer access.
+
+**OPS-49 accounting is implemented for the supported engine paths, with conservative observation.**
+One dedicated checked read-only observer, outside the pools, samples registered COMMITs every
+20 ms. Exact pid and backend start, active state, SyncRep wait and store COMMIT text are required.
+Only spans inside uninterrupted matching runs are exempt; missing/failed/mismatched observations,
+reconnect gaps, idle reply delay and ordinary backoff stay charged. A receipt's completion charges
+its complete attempt once, without abandoning a sent COMMIT. Engine startup includes the observer
+and transient generation session in its ordinary capacity check; the API gets no such observer.
+The final run records real wait, mixed wait/reply delay, failure during an established SyncRep
+sample run, checked re-establishment, original stop precedence, and same-driver unchanged-runtime
+reds. A test-only closure observation rejects skipping `end_run`; separate completion arithmetic
+checks charging of the unobserved interval. Failed-attempt fixtures require zero outstanding
+worker write checkouts before backoff. Blocked settlement runs an actual successor and preserves
+the same operation, complete durable snapshot and single provider order. D-36 is settled by that
+evidence.
+
+The accepted limits remain: observer loss during a standby stall followed by a lost COMMIT reply
+can cause one alarmed ordinary exhaustion exit without money loss; a live transport that answers
+keepalives but withholds the COMMIT reply forever triggers no accounting exit. The PostgreSQL 18.6
+one-contiguous-SyncRep-wait-per-COMMIT source premise is **unverified** here. D-39 distinguishes
+executed attribution from source assumptions and production parameter selection. No timeout,
+pool bound or deployment profile was changed. Independent acceptance is separate from these runs.
+
 - A local two-process PostgreSQL cluster tests PostgreSQL behaviour. It does not demonstrate
   failure-domain independence, arbitrary hardware durability or production fencing.
 - The specification repository's archived PostgreSQL experiments used a primary with two standbys.
@@ -104,8 +133,10 @@ after loss detection takes the later-stop exit even before fan-out registration.
 refusal leaves the newer row and money unchanged, reports that observation and ends the stale
 worker. Completed records release capacity while captured observers retain their result. Expiry, a later
 stop, retry exhaustion and supersession require process exit, retaining uncertainty about any last
-reply. The dedicated replication-freeze stop-record drill (ENG-07) remains not run. ENG-05 automatic
-provider reconciliation and DB-10 deployment-wide saturation also remain not run. Local pool
+reply. W5 demonstrates the dedicated replication-freeze stop-record drill's named create arm
+(ENG-07): an older record retains its original deadline through lock loss and exits nonzero
+while its sent COMMIT remains unacknowledged. ENG-05 automatic provider reconciliation and
+DB-10 deployment-wide saturation remain not run. Local pool
 budgets do not guarantee observer access or bound residual backends across process lifetimes.
 
 The API serves only the explicit loopback `local-simulator` profile after schema compatibility.
@@ -259,8 +290,9 @@ Supported traffic configurations must allow list, balance and machine reads at t
 1000 ms cadence. Parameter/descriptor files and simulator addresses are required; these settings do
 not select production capacities or close D-6/7/8/9.
 
-The canonical runner requires nine phases and retains the full W1–W3 inventory plus the workflow,
-default-feature workflow and three additional sensitivity controls. Historical W3 evidence above
+The canonical runner requires ten phases and retains the full W1–W3 inventory plus the workflow,
+default-feature workflow, W5 and thirty-five sensitivity controls, plus the direct release-assertion
+probe. Historical W3 evidence above
 retains its original source identity. Fresh W4 evidence is recorded separately. Default API startup
 checks build into a separate target directory. The workflow records executable hashes and feature
 modes for API/engine/migrator builds

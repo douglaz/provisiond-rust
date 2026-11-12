@@ -1,0 +1,710 @@
+{
+  "result": "expected negative demonstration",
+  "implementation_commit": "aceea4eea8382c8d3b6fa554706c54920999369c",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "seed": 20261112,
+  "exit_status": 1,
+  "intended_assertion": "OPS-49 non-standby COMMIT reply delay must consume retry budget",
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "engine": {
+      "workers": 3,
+      "write_pool": 3,
+      "compatibility_read_pool": 1,
+      "startup_lock_outside_pool": true,
+      "startup_wait_ms": 500,
+      "store_retry_ms": 2000,
+      "stop_record_ms": 1000,
+      "startup_lock_keepalives": {
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "count": 2,
+        "profile_assignment": "shared with pooled local values"
+      },
+      "runtime_build": {
+        "features": [
+          "store-test-hooks"
+        ],
+        "target_directory": "<private-run>/w5-3h9_ivfb/target"
+      },
+      "migration_lock_ms": 500,
+      "migration_lock_retries": 2,
+      "schema_version": 2,
+      "semantic_version": 2,
+      "notice_cap": 16
+    },
+    "w5": {
+      "required_scenarios": [
+        "w5_admission_before",
+        "w5_admission_reply",
+        "w5_claim_reply",
+        "w5_step8",
+        "w5_accepted_lost",
+        "w5_settlement_blocked",
+        "w5_settlement_reply",
+        "w5_stop_record",
+        "w5_lock_loss",
+        "w5_retained_checkouts",
+        "w5_process_death",
+        "w5_connection_check",
+        "w5_contention",
+        "w5_remote_completion",
+        "w5_generation_record",
+        "w5_default_hooks",
+        "w5_claim_precommit",
+        "w5_backoff_budget",
+        "w5_accounting_reply",
+        "w5_accounting_syncrep",
+        "w5_accounting_mixed",
+        "w5_accounting_unavailable",
+        "w5_accounting_mismatch",
+        "w5_accounting_stop",
+        "w5_accounting_reconnect",
+        "w5_accounting_failure_run"
+      ],
+      "selected_case": "w5_accounting_reply",
+      "defect": null,
+      "automatic_reconciliation": "not run (W6)",
+      "deployment_saturation": "not run (W8)",
+      "recovery_incidents": "not run (W7)"
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    },
+    "workflow": {
+      "parameters": {
+        "activation_sats": 100,
+        "deposit_seconds": 3600,
+        "finality_seconds": 600,
+        "tenant_seconds": 10800,
+        "pending_limit": 64,
+        "admission_delay_ms": 50,
+        "admission_validity_seconds": 60,
+        "admission_capacity": 256,
+        "source_concurrency": 2,
+        "rate_interval_ms": 1000,
+        "read_limit": 1000,
+        "write_limit": 1000,
+        "created_limit": 100,
+        "spend_limit": 1000000,
+        "ceiling_seconds": 3600,
+        "retention_seconds": 86400,
+        "receipt_seconds": 86400,
+        "listing_age_seconds": 3600,
+        "lightning_floor_sats": 1,
+        "onchain_floor_sats": 20,
+        "confirmation_depth": 2
+      },
+      "descriptor": {
+        "account": "sim-a",
+        "kind": "local_simulator",
+        "capabilities": [
+          "provision_virtual",
+          "list_offers",
+          "delete_machine"
+        ],
+        "channel": "orders",
+        "channels": [
+          "orders"
+        ],
+        "offer_is_resource": false,
+        "temporary_keys": false,
+        "currency": "USD",
+        "stop_cost": true,
+        "allow_orders": true,
+        "correlator": "operation_id",
+        "margin_bps": 1000,
+        "order_budget": {
+          "limit": 20,
+          "per_seconds": 86400
+        },
+        "cancellation_bound": "2026-11-12",
+        "meter_seconds": 1,
+        "call_seconds": 1,
+        "visibility_seconds": 1,
+        "resolution_seconds": 1,
+        "read_seconds": 1,
+        "hold_seconds": 1,
+        "margin_seconds": 1,
+        "max_correlator_bytes": 128,
+        "max_rate_outage_seconds": 600
+      },
+      "offer": {
+        "id": "test-small",
+        "name": "Nonpayable simulator virtual machine",
+        "kind": "virtual",
+        "regions": [
+          "test"
+        ],
+        "recurring_price": "0.01",
+        "setup_fee": "0.02",
+        "currency": "USD",
+        "period_seconds": 3600,
+        "billing_unit": {
+          "seconds": 3600,
+          "native_floor": null
+        },
+        "install_strategies": [],
+        "cancellation_bound": null,
+        "traffic_bound": "unlimited",
+        "attachments": [],
+        "sellable": true
+      },
+      "rate": {
+        "currency": "USD",
+        "minor_scale": 2,
+        "rate_num": 10,
+        "rate_den": 1,
+        "margin_bps": 1000,
+        "haircut_bps": 0,
+        "source": "simulator-fixed-rational",
+        "observed_at": "2026-11-12T17:32:39Z"
+      },
+      "listeners": {
+        "api": 55504,
+        "provider": 55505,
+        "rail": 55506
+      },
+      "test_build_features": [
+        "store-test-hooks"
+      ],
+      "builds": {
+        "api": {
+          "executable": "<private-run>/w5-3h9_ivfb/target/debug/api",
+          "sha256": "ef0fe253a2bc675056c46edb40a3a713bfcac0fffda6661b3263b9faa532164c",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "engine": {
+          "executable": "<private-run>/w5-3h9_ivfb/target/debug/engine",
+          "sha256": "be93d15756bf2669719e72823c246c21732ede932fb7bc74debac1149a3c12e3",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "migrate": {
+          "executable": "<private-run>/w5-3h9_ivfb/target/debug/migrate",
+          "sha256": "978e10c41f9fdd22432a49a92dabb3c443b091e3959a9f8305f0e3a0302e3a58",
+          "features": [
+            "store-test-hooks"
+          ]
+        }
+      }
+    }
+  },
+  "assertion_drivers": {
+    "tests/postgres/w5.py": "d6952b6986a900d6979823a8241f4d99d21d524fbdeba5933d3b6f1c78d3a7a0",
+    "tests/postgres/w5_accounting.py": "7e391b59facd02dd4e691b044ab4dd7614e2f6d08fc539bb797d253a63e3f87e"
+  },
+  "events": [
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794504742.6564987,
+      "elapsed": 2.470316697144881,
+      "path": "<private-run>/w5-3h9_ivfb/standby-backup-manifest.json",
+      "sha256": "e48fb530a3b2cb4f80ac482ad8c87fbe51f2068bd819656e68f97861b3d4b27d"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794504742.6566856,
+      "elapsed": 2.470503545133397,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.6823959790635854
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794504743.3793187,
+      "elapsed": 3.19313674303703,
+      "system_identifier": "7707339173028258857",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707339173028258857",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794504743.3892174,
+      "elapsed": 3.203035310143605,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794504743.4369452,
+      "elapsed": 3.250763287069276,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794504760.2161658,
+      "elapsed": 20.02998383110389,
+      "system_identifier": "7707339173028258857",
+      "sampled_primary_flush": "0/3172CE8",
+      "standby_system_identifier": "7707339173028258857",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "w5_healthy_before_fault",
+      "timestamp": 1794504760.2445457,
+      "elapsed": 20.058363910997286,
+      "component": "engine-settlement",
+      "target": "0/3172CE8",
+      "designated": [
+        {
+          "pid": 4171148,
+          "name": "provisiond_sync",
+          "role": "replicator",
+          "flush": "0/3172CE8",
+          "state": "streaming",
+          "address": "127.0.0.1",
+          "sync_state": "sync"
+        }
+      ]
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794504760.7002378,
+      "elapsed": 20.514055751962587,
+      "fault": "transport_gate",
+      "direction": "send",
+      "session": 4173970,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794504760.7269285,
+      "elapsed": 20.540746462065727,
+      "fault": "transport_gate",
+      "direction": "commit_reply",
+      "session": 4173970,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "w5_accounting_activated",
+      "timestamp": 1794504763.117582,
+      "elapsed": 22.93140005413443,
+      "scenario": "w5_accounting_reply",
+      "mode": "reply",
+      "activated": true,
+      "operation": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+      "session": 4173970,
+      "owner": 12,
+      "held_ms": 2365,
+      "backend_samples": [
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead",
+        "idle:ClientRead"
+      ],
+      "retries": [
+        {
+          "event": "whole_transaction_retry",
+          "external_call_repeated": false,
+          "serialization": false,
+          "spent_ms": 21
+        }
+      ],
+      "engine_exit": null,
+      "provider_orders": 1,
+      "durable_rows_unchanged": true
+    },
+    {
+      "event": "application_trace",
+      "component": "api",
+      "path": "<private-run>/w5-3h9_ivfb/api-0.stdout",
+      "sha256": "4ae6e8290dbe00b054c064b14842d2b71dd7af542d68fcf29646fbd7277df589",
+      "events": []
+    },
+    {
+      "event": "application_trace",
+      "component": "engine",
+      "path": "<private-run>/w5-3h9_ivfb/engine-0.stdout",
+      "sha256": "80f6bb880436f58025875862d4de3f0d13c72020df077e1987e09e704d470c90",
+      "events": [
+        {
+          "claim_number": 1,
+          "event": "dispatch_license_acknowledged",
+          "operation": "78f4679b-0125-4559-b7c6-fead8f9a9aaa"
+        },
+        {
+          "direct_read": true,
+          "event": "provider_verified",
+          "matches": 1,
+          "operation": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "post_order_read": true
+        },
+        {
+          "claim_number": 1,
+          "event": "execute_returned",
+          "operation": "78f4679b-0125-4559-b7c6-fead8f9a9aaa"
+        },
+        {
+          "command_tag": "SHOW",
+          "diagnostics": [],
+          "event": "commit_classified",
+          "outcome": "unresolved",
+          "owner": 12,
+          "ready_status": 84,
+          "reason": "Unresolved { reason: \"COMMIT error/transport death; no rollback inferred: connection closed\" }",
+          "session": 4173970,
+          "transport_dead": true
+        },
+        {
+          "event": "whole_transaction_retry",
+          "external_call_repeated": false,
+          "serialization": false,
+          "spent_ms": 21
+        },
+        {
+          "affected": true,
+          "event": "settlement_finished",
+          "landed": true,
+          "operation": "78f4679b-0125-4559-b7c6-fead8f9a9aaa"
+        }
+      ]
+    },
+    {
+      "event": "independent_simulator_evidence",
+      "timestamp": 1794504763.1298318,
+      "elapsed": 22.94364970503375,
+      "simulator_kind": "provider",
+      "sha256": "0cb65e7c7af3dc47de1d073ee4d7bb18fe0840f79fdf31ab22ccf00c14c18599",
+      "records": [
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": null,
+          "monotonic_ns": 1117408632174134,
+          "path": "/offers",
+          "sequence": 1,
+          "stage": "request_received",
+          "timestamp": 1794504760.5428386
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": null,
+          "monotonic_ns": 1117408638766106,
+          "path": "/offers",
+          "sequence": 2,
+          "stage": "read_only",
+          "timestamp": 1794504760.549431
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "monotonic_ns": 1117408708409938,
+          "path": "/order",
+          "sequence": 3,
+          "stage": "request_received",
+          "timestamp": 1794504760.6190748
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "monotonic_ns": 1117408714484255,
+          "path": "/order",
+          "sequence": 4,
+          "stage": "accepted",
+          "timestamp": 1794504760.625149
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "monotonic_ns": 1117408720555064,
+          "path": "/order",
+          "resource": "SIMULATOR-RESOURCE-4",
+          "sequence": 5,
+          "stage": "resource_created",
+          "timestamp": 1794504760.6312199,
+          "value": {
+            "account": "sim-a",
+            "channel": "orders",
+            "correlator": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+            "external_id": "SIMULATOR-RESOURCE-4",
+            "name": "worker-test",
+            "present": true,
+            "public_ips": [],
+            "region": "test",
+            "state": "running"
+          }
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "monotonic_ns": 1117408726892161,
+          "path": "/order",
+          "resource": "SIMULATOR-RESOURCE-4",
+          "sequence": 6,
+          "stage": "response_returned",
+          "timestamp": 1794504760.6375568
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "monotonic_ns": 1117408733594078,
+          "path": "/search",
+          "sequence": 7,
+          "stage": "request_received",
+          "timestamp": 1794504760.644259
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "monotonic_ns": 1117408739787096,
+          "path": "/search",
+          "sequence": 8,
+          "stage": "read_only",
+          "timestamp": 1794504760.650452
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": null,
+          "monotonic_ns": 1117408746723199,
+          "path": "/get",
+          "sequence": 9,
+          "stage": "request_received",
+          "timestamp": 1794504760.657388
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": null,
+          "monotonic_ns": 1117408752907962,
+          "path": "/get",
+          "sequence": 10,
+          "stage": "read_only",
+          "timestamp": 1794504760.663573
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": null,
+          "monotonic_ns": 1117408759128561,
+          "path": "/get",
+          "sequence": 11,
+          "stage": "read_response_returned",
+          "timestamp": 1794504760.6697936
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": null,
+          "monotonic_ns": 1117408765767571,
+          "path": "/constraints",
+          "sequence": 12,
+          "stage": "request_received",
+          "timestamp": 1794504760.6764324
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": null,
+          "monotonic_ns": 1117408771917869,
+          "path": "/constraints",
+          "sequence": 13,
+          "stage": "read_only",
+          "timestamp": 1794504760.6825829
+        },
+        {
+          "account": "sim-a",
+          "command": "78f4679b-0125-4559-b7c6-fead8f9a9aaa",
+          "correlator": null,
+          "monotonic_ns": 1117408780873729,
+          "path": "/constraints",
+          "sequence": 14,
+          "stage": "read_response_returned",
+          "timestamp": 1794504760.6915386
+        }
+      ]
+    },
+    {
+      "event": "independent_simulator_evidence",
+      "timestamp": 1794504763.1299453,
+      "elapsed": 22.9437631261535,
+      "simulator_kind": "rail",
+      "sha256": "6e8ff31eaa5fdadd0453341e1ab885683a9a2bbc6bc79262d946069a7e57ba21",
+      "records": [
+        {
+          "monotonic_ns": 1117408101326893,
+          "sequence": 1,
+          "stage": "rail_observation",
+          "timestamp": 1794504760.0119915,
+          "value": {
+            "amount_sats": 115,
+            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/4b00a34f-3a60-4122-9102-368f6b1a9472/EXPIRES/1794508359",
+            "payment_hash": "06945f73d6ab845ecdb9575b5fa3ff59b16d0a1df5ff577b7191f605fbeceec1",
+            "preimage_known": true,
+            "rail": "lightning",
+            "settled": true,
+            "settled_at": "2026-11-12T17:32:40Z"
+          }
+        }
+      ]
+    },
+    {
+      "event": "workflow_children_reaped",
+      "timestamp": 1794504763.1299777,
+      "elapsed": 22.943795467028394,
+      "count": 4
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794504763.208498,
+      "elapsed": 23.022316231159493,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504764.041064,
+      "elapsed": 23.8548820160795,
+      "path": "<private-run>/w5-3h9_ivfb/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504764.0671623,
+      "elapsed": 23.880980520974845,
+      "path": "<private-run>/w5-3h9_ivfb/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504764.1838548,
+      "elapsed": 23.997673192992806,
+      "path": "<private-run>/w5-3h9_ivfb/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794504764.184059,
+      "elapsed": 23.997876883018762,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794504764.1841006,
+      "elapsed": 23.997918389970437,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/w5-3h9_ivfb"
+    },
+    {
+      "event": "failure",
+      "timestamp": 1794504763.130024,
+      "elapsed": 22.943841703003272,
+      "type": "AssertionError",
+      "message": "OPS-49 non-standby COMMIT reply delay must consume retry budget"
+    }
+  ]
+}

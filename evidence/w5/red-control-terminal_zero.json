@@ -1,0 +1,253 @@
+{
+  "result": "expected negative demonstration",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "seed": 20261112,
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "engine": {
+      "workers": 3,
+      "write_pool": 3,
+      "compatibility_read_pool": 1,
+      "startup_lock_outside_pool": true,
+      "startup_wait_ms": 500,
+      "store_retry_ms": 2000,
+      "stop_record_ms": 1000,
+      "startup_lock_keepalives": {
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "count": 2,
+        "profile_assignment": "shared with pooled local values"
+      },
+      "runtime_build": {
+        "features": [
+          "store-test-hooks"
+        ],
+        "target_directory": "<private-run>/core-_f7xgtvk/target"
+      },
+      "migration_lock_ms": 500,
+      "migration_lock_retries": 2,
+      "schema_version": 2,
+      "semantic_version": 2,
+      "notice_cap": 16
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    }
+  },
+  "exit_status": 1,
+  "intended_assertion": "zero-row stop must report refusal and end stale execution",
+  "source_reference": "evidence/w5/tested-source.json",
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "core",
+    "--case",
+    "terminal_zero",
+    "--defect",
+    "terminal_zero",
+    "--seed",
+    "20261112",
+    "--evidence",
+    "<private-run>/control-manifest.json"
+  ],
+  "events": [
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794504518.6698737,
+      "elapsed": 19.416370197897777,
+      "path": "<private-run>/core-_f7xgtvk/standby-backup-manifest.json",
+      "sha256": "beaa664a4ca1f38944c0700ca0216b8ef3dda36726c15d4b11917af739402062"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794504518.670068,
+      "elapsed": 19.41656424989924,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.6602422478608787
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794504519.3744695,
+      "elapsed": 20.120966230984777,
+      "system_identifier": "7707338213459993872",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707338213459993872",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794504519.3844285,
+      "elapsed": 20.130925331963226,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794504519.4315217,
+      "elapsed": 20.1780180640053,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794504520.24684,
+      "elapsed": 20.993336476851255,
+      "fault": "transport_gate",
+      "direction": "commit_reply",
+      "session": 4138549,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "terminal_zero_observed",
+      "timestamp": 1794504520.278313,
+      "elapsed": 21.02480962383561,
+      "operation": "48fdd1f4-31b9-48f0-b398-048f48992dfc",
+      "newer_worker": false,
+      "finished": {
+        "affected": false,
+        "detail": null,
+        "event": "stop_record_finished",
+        "landed": true,
+        "operation": "48fdd1f4-31b9-48f0-b398-048f48992dfc"
+      },
+      "zero_row_diagnostics": [],
+      "owners": {
+        "available_slots": 3,
+        "workers": 0
+      },
+      "row_money_exclusion_unchanged": true,
+      "generation_unchanged": true
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794504520.3350172,
+      "elapsed": 21.081513967830688,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504521.1691716,
+      "elapsed": 21.915668322937563,
+      "path": "<private-run>/core-_f7xgtvk/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504521.1971684,
+      "elapsed": 21.943665117956698,
+      "path": "<private-run>/core-_f7xgtvk/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504521.3615465,
+      "elapsed": 22.108043076936156,
+      "path": "<private-run>/core-_f7xgtvk/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794504521.3617573,
+      "elapsed": 22.10825359984301,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794504521.3617966,
+      "elapsed": 22.108292942866683,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/core-_f7xgtvk"
+    },
+    {
+      "event": "failure",
+      "timestamp": 1794504520.2937906,
+      "elapsed": 21.040287043899298,
+      "type": "AssertionError",
+      "message": "zero-row stop must report refusal and end stale execution"
+    }
+  ]
+}

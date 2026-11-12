@@ -1,4 +1,5 @@
 //! OVR-9/STO-7/STO-55: sole transaction entry, admission, pools and COMMIT ownership.
+mod accounting;
 mod business;
 mod commit;
 mod component;
@@ -104,6 +105,7 @@ pub struct Store {
     trace: Trace,
     process: Arc<Process>,
     manager: Manager,
+    accounting: Option<Arc<accounting::Accounting>>,
 }
 impl Store {
     pub fn new(
@@ -137,6 +139,7 @@ impl Store {
             settings,
             trace,
             process,
+            accounting: None,
         })
     }
     async fn checkout(&self, pool: &Pool) -> Result<Checkout> {
@@ -210,6 +213,7 @@ pub struct Session {
     client: Arc<Client>,
     protocol: Arc<transport::Protocol>,
     pub pid: i32,
+    backend_start: String,
     settings: Settings,
     trace: Trace,
     notices: Arc<Mutex<Diagnostics>>,
@@ -314,6 +318,7 @@ impl managed::Manager for Manager {
             client: Arc::new(client),
             protocol,
             pid: 0,
+            backend_start: String::new(),
             settings: self.settings.clone(),
             trace: self.trace.clone(),
             notices,
@@ -327,6 +332,9 @@ impl managed::Manager for Manager {
             .scalar("SELECT pg_backend_pid()::text")
             .await?
             .parse()?;
+        session.backend_start = session
+            .scalar("SELECT backend_start::text FROM pg_stat_activity WHERE pid=pg_backend_pid()")
+            .await?;
         session.check("admission").await?;
         (self.trace)(json!({"event":"session_admitted","session":session.pid}));
         Ok(session)
@@ -485,6 +493,7 @@ impl Drop for DiscardUnlessFinished {
 /// STO-7: pre-COMMIT cancellation or failure closes the physical session before
 /// another checkout can use it. This guard never sends a PostgreSQL cancel packet.
 pub struct Transaction {
+    id: u64,
     checkout: Option<Connection>,
     failed: bool,
     permit: Option<tokio::sync::OwnedSemaphorePermit>,
@@ -501,6 +510,7 @@ impl Store {
     async fn begin_checked<G>(&self, admission: impl FnOnce() -> Result<G>) -> Result<Transaction> {
         let checkout = self.write_session().await?;
         let transaction = Transaction {
+            id: next_transaction(),
             checkout: Some(Connection::Pooled(checkout)),
             failed: false,
             permit: None,
@@ -539,7 +549,14 @@ impl Store {
         Ok(transaction)
     }
 }
+fn next_transaction() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
+}
 impl Transaction {
+    pub(crate) fn identity(&self) -> u64 {
+        self.id
+    }
     pub fn session_id(&self) -> i32 {
         self.checkout.as_ref().expect("live transaction").pid
     }
@@ -607,18 +624,41 @@ impl Transaction {
         self.checkout
             .as_ref()
             .context("transaction consumed")?
-            .query("ROLLBACK")
+            .query(&format!("ROLLBACK /* store transaction {} */", self.id))
             .await?;
-        drop(self.checkout.take());
+        let session = self.checkout.as_ref().expect("checkout");
+        (session.trace)(
+            json!({"event":"transaction_rollback_acknowledged","transaction":self.id,"session":session.pid,"backend_start":session.backend_start,"ready_status":session.protocol.snapshot().status}),
+        );
+        self.release(false);
         Ok(())
+    }
+    fn release(&mut self, discard: bool) {
+        if let Some(checkout) = self.checkout.take() {
+            let trace = checkout.trace.clone();
+            let pid = checkout.pid;
+            let backend_start = checkout.backend_start.clone();
+            let pool = match &checkout {
+                Connection::Pooled(c) => managed::Object::pool(c),
+                _ => None,
+            };
+            let gate = self.permit.as_ref().map(|p| p.semaphore().clone());
+            if discard {
+                trace(json!({"event":"precommit_session_discarded","session":pid}));
+                checkout.discard();
+            } else {
+                drop(checkout);
+            }
+            drop(self.permit.take());
+            trace(
+                json!({"event":"transaction_resources_released","transaction":self.id,"session":pid,"backend_start":backend_start,"discarded":discard,"component_available":gate.map(|g|g.available_permits()),"pool_available":pool.as_ref().map(|p|p.status().available),"pool_checked_out":pool.as_ref().map(|p|{let s=p.status();s.size-s.available})}),
+            );
+        }
     }
 }
 impl Drop for Transaction {
     fn drop(&mut self) {
-        if let Some(checkout) = self.checkout.take() {
-            (checkout.trace)(json!({"event":"precommit_session_discarded","session":checkout.pid}));
-            checkout.discard();
-        }
+        self.release(true);
     }
 }
 
@@ -698,6 +738,7 @@ impl Store {
     }
     async fn begin_dedicated(&self, session: Session) -> Result<Transaction> {
         let tx = Transaction {
+            id: next_transaction(),
             checkout: Some(Connection::Dedicated(session)),
             failed: false,
             permit: None,

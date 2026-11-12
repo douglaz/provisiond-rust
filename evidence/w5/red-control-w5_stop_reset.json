@@ -1,0 +1,529 @@
+{
+  "result": "expected negative demonstration",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "seed": 20261112,
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "engine": {
+      "workers": 3,
+      "write_pool": 3,
+      "compatibility_read_pool": 1,
+      "startup_lock_outside_pool": true,
+      "startup_wait_ms": 500,
+      "store_retry_ms": 2000,
+      "stop_record_ms": 1000,
+      "startup_lock_keepalives": {
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "count": 2,
+        "profile_assignment": "shared with pooled local values"
+      },
+      "runtime_build": {
+        "features": [
+          "store-test-hooks"
+        ],
+        "target_directory": "<private-run>/w5-869fepr7/target"
+      },
+      "migration_lock_ms": 500,
+      "migration_lock_retries": 2,
+      "schema_version": 2,
+      "semantic_version": 2,
+      "notice_cap": 16
+    },
+    "w5": {
+      "required_scenarios": [
+        "w5_admission_before",
+        "w5_admission_reply",
+        "w5_claim_reply",
+        "w5_step8",
+        "w5_accepted_lost",
+        "w5_settlement_blocked",
+        "w5_settlement_reply",
+        "w5_stop_record",
+        "w5_lock_loss",
+        "w5_retained_checkouts",
+        "w5_process_death",
+        "w5_connection_check",
+        "w5_contention",
+        "w5_remote_completion",
+        "w5_generation_record",
+        "w5_default_hooks",
+        "w5_claim_precommit",
+        "w5_backoff_budget",
+        "w5_accounting_reply",
+        "w5_accounting_syncrep",
+        "w5_accounting_mixed",
+        "w5_accounting_unavailable",
+        "w5_accounting_mismatch",
+        "w5_accounting_stop",
+        "w5_accounting_reconnect",
+        "w5_accounting_failure_run"
+      ],
+      "selected_case": "w5_stop_record",
+      "defect": "w5_stop_reset",
+      "automatic_reconciliation": "not run (W6)",
+      "deployment_saturation": "not run (W8)",
+      "recovery_incidents": "not run (W7)"
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    },
+    "workflow": {
+      "parameters": {
+        "activation_sats": 100,
+        "deposit_seconds": 3600,
+        "finality_seconds": 600,
+        "tenant_seconds": 10800,
+        "pending_limit": 64,
+        "admission_delay_ms": 50,
+        "admission_validity_seconds": 60,
+        "admission_capacity": 256,
+        "source_concurrency": 2,
+        "rate_interval_ms": 1000,
+        "read_limit": 1000,
+        "write_limit": 1000,
+        "created_limit": 100,
+        "spend_limit": 1000000,
+        "ceiling_seconds": 3600,
+        "retention_seconds": 86400,
+        "receipt_seconds": 86400,
+        "listing_age_seconds": 3600,
+        "lightning_floor_sats": 1,
+        "onchain_floor_sats": 20,
+        "confirmation_depth": 2
+      },
+      "descriptor": {
+        "account": "sim-a",
+        "kind": "local_simulator",
+        "capabilities": [
+          "provision_virtual",
+          "list_offers",
+          "delete_machine"
+        ],
+        "channel": "orders",
+        "channels": [
+          "orders"
+        ],
+        "offer_is_resource": false,
+        "temporary_keys": false,
+        "currency": "USD",
+        "stop_cost": true,
+        "allow_orders": true,
+        "correlator": "operation_id",
+        "margin_bps": 1000,
+        "order_budget": {
+          "limit": 20,
+          "per_seconds": 86400
+        },
+        "cancellation_bound": "2026-11-12",
+        "meter_seconds": 1,
+        "call_seconds": 1,
+        "visibility_seconds": 1,
+        "resolution_seconds": 1,
+        "read_seconds": 1,
+        "hold_seconds": 1,
+        "margin_seconds": 1,
+        "max_correlator_bytes": 128,
+        "max_rate_outage_seconds": 600
+      },
+      "offer": {
+        "id": "test-small",
+        "name": "Nonpayable simulator virtual machine",
+        "kind": "virtual",
+        "regions": [
+          "test"
+        ],
+        "recurring_price": "0.01",
+        "setup_fee": "0.02",
+        "currency": "USD",
+        "period_seconds": 3600,
+        "billing_unit": {
+          "seconds": 3600,
+          "native_floor": null
+        },
+        "install_strategies": [],
+        "cancellation_bound": null,
+        "traffic_bound": "unlimited",
+        "attachments": [],
+        "sellable": true
+      },
+      "rate": {
+        "currency": "USD",
+        "minor_scale": 2,
+        "rate_num": 10,
+        "rate_den": 1,
+        "margin_bps": 1000,
+        "haircut_bps": 0,
+        "source": "simulator-fixed-rational",
+        "observed_at": "2026-11-12T17:19:09Z"
+      },
+      "listeners": {
+        "api": 55504,
+        "provider": 55505,
+        "rail": 55506
+      },
+      "test_build_features": [
+        "store-test-hooks"
+      ],
+      "builds": {
+        "api": {
+          "executable": "<private-run>/w5-869fepr7/target/debug/api",
+          "sha256": "afe1088a5a46d14063d3f2d34cf0cb6b15725546084808e0107ab59165155f8c",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "engine": {
+          "executable": "<private-run>/w5-869fepr7/target/debug/engine",
+          "sha256": "3afec4180026b0a5228bfa88c1929d618ecaa46e25928d132c21063bd682e919",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "migrate": {
+          "executable": "<private-run>/w5-869fepr7/target/debug/migrate",
+          "sha256": "7455c571cad74bfe8660e9097c27d9ff3ebd766dd1949f782845dbd44f8ecf57",
+          "features": [
+            "store-test-hooks"
+          ]
+        }
+      }
+    }
+  },
+  "exit_status": 1,
+  "intended_assertion": "OPS-21 later stop arbitration must preserve original absolute deadline",
+  "source_reference": "evidence/w5/tested-source.json",
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "w5",
+    "--case",
+    "w5_stop_record",
+    "--defect",
+    "w5_stop_reset",
+    "--seed",
+    "20261112",
+    "--evidence",
+    "<private-run>/control-manifest.json"
+  ],
+  "events": [
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794503932.2510474,
+      "elapsed": 1.8602552150841802,
+      "path": "<private-run>/w5-869fepr7/standby-backup-manifest.json",
+      "sha256": "e6ad216874233aaef3a65c76a809e872cb346243d6c7276d17c6bb1f755cb154"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794503932.251237,
+      "elapsed": 1.8604445280507207,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.6521426809486002
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794503932.9433768,
+      "elapsed": 2.5525844409130514,
+      "system_identifier": "7707335694784216904",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707335694784216904",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794503932.954126,
+      "elapsed": 2.5633335849270225,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794503933.0021014,
+      "elapsed": 2.611309072934091,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794503950.454558,
+      "elapsed": 20.06376547808759,
+      "fault": "transport_gate",
+      "direction": "send",
+      "session": 4057707,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "w5_process_exit",
+      "timestamp": 1794503951.5078773,
+      "elapsed": 21.11708487593569,
+      "component": "engine",
+      "exit_status": 71,
+      "harness_killed": false,
+      "fatal_events": [
+        {
+          "event": "engine_fatal",
+          "reason": "stop bound expired; records not observed landed: 33b52ee3-2f70-4fac-a1c6-4a73de4fa4e5 (claim=1)"
+        }
+      ]
+    },
+    {
+      "event": "w5_later_stop_arbitration_observed",
+      "timestamp": 1794503951.5082684,
+      "elapsed": 21.117475694976747,
+      "operation": "33b52ee3-2f70-4fac-a1c6-4a73de4fa4e5",
+      "arm": "cut_off",
+      "original": {
+        "deadline": "Instant { tv_sec: 1116599, tv_nsec: 540939662 }",
+        "identity": "0x555555ad6610",
+        "result": null
+      },
+      "after": {
+        "error": null,
+        "event": "test_later_stop_arbitrated",
+        "fatal": false,
+        "operation": "33b52ee3-2f70-4fac-a1c6-4a73de4fa4e5",
+        "record": {
+          "deadline": "Instant { tv_sec: 1116599, tv_nsec: 547184146 }",
+          "identity": "0x555555ad6610",
+          "result": null
+        }
+      }
+    },
+    {
+      "event": "application_trace",
+      "component": "api",
+      "path": "<private-run>/w5-869fepr7/api-0.stdout",
+      "sha256": "ab6843705b41fdf24a52fda8cf4cd56b03fc154dc1b7eeb606cdf5da2351cb7f",
+      "events": []
+    },
+    {
+      "event": "application_trace",
+      "component": "engine",
+      "path": "<private-run>/w5-869fepr7/engine-0.stdout",
+      "sha256": "f67676fd9ee40c111bdd55dc3a8acfb31d14d78a0b35d8df8a2a2afd7a0288a4",
+      "events": [
+        {
+          "claim_number": 1,
+          "event": "dispatch_license_acknowledged",
+          "operation": "33b52ee3-2f70-4fac-a1c6-4a73de4fa4e5"
+        },
+        {
+          "bound_ms": 1000,
+          "event": "stop_record_started",
+          "operation": "33b52ee3-2f70-4fac-a1c6-4a73de4fa4e5"
+        },
+        {
+          "event": "test_record_snapshot",
+          "operation": "33b52ee3-2f70-4fac-a1c6-4a73de4fa4e5",
+          "record": {
+            "deadline": "Instant { tv_sec: 1116599, tv_nsec: 540939662 }",
+            "identity": "0x555555ad6610",
+            "result": null
+          }
+        },
+        {
+          "event": "whole_transaction_retry",
+          "external_call_repeated": false,
+          "serialization": false,
+          "spent_ms": 1004,
+          "transaction": 8
+        },
+        {
+          "event": "engine_fatal",
+          "reason": "stop bound expired; records not observed landed: 33b52ee3-2f70-4fac-a1c6-4a73de4fa4e5 (claim=1)"
+        }
+      ]
+    },
+    {
+      "event": "independent_simulator_evidence",
+      "timestamp": 1794503951.517139,
+      "elapsed": 21.126346485922113,
+      "simulator_kind": "provider",
+      "sha256": "4516462cb9ff7fac78eca090d860e5b9812b30ebe4c4a08aecd5a69ea9c5bb68",
+      "records": [
+        {
+          "account": "sim-a",
+          "command": "33b52ee3-2f70-4fac-a1c6-4a73de4fa4e5",
+          "correlator": null,
+          "monotonic_ns": 1116598387379676,
+          "path": "/offers",
+          "sequence": 1,
+          "stage": "request_received",
+          "timestamp": 1794503950.298044
+        },
+        {
+          "account": "sim-a",
+          "command": "33b52ee3-2f70-4fac-a1c6-4a73de4fa4e5",
+          "correlator": null,
+          "monotonic_ns": 1116598396172281,
+          "path": "/offers",
+          "sequence": 2,
+          "stage": "read_only",
+          "timestamp": 1794503950.306837
+        }
+      ]
+    },
+    {
+      "event": "independent_simulator_evidence",
+      "timestamp": 1794503951.5172539,
+      "elapsed": 21.12646143999882,
+      "simulator_kind": "rail",
+      "sha256": "57ea7ba8b76a3f2e93019b5222646b437a04d7117a98339aa9c133dbb7d3ce7e",
+      "records": [
+        {
+          "monotonic_ns": 1116597885209511,
+          "sequence": 1,
+          "stage": "rail_observation",
+          "timestamp": 1794503949.7958744,
+          "value": {
+            "amount_sats": 115,
+            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/5098fca4-8298-4304-af81-3b34816f7c16/EXPIRES/1794507549",
+            "payment_hash": "f569628922a38f2c3b53aabe0a01266c0c3a2245e07ba340bea1cfd0075e97a8",
+            "preimage_known": true,
+            "rail": "lightning",
+            "settled": true,
+            "settled_at": "2026-11-12T17:19:09Z"
+          }
+        }
+      ]
+    },
+    {
+      "event": "workflow_children_reaped",
+      "timestamp": 1794503951.5172994,
+      "elapsed": 21.1265070149675,
+      "count": 4
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794503951.7182863,
+      "elapsed": 21.327494276920334,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503952.4509811,
+      "elapsed": 22.060189041076228,
+      "path": "<private-run>/w5-869fepr7/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503952.4790304,
+      "elapsed": 22.088238063035533,
+      "path": "<private-run>/w5-869fepr7/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794503952.6027172,
+      "elapsed": 22.2119252870325,
+      "path": "<private-run>/w5-869fepr7/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794503952.602931,
+      "elapsed": 22.212138625094667,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794503952.6029694,
+      "elapsed": 22.212176735978574,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/w5-869fepr7"
+    },
+    {
+      "event": "failure",
+      "timestamp": 1794503951.5173545,
+      "elapsed": 21.12656208802946,
+      "type": "AssertionError",
+      "message": "OPS-21 later stop arbitration must preserve original absolute deadline"
+    }
+  ]
+}

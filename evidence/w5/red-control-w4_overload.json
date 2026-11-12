@@ -1,0 +1,592 @@
+{
+  "result": "expected negative demonstration",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "seed": 20261112,
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "engine": {
+      "workers": 3,
+      "write_pool": 3,
+      "compatibility_read_pool": 1,
+      "startup_lock_outside_pool": true,
+      "startup_wait_ms": 500,
+      "store_retry_ms": 2000,
+      "stop_record_ms": 1000,
+      "startup_lock_keepalives": {
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "count": 2,
+        "profile_assignment": "shared with pooled local values"
+      },
+      "runtime_build": {
+        "features": [
+          "store-test-hooks"
+        ],
+        "target_directory": "<private-run>/workflow-4_zujebh/target"
+      },
+      "migration_lock_ms": 500,
+      "migration_lock_retries": 2,
+      "schema_version": 2,
+      "semantic_version": 2,
+      "notice_cap": 16
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    },
+    "workflow": {
+      "parameters": {
+        "activation_sats": 100,
+        "deposit_seconds": 3600,
+        "finality_seconds": 600,
+        "tenant_seconds": 10800,
+        "pending_limit": 64,
+        "admission_delay_ms": 50,
+        "admission_validity_seconds": 60,
+        "admission_capacity": 256,
+        "source_concurrency": 2,
+        "rate_interval_ms": 1000,
+        "read_limit": 1000,
+        "write_limit": 1000,
+        "created_limit": 100,
+        "spend_limit": 1000000,
+        "ceiling_seconds": 3600,
+        "retention_seconds": 86400,
+        "receipt_seconds": 86400,
+        "listing_age_seconds": 3600,
+        "lightning_floor_sats": 1,
+        "onchain_floor_sats": 20,
+        "confirmation_depth": 2
+      },
+      "descriptor": {
+        "account": "sim-a",
+        "kind": "local_simulator",
+        "capabilities": [
+          "provision_virtual",
+          "list_offers",
+          "delete_machine"
+        ],
+        "channel": "orders",
+        "channels": [
+          "orders"
+        ],
+        "offer_is_resource": false,
+        "temporary_keys": false,
+        "currency": "USD",
+        "stop_cost": true,
+        "allow_orders": true,
+        "correlator": "operation_id",
+        "margin_bps": 1000,
+        "order_budget": {
+          "limit": 20,
+          "per_seconds": 86400
+        },
+        "cancellation_bound": "2026-11-12",
+        "meter_seconds": 1,
+        "call_seconds": 1,
+        "visibility_seconds": 1,
+        "resolution_seconds": 1,
+        "read_seconds": 1,
+        "hold_seconds": 1,
+        "margin_seconds": 1,
+        "max_correlator_bytes": 128,
+        "max_rate_outage_seconds": 600
+      },
+      "offer": {
+        "id": "test-small",
+        "name": "Nonpayable simulator virtual machine",
+        "kind": "virtual",
+        "regions": [
+          "test"
+        ],
+        "recurring_price": "0.01",
+        "setup_fee": "0.02",
+        "currency": "USD",
+        "period_seconds": 3600,
+        "billing_unit": {
+          "seconds": 3600,
+          "native_floor": null
+        },
+        "install_strategies": [],
+        "cancellation_bound": null,
+        "traffic_bound": "unlimited",
+        "attachments": [],
+        "sellable": true
+      },
+      "rate": {
+        "currency": "USD",
+        "minor_scale": 2,
+        "rate_num": 10,
+        "rate_den": 1,
+        "margin_bps": 1000,
+        "haircut_bps": 0,
+        "source": "simulator-fixed-rational",
+        "observed_at": "2026-11-12T17:21:18Z"
+      },
+      "listeners": {
+        "api": 55504,
+        "provider": 55505,
+        "rail": 55506
+      },
+      "test_build_features": [
+        "store-test-hooks"
+      ],
+      "builds": {
+        "api": {
+          "executable": "<private-run>/workflow-4_zujebh/target/debug/api",
+          "sha256": "afe1088a5a46d14063d3f2d34cf0cb6b15725546084808e0107ab59165155f8c",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "engine": {
+          "executable": "<private-run>/workflow-4_zujebh/target/debug/engine",
+          "sha256": "3afec4180026b0a5228bfa88c1929d618ecaa46e25928d132c21063bd682e919",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "migrate": {
+          "executable": "<private-run>/workflow-4_zujebh/target/debug/migrate",
+          "sha256": "7455c571cad74bfe8660e9097c27d9ff3ebd766dd1949f782845dbd44f8ecf57",
+          "features": [
+            "store-test-hooks"
+          ]
+        }
+      }
+    }
+  },
+  "exit_status": 1,
+  "intended_assertion": "overload must precede request business BEGIN",
+  "source_reference": "evidence/w5/tested-source.json",
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "workflow",
+    "--case",
+    "w4_overload",
+    "--defect",
+    "w4_overload",
+    "--seed",
+    "20261112",
+    "--evidence",
+    "<private-run>/control-manifest.json"
+  ],
+  "events": [
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794504061.4087238,
+      "elapsed": 1.954077063826844,
+      "path": "<private-run>/workflow-4_zujebh/standby-backup-manifest.json",
+      "sha256": "47690acc88e981f0d8e8abe9e27842b83ead39852a65830f89fa98434bea9972"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794504061.408921,
+      "elapsed": 1.9542741018813103,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.6721007970627397
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794504062.1562696,
+      "elapsed": 2.70162295200862,
+      "system_identifier": "7707336249019368550",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707336249019368550",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794504062.1651003,
+      "elapsed": 2.710453717969358,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794504062.223349,
+      "elapsed": 2.7687021610327065,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "exact_rail_decision_observed",
+      "timestamp": 1794504079.5710623,
+      "elapsed": 20.116415469907224,
+      "observation_digest": "cd995031468fac5ba0230b29a19a536740a4a501434c404d508b5235f83d4fdd",
+      "rail": "lightning",
+      "credit_path": false
+    },
+    {
+      "event": "exact_rail_decision_observed",
+      "timestamp": 1794504079.7016795,
+      "elapsed": 20.247032545972615,
+      "observation_digest": "86f3662ab1fc9cb076b89cad9589e6e3af33fdc86d7b24c3984665b1bac11698",
+      "rail": "lightning",
+      "credit_path": true
+    },
+    {
+      "event": "exact_rail_decision_observed",
+      "timestamp": 1794504079.815047,
+      "elapsed": 20.360400086967275,
+      "observation_digest": "ed1bef3d98f95ba4e930f8f9ea2a80d81e13f373855bf9525bdc2f924c110593",
+      "rail": "onchain",
+      "credit_path": false
+    },
+    {
+      "event": "exact_rail_decision_observed",
+      "timestamp": 1794504079.9179854,
+      "elapsed": 20.46333861281164,
+      "observation_digest": "3b823a885378960134a0ee0d462ed08a87daa2ffffe47f8c44d594af686e10fd",
+      "rail": "onchain",
+      "credit_path": true
+    },
+    {
+      "event": "exact_rail_decision_observed",
+      "timestamp": 1794504080.0546248,
+      "elapsed": 20.599977988982573,
+      "observation_digest": "7478f8fa14c6b4a8196973a7de3fd6ae42a431ed042918177c18fadb04524c18",
+      "rail": "lightning",
+      "credit_path": true
+    },
+    {
+      "event": "exact_rail_decision_observed",
+      "timestamp": 1794504080.0550356,
+      "elapsed": 20.600388874998316,
+      "observation_digest": "cb288a3212702b8c64db7c9d0b7f4eec2deaad32695dc49ab0d1e652ad3e3ff4",
+      "rail": "lightning",
+      "credit_path": true
+    },
+    {
+      "event": "exact_rail_decision_observed",
+      "timestamp": 1794504080.055336,
+      "elapsed": 20.600689043989405,
+      "observation_digest": "19eb80d53c3cd1cfaa93d3e011c62994079adb7f6888bb1b4944a2bfad526637",
+      "rail": "onchain",
+      "credit_path": true
+    },
+    {
+      "event": "exact_rail_decision_observed",
+      "timestamp": 1794504080.0556405,
+      "elapsed": 20.600993601838127,
+      "observation_digest": "029d45b2038d058560f0df1fa32c130a63b09597be6722ffcb149d20075c62b9",
+      "rail": "onchain",
+      "credit_path": true
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794504080.4337301,
+      "elapsed": 20.979083459824324,
+      "fault": "transport_gate",
+      "direction": "commit_reply",
+      "session": 4075405,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "defect_overload_entry_observed",
+      "timestamp": 1794504080.7097378,
+      "elapsed": 21.255090939812362,
+      "business_entries": 1
+    },
+    {
+      "event": "application_trace",
+      "component": "api",
+      "path": "<private-run>/workflow-4_zujebh/api-0.stdout",
+      "sha256": "ef04a90fca611e3de2f3e56853873ad72af30871672ab86ee5eb3b19300d46e0",
+      "events": []
+    },
+    {
+      "event": "independent_simulator_evidence",
+      "timestamp": 1794504088.4260743,
+      "elapsed": 28.971427627839148,
+      "simulator_kind": "provider",
+      "sha256": null,
+      "records": []
+    },
+    {
+      "event": "independent_simulator_evidence",
+      "timestamp": 1794504088.4262104,
+      "elapsed": 28.971563511993736,
+      "simulator_kind": "rail",
+      "sha256": "bf9ab20942e3f20c5ee3f0487d45ae9fda5137344fe2f62a903bc24c92c5f91e",
+      "records": [
+        {
+          "monotonic_ns": 1116727603012468,
+          "sequence": 1,
+          "stage": "rail_observation",
+          "timestamp": 1794504079.5136764,
+          "value": {
+            "amount_sats": 60,
+            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/4edd4d1d-5007-4b93-9227-38123419620f/EXPIRES/1794507679",
+            "payment_hash": "4afb4267c7cc309c8a78a728b84a4fda8af872ec1c819ea359582b1649278c5d",
+            "preimage_known": false,
+            "rail": "lightning",
+            "settled": false,
+            "settled_at": "2026-11-12T17:21:19Z"
+          }
+        },
+        {
+          "monotonic_ns": 1116727683610926,
+          "sequence": 2,
+          "stage": "rail_observation",
+          "timestamp": 1794504079.594276,
+          "value": {
+            "amount_sats": 60,
+            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/4edd4d1d-5007-4b93-9227-38123419620f/EXPIRES/1794507679",
+            "payment_hash": "4afb4267c7cc309c8a78a728b84a4fda8af872ec1c819ea359582b1649278c5d",
+            "preimage_known": true,
+            "rail": "lightning",
+            "settled": true,
+            "settled_at": "2026-11-12T17:21:19Z"
+          }
+        },
+        {
+          "monotonic_ns": 1116727796797030,
+          "sequence": 3,
+          "stage": "rail_observation",
+          "timestamp": 1794504079.7074618,
+          "value": {
+            "amount_sats": 55,
+            "confirmations": 1,
+            "destination": "TEST/SIMULATOR/NONPAYABLE/ONCHAIN/4edd4d1d-5007-4b93-9227-38123419620f",
+            "rail": "onchain",
+            "settled_at": "2026-11-12T17:21:19Z",
+            "txid": "bde260f31b9b7c7f7fd04b5a931294617c4bed7649439f3ddd456bc0de456319",
+            "vout": 0
+          }
+        },
+        {
+          "monotonic_ns": 1116727936179130,
+          "sequence": 4,
+          "stage": "rail_observation",
+          "timestamp": 1794504079.846844,
+          "value": {
+            "amount_sats": 55,
+            "confirmations": 2,
+            "destination": "TEST/SIMULATOR/NONPAYABLE/ONCHAIN/4edd4d1d-5007-4b93-9227-38123419620f",
+            "rail": "onchain",
+            "settled_at": "2026-11-12T17:21:19Z",
+            "txid": "bde260f31b9b7c7f7fd04b5a931294617c4bed7649439f3ddd456bc0de456319",
+            "vout": 0
+          }
+        },
+        {
+          "monotonic_ns": 1116728016705494,
+          "sequence": 5,
+          "stage": "rail_observation",
+          "timestamp": 1794504079.9273705,
+          "value": {
+            "amount_sats": 60,
+            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/4edd4d1d-5007-4b93-9227-38123419620f/EXPIRES/1794507679",
+            "event_id": "replay-0",
+            "payment_hash": "4afb4267c7cc309c8a78a728b84a4fda8af872ec1c819ea359582b1649278c5d",
+            "preimage_known": true,
+            "rail": "lightning",
+            "settled": true,
+            "settled_at": "2026-11-12T17:21:19Z"
+          }
+        },
+        {
+          "monotonic_ns": 1116728023393144,
+          "sequence": 6,
+          "stage": "rail_observation",
+          "timestamp": 1794504079.934058,
+          "value": {
+            "amount_sats": 60,
+            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/4edd4d1d-5007-4b93-9227-38123419620f/EXPIRES/1794507679",
+            "event_id": "replay-1",
+            "payment_hash": "4afb4267c7cc309c8a78a728b84a4fda8af872ec1c819ea359582b1649278c5d",
+            "preimage_known": true,
+            "rail": "lightning",
+            "settled": true,
+            "settled_at": "2026-11-12T17:21:19Z"
+          }
+        },
+        {
+          "monotonic_ns": 1116728029758082,
+          "sequence": 7,
+          "stage": "rail_observation",
+          "timestamp": 1794504079.9404228,
+          "value": {
+            "amount_sats": 55,
+            "confirmations": 2,
+            "destination": "TEST/SIMULATOR/NONPAYABLE/ONCHAIN/4edd4d1d-5007-4b93-9227-38123419620f",
+            "event_id": "replay-2",
+            "rail": "onchain",
+            "settled_at": "2026-11-12T17:21:19Z",
+            "txid": "bde260f31b9b7c7f7fd04b5a931294617c4bed7649439f3ddd456bc0de456319",
+            "vout": 0
+          }
+        },
+        {
+          "monotonic_ns": 1116728036007996,
+          "sequence": 8,
+          "stage": "rail_observation",
+          "timestamp": 1794504079.9466727,
+          "value": {
+            "amount_sats": 55,
+            "confirmations": 2,
+            "destination": "TEST/SIMULATOR/NONPAYABLE/ONCHAIN/4edd4d1d-5007-4b93-9227-38123419620f",
+            "event_id": "replay-3",
+            "rail": "onchain",
+            "settled_at": "2026-11-12T17:21:19Z",
+            "txid": "bde260f31b9b7c7f7fd04b5a931294617c4bed7649439f3ddd456bc0de456319",
+            "vout": 0
+          }
+        },
+        {
+          "monotonic_ns": 1116728272569913,
+          "sequence": 9,
+          "stage": "rail_observation",
+          "timestamp": 1794504080.183235,
+          "value": {
+            "amount_sats": 115,
+            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/406ca6a4-38f2-4ae8-b146-d449638c837e/EXPIRES/1794507680",
+            "payment_hash": "a4da080aba7400342f54ed30e83f23c7b8ade7d3505fb9a5da858a376ec87c7c",
+            "preimage_known": true,
+            "rail": "lightning",
+            "settled": true,
+            "settled_at": "2026-11-12T17:21:20Z"
+          }
+        }
+      ]
+    },
+    {
+      "event": "workflow_children_reaped",
+      "timestamp": 1794504088.4262834,
+      "elapsed": 28.97163642803207,
+      "count": 3
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794504088.6195438,
+      "elapsed": 29.164897663984448,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504089.352724,
+      "elapsed": 29.89807745302096,
+      "path": "<private-run>/workflow-4_zujebh/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504089.3795824,
+      "elapsed": 29.924936244962737,
+      "path": "<private-run>/workflow-4_zujebh/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504089.4964917,
+      "elapsed": 30.041845181025565,
+      "path": "<private-run>/workflow-4_zujebh/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794504089.4966915,
+      "elapsed": 30.042044672882184,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794504089.496734,
+      "elapsed": 30.042087001958862,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/workflow-4_zujebh"
+    },
+    {
+      "event": "failure",
+      "timestamp": 1794504088.426337,
+      "elapsed": 28.9716900580097,
+      "type": "AssertionError",
+      "message": "overload must precede request business BEGIN"
+    }
+  ]
+}

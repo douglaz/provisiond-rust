@@ -1,0 +1,297 @@
+{
+  "result": "pass",
+  "original_helper": {
+    "result": "expected negative demonstration",
+    "source_commit": "953b19f8eaea5bed897c918cb766ee51da408d87",
+    "source_sha256": "129b6eeec1f745eccfd9b29c30489f4718f17d1748c9364eb10e32b37aed717f",
+    "method": "read-only AST extraction of original helper, same direct probe",
+    "retained_checkout_accepted": true,
+    "emitted": [
+      {
+        "event": "w5_failed_attempt_release",
+        "session": 101,
+        "application_release": {
+          "event": "transaction_resources_released",
+          "transaction": 17,
+          "session": 101,
+          "component_available": 1,
+          "pool_checked_out": 1,
+          "discarded": false
+        },
+        "rollback": {
+          "event": "transaction_rollback_acknowledged",
+          "transaction": 17,
+          "session": 101,
+          "ready_status": 73
+        },
+        "server_end": {
+          "event": "protocol_response",
+          "session": 101,
+          "command_tag": "ROLLBACK",
+          "query": "ROLLBACK /* store transaction 17 */"
+        },
+        "release_before_backoff": true
+      }
+    ],
+    "cleanup": "pass"
+  },
+  "original_execution": {
+    "command": [
+      "nix",
+      "develop",
+      "--command",
+      "python3",
+      "-B",
+      "<private-run>/old-release-probe.py"
+    ],
+    "exit_status": 0,
+    "started": 1794503236.902509,
+    "finished": 1794503237.1386542,
+    "commit": "953b19f8eaea5bed897c918cb766ee51da408d87",
+    "environment": {
+      "TMPDIR": "<private-allocation>/tmp",
+      "PROVISIOND_HARNESS_ROOT": "<private-run>/old-release-proof",
+      "PROVISIOND_HARNESS_UNIT": "<supervised-unit>",
+      "PROVISIOND_HARNESS_PORT_BASE": "55500",
+      "CARGO_TARGET_DIR": "<private-run>/old-release-proof/gate-target"
+    },
+    "streams": {
+      "stdout": {
+        "path": "<private-run>/old-release-proof/stdout",
+        "sha256": "2d8496d5f22be24c4d60fb9a214bb06939445c269edc7006bf2813372241d00d"
+      },
+      "stderr": {
+        "path": "<private-run>/old-release-proof/stderr",
+        "sha256": "5d723501d130792eef252fdd88a78c28efd7e6fc00f34cd58eb510abe461afc7"
+      },
+      "status": {
+        "path": "<private-run>/old-release-proof/status",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      }
+    }
+  },
+  "probe_fixture_sha256": "adc2a25a3d3e7ef5e8f6cf03305706f04adb0371f99de56f2432ed65aedf6708",
+  "final_probe": {
+    "result": "pass",
+    "method": "synthetic records passed to actual failed_attempt_release helper",
+    "probes": [
+      {
+        "checked_out": 0,
+        "exit_status": 0,
+        "result": "pass",
+        "assertion": null,
+        "application_release": [
+          {
+            "event": "w5_failed_attempt_release",
+            "session": 101,
+            "application_release": {
+              "event": "transaction_resources_released",
+              "transaction": 17,
+              "session": 101,
+              "component_available": 1,
+              "pool_checked_out": 0,
+              "discarded": false
+            },
+            "rollback": {
+              "event": "transaction_rollback_acknowledged",
+              "transaction": 17,
+              "session": 101,
+              "ready_status": 73
+            },
+            "server_end": {
+              "event": "protocol_response",
+              "session": 101,
+              "command_tag": "ROLLBACK",
+              "query": "ROLLBACK /* store transaction 17 */"
+            },
+            "release_before_backoff": true
+          }
+        ],
+        "command": [
+          "<dependency-path>",
+          "-B",
+          "tests/postgres/w5_release_control.py",
+          "--checked-out",
+          "0",
+          "--evidence",
+          "<private-run>/full/controls-bhbc5wka/release-checkout-0.json"
+        ]
+      },
+      {
+        "checked_out": 1,
+        "exit_status": 1,
+        "result": "expected negative demonstration",
+        "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+        "application_release": null,
+        "command": [
+          "<dependency-path>",
+          "-B",
+          "tests/postgres/w5_release_control.py",
+          "--checked-out",
+          "1",
+          "--evidence",
+          "<private-run>/full/controls-bhbc5wka/release-checkout-1.json"
+        ]
+      },
+      {
+        "checked_out": 2,
+        "exit_status": 1,
+        "result": "expected negative demonstration",
+        "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+        "application_release": null,
+        "command": [
+          "<dependency-path>",
+          "-B",
+          "tests/postgres/w5_release_control.py",
+          "--checked-out",
+          "2",
+          "--evidence",
+          "<private-run>/full/controls-bhbc5wka/release-checkout-2.json"
+        ]
+      },
+      {
+        "checked_out": 3,
+        "exit_status": 1,
+        "result": "expected negative demonstration",
+        "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+        "application_release": null,
+        "command": [
+          "<dependency-path>",
+          "-B",
+          "tests/postgres/w5_release_control.py",
+          "--checked-out",
+          "3",
+          "--evidence",
+          "<private-run>/full/controls-bhbc5wka/release-checkout-3.json"
+        ]
+      }
+    ]
+  },
+  "real_pg_releases": [
+    {
+      "event": "w5_failed_attempt_release",
+      "timestamp": 1794503823.2604048,
+      "elapsed": 32.142585329012945,
+      "session": 4040785,
+      "application_release": {
+        "backend_start": "2026-11-12 17:17:02.995641+00",
+        "component_available": 1,
+        "discarded": true,
+        "event": "transaction_resources_released",
+        "pool_available": 1,
+        "pool_checked_out": 0,
+        "session": 4040785,
+        "transaction": 12
+      },
+      "rollback": null,
+      "server_end": {
+        "session": 4040785,
+        "backend_absent": true
+      },
+      "release_before_backoff": true
+    },
+    {
+      "event": "w5_failed_attempt_release",
+      "timestamp": 1794503849.386767,
+      "elapsed": 58.268947432981804,
+      "session": 4044549,
+      "application_release": {
+        "backend_start": "2026-11-12 17:17:27.006101+00",
+        "component_available": 1,
+        "discarded": false,
+        "event": "transaction_resources_released",
+        "pool_available": 2,
+        "pool_checked_out": 0,
+        "session": 4044549,
+        "transaction": 10
+      },
+      "rollback": {
+        "backend_start": "2026-11-12 17:17:27.006101+00",
+        "event": "transaction_rollback_acknowledged",
+        "ready_status": 73,
+        "session": 4044549,
+        "transaction": 10
+      },
+      "server_end": {
+        "event": "protocol_response",
+        "timestamp": 1794503847.8219924,
+        "elapsed": 56.70417309994809,
+        "tag": "C",
+        "session": 4044549,
+        "query": "ROLLBACK /* store transaction 10 */",
+        "command_tag": "ROLLBACK",
+        "ready_status": null
+      },
+      "release_before_backoff": true
+    },
+    {
+      "event": "w5_failed_attempt_release",
+      "timestamp": 1794503849.390386,
+      "elapsed": 58.272566691972315,
+      "session": 4044545,
+      "application_release": {
+        "backend_start": "2026-11-12 17:17:26.917066+00",
+        "component_available": 1,
+        "discarded": false,
+        "event": "transaction_resources_released",
+        "pool_available": 2,
+        "pool_checked_out": 0,
+        "session": 4044545,
+        "transaction": 11
+      },
+      "rollback": {
+        "backend_start": "2026-11-12 17:17:26.917066+00",
+        "event": "transaction_rollback_acknowledged",
+        "ready_status": 73,
+        "session": 4044545,
+        "transaction": 11
+      },
+      "server_end": {
+        "event": "protocol_response",
+        "timestamp": 1794503848.339311,
+        "elapsed": 57.221491399919614,
+        "tag": "C",
+        "session": 4044545,
+        "query": "ROLLBACK /* store transaction 11 */",
+        "command_tag": "ROLLBACK",
+        "ready_status": null
+      },
+      "release_before_backoff": true
+    },
+    {
+      "event": "w5_failed_attempt_release",
+      "timestamp": 1794503849.3939161,
+      "elapsed": 58.2760968550574,
+      "session": 4044549,
+      "application_release": {
+        "backend_start": "2026-11-12 17:17:27.006101+00",
+        "component_available": 1,
+        "discarded": false,
+        "event": "transaction_resources_released",
+        "pool_available": 2,
+        "pool_checked_out": 0,
+        "session": 4044549,
+        "transaction": 12
+      },
+      "rollback": {
+        "backend_start": "2026-11-12 17:17:27.006101+00",
+        "event": "transaction_rollback_acknowledged",
+        "ready_status": 73,
+        "session": 4044549,
+        "transaction": 12
+      },
+      "server_end": {
+        "event": "protocol_response",
+        "timestamp": 1794503848.8558474,
+        "elapsed": 57.73802801198326,
+        "tag": "C",
+        "session": 4044549,
+        "query": "ROLLBACK /* store transaction 12 */",
+        "command_tag": "ROLLBACK",
+        "ready_status": null
+      },
+      "release_before_backoff": true
+    }
+  ],
+  "source_reference": "evidence/w5/tested-source.json"
+}

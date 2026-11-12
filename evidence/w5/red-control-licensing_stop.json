@@ -1,0 +1,240 @@
+{
+  "result": "expected negative demonstration",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "seed": 20261112,
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "engine": {
+      "workers": 3,
+      "write_pool": 3,
+      "compatibility_read_pool": 1,
+      "startup_lock_outside_pool": true,
+      "startup_wait_ms": 500,
+      "store_retry_ms": 2000,
+      "stop_record_ms": 1000,
+      "startup_lock_keepalives": {
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "count": 2,
+        "profile_assignment": "shared with pooled local values"
+      },
+      "runtime_build": {
+        "features": [
+          "store-test-hooks"
+        ],
+        "target_directory": "<private-run>/core-82kyds7t/target"
+      },
+      "migration_lock_ms": 500,
+      "migration_lock_retries": 2,
+      "schema_version": 2,
+      "semantic_version": 2,
+      "notice_cap": 16
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    }
+  },
+  "exit_status": 1,
+  "intended_assertion": "stopped licensing must not enter provider execution",
+  "source_reference": "evidence/w5/tested-source.json",
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "core",
+    "--case",
+    "licensing_stop",
+    "--defect",
+    "licensing_stop",
+    "--seed",
+    "20261112",
+    "--evidence",
+    "<private-run>/control-manifest.json"
+  ],
+  "events": [
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794504362.9244869,
+      "elapsed": 19.155488442862406,
+      "path": "<private-run>/core-82kyds7t/standby-backup-manifest.json",
+      "sha256": "25a5fa01e0fadb9d20c9e37448fc7fb51cb876d5cdf8ff1dd3a051c661721987"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794504362.9246926,
+      "elapsed": 19.15569409704767,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.6412789169698954
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794504363.6244814,
+      "elapsed": 19.855482945917174,
+      "system_identifier": "7707337544612496873",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707337544612496873",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794504363.633939,
+      "elapsed": 19.8649403299205,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794504363.6821618,
+      "elapsed": 19.91316336998716,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794504364.501685,
+      "elapsed": 20.732686863048002,
+      "fault": "transport_gate",
+      "direction": "commit_reply",
+      "session": 4114181,
+      "statement_kind": "COMMIT"
+    },
+    {
+      "event": "licensing_stop_observed",
+      "timestamp": 1794504364.5525389,
+      "elapsed": 20.78354071895592,
+      "window": "reply",
+      "operation": "ddd0ca54-f474-4cc5-a3ab-317e71db6877",
+      "external_entries": 1
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794504364.622047,
+      "elapsed": 20.85304869688116,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504365.4649034,
+      "elapsed": 21.695905128028244,
+      "path": "<private-run>/core-82kyds7t/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504365.497386,
+      "elapsed": 21.728387476876378,
+      "path": "<private-run>/core-82kyds7t/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504365.6804733,
+      "elapsed": 21.91147502302192,
+      "path": "<private-run>/core-82kyds7t/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794504365.6806927,
+      "elapsed": 21.911694332025945,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794504365.6807399,
+      "elapsed": 21.911741118878126,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/core-82kyds7t"
+    },
+    {
+      "event": "failure",
+      "timestamp": 1794504364.554372,
+      "elapsed": 20.78537349589169,
+      "type": "AssertionError",
+      "message": "stopped licensing must not enter provider execution"
+    }
+  ]
+}

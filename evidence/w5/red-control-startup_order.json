@@ -1,0 +1,233 @@
+{
+  "result": "expected negative demonstration",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "seed": 20261112,
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "engine": {
+      "workers": 3,
+      "write_pool": 3,
+      "compatibility_read_pool": 1,
+      "startup_lock_outside_pool": true,
+      "startup_wait_ms": 500,
+      "store_retry_ms": 2000,
+      "stop_record_ms": 1000,
+      "startup_lock_keepalives": {
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "count": 2,
+        "profile_assignment": "shared with pooled local values"
+      },
+      "runtime_build": {
+        "features": [
+          "store-test-hooks"
+        ],
+        "target_directory": "<private-run>/core-c149kp8d/target"
+      },
+      "migration_lock_ms": 500,
+      "migration_lock_retries": 2,
+      "schema_version": 2,
+      "semantic_version": 2,
+      "notice_cap": 16
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    }
+  },
+  "exit_status": 1,
+  "intended_assertion": "unsupported real engine startup must precede protected entry",
+  "source_reference": "evidence/w5/tested-source.json",
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "core",
+    "--case",
+    "startup",
+    "--defect",
+    "startup_order",
+    "--seed",
+    "20261112",
+    "--evidence",
+    "<private-run>/control-manifest.json"
+  ],
+  "events": [
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794504496.6848576,
+      "elapsed": 18.9735814249143,
+      "path": "<private-run>/core-c149kp8d/standby-backup-manifest.json",
+      "sha256": "59b32f5b934c11d0df676c29260066af265df6814af588ef2dcc2c763d30b8cf"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794504496.6850893,
+      "elapsed": 18.97381279594265,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.6755768219009042
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794504497.4359753,
+      "elapsed": 19.724699184997007,
+      "system_identifier": "7707338118966773758",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707338118966773758",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794504497.445561,
+      "elapsed": 19.734284377889708,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794504497.4925601,
+      "elapsed": 19.781283986987546,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "real_startup_schema_observed",
+      "timestamp": 1794504497.9094005,
+      "elapsed": 20.19812413281761,
+      "mode": "newer",
+      "exit_status": 1,
+      "protected_entry": true,
+      "check_only": false,
+      "error": "provisiond engine: unsupported schema/semantic version: [[1, 1], [3, 2]]; supports [[1,1],[2,2]]\n"
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794504498.0458527,
+      "elapsed": 20.3345764297992,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504498.9777691,
+      "elapsed": 21.266493188915774,
+      "path": "<private-run>/core-c149kp8d/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504499.003439,
+      "elapsed": 21.292162844911218,
+      "path": "<private-run>/core-c149kp8d/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504499.1702712,
+      "elapsed": 21.458995229797438,
+      "path": "<private-run>/core-c149kp8d/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794504499.1704955,
+      "elapsed": 21.45921911788173,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794504499.170548,
+      "elapsed": 21.45927160582505,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/core-c149kp8d"
+    },
+    {
+      "event": "failure",
+      "timestamp": 1794504497.9094894,
+      "elapsed": 20.198212957940996,
+      "type": "AssertionError",
+      "message": "unsupported real engine startup must precede protected entry"
+    }
+  ]
+}

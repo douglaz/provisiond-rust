@@ -1,0 +1,215 @@
+{
+  "result": "expected negative demonstration",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "seed": 20261112,
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    }
+  },
+  "exit_status": 1,
+  "intended_assertion": "cancelled execute must close retained transaction transport",
+  "source_reference": "evidence/w5/tested-source.json",
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "corrections",
+    "--case",
+    "execute_cancel",
+    "--defect",
+    "execute_cancel",
+    "--seed",
+    "20261112",
+    "--evidence",
+    "<private-run>/control-manifest.json"
+  ],
+  "events": [
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794504107.8178015,
+      "elapsed": 18.232854129048064,
+      "path": "<private-run>/corrections-4aftu0jp/standby-backup-manifest.json",
+      "sha256": "fdb9004b9f548beeffc69282402178f593f31c5e208870dc27714c0c6df4ba82"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794504107.8180168,
+      "elapsed": 18.233069200068712,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.7299562988337129
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794504108.5682402,
+      "elapsed": 18.983292510034516,
+      "system_identifier": "7707336447857535593",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707336447857535593",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794504108.578424,
+      "elapsed": 18.993476370116696,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794504108.6265907,
+      "elapsed": 19.04164323513396,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "fault_activated",
+      "timestamp": 1794504108.7983413,
+      "elapsed": 19.213393731042743,
+      "fault": "transport_gate",
+      "direction": "execute_reply",
+      "session": 4078395,
+      "statement_kind": "fixture statement"
+    },
+    {
+      "event": "execute_cancellation_observed",
+      "timestamp": 1794504109.3010907,
+      "elapsed": 19.7161429959815,
+      "session": 4078395,
+      "retained": true,
+      "transport_closed": false,
+      "source": null
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794504109.3490577,
+      "elapsed": 19.764110319083557,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504109.8777065,
+      "elapsed": 20.292759177973494,
+      "path": "<private-run>/corrections-4aftu0jp/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504109.9028335,
+      "elapsed": 20.31788600096479,
+      "path": "<private-run>/corrections-4aftu0jp/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504110.0005825,
+      "elapsed": 20.415634940145537,
+      "path": "<private-run>/corrections-4aftu0jp/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794504110.0008898,
+      "elapsed": 20.41594245308079,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794504110.0009367,
+      "elapsed": 20.415989040164277,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/corrections-4aftu0jp"
+    },
+    {
+      "event": "failure",
+      "timestamp": 1794504109.301254,
+      "elapsed": 19.71630652109161,
+      "type": "AssertionError",
+      "message": "cancelled execute must close retained transaction transport"
+    }
+  ]
+}

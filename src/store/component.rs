@@ -170,6 +170,7 @@ pub struct EngineDatabase {
     store: Arc<Store>,
     lock: Session,
     fence: Fence,
+    _observer: super::accounting::Observer,
 }
 /// OVR-19's startup-lock row is an explicit assignment in the accepted local
 /// profile. It shares the provisional pooled values, validated before transport use.
@@ -230,7 +231,7 @@ impl StartupKeepalives {
     }
 }
 impl EngineDatabase {
-    pub async fn start(store: Store, wait_ms: u32) -> Result<Self> {
+    pub async fn start(mut store: Store, wait_ms: u32) -> Result<Self> {
         startup_milliseconds(&wait_ms.to_string())?;
         if !super::test_defect("startup_order") {
             store.compatible_schema().await?;
@@ -239,8 +240,8 @@ impl EngineDatabase {
         let lock = keepalives.connect(&store).await?;
         let capacity=lock.scalar("SELECT (current_setting('max_connections')::int-current_setting('superuser_reserved_connections')::int-current_setting('reserved_connections')::int)::text").await?.parse::<usize>()?;
         ensure!(
-            store.read.status().max_size + store.write.status().max_size < capacity,
-            "engine pools plus lock exceed ordinary PostgreSQL capacity"
+            store.read.status().max_size + store.write.status().max_size + 3 <= capacity,
+            "engine pools plus lock, observer and startup advance exceed ordinary PostgreSQL capacity"
         );
         let started = Instant::now();
         loop {
@@ -267,6 +268,15 @@ impl EngineDatabase {
         if super::test_defect("startup_order") {
             store.compatible_schema().await?;
         }
+        // OPS-49/STO-55: one checked, dedicated read-only observer precedes the
+        // first write. Startup also budgets the transient generation session.
+        let observer_session = store.dedicated().await?;
+        (store.trace)(
+            json!({"event":"commit_observer_started","session":observer_session.pid,"backend_start":observer_session.backend_start,"sampling_ms":20,"ordinary_capacity":capacity,"startup_sessions":store.read.status().max_size + store.write.status().max_size + 3}),
+        );
+        let (accounting, observer) =
+            super::accounting::Accounting::start(store.manager.clone(), observer_session)?;
+        store.accounting = Some(accounting);
         let mut advance = store.dedicated().await?;
         advance.settings.call_bound = advance
             .settings
@@ -294,6 +304,7 @@ impl EngineDatabase {
         Ok(Self {
             store: Arc::new(store),
             lock,
+            _observer: observer,
             fence: Fence {
                 generation,
                 fatal: Arc::new(AtomicBool::new(false)),

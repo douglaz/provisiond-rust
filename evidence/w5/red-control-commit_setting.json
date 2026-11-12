@@ -1,0 +1,205 @@
+{
+  "result": "expected negative demonstration",
+  "implementation_commit": "c7e71c803f7c10158636ff908856507713a608cb",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "seed": 20261112,
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    }
+  },
+  "exit_status": 1,
+  "intended_assertion": "lowered synchronous_commit must be rejected before COMMIT",
+  "source_reference": "evidence/w5/tested-source.json",
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "corrections",
+    "--case",
+    "commit_setting",
+    "--defect",
+    "commit_setting",
+    "--seed",
+    "20261112",
+    "--evidence",
+    "<private-run>/control-manifest.json"
+  ],
+  "events": [
+    {
+      "event": "backup_provenance_retained",
+      "timestamp": 1794504168.980155,
+      "elapsed": 17.49436532193795,
+      "path": "<private-run>/corrections-x3h246aw/standby-backup-manifest.json",
+      "sha256": "6352a3128122080b107a56f69bbd7a2d171787b91233f2ffb85b5061da60a28f"
+    },
+    {
+      "event": "backup_complete",
+      "timestamp": 1794504168.980392,
+      "elapsed": 17.494602154009044,
+      "destination": "standby",
+      "verified": true,
+      "elapsed_seconds": 0.623586495872587
+    },
+    {
+      "event": "identity_catchup",
+      "timestamp": 1794504169.675853,
+      "elapsed": 18.190063602058217,
+      "system_identifier": "7707336711462611188",
+      "sampled_primary_flush": "0/3003A90",
+      "standby_system_identifier": "7707336711462611188",
+      "authenticated_role": "replicator",
+      "primary_checkpoint": "1|0/2000028",
+      "standby_checkpoint": "1|0/2000028",
+      "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials"
+    },
+    {
+      "event": "effective_configuration_observed",
+      "timestamp": 1794504169.6859744,
+      "elapsed": 18.200184995075688,
+      "configuration": {
+        "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+        "archive_mode": "on",
+        "lc_messages": "C",
+        "listen_addresses": "127.0.0.1",
+        "max_connections": "24",
+        "port": "55500",
+        "restart_after_crash": "on",
+        "shared_buffers": "4096",
+        "superuser_reserved_connections": "3",
+        "synchronous_commit": "on",
+        "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+        "tcp_keepalives_count": "2",
+        "tcp_keepalives_idle": "2",
+        "tcp_keepalives_interval": "1",
+        "wal_level": "replica"
+      },
+      "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"
+    },
+    {
+      "event": "bootstrap_complete",
+      "timestamp": 1794504169.7324982,
+      "elapsed": 18.246708856895566,
+      "maintenance_mode_exception": false,
+      "bootstrap_role": "initdb administrator; offline replication identity only",
+      "backup_name": "bootstrap_backup",
+      "designated_name": "provisiond_sync"
+    },
+    {
+      "event": "precommit_corruption_observed",
+      "timestamp": 1794504169.907995,
+      "elapsed": 18.422205267008394,
+      "scope": "corrupt_setting",
+      "outcome": "acknowledged",
+      "durable_rows": "1"
+    },
+    {
+      "event": "proxy_cleanup",
+      "timestamp": 1794504170.0448432,
+      "elapsed": 18.5590538228862,
+      "cancel_requests": 0
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504170.5747402,
+      "elapsed": 19.088950940873474,
+      "path": "<private-run>/corrections-x3h246aw/primary"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504170.5978863,
+      "elapsed": 19.112096860073507,
+      "path": "<private-run>/corrections-x3h246aw/standby"
+    },
+    {
+      "event": "cleanup_removed",
+      "timestamp": 1794504170.6952405,
+      "elapsed": 19.20945111196488,
+      "path": "<private-run>/corrections-x3h246aw/target"
+    },
+    {
+      "event": "allocation_released",
+      "timestamp": 1794504170.6954532,
+      "elapsed": 19.209663587855175,
+      "ports": [
+        55500,
+        55501,
+        55502,
+        55503,
+        55504,
+        55505,
+        55506,
+        55507,
+        55508,
+        55509
+      ]
+    },
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1794504170.6954951,
+      "elapsed": 19.209705435903743,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "<private-run>/corrections-x3h246aw"
+    },
+    {
+      "event": "failure",
+      "timestamp": 1794504169.9080477,
+      "elapsed": 18.422257924918085,
+      "type": "AssertionError",
+      "message": "lowered synchronous_commit must be rejected before COMMIT"
+    }
+  ]
+}
