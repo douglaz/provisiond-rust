@@ -450,7 +450,7 @@ tcp_keepalives_count = 2
                     trace=dict(path=str(raw),sha256=hashlib.sha256(raw.read_bytes()).hexdigest()),
                     external_provider_rail_evidence='independent durable W6 simulator evidence; no real effects' if self.phase=='w6' else 'simulator only; no real effects' if self.phase in ('core','workflow','default-workflow') else 'not applicable: no external effects',
                     limitations=['local processes only; no separate-host durability or fencing proof',
-                                 'no product recovery incidents, automatic provider reconciliation, full meter or production alarms',
+                                 'no product recovery incidents; W6 simulator reconciliation only; no general meter or production alarms',
                                  'DB-10 full saturation: not run (W8)'])
         encoded=json.dumps(manifest)
         for password in self.passwords.values():

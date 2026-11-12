@@ -98,7 +98,7 @@ def migrations(h):
     legacy_machine=h.sql("INSERT INTO provisiond.machines(tenant_id,provider_account,external_id,offer_id,kind,state,billing_unit_seconds) VALUES('upgrade-tenant','upgrade-account','TEST-UPGRADE-RESOURCE','test-offer','virtual','running',3600) RETURNING id").splitlines()[0]
     h.sql(f"INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) VALUES('upgrade-account','{legacy_machine}',gen_random_uuid(),'clamp_overflow',3,'SIM',7,2,3,'upgrade-deficiency')")
     deficiency_opened=h.sql("SELECT created_at::text FROM provisiond.operator_deficiencies WHERE idempotency_key='upgrade-deficiency'")
-    retained="SELECT jsonb_build_object('generation',(SELECT generation FROM provisiond.startup_generation),'history',(SELECT to_jsonb(v) FROM provisiond.schema_migrations v WHERE version=1),'tenant',(SELECT to_jsonb(t) FROM provisiond.tenants t WHERE id='upgrade-tenant'),'deposit',(SELECT to_jsonb(d)-'invoice'-'lightning_cancelled' FROM provisiond.deposits d WHERE tenant_id='upgrade-tenant'),'ledger',(SELECT to_jsonb(l) FROM provisiond.ledger_entries l WHERE tenant_id='upgrade-tenant'))::text"
+    retained="SELECT jsonb_build_object('generation',(SELECT generation FROM provisiond.startup_generation),'history',(SELECT to_jsonb(v) FROM provisiond.schema_migrations v WHERE version=1),'tenant',(SELECT to_jsonb(t) FROM provisiond.tenants t WHERE id='upgrade-tenant'),'deposit',(SELECT to_jsonb(d)-'invoice'-'lightning_cancelled' FROM provisiond.deposits d WHERE tenant_id='upgrade-tenant'),'ledger',(SELECT to_jsonb(l)-'billing_period'-'increment_end' FROM provisiond.ledger_entries l WHERE tenant_id='upgrade-tenant'))::text"
     before_upgrade=h.sql(retained)
     for name in ('api','engine'):
         r=binary(h,name,'--check-schema',ok=False)
@@ -106,6 +106,7 @@ def migrations(h):
         assert 'startup_lock_acquired' not in r.stdout and 'generation_advanced' not in r.stdout
     binary(h,'migrate',role='migrator')
     assert h.sql(retained)==before_upgrade,'offline upgrade must preserve release-1 records'
+    assert h.sql("SELECT billing_period IS NULL AND increment_end IS NULL FROM provisiond.ledger_entries WHERE tenant_id='upgrade-tenant'")=='t'
     assert h.sql("SELECT string_agg(version::text||'/'||semantics::text,',' ORDER BY version) FROM provisiond.schema_migrations")=='1/1,2/2,3/3'
     assert h.sql("SELECT to_regclass('provisiond.enrolments') IS NOT NULL")=='t'
     assert h.sql("SELECT opened_at::text FROM provisiond.operator_deficiencies WHERE idempotency_key='upgrade-deficiency'")==deficiency_opened
@@ -262,7 +263,7 @@ def core_scenarios(h,case=None,defect=None):
         retry_exhaustion(h)
     if case in (None,'money'): audit_fault(h)
     if case is None:
-        h.results.extend([dict(test='ENG-05',result='not run',reason='automatic provider reconciliation belongs to later work'),dict(test='ENG-07',result='not run',reason='dedicated replication-freeze stop-record drill belongs to later work'),dict(test='DB-10',result='not run',reason='W8 deployment-wide saturation')])
+        h.results.extend([dict(test='ENG-05',result='not run',reason='covered in the dedicated W6 phase, not this store-only phase'),dict(test='ENG-07',result='not run',reason='dedicated replication-freeze stop-record drill belongs to later work'),dict(test='DB-10',result='not run',reason='W8 deployment-wide saturation')])
 
 
 def empty_queue(h):

@@ -3,6 +3,27 @@ use super::*;
 use crate::store::Resolution;
 
 impl Engine {
+    // OPS-49 fixture: retain completed read-only evidence without a store owner.
+    // Ordinary binaries never read this file or pause their reconciliation.
+    async fn reconciliation_read_boundary(
+        &self,
+        component: &Component,
+        subject: &str,
+    ) -> Result<()> {
+        #[cfg(feature = "store-test-hooks")]
+        if let Ok(root) = std::env::var("PROVISIOND_TEST_CONTROL") {
+            let hold = std::path::Path::new(&root).join("hold-reconciliation-record");
+            if hold.exists() {
+                component.trace(json!({"event":"reconciliation_evidence_held","subject":subject,"checkout_held":false}));
+                while hold.exists() {
+                    self.database.ensure_new_work()?;
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                }
+            }
+        }
+        let _ = (component, subject);
+        Ok(())
+    }
     async fn reconcile_delete(
         &self,
         component: &Component,
@@ -55,6 +76,7 @@ impl Engine {
             }
             _ => None,
         };
+        self.reconciliation_read_boundary(component,id).await?;
         component.trace(json!({"event":"delete_resolution_read","operation":id,"resolution":verb}));
         if let Some(verb) = verb {
             let r = Resolution {
@@ -170,6 +192,8 @@ impl Engine {
             }
         }
         let observed_at = chrono::Utc::now();
+        self.reconciliation_read_boundary(component, account)
+            .await?;
         let owned = account.to_owned();
         let managed=self.transaction(component,move|tx|{let account=owned.clone();Box::pin(async move{
             let rows=tx.rows("SELECT COALESCE(jsonb_agg(to_jsonb(m)||jsonb_build_object('wait_end',(SELECT COALESCE(o.mutation_wait_ended_at,o.updated_at) FROM provisiond.operations o WHERE o.machine_id=m.id AND o.kind='create' ORDER BY o.created_at LIMIT 1),'visibility',greatest(COALESCE((SELECT (descriptor->>'visibility_seconds')::numeric FROM provisiond.provider_accounts WHERE account=$1),1),COALESCE((SELECT max(extract(epoch FROM observed_at-dispatched_at)) FROM provisiond.provider_observations WHERE provider_account=$1),0)))),'[]')::text FROM provisiond.machines m WHERE provider_account=$1",&[&account]).await?;
@@ -358,6 +382,7 @@ impl Engine {
                 }
             }
         }
+        self.reconciliation_read_boundary(component, id).await?;
         let evidence = json!({"source":"all_channel_search","authoritative":authoritative,"matches":resources.len(),"provider_identifiers":identifiers,"in_progress":in_progress});
         component.trace(json!({"event":"resolution_search","operation":id,"evidence":evidence}));
         let mut resolution = None;

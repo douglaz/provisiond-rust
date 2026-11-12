@@ -155,6 +155,7 @@ def default_hooks(w):
         w.builds={name:w.build_identity(target/'debug'/name,[]) for name in ('api','engine','migrate')}
         h.config['workflow']['w6_default_builds']=dict(w.builds)
         w.launch_api()
+        record_hold=w.control/'hold-reconciliation-record';record_hold.touch();paths.append(record_hold)
         # Real reply loss reaches both retry and premature-release control sites.
         for defect in ('w6_blind_repeat','w6_release_timeout'):
             w.defect=defect

@@ -274,6 +274,7 @@ def accepted_identifiers(w):
     # Retain W4's interrupted verification boundary while W6 read-only evidence
     # waits at the independent simulator. Worker verification remains active.
     resolution=h.root/'provider/hold-reconciliation';resolution.touch()
+    evidence_hold=w.control/'hold-reconciliation-record';evidence_hold.touch()
     h.event('historical_resolution_barrier_requested',scenario='accepted_identifiers')
     # A real, separately admitted order supplies a distinct observed identifier
     # for deliberately wrong/ambiguous verification, never a made-up expected ID.
@@ -333,5 +334,5 @@ def accepted_identifiers(w):
                     unchanged_operation_count=int(count),orders=1,created_resources=1,second_purchase=False)
             h.results.append(dict(test='W4-accepted-verification-error' if mode=='search_throttle' else 'W4-provider-identifiers-'+mode,result='pass'))
     finally:
-        w.stop_engine();resolution.unlink();w.provider_control(mode='normal')
+        w.stop_engine();resolution.unlink();evidence_hold.unlink();w.provider_control(mode='normal')
         h.event('historical_resolution_barrier_released',scenario='accepted_identifiers')
