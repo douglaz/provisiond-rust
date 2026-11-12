@@ -1201,11 +1201,62 @@ exited 0 with all ten phases, eighteen W5 selectors and thirty-three expected ne
 effective fixture configuration, assertions and cleanup. These choices select no production
 timeout, capacity, measurement service or recovery policy; D-6 stays Open for W8.
 
+### D-37. Attribute sent-COMMIT standby wait with an observer on stock PostgreSQL
+
+**Decided 2026-11-12 by the owner (owner pick 2026-11-12).** This settles D-36's design
+question; W5 implements it with evidence. Asked how the engine tells actual standby wait from
+other sent-COMMIT time, the owner chose **"A: stock database (Recommended)"**: stock PostgreSQL
+with an application-side observer, in its observer re-establishment form.
+
+- One dedicated, lifetime, read-only engine observer session, opened at startup through the
+  existing checked `Store::dedicated()` path, outside every pool, counted in the startup capacity
+  check and in a D-6 connection-budget row. The API process gets none.
+- While a sent COMMIT is registered, the observer samples `pg_stat_activity` for its backend at
+  a fixed period. The exempt span runs from the first to the last sample that matches the
+  backend's pid and start time as `active`, waiting on `SyncRep`, running the store COMMIT.
+  Everything else is charged, including missing or failed samples and identity mismatch.
+- The engine charges the attempt's elapsed time, from attempt start to receipt delivery, minus
+  that span. Sampling error only overcharges.
+- Observer loss is logged loudly and the time no observer saw is charged. The engine then
+  re-establishes the observer through the ordinary checked connection path within the existing
+  bounds, with no pool or bound increase, so attribution resumes for later attempts.
+- Attribution never changes the commit outcome, checkout or permit retention, or stop
+  deadlines. No PostgreSQL change, no new privilege grant and no new build dependency.
+
+A four-reader panel (the fifth seat was unavailable) stayed tied 2-2 after one consensus round:
+two readers chose this form, two chose a patched PostgreSQL 18.6 build that meters the SyncRep
+wait inside the server. The tie went to the owner.
+
+- Strongest argument for the stock observer: no checked session can open while a standby stall
+  lasts, so even exact server-side attribution would not change the outcome of the case that
+  splits the panel, and a patched server would still need this charging rule once a primary
+  restart erases its meter.
+- Strongest argument for the patched server: it measures exactly the interval OPS-49 excludes
+  (pinned `03-operation-lifecycle.md:1976-1977`, STO-7 `05-persistence.md:180-182`), while a lost
+  observer charges real standby wait and can turn it into exhaustion.
+
+**Known limit.** If the observer is lost during a standby stall and the COMMIT reply is then
+lost, that standby time stays charged. The result is at most one alarmed engine exit on OPS-49's
+ordinary exhaustion path, with no money loss.
+
+### D-38. Charge sent-COMMIT time at completion only
+
+**Decided 2026-11-12, accepted under the owner's 2026-11-05 panel rule (three of four readers).**
+The engine charges a sent COMMIT's time to the OPS-49 retry bound when its receipt resolves: the
+reply arrives, or keepalives find the transport dead. Accounting triggers no exit while a COMMIT
+is still outstanding; TCP keepalives bound the difference. Three of four readers picked this;
+one picked in-flight exhaustion, in which the receipt resolves early as unresolved once charged
+time reaches the remaining budget and the engine takes its fatal exit. No narrowing or widening.
+
+**Known limit.** A live transport that keeps answering keepalives but withholds the COMMIT reply
+forever never triggers an accounting exit.
+
 ## Open
 
 ### D-36. Attribute actual standby wait before closing OPS-49 accounting
 
-**Open; reproduced 2026-11-12.** OPS-49 at pinned `03-operation-lifecycle.md:1968`, especially
+**Open; reproduced 2026-11-12; design chosen 2026-11-12 in D-37 and D-38.** This entry stays
+Open until W5 implements that design with evidence. OPS-49 at pinned `03-operation-lifecycle.md:1968`, especially
 lines 1976–1979, charges connection/execution/commit/read-back/backoff and excludes only actual
 standby wait. `Store::commit` currently returns precommit verification time for retry accounting,
 exempting all subsequent send-to-reply/death time. This remains true after D-34.
