@@ -108,6 +108,7 @@ impl Store {
             owner,
             mode,
             transaction.permit.take(),
+            self.accounting.clone(),
         ))?;
         Ok(CommitReceipt { receiver })
     }
@@ -118,9 +119,9 @@ async fn own_commit(
     owner: u64,
     mode: Mode,
     permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    accounting: Option<std::sync::Arc<super::accounting::Accounting>>,
 ) {
     let _permit = permit;
-    let started = std::time::Instant::now();
     // This local precedes the guard, so panic aborts before it can release a slot.
     let mut checkout = Some(checkout);
     let _abort = AbortOnPanic;
@@ -158,7 +159,7 @@ async fn own_commit(
                 CommitOutcome::NotDispatched {
                     reason: "synchronous_commit verification failed; COMMIT not dispatched".into(),
                 },
-                started.elapsed(),
+                std::time::Duration::ZERO,
             ));
             return;
         }
@@ -175,7 +176,10 @@ async fn own_commit(
         diagnostics.committing = true;
         diagnostics.commit_warning = false;
     }
-    let verification_time = started.elapsed();
+    // OPS-49: register exact backend identity before COMMIT is first polled.
+    if let Some(accounting) = &accounting {
+        accounting.register(owner, session);
+    }
     let before = protocol.snapshot();
     trace(json!({"event":"owner_accepted","owner":owner,"session":pid}));
     trace(json!({"event":"commit_possible_dispatch","owner":owner,"session":pid}));
@@ -274,7 +278,10 @@ async fn own_commit(
     drop(unpooled);
     drop(_permit);
     trace(json!({"event":"commit_owner_completed","owner":owner,"session":pid}));
-    let _ = sender.send((outcome, verification_time));
+    let exempt = accounting
+        .as_ref()
+        .map_or(std::time::Duration::ZERO, |a| a.finish(owner));
+    let _ = sender.send((outcome, exempt));
 }
 
 // Concrete opt-in fixture observation, inert in ordinary builds. It never

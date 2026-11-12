@@ -92,8 +92,9 @@ async fn test_stops(engine: Arc<Engine>) -> anyhow::Result<()> {
                             tokio::time::sleep(Duration::from_millis(2)).await;
                         }
                     } => {
-                        println!("{}", serde_json::json!({"event":"test_later_stop_requested","operation":id,"record":engine.test_record(&id)}));
-                        engine.later_stop()?;
+                        let result = engine.record_stop(&id);
+                        println!("{}", serde_json::json!({"event":"test_later_stop_arbitrated","operation":id,"record":engine.test_record(&id),"fatal":engine.is_fatal(),"error":result.as_ref().err().map(|e|format!("{e:#}"))}));
+                        result?;
                     }
                 }
             }
