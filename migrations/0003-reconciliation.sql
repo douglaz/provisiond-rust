@@ -106,6 +106,11 @@ ALTER TABLE provisiond.ledger_entries ADD COLUMN billing_period text,
 CREATE TABLE provisiond.meter_alerts (
  machine_id uuid PRIMARY KEY,reason text NOT NULL,observed_at timestamptz NOT NULL DEFAULT clock_timestamp());
 GRANT SELECT,INSERT ON provisiond.meter_alerts TO app;
+CREATE FUNCTION provisiond.usage_increment_end(key text) RETURNS timestamptz LANGUAGE plpgsql STABLE
+SET search_path=pg_catalog AS $$ BEGIN
+ RETURN substring(key FROM '^usage:machine:[^:]+:[^:]+:(.+)$')::timestamptz;
+ EXCEPTION WHEN invalid_datetime_format OR datetime_field_overflow THEN RETURN NULL;
+END $$;
 CREATE FUNCTION provisiond.audit_machine_meters() RETURNS bigint LANGUAGE plpgsql
 SET search_path=pg_catalog AS $$ DECLARE affected bigint; BEGIN
  WITH invalid AS (
@@ -113,8 +118,8 @@ SET search_path=pg_catalog AS $$ DECLARE affected bigint; BEGIN
    OR NOT EXISTS(SELECT 1 FROM provisiond.meter_totals t WHERE t.subject_kind='machine' AND t.subject_id=m.id)
    OR EXISTS(SELECT 1 FROM provisiond.meter_totals t WHERE t.subject_kind='machine' AND t.subject_id=m.id AND (t.credit_num<0 OR t.credit_num>=t.credit_den))
    OR EXISTS(SELECT 1 FROM provisiond.ledger_entries l LEFT JOIN provisiond.meter_totals t
-     ON t.subject_kind='machine' AND t.subject_id=l.machine_id AND t.billing_period=l.billing_period
-     WHERE l.machine_id=m.id AND l.kind='usage_debit' AND (t.high_water_mark IS NULL OR t.high_water_mark<l.increment_end))
+     ON t.subject_kind='machine' AND t.subject_id=l.machine_id AND t.billing_period=split_part(l.idempotency_key,':',4)
+     WHERE l.machine_id=m.id AND l.kind='usage_debit' AND (t.high_water_mark IS NULL OR provisiond.usage_increment_end(l.idempotency_key) IS NULL OR t.high_water_mark<provisiond.usage_increment_end(l.idempotency_key)))
  ), quarantined AS (UPDATE provisiond.machines SET meter_quarantined=true WHERE id IN (SELECT id FROM invalid) RETURNING id)
  INSERT INTO provisiond.meter_alerts(machine_id,reason) SELECT id,'migration/import audit: missing evidence, range or high-water failure' FROM quarantined
  ON CONFLICT(machine_id) DO NOTHING;

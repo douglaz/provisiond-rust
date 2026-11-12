@@ -126,15 +126,28 @@ def meter_edges(w):
     assert all(0<=int(m['credit_num'])<int(m['credit_den']) for m in state['meter'])
     assert all(e['billing_period'] and e['increment_end'] for e in state['ledger'] if e['kind']=='usage_debit')
     w.h.event('w6_causal_trace',scenario=w.case,operation=op,boundary='exit split at UTC month and durable rate acceptance; one maximal native-only outage',snapshot=state,clock=dict(start=start.isoformat(),returned=until.isoformat()))
+    # One-sided audit uses the entry key's end; it must detect a mark behind an
+    # actual usage debit without reconstructing the credit from ledger totals.
+    w.h.sql(f"UPDATE provisiond.meter_totals SET high_water_mark=(SELECT max(increment_end)-interval '1 second' FROM provisiond.ledger_entries WHERE machine_id='{machine}') WHERE subject_id='{machine}' AND billing_period=(SELECT max(billing_period) FROM provisiond.ledger_entries WHERE machine_id='{machine}' AND kind='usage_debit')")
+    assert int(w.h.sql('SELECT provisiond.audit_machine_meters()'))>=1
+    assert w.h.sql(f"SELECT meter_quarantined FROM provisiond.machines WHERE id='{machine}'")=='t'
+    w.h.event('w6_meter_high_water_audit',machine=machine,usage_keys=[e['idempotency_key'] for e in state['ledger'] if e['kind']=='usage_debit'],alert=True)
     # Explicit post-migration/import audit runs outside posting, detects corrupt
     # credit, quarantines only this subject and still allows the real delete.
     t,_,machine=create(w,'meter-quarantine')
-    w.h.sql(f"UPDATE provisiond.meter_totals SET credit_num=2,credit_den=1 WHERE subject_id='{machine}'")
+    w.h.sql(f"UPDATE provisiond.meter_totals SET credit_num=2,credit_den=1,high_water_mark=clock_timestamp()-interval '1 minute' WHERE subject_id='{machine}'")
     assert int(w.h.sql('SELECT provisiond.audit_machine_meters()'))>=1
+    # Existing open outage evidence may close at exit, while quarantine keeps
+    # every meter row and ledger entry untouched and opens no new deficiency.
+    w.h.sql(f"INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,operation_id,cause,native_minor,currency,clamped_sats,idempotency_key,absorbed_from) SELECT provider_account,id,'machine',id,gen_random_uuid(),'rate_outage',0,'USD',0,'quarantined-open-outage',clock_timestamp()-interval '30 seconds' FROM provisiond.machines WHERE id='{machine}'")
     op=deletion(w,t,machine,'quarantine-delete-key');before=operation_state(w,op)
     w.start_engine();w.wait_status(op,'succeeded');w.stop_engine();after=operation_state(w,op)
     assert before['meter']==after['meter'] and before['ledger']==after['ledger']
     assert after['machine']['meter_quarantined'] and after['machine']['state']=='deleted'
+    assert len(before['deficiencies'])==len(after['deficiencies'])==1
+    outage=after['deficiencies'][0]
+    assert outage['absorbed_until']==after['machine']['meter_stopped_at'] and outage['absorbed_seconds']>=30
+    assert outage['native_minor']>0 and outage['rate_num'] is None and outage['rate_den'] is None
     assert w.h.sql(f"SELECT count(*) FROM provisiond.meter_alerts WHERE machine_id='{machine}'")=='1'
     w.h.event('w6_causal_trace',scenario=w.case,operation=op,boundary='explicit range audit quarantines; deletion records stop with unchanged meter evidence',before=before,snapshot=after)
 

@@ -43,6 +43,10 @@ def protected(w, t):
     values['episodes']=json.loads(w.h.sql("SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY id),'[]') FROM provisiond.episodes r"))
     values['receipts']=json.loads(w.h.sql(f"SELECT COALESCE(jsonb_agg(jsonb_build_object('scope_kind',scope_kind,'scope_id',scope_id,'key',key,'resource_id',resource_id,'fingerprint',fingerprint,'created_at',created_at,'expires_at',expires_at) ORDER BY scope_kind,scope_id,key),'[]') FROM provisiond.idempotency_records WHERE scope_id='{tenant}' OR resource_id IN (SELECT resource_id FROM provisiond.idempotency_records WHERE scope_id='{tenant}')"))
     values['external']=w.external()
+    # Background W6 evidence reads are independent observations, not a retention
+    # mutation. Retain every purchase/effect record and the entire remote state.
+    values['external']['events']=[e for e in values['external']['events'] if not e.get('resolution')]
+
     return values
 
 
@@ -67,6 +71,15 @@ def gone(w,t,key,body,op,deadline):
 
 
 def retention(w):
+    hold=w.control/'hold-reconciliation-record';hold.touch()
+    w.h.event('historical_resolution_barrier_requested',scenario='retention',boundary='completed provider evidence before store write')
+    try:_retention(w)
+    finally:
+        w.stop_engine();hold.unlink()
+        w.h.event('historical_resolution_barrier_released',scenario='retention')
+
+
+def _retention(w):
     h=w.h;started=time.monotonic();w.stop_engine()
     p=parameters();w.restart_api(p)
     config=w.parameters.read_bytes()

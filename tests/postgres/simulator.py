@@ -113,7 +113,7 @@ def main():
                     record('invalid_settlements_returned');self.reply({});return
                 self.reply(state['settlements']);return
             operation=body.get('operation')
-            identity=dict(command=operation,account=body.get('account'),correlator=body.get('correlator'),path=self.path)
+            identity=dict(command=operation,account=body.get('account'),correlator=body.get('correlator'),path=self.path,resolution=body.get('resolution',False))
             record('request_received',**identity)
             # PRV-13b/OVR-19 test tooling only: one attributed request, after
             # readiness. Observe peer EOF while withholding the response, so the
