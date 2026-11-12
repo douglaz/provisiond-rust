@@ -126,6 +126,48 @@ def socket_request(w,t,body,key,correlation):
     return conn
 
 
+def healthy_standby(h, component):
+    """STO-7/CNF-365: establish identity and catch-up BEFORE arming a fault."""
+    import json
+    h.identity()
+    target=h.sql('SELECT pg_current_wal_flush_lsn()')
+    rows=json.loads(h.sql("SELECT jsonb_agg(jsonb_build_object('pid',pid,'role',usename,'name',application_name,'address',host(client_addr),'state',state,'sync_state',sync_state,'flush',flush_lsn::text)) FROM pg_stat_replication WHERE application_name='provisiond_sync'"))
+    assert len(rows)==1 and rows[0]['role']=='replicator' and rows[0]['address']=='127.0.0.1' and rows[0]['state']=='streaming' and rows[0]['sync_state']=='sync'
+    assert h.sql(f"SELECT flush_lsn >= '{target}'::pg_lsn FROM pg_stat_replication WHERE pid={rows[0]['pid']}")=='t'
+    h.event('w5_healthy_before_fault',component=component,target=target,designated=rows)
+    return dict(target=target,designated=rows)
+
+
+def original_receipt(w,t,key):
+    """API-11/STO-35: bind the ORIGINAL durable admission before replay."""
+    import json
+    rows=json.loads(w.h.sql(f"SELECT COALESCE(jsonb_agg(jsonb_build_object('operation',o.id,'claim',o.claim_number,'status',o.status,'receipt',to_jsonb(r)-'response_body','commitment',c.id)),'[]') FROM provisiond.idempotency_records r JOIN provisiond.operations o ON o.id=r.resource_id::uuid JOIN provisiond.commitments c ON c.id=o.commitment_id AND c.operation_id=o.id WHERE r.scope_id='{t['tenant_id']}' AND r.key='{key}'"))
+    assert len(rows)==1 and rows[0]['status']=='queued' and rows[0]['claim']==0, 'API-11 original admission missing before replay'
+    assert not external(w,rows[0]['operation'])
+    w.h.event('w5_original_admission_identified',original=rows[0],before_replay=True)
+    return rows[0]['operation']
+
+
+def failed_attempt_release(w,p,pid,release=None):
+    """OPS-49: application objects AND attributed server transaction end."""
+    rows=events(p)
+    release=release or next(e for e in rows if e.get('event')=='transaction_resources_released' and e.get('session')==pid)
+    transaction=release['transaction']
+    assert release['component_available']==1 and release['pool_checked_out']<3
+    released=rows.index(release)
+    assert any(e.get('event')=='whole_transaction_retry' and e.get('transaction')==transaction for e in rows[released+1:]), 'OPS-49 release must precede retry/backoff'
+    rolled_back=[e for e in rows[:released] if e.get('event')=='transaction_rollback_acknowledged' and e.get('transaction')==transaction]
+    if rolled_back:
+        assert rolled_back[-1]['ready_status']==ord('I')
+        server=next(e for e in w.h.events if e['event']=='protocol_response' and e.get('session')==pid and e.get('command_tag')=='ROLLBACK' and e.get('query')==f'ROLLBACK /* store transaction {transaction} */')
+    else:
+        assert release['discarded']
+        from harness import eventually
+        eventually(lambda:w.h.sql(f'SELECT count(*) FROM pg_stat_activity WHERE pid={pid}')=='0')
+        server=dict(session=pid,backend_absent=True)
+    w.h.event('w5_failed_attempt_release',session=pid,application_release=release,rollback=rolled_back[-1] if rolled_back else None,server_end=server,release_before_backoff=True)
+
+
 def admission_before(w):
     """API-11/STO-23/35: fail before COMMIT, no admission, canonical resend."""
     from concurrent.futures import ThreadPoolExecutor
@@ -297,7 +339,8 @@ def settlement_blocked(w):
         repeat=again.wait()
         assert repeat['pid']!=connection['pid']
         assert events(p,'whole_transaction_retry') and external(w,op)==evidence
-        h.event('w5_settlement_retry_activated',operation=op,failed_session=connection['pid'],repeat_session=repeat['pid'],final_outcome=verified[0],attempts=2,released_before_backoff=connection['closed'])
+        failed_attempt_release(w,p,connection['pid'])
+        h.event('w5_settlement_retry_activated',operation=op,failed_session=connection['pid'],repeat_session=repeat['pid'],final_outcome=verified[0],attempts=2,release_evidence='w5_failed_attempt_release')
         again.release();w.wait_status(op,'succeeded')
         eventually(lambda:any(e.get('operation')==op for e in events(p,'settlement_finished')))
         w.stop_engine();after=snapshot(w,op)
@@ -391,8 +434,11 @@ def stop_record(w):
                 marker=len(h.events);started=len(events(p,'stop_record_started'))
                 (w.control/'later-stop').touch()
                 reaped(w,p)
-                later=events(p,'test_later_stop_requested')
-                assert later and later[-1]['record']==original and len(events(p,'stop_record_started'))==started
+                later=events(p,'test_later_stop_arbitrated')
+                assert later, 'later stop arbitration never activated'
+                h.event('w5_later_stop_arbitration_observed',operation=op,arm=arm,original=original,after=later[-1])
+                assert later[-1]['record']==original and later[-1]['fatal'] and 'later stop' in (later[-1]['error'] or ''), 'OPS-21 later stop arbitration must preserve original absolute deadline'
+                assert len(events(p,'stop_record_started'))==started
                 assert not any(e['event']=='bytes_transmitted' and e.get('query','').startswith('BEGIN') for e in h.events[marker:])
                 h.event('w5_later_stop_activated',operation=op,arm=arm,session=connection['pid'],original_record=start[0],record_state=original,record_count=started,no_transaction_after_later_stop=True,engine_exit=p.returncode)
         finally:
@@ -561,7 +607,10 @@ def retained_checkouts(w):
         for path in (cancel,hold):
             if path.exists():path.unlink()
     eventually(lambda:any(e.get('owner')==owner for e in events(w.api,'commit_owner_completed')))
-    op=w.request('POST','/v1/machines',body,t,key,status=202)['id']
+    classified=[e for e in events(w.api,'commit_classified') if e.get('owner')==owner]
+    assert len(classified)==1 and classified[0]['outcome']=='acknowledged', 'STO-7 original cancelled admission must be acknowledged after standby recovery'
+    op=original_receipt(w,t,key)
+    assert w.request('POST','/v1/machines',body,t,key,status=202)['id']==op, 'API-11 replay must return original acknowledged admission'
     w.start_engine();w.wait_status(op,'succeeded');w.stop_engine()
     assert len(orders(w,op))==1
     from scenarios import Probe
@@ -583,6 +632,7 @@ def connection_check(w):
     for component in ('api','engine'):
         if component=='api':
             w.api.terminate();w.api.wait(timeout=5)
+        healthy=healthy_standby(h,component)
         gate=h.proxy.arm('store admission target','reply')
         try:
             marker=len(h.events)
@@ -596,7 +646,7 @@ def connection_check(w):
             assert not any(q.startswith(('BEGIN','UPDATE','INSERT','COMMIT')) for q in sent)
             assert not any(e.get('session')==pid for e in events(p,'session_admitted'))
             assert h.sql(f"SELECT count(*) FROM pg_stat_activity WHERE pid={pid} AND wait_event='SyncRep'")=='0'
-            h.event('w5_connection_check_activated',component=component,session=pid,closed_unused=True,no_check_write=True,no_fallback=True,exit_status=p.returncode,healthy_replication=h.sql("SELECT sync_state FROM pg_stat_replication WHERE application_name='provisiond_sync'"))
+            h.event('w5_connection_check_activated',component=component,session=pid,closed_unused=True,no_check_write=True,no_fallback=True,exit_status=p.returncode,healthy_replication_before_fault=healthy)
         finally:gate.release()
         if component=='api':w.launch_api()
         else:w.start_engine();w.stop_engine()
@@ -636,14 +686,15 @@ def process_death(w):
         h.event('w5_operator_recovery',step='stop replacements and quiesce',complete=True)
         resume_standby(h);paused=False
         eventually(lambda:h.sql(f"SELECT count(*) FROM pg_stat_activity WHERE pid={pid} AND wait_event='SyncRep'")=='0')
-        h.event('w5_operator_recovery',step='restore designated standby on unchanged history',complete=True,individual_syncrep_cancelled=False,primary_shutdown_required=False)
+        op=original_receipt(w,t,key)
+        h.event('w5_operator_recovery',step='restore designated standby on unchanged history',complete=True,individual_syncrep_cancelled=False,primary_shutdown_required=False,original_operation=op,application_acknowledgement='not observed: process killed',database_outcome='original admission persisted')
     finally:
         if conn:conn.close()
         if paused:resume_standby(h)
         gate.release()
         if hold.exists():hold.unlink()
     w.launch_api()
-    op=w.request('POST','/v1/machines',body,t,key,status=202)['id']
+    assert w.request('POST','/v1/machines',body,t,key,status=202)['id']==op, 'API-11 replay after process death must return original persisted admission'
     w.start_engine();w.wait_status(op,'succeeded');w.stop_engine()
     assert len(orders(w,op))==1
     trace(w,op,'process killed with residual SyncRep backend',replacement_attempts=attempts,operator_recovery_completed=True,
@@ -676,6 +727,12 @@ def contention(w):
         eventually(lambda:h.sql(f"SELECT count(*) FROM pg_stat_activity WHERE pid<>{pid} AND {pid}=ANY(pg_blocking_pids(pid))")!='0')
         reaped(w,p)
         retries=events(p,'whole_transaction_retry');assert len(retries)>=3
+        failed=[e for e in events(p,'transaction_resources_released') if e.get('component_available')==1]
+        retried={e.get('transaction') for e in retries}
+        attempted=[e for e in failed if e['transaction'] in retried]
+        assert len(attempted)==len(retries)
+        for released in attempted:
+            failed_attempt_release(w,p,released['session'],released)
         assert any('store retry exhausted' in e.get('reason','') for e in events(p,'engine_fatal'))
         assert w.status(op)=='running' and external(w,op)==provider
         h.event('w5_contention_activated',operation=op,locker_backend=pid,engine_session=connection['pid'],standby_paused=True,retries=retries,engine_exit=p.returncode,final_outcome_retained_until_exit=True,no_provider_repeat=True)
@@ -750,10 +807,12 @@ def default_hooks(w):
         assert stop.exists() and len(orders(w,op))==1
         w.provider_control(mode='drop_reply')
         other=w.request('POST','/v1/machines',body,t,'w5-default-unknown',status=202)['id']
+        w.defect='w5_stop_reset'
         p=w.start_engine();w.wait_status(other,'needs_reconciliation');w.stop_engine()
+        assert not events(p,'test_later_stop_arbitrated')
         assert len(orders(w,other))==1 and not events(p,'defect_provider_retry')
         h.event('w5_default_observed',features=[],fault_files_ignored=True,defect_environment_ignored=True,
-                stopped_file_unconsumed=True,success_operation=op,unresolved_operation=other,orders_per_operation=1)
+                stopped_file_unconsumed=True,success_operation=op,unresolved_operation=other,orders_per_operation=1,defect_environments=['w5_blind_retry','w5_stop_reset'])
         trace(w,other,'default build with fault files and blind-retry environment',faults_activated=False,expected_inert=True)
     finally:
         w.stop_engine()
@@ -774,8 +833,9 @@ def inventory_complete(manifest):
     actual=[r.get('test') for r in manifest.get('scenarios',[]) if r.get('test') in expected and r.get('result')=='pass']
     inventory=[e for e in manifest.get('events',[]) if e.get('event')=='w5_inventory_complete']
     cleanup=[e for e in manifest.get('events',[]) if e.get('event')=='cleanup_complete']
-    return (manifest.get('result')=='pass' and len(expected)==18 and actual==expected
+    return (manifest.get('result')=='pass' and actual==expected
         and len(inventory)==1 and inventory[0].get('required')==expected and inventory[0].get('observed')==expected
+        and all(any(e.get('event')=='w5_accounting_activated' and e.get('scenario')==name and e.get('activated') is True for e in manifest.get('events',[])) for name in ACCOUNTING_CASES)
         and bool(cleanup) and cleanup[-1].get('result')=='pass')
 
 
@@ -892,3 +952,8 @@ def generation_after_lost_record(w):
     successor(w,op,'failed')
     assert snapshot(w,op)==committed and not orders(w,op)
     trace(w,op,'generation refusal after earlier record COMMIT reply lost',earlier_commit_preserved=True)
+
+
+from w5_accounting import CASES as ACCOUNTING_CASES
+CASES.extend(ACCOUNTING_CASES)
+SCENARIOS.update(ACCOUNTING_CASES)

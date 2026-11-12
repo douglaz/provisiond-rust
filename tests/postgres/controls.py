@@ -6,6 +6,7 @@ from harness import ROOT, cap_check
 import tempfile
 
 CONTROLS=[
+    ('w5_stop_reset','w5','w5_stop_record','OPS-21 later stop arbitration must preserve original absolute deadline','w5_later_stop_arbitration_observed'),
     ('w5_generation','w5','w5_generation_record','OPS-50 stale generation record must refuse without retry','w5_generation_observed'),
     ('w5_checkout','w5','w5_retained_checkouts','STO-7 HTTP cancellation must retain original sent-COMMIT checkout','w5_checkout_retention_observed'),
     ('w5_blind_retry','w5','w5_accepted_lost','OPS-12 lost reply must not dispatch a second purchase','w5_blind_retry_observed'),
@@ -59,6 +60,8 @@ def controls(seed,evidence,w5_only=False):
         observed=[e for e in events if e['event']==observation]
         valid=(child.returncode==1 and len(failures)==1 and failures[0].get('type')=='AssertionError'
             and failures[0].get('message')==assertion and cleanup and cleanup[-1]['result']=='pass' and observed)
+        if defect=='w5_stop_reset':
+            valid=valid and observed[-1]['after']['record']['deadline']!=observed[-1]['original']['deadline'] and observed[-1]['after']['fatal'] is False and observed[-1]['after']['error'] is None
         if defect=='w5_generation':
             valid=valid and observed[-1].get('refused') is False and observed[-1].get('unsafe_record') is True and observed[-1].get('unequal_checks')
         if defect=='w5_checkout':
