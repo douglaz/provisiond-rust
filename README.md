@@ -73,13 +73,19 @@ It performs bootstrap, replication loss/rebuild, physical backup/archive restore
 destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, backend crash,
 primary restart, residual-backend and bounded-process-stop fixtures, retained-object deadline
 closure, caller-runtime shutdown, constructor cancellation/deadlines, the transactional core,
-the complete HTTP funding/create workflow, a default-feature workflow, thirty defect controls, and cleanup. The parent accepts a failing control only with its
+the complete HTTP funding/create workflow, a default-feature workflow, W5 interruption scenarios,
+thirty-three defect controls, and cleanup. The parent accepts a failing control only with its
 exact exit code and intended assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
-non-zero. The aggregate manifest requires all nine phases (W1, checks, commits, regressions, corrections,
-core, workflow, default-workflow, controls);
+non-zero. The aggregate manifest requires all ten phases (W1, checks, commits, regressions, corrections,
+core, workflow, default-workflow, W5, controls);
 each writes its own sanitized manifest and retains raw evidence under the private harness root.
 
 The `commits` and `regressions` phases can also run alone with the same harness options.
+`--phase w5` runs the complete interruption inventory; `--phase w5 --case w5_claim_reply`
+selects one boundary with the same allocation options. `--phase controls --case w5_controls`
+runs the three W5 sensitivity controls. Focused manifests do not satisfy the complete W5
+inventory. The [W5 report](evidence/w5/report.md) records the ten-phase run and the stopped
+OPS-49 non-standby COMMIT-reply accounting path; passing implemented scenarios do not close that gap.
 For a focused regression, use `--phase regressions --case session`, `--case transaction`,
 `--case runtime`, or `--case cancelled` (a read call or destination attempt dropped mid-flight). [Fresh acceptance and red/green results](evidence/r2.md) distinguish the
 historical suites from coverage of both corrected lifetime defects. This local TCP spike disables
@@ -185,11 +191,11 @@ zero-row record and B's refusal without its own result, then settles B's distinc
 Queued waits require one pending attempt with no precommit retry and actual checked-entry
 refusal. `--case queued_claim_pool --defect queued_claim_pool` isolates the pool defect;
 the canonical controls include both queued entry and pool windows.
-`--phase controls` runs all thirty required defects. Each defect requires its exact phase/case;
+`--phase controls` runs all thirty-three required defects. Each defect requires its exact phase/case;
 unknown or mismatched selectors exit nonzero before setup. The canonical command includes every
 control and accepts only its intended assertion failure after activation and successful cleanup.
-ENG-05 automatic reconciliation, ENG-07's dedicated replication-freeze stop-record drill and
-DB-10 saturation remain `not run` for their later work packages.
+ENG-05 automatic reconciliation and DB-10 deployment-wide saturation remain `not run` for their
+later work packages. W5 demonstrates ENG-07's named create-record replication-freeze arm.
 [Historical W3 acceptance](evidence/w3.md) retains its original tested source. The
 [defer cancellation supplement](evidence/defer/report.md) records its seven-phase run,
 27 negative controls, original-runtime reproduction and claim-specific capacity return.

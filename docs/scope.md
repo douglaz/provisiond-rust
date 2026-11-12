@@ -70,6 +70,20 @@ not full service conformance.
 
 ## Evidence limits
 
+The [W5 report](../evidence/w5/report.md) records activated local interruption scenarios through
+real API/engine processes and independent simulators, with complete inventory, default-feature
+checks and exact-assertion controls. It demonstrates selected create/record and connection arms,
+not every operation kind in CNF-366, complete CNF-365, or deployment-wide CNF-373 recovery.
+The process-death drill restores the same designated standby on unchanged history; it does not
+exercise a promotion incident, production supervisor policy or loss of observer access.
+
+**OPS-49 sent-COMMIT accounting remains a known stopped path.** On the unchanged runtime,
+a reply withheld for 2197 ms after the server finished COMMIT consumed only 21 ms of the
+2000 ms retry budget. The implementation still exempts the entire sent-COMMIT interval,
+although OPS-49 exempts only actual standby wait. D-36 records the reproducer, impact and
+measurement decision needed. The passing ten-phase run does not establish this requirement
+or full W5 acceptance. No policy, timeout, pool size or accepted deployment profile was changed.
+
 - A local two-process PostgreSQL cluster tests PostgreSQL behaviour. It does not demonstrate
   failure-domain independence, arbitrary hardware durability or production fencing.
 - The specification repository's archived PostgreSQL experiments used a primary with two standbys.
@@ -104,8 +118,10 @@ after loss detection takes the later-stop exit even before fan-out registration.
 refusal leaves the newer row and money unchanged, reports that observation and ends the stale
 worker. Completed records release capacity while captured observers retain their result. Expiry, a later
 stop, retry exhaustion and supersession require process exit, retaining uncertainty about any last
-reply. The dedicated replication-freeze stop-record drill (ENG-07) remains not run. ENG-05 automatic
-provider reconciliation and DB-10 deployment-wide saturation also remain not run. Local pool
+reply. W5 demonstrates the dedicated replication-freeze stop-record drill's named create arm
+(ENG-07): an older record retains its original deadline through lock loss and exits nonzero
+while its sent COMMIT remains unacknowledged. ENG-05 automatic provider reconciliation and
+DB-10 deployment-wide saturation remain not run. Local pool
 budgets do not guarantee observer access or bound residual backends across process lifetimes.
 
 The API serves only the explicit loopback `local-simulator` profile after schema compatibility.
@@ -259,8 +275,8 @@ Supported traffic configurations must allow list, balance and machine reads at t
 1000 ms cadence. Parameter/descriptor files and simulator addresses are required; these settings do
 not select production capacities or close D-6/7/8/9.
 
-The canonical runner requires nine phases and retains the full W1–W3 inventory plus the workflow,
-default-feature workflow and three additional sensitivity controls. Historical W3 evidence above
+The canonical runner requires ten phases and retains the full W1–W3 inventory plus the workflow,
+default-feature workflow, W5 and thirty-three sensitivity controls. Historical W3 evidence above
 retains its original source identity. Fresh W4 evidence is recorded separately. Default API startup
 checks build into a separate target directory. The workflow records executable hashes and feature
 modes for API/engine/migrator builds

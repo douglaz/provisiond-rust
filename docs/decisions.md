@@ -1152,7 +1152,82 @@ executable reds, final greens and cleanup. The one-second statement, two-second 
 250 ms checkout bounds, permanent receipts and task-failure handling remain unchanged. Independent
 Run review is pending. No new nine-phase run is claimed.
 
+### D-34. Distinguish definitely unsent claims and check exhaustion before another attempt
+
+**Measured 2026-11-12.** OPS-49 distinguishes ordinary pre-COMMIT claim errors from uncertain
+claim completion. `CommitOutcome::NotDispatched` carries the former without interpreting a
+sent COMMIT's transport loss as rollback. `own_commit` closes a failed verification checkout and
+releases its component permit before publishing this outcome. `Engine::claim_owned` may then
+repeat the whole claim under the existing bound, charging the complete known-pre-dispatch
+interval including owner handoff. Its external label remains `rejected`; this is a transaction
+interface distinction for the retry decision, with startup ordering unchanged. Sent/unknown claim
+completion still exits fatally before worker registration or provider work.
+
+Both claim and worker transaction loops check charged exhaustion before beginning another
+attempt. Their existing backoff cannot authorize another transaction after consuming the bound.
+The two [unchanged-runtime reds](../evidence/w5/regressions.json) used fixture-only overlays on
+`aceea4eea8382c8d3b6fa554706c54920999369c`, with protected runtime/migration/dependency hashes.
+Both exited 1 at their intended assertions; the recognizing comparison exited 0. Their final
+green selectors are `w5_claim_precommit` and `w5_backoff_budget`. The latter supplements the
+real-binary scenarios with the actual runtime's defer primitive; claim-loop symmetry is source
+inspection, not a separate claim-backoff red. D-36 remains unresolved.
+
+### D-35. Observe test boundaries without changing ordinary builds
+
+**Measured 2026-11-12.** Narrow `store-test-hooks` controls expose handler disconnect/reply
+loss and real engine stop-record boundaries. Checkout observation samples the owner's actual
+retained pooled object and transport, rather than inferring ownership from a live backend.
+An independent simulator hold separates acceptance from resource creation. Default builds
+ignore the fault files and defect environment, demonstrated by `w5_default_hooks` with actual
+executable hashes and one order per operation.
+
+The W5 parent requires all eighteen selectors and successful cleanup; a focused child cannot
+satisfy that inventory. The three new controls require an activated unsafe observation, exit 1
+at the exact assertion and cleanup, preserving all thirty earlier controls. Trace readers parse
+only complete newline-terminated byte records. An incomplete final UTF-8/JSON tail is an
+`inconclusive` diagnostic and cannot establish application behavior; malformed complete records
+still fail. The [parser comparison](../evidence/w5/parser-comparison.json) records the real-file
+old-helper exit 1 and fixed-helper exit 0. Test control payloads are closed before atomic path
+publication, avoiding consumption of an empty operation UUID. Expiry-session closure evidence
+accepts either attributed proxy read direction before the same original deadline.
+
+D-34/D-35's final basis is runtime/fixtures `7b26aed794272668f9960af56fbcb26a57d5d2d6`, unchanged
+specification pin, PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and
+tokio-postgres 0.7.18. `nix develop --command bash tools/check.sh` exited 0 and
+`nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <raw-final-manifest>`
+exited 0 with all ten phases, eighteen W5 selectors and thirty-three expected negative controls.
+[Validation](../evidence/w5/validation.json), [source](../evidence/w5/tested-source.json),
+[audit](../evidence/w5/audit.json) and [report](../evidence/w5/report.md) retain commands, hashes,
+effective fixture configuration, assertions and cleanup. These choices select no production
+timeout, capacity, measurement service or recovery policy; D-6 stays Open for W8.
+
 ## Open
+
+### D-36. Attribute actual standby wait before closing OPS-49 accounting
+
+**Open; reproduced 2026-11-12.** OPS-49 at pinned `03-operation-lifecycle.md:1968`, especially
+lines 1976–1979, charges connection/execution/commit/read-back/backoff and excludes only actual
+standby wait. `Store::commit` currently returns precommit verification time for retry accounting,
+exempting all subsequent send-to-reply/death time. This remains true after D-34.
+
+Minimal reproducer: gate a real settlement's COMMIT CommandComplete reply, independently observe
+succeeded rows, then sample its backend as `idle:ClientRead` with healthy synchronous replication
+for longer than the 2000 ms bound before severing the reply transport. The unchanged runtime
+held 2197 ms, emitted `whole_transaction_retry` with `spent_ms=21`, and remained alive. The
+[recorded command](../evidence/w5/stopped-accounting.json) exited 1 at
+`OPS-49 non-standby COMMIT reply delay must consume retry budget`; cleanup passed.
+[Source proof](../evidence/w5/source-accounting.json) binds the protected unchanged runtime and
+fixture-only overlay. Provider orders stayed one and settled rows remained identical: the
+demonstrated impact is a retry-budget violation, not a demonstrated duplicate purchase/debit.
+
+The frontend's sent-COMMIT interval cannot alone distinguish this history from actual SyncRep
+wait. Charging all of it violates the exemption; abandoning a live sent COMMIT violates STO-7.
+The smallest proposed decision is to permit a narrow independently attributable COMMIT-wait
+measurement design, including precision, unavailable observations and ordinary pool accounting,
+or explicitly leave this arm for the integration owner. W5 does not authorize a general runtime
+observability service. This exact path is stopped pending that scope/measurement decision;
+no policy or specification was rewritten. Unrelated implemented arms have passing evidence,
+but full OPS-49 and full W5 acceptance remain open.
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
 |---|---|---|---|---|
