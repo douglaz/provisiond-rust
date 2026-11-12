@@ -153,7 +153,10 @@ def failed_attempt_release(w,p,pid,release=None):
     rows=events(p)
     release=release or next(e for e in rows if e.get('event')=='transaction_resources_released' and e.get('session')==pid)
     transaction=release['transaction']
-    assert release['component_available']==1 and release['pool_checked_out']<3
+    assert release['component_available']==1
+    # This fixture has one worker and paused dispatch: spare capacity cannot
+    # establish that the original failed checkout was actually returned.
+    assert release['pool_checked_out']==0, 'OPS-49 failed attempt must release its original write checkout before backoff'
     released=rows.index(release)
     assert any(e.get('event')=='whole_transaction_retry' and e.get('transaction')==transaction for e in rows[released+1:]), 'OPS-49 release must precede retry/backoff'
     rolled_back=[e for e in rows[:released] if e.get('event')=='transaction_rollback_acknowledged' and e.get('transaction')==transaction]
@@ -332,6 +335,7 @@ def settlement_blocked(w):
     try:
         p=w.start_engine();connection=gate.wait()
         assert any(e.get('operation')==op for e in events(p,'execute_returned'))
+        pause_dispatch(w,p)
         verified=[e for e in events(p,'provider_verified') if e.get('operation')==op];assert len(verified)==1
         evidence=external(w,op)
         again=h.proxy.arm('SET status=$3,result=','send')
@@ -348,10 +352,14 @@ def settlement_blocked(w):
         from datetime import datetime
         assert datetime.fromisoformat(after['machines'][0]['state_observed_at'])==datetime.fromisoformat(verified[0]['state_observed_at'])
         assert len(after['ledger'])==2
+        successor(w,op,'succeeded')
+        assert snapshot(w,op)==after and external(w,op)==evidence and len(orders(w,op))==1
         trace(w,op,'known outcome; settlement transport fails before COMMIT',whole_transaction_repeat=True,no_provider_or_verification_repeat=True)
     finally:
         gate.release()
         if again:again.release()
+        path=w.control/'hold-dispatch'
+        if path.exists():path.unlink()
 
 
 def settlement_reply(w):

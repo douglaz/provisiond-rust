@@ -90,8 +90,17 @@ impl Accounting {
         attempt.exempt
     }
     fn failed(&self, reason: &str) {
-        for attempt in self.attempts.lock().expect("accounting").values_mut() {
-            attempt.end_run();
+        for (_owner, attempt) in self.attempts.lock().expect("accounting").iter_mut() {
+            #[cfg(feature = "store-test-hooks")]
+            let before = json!({"first_received_us":attempt.first_received.map(|t|self.instant(t)),"last_sent_us":attempt.last_sent.map(|t|self.instant(t)),"exempt_us":attempt.exempt.as_micros()});
+            // OPS-49: the isolated sensitivity defect skips only this closure.
+            if !super::test_defect("w5_observer_run") {
+                attempt.end_run();
+            }
+            #[cfg(feature = "store-test-hooks")]
+            (self.trace)(
+                json!({"event":"test_observer_run_closed","owner":_owner,"session":attempt.pid,"backend_start":attempt.backend_start,"failed_us":self.instant(Instant::now()),"reason":reason,"before":before,"after":{"first_received_us":attempt.first_received.map(|t|self.instant(t)),"last_sent_us":attempt.last_sent.map(|t|self.instant(t)),"exempt_us":attempt.exempt.as_micros()}}),
+            );
         }
         (self.trace)(
             json!({"event":"commit_observer_failed","level":"error","reason":reason,"unobserved_time_charged":true}),
