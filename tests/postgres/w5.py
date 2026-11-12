@@ -34,8 +34,8 @@ def w5(h, case=None, defect=None):
 
 
 def events(p, kind=None):
-    import json
-    rows=[json.loads(s) for s in p.log.read_text().splitlines() if s.startswith('{')]
+    from workflow import trace_events
+    rows=trace_events(p.log)
     return [e for e in rows if kind is None or e.get('event')==kind]
 
 
