@@ -75,10 +75,24 @@ async fn test_stops(engine: Arc<Engine>) -> anyhow::Result<()> {
                     serde_json::json!({"event":"test_stop_requested","operation":id})
                 );
                 engine.record_stop(&id)?;
+                println!(
+                    "{}",
+                    serde_json::json!({"event":"test_record_snapshot","operation":id,"record":engine.test_record(&id)})
+                );
                 tokio::select! {
                     result = engine.wait_records() => {result?; anyhow::bail!("fixture stop recorded");},
-                    _ = async {while !root.join("later-stop").exists() {tokio::time::sleep(Duration::from_millis(2)).await;}} => {
-                        println!("{}", serde_json::json!({"event":"test_later_stop_requested","operation":id}));
+                    _ = async {
+                        loop {
+                            let snapshot = root.join("snapshot-record");
+                            if snapshot.exists() {
+                                std::fs::remove_file(&snapshot).expect("fixture snapshot request");
+                                println!("{}", serde_json::json!({"event":"test_record_snapshot","operation":id,"record":engine.test_record(&id)}));
+                            }
+                            if root.join("later-stop").exists() {break;}
+                            tokio::time::sleep(Duration::from_millis(2)).await;
+                        }
+                    } => {
+                        println!("{}", serde_json::json!({"event":"test_later_stop_requested","operation":id,"record":engine.test_record(&id)}));
                         engine.later_stop()?;
                     }
                 }
@@ -94,6 +108,16 @@ async fn dispatch(
     dispatcher: Arc<provisiond::engine::Dispatcher>,
 ) -> anyhow::Result<()> {
     loop {
+        #[cfg(feature = "store-test-hooks")]
+        if let Ok(root) = std::env::var("PROVISIOND_TEST_CONTROL") {
+            let hold = std::path::Path::new(&root).join("hold-dispatch");
+            if hold.exists() {
+                println!("{}", serde_json::json!({"event":"test_dispatch_paused"}));
+                while hold.exists() {
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                }
+            }
+        }
         if let Err(error) = engine.dispatch_next(&dispatcher).await {
             // OPS-47: a pre-loss claim may finish during fan-out. Its next
             // new-work refusal must join the ongoing record drain, not win the

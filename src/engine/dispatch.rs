@@ -499,7 +499,7 @@ impl Engine {
         .await
         .ok()
         .and_then(|v| v["earliest_cancellation_date"].as_str().map(str::to_owned));
-        component.trace(json!({"event":"provider_verified","operation":c.id,"matches":1,"direct_read":true,"post_order_read":date.is_some()}));
+        component.trace(json!({"event":"provider_verified","operation":c.id,"matches":1,"direct_read":true,"post_order_read":date.is_some(),"state_observed_at":observed_at.to_rfc3339()}));
         Ok(Some(Outcome::VerifiedCreateDetails {
             external_id: external.clone(),
             earliest_date: date,

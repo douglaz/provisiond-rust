@@ -244,7 +244,7 @@ class Workflow:
             p.wait(timeout=5)
         assert all(p.poll() is not None for p in self.children)
         selected={'api_listening','api_stopping','api_tasks_finished','api_background_task_failed','api_request_task_failed','http_business_begin','http_response','dispatch_step','dispatch_step_held','dispatch_license_acknowledged','provider_verified','execute_returned','settlement_finished','external_entry','rail_credit_acknowledged','rail_observation_processed','activation_without_healthy_assignment','whole_transaction_retry','generation_checked','worker_zero_row','destination_read','destination_exposed','token_request_held','token_issued','token_request_abandoned','funding_held','preflight_read_retry','preflight_read_exhausted'}
-        selected.update({'startup_lock_acquired','startup_lock_lost','claim_attempt_started','claim_registered','stop_record_started','stop_record_finished','commit_possible_dispatch','commit_owner_completed','engine_fatal'})
+        selected.update({'http_handler_cancelled','http_response_held','http_reply_lost','test_stop_requested','test_record_snapshot','test_later_stop_requested','test_dispatch_paused','engine_superseded','defect_provider_retry','defect_checkout_released','session_admitted','commit_classified','startup_lock_acquired','startup_lock_lost','claim_attempt_started','claim_registered','stop_record_started','stop_record_finished','commit_possible_dispatch','commit_owner_completed','engine_fatal'})
         for child in self.children:
             if getattr(child,'name',None) in ['api','engine']:
                 trace=[json.loads(line) for line in child.log.read_text().splitlines() if line.startswith('{')]
