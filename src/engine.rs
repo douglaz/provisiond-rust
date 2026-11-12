@@ -381,12 +381,12 @@ impl Engine {
             .await;
             match attempt {
                 Ok((tx, claim)) => {
-                    let work_time = started.elapsed();
-                    let (outcome, verification) = component.commit(tx)?.wait_accounted().await?;
-                    match outcome {
+                    match component.commit(tx)?.wait().await? {
                         CommitOutcome::Acknowledged => break claim,
                         CommitOutcome::Rejected { reason } if reason.contains("40001") => continue,
-                        CommitOutcome::NotDispatched { .. } => spent += work_time + verification,
+                        // No COMMIT was sent, so none of this interval is a
+                        // standby wait. Include owner queueing and delivery too.
+                        CommitOutcome::NotDispatched { .. } => spent += started.elapsed(),
                         _ => {
                             return self.fatal(
                                 "claim acknowledgment lost or rejected; no blind claim retry",

@@ -123,7 +123,7 @@ COMMIT;""", role='app')
                 ('client_eof','client_error','server_eof_or_error')),None))
             activated=next(e for e in h.events if e['event']=='fault_activated'
                 and e.get('session')==session and e.get('direction')=='execute_reply' and e.get('query')==STATUS)
-            assert closure['elapsed']-activated['elapsed']<.5, 'pre-COMMIT discard must close before idle timeout'
+            assert 0<=closure['elapsed']-activated['elapsed']<.5, 'pre-COMMIT discard must close before idle timeout'
             eventually(lambda: h.sql(f'SELECT count(*) FROM pg_stat_activity WHERE pid={session}') == '0')
             assert any(e.get('event')=='precommit_session_discarded' and e.get('session')==session for e in trace())
             listener_after_exit = None

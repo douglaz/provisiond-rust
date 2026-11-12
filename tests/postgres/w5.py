@@ -787,6 +787,11 @@ def claim_precommit(w):
         h.event('w5_claim_precommit_observed',operation=op,session=pid,commit_dispatched=False,
                 engine_exit=p.poll(),status=w.status(op),retry_events=events(p,'claim_precommit_retry'))
         assert p.poll() is None and w.status(op)=='succeeded', 'OPS-49 known pre-COMMIT claim failure must retry the whole transaction'
+        learned=next(i for i,e in enumerate(events(p)) if e.get('event')=='claim_registered' and e.get('operation')==op)
+        prefix=events(p)[:learned]
+        retries=[e for e in prefix if e.get('event')=='claim_precommit_retry']
+        assert len(retries)==1 and retries[0]['spent_ms']<2000
+        assert sum(e.get('event')=='claim_attempt_started' for e in prefix)==2
         w.stop_engine();assert len(orders(w,op))==1
         successor(w,op,'succeeded')
         trace(w,op,'claim failed definitely before COMMIT dispatch',whole_claim_retried=True)
