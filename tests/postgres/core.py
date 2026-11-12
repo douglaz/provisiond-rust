@@ -80,11 +80,11 @@ def migrations(h):
         r=binary(h,name,'--check-schema',ok=False)
         assert r.returncode!=0 and 'schema_compatible' not in r.stdout
     binary(h,'migrate',role='migrator')
-    assert h.sql('SELECT version||\'/\'||semantics FROM provisiond.schema_migrations ORDER BY version DESC LIMIT 1')=='2/2'
+    assert h.sql('SELECT version||\'/\'||semantics FROM provisiond.schema_migrations ORDER BY version DESC LIMIT 1')=='3/3'
     # STO-12: each history row and its DDL belong to one migration transaction.
     transactions=h.sql('SELECT count(DISTINCT xmin::text) FROM provisiond.schema_migrations')
-    h.event('migration_transaction_partition_observed',history_rows=2,transactions=int(transactions))
-    assert transactions=='2','each migration must commit in its own transaction'
+    h.event('migration_transaction_partition_observed',history_rows=3,transactions=int(transactions))
+    assert transactions=='3','each migration must commit in its own transaction'
     assert h.sql('SELECT count(*) FROM provisiond.startup_generation')=='1'
     binary(h,'migrate',role='migrator')
     # STO-12/13: a populated release-1 database upgrades without reapplying its DDL
@@ -106,11 +106,11 @@ def migrations(h):
         assert 'startup_lock_acquired' not in r.stdout and 'generation_advanced' not in r.stdout
     binary(h,'migrate',role='migrator')
     assert h.sql(retained)==before_upgrade,'offline upgrade must preserve release-1 records'
-    assert h.sql("SELECT string_agg(version::text||'/'||semantics::text,',' ORDER BY version) FROM provisiond.schema_migrations")=='1/1,2/2'
+    assert h.sql("SELECT string_agg(version::text||'/'||semantics::text,',' ORDER BY version) FROM provisiond.schema_migrations")=='1/1,2/2,3/3'
     assert h.sql("SELECT to_regclass('provisiond.enrolments') IS NOT NULL")=='t'
     assert h.sql("SELECT opened_at::text FROM provisiond.operator_deficiencies WHERE idempotency_key='upgrade-deficiency'")==deficiency_opened
     assert h.sql("SELECT subject_kind||':'||(subject_id=machine_id)||':'||absorbed_seconds||':'||provider_account||':'||native_minor||':'||rate_num||'/'||rate_den FROM provisiond.operator_deficiencies WHERE idempotency_key='upgrade-deficiency'")=='machine:true:0:upgrade-account:3:2/3'
-    h.event('migration_upgrade_preserved',from_version=1,to_version=2,prior_completion_unchanged=True,identities_money_destinations_unchanged=True,older_schema_refused_before_startup=True)
+    h.event('migration_upgrade_preserved',from_version=1,to_version=3,prior_completion_unchanged=True,identities_money_destinations_unchanged=True,older_schema_refused_before_startup=True)
     # Genuine concurrent fresh runners, each supervised and waited before assertions.
     h.sql('DROP SCHEMA provisiond CASCADE; CREATE SCHEMA provisiond AUTHORIZATION migrator;')
     children=[]
@@ -121,7 +121,7 @@ def migrations(h):
     statuses=[p.wait(timeout=12) for p in children]
     h.event('migration_concurrent_observed',statuses=statuses,history=h.sql('SELECT count(*) FROM provisiond.schema_migrations'))
     assert statuses==[0,0]
-    assert h.sql('SELECT count(*) FROM provisiond.schema_migrations')=='2'
+    assert h.sql('SELECT count(*) FROM provisiond.schema_migrations')=='3'
     # Failed DDL/history transaction cannot expose partial schema or completion.
     h.sql('DROP SCHEMA provisiond CASCADE; CREATE SCHEMA provisiond AUTHORIZATION migrator;')
     r=binary(h,'migrate',role='migrator',defect='migration_failure',ok=False)
@@ -140,13 +140,13 @@ def migrations(h):
     assert p.wait(timeout=12)==1
     h.event('migration_uncertain_observed',durable_version=1,exit_status=1)
     binary(h,'migrate',role='migrator')
-    for version,semantics in [(0,2),(3,2),(2,3)]:
-        h.sql(f'UPDATE provisiond.schema_migrations SET version={version},semantics={semantics} WHERE version<>1')
+    for version,semantics in [(0,3),(4,3),(3,4)]:
+        h.sql(f'UPDATE provisiond.schema_migrations SET version={version},semantics={semantics} WHERE version NOT IN (1,2)')
         for name in ('api','engine'):
             r=binary(h,name,'--check-schema',ok=False)
             assert r.returncode==1 and 'unsupported schema/semantic' in r.stderr
             assert 'startup_lock_acquired' not in r.stdout and 'generation_advanced' not in r.stdout
-    h.sql('UPDATE provisiond.schema_migrations SET version=2,semantics=2 WHERE version<>1')
+    h.sql('UPDATE provisiond.schema_migrations SET version=3,semantics=3 WHERE version NOT IN (1,2)')
     for name in ('api','engine'):
         r=binary(h,name,'--check-schema')
         assert 'schema_compatible' in r.stdout

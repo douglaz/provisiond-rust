@@ -43,7 +43,7 @@ def http(port,method,path,body=None,token=None,key=None,raw=None,headers=None):
 
 
 class Workflow:
-    def __init__(self,h,defect=None,default_build=False,parameters=None):
+    def __init__(self,h,defect=None,default_build=False,parameters=None,operator=False):
         self.defect=defect
         self.default_build=default_build
         self.h=h;self.children=[];self.engine=None;self.private=[]
@@ -56,7 +56,10 @@ class Workflow:
             channel='orders',channels=['orders'],offer_is_resource=False,temporary_keys=False,
             currency='USD',stop_cost=True,allow_orders=True,correlator='operation_id',margin_bps=1000,order_budget={'limit':20,'per_seconds':86400},cancellation_bound=time.strftime('%Y-%m-%d',time.gmtime()),
             meter_seconds=1,call_seconds=1,visibility_seconds=1,resolution_seconds=1,read_seconds=1,hold_seconds=1,margin_seconds=1,
-            max_correlator_bytes=128,max_rate_outage_seconds=600)
+            max_correlator_bytes=128,max_rate_outage_seconds=600,negative_seconds=60,
+            delete_shape='immediate_destroy',surviving_attachments=[],
+            evidence_sources={'delete':['write_goal_state','resource_read']},
+            visibility_measurement={'status':'unmeasured','sample_size':0})
         self.offer=dict(id='test-small',name='Nonpayable simulator virtual machine',kind='virtual',regions=['test'],
             recurring_price='0.01',setup_fee='0.02',currency='USD',period_seconds=3600,
             billing_unit=dict(seconds=3600,native_floor=None),install_strategies=[],cancellation_bound=None,
@@ -75,6 +78,15 @@ class Workflow:
         self.builds={name:self.build_identity(h.target/'debug'/name,[] if default_build else ['store-test-hooks']) for name in ['api','engine','migrate']}
         h.config['workflow']['builds']=dict(self.builds)
         if default_build:h.config['engine']['runtime_build']['features']=[]
+        self.operator_env={}
+        if operator:
+            import secrets
+            self.operator_tokens=[secrets.token_hex(32),secrets.token_hex(32)]
+            self.private.extend(self.operator_tokens)
+            authority=h.root/'operator-authority.json'
+            authority.write_text(json.dumps([dict(principal='operator-a',token_env='TEST_OPERATOR_A',admin=True),dict(principal='operator-b',token_env='TEST_OPERATOR_B',admin=False)]))
+            self.operator_env=dict(PROVISIOND_OPERATOR_LISTEN=f'{socket.gethostbyname("localhost")}:{h.ports[7]}',PROVISIOND_OPERATOR_AUTHORITY=str(authority),TEST_OPERATOR_A=self.operator_tokens[0],TEST_OPERATOR_B=self.operator_tokens[1])
+            h.release_port(h.ports[7])
         h.release_port(h.ports[4])
         self.launch_api()
     def simulator(self,kind,offset):
@@ -107,7 +119,7 @@ class Workflow:
         # Each binary immediately fails a cold checkout refusal. Only fixture
         # deployment may make another recorded, read-only pre-listener attempt.
         for attempt in range(1,4):
-            self.api=self.start('api',dict(PROVISIOND_API_LISTEN=f'127.0.0.1:{self.h.ports[4]}',PROVISIOND_RAIL_SIMULATOR=f'127.0.0.1:{self.h.ports[6]}',PROVISIOND_LOCAL_PARAMETERS=str(self.parameters),PROVISIOND_TEST_CONTROL=str(self.control)))
+            self.api=self.start('api',dict(**self.operator_env,PROVISIOND_API_LISTEN=f'127.0.0.1:{self.h.ports[4]}',PROVISIOND_RAIL_SIMULATOR=f'127.0.0.1:{self.h.ports[6]}',PROVISIOND_LOCAL_PARAMETERS=str(self.parameters),PROVISIOND_TEST_CONTROL=str(self.control)))
             eventually(lambda:'api_listening' in self.api.log.read_text() or self.api.poll() is not None)
             if self.api.poll() is None:return
             events=[json.loads(line) for line in self.api.log.read_text().splitlines() if line.startswith('{')]
@@ -139,7 +151,12 @@ class Workflow:
         token=tenant['spending_token'] if isinstance(tenant,dict) else tenant
         for attempt in range(1,4):
             code,value,hs=http(self.h.ports[4],method,path,body,token,key,raw,headers)
-            for k in ['X-Correlation-Id','Access-Control-Allow-Origin','Access-Control-Expose-Headers','Vary']:assert k in hs,(k,hs)
+            assert 'X-Correlation-Id' in hs
+            hidden=(path.split('?')[0].startswith(('/v1/episodes','/v1/provider-accounts','/v1/tenants/')) or path.split('?')[0].endswith('/actions/resolve'))
+            if not hidden:
+                for k in ['Access-Control-Allow-Origin','Access-Control-Expose-Headers','Vary']:assert k in hs,(k,hs)
+            else:assert not any(k.startswith('Access-Control-') for k in hs),'operator endpoint must have no customer CORS'
+
             if code>=400:assert set(value)=={'error','correlation_id'} and set(value['error'])=={'kind','message','retryable','details'}
             # WIR-3/9: an ordinary idempotent client may resend a retryable
             # checkout refusal after its pacing hint. Fault assertions and
@@ -967,7 +984,7 @@ def stop_cost_adapter(w):
     finally:w.h.env=previous_env
     assert resource['external_id'] not in w.external()['resources']
     calls=[e['path'] for e in w.external()['events'] if e.get('command')=='stop-cost-fixture' and e['stage']=='request_received']
-    assert calls==['/delete','/get']
+    assert calls==['/delete']
     assert 'external_entry' in result.stdout
     w.h.event('stop_cost_adapter_observed',independent_fixture=True,requests=calls,absence_confirmed=True,production_cancellation_workflow='not run')
     w.h.results.append(dict(test='W4-stop-cost-driver-adapter',result='pass'))

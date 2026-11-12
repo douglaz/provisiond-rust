@@ -146,7 +146,7 @@ def read_deadline(w):
 def stop_read(w):
     h=w.h;d=descriptor(w,'sim-a')
     resource=dict(external_id='TEST-READ-DEADLINE-STOP',account='sim-a',channel='orders',correlator='test-fixture',name='stop-cost-fixture',region='test',state='running',public_ips=[],present=True)
-    w.provider_control(fixture_resource=resource)
+    w.provider_control(fixture_resource=resource,evidence={'operation':'stop-cost-fixture','delete':'acceptance_applied'})
     since=w.external()['events'][-1]['sequence']
     h.run(['cargo','build','--example','provider-probe','--features','store-test-hooks','--locked'],timeout=120)
     executable=h.target/'debug/examples/provider-probe'

@@ -211,6 +211,7 @@ def main():
                     if search=='many':found=found+[dict(r,external_id=r['external_id']+'-duplicate') for r in found]
                     if search=='in_progress':found=[]
                     if 'resources' in proof:found=proof['resources']
+                    if 'channels' in proof:found=proof['channels'].get(body['channel'],[])
                     authoritative=search!='incomplete' and body['channel']!=proof.get('incomplete_channel')
                     record('resolution_evidence_returned',search=search,authoritative=authoritative,resources=found,**identity)
                     self.reply({'authoritative':authoritative,'resources':found,'in_progress':search=='in_progress'});return
@@ -227,6 +228,9 @@ def main():
                 # iterator. Resources are replaced, not mutated, after insertion.
                 with lock:resources=tuple(state['resources'].values())
                 found=[r for r in search_values(resources,identity) if r['account']==body['account'] and r['channel']==body['channel'] and r['correlator']==body['correlator']]
+                if mode=='search_wrong_exact':
+                    found=[dict(r,correlator='unrelated') for r in found]
+                    record('non_exact_candidate_returned',resources=found,**identity)
                 if mode in ('search_non_authoritative','search_many','get_error','get_absent','search_malformed'):
                     other=state['resources'][state['verification_resource']]
                     if mode in ('get_error','get_absent','search_malformed'):found=[other]
@@ -245,6 +249,10 @@ def main():
             if self.path in ['/get','/constraints']:
                 record('read_only',**identity)
                 resource=state['resources'].get(body['external_id'])
+                if mode=='delete_gone_stale' and self.path=='/get':resource=state.get('stale_deleted',{}).get(body['external_id'],resource)
+                if mode=='search_wrong_exact' and self.path=='/get':resource=dict(resource,correlator='unrelated')
+                if body.get('resolution') and self.path=='/get' and proof.get('search')=='wrong':
+                    resource=dict(resource,correlator='unrelated')
                 if body.get('resolution') and self.path=='/get' and proof.get('direct'):
                     record('resolution_direct_activated',direct=proof['direct'],**identity)
                     if proof['direct']=='failed':
@@ -263,7 +271,23 @@ def main():
                 if self.path=='/get' and held:record('verification_read_finished',reply_returned=returned,**identity)
                 return
             if self.path=='/delete':
-                state['resources'].pop(body['external_id'],None);record('resource_deleted',resource=body['external_id'],**identity);self.reply({'gone':True});return
+                decision=proof.get('delete',mode)
+                if decision=='reject':
+                    record('delete_rejected',**identity)
+                    self.reply({'error':{'kind':'authentication','message':'controlled delete rejection','retryable':False,'details':{'accepted':False}}});return
+                if decision=='unknown':
+                    record('delete_reply_dropped',accepted=None,**identity);self.close_connection=True;self.connection.shutdown(2);self.connection.close();return
+                accepted=record('delete_accepted',**identity)
+                if decision=='acceptance_not_applied':
+                    if self.reply({'accepted':True}):record('delete_response_returned',gone=False,**identity)
+                    return
+                if mode=='delete_gone_stale':state.setdefault('stale_deleted',{})[body['external_id']]=state['resources'].get(body['external_id'])
+                state['resources'].pop(body['external_id'],None);record('resource_deleted',resource=body['external_id'],**identity)
+                if decision=='drop_reply':
+                    record('delete_reply_dropped',accepted=True,**identity);self.close_connection=True;self.connection.shutdown(2);self.connection.close();return
+                reply={'accepted':True} if decision=='acceptance_applied' else {'gone':True}
+                if self.reply(reply):record('delete_response_returned',gone=reply.get('gone',False),**identity)
+                return
             self.reply({'error':{'kind':'unsupported','message':'test route unsupported','retryable':False,'details':{'accepted':False}}})
     server=ThreadingHTTPServer(('127.0.0.1',args.port),Handler)
     print(json.dumps({'event':'simulator_listening','port':args.port,'kind':args.kind}),flush=True)
