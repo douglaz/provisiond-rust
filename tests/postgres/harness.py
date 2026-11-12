@@ -463,7 +463,7 @@ tcp_keepalives_count = 2
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','default-workflow','w5','all'],default='all')
-    ap.add_argument('--case',choices=__import__('w5').CASES+['session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'],help='one focused regression; default runs all')
+    ap.add_argument('--case',choices=__import__('w5').CASES+['w5_controls','session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'],help='one focused regression; default runs all')
     ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset','w4_atomic','w4_ack','w4_overload','w5_generation','w5_checkout','w5_blind_retry'])
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
@@ -471,6 +471,7 @@ def main():
     preflight_ports()
     cases={
         'w5':set(__import__('w5').CASES),
+        'controls':{'w5_controls'},
         'workflow':{'w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'},
         'regressions':{'session','transaction','runtime','cancelled'},
         'corrections':{'execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency'},
@@ -497,22 +498,31 @@ def main():
         ap.error('--defect requires its exact compatible phase and case')
     if args.phase=='controls':
         from controls import controls
-        return controls(args.seed,args.evidence)
+        return controls(args.seed,args.evidence,w5_only=args.case=='w5_controls')
     if args.phase=='all':
         cap_check()
         records=[]
         for phase in ['w1','checks','commits','regressions','corrections','core','workflow','default-workflow','w5','controls']:
             command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed)]
             # Explicit evidence names; every child command remains foreground.
+            path=None
             if args.evidence:
                 path=args.evidence.with_name(args.evidence.stem+'-'+phase+'.json')
-                command.extend(['--evidence',str(path)])
+            elif phase=='w5':
+                ROOT.mkdir(parents=True,exist_ok=True)
+                path=Path(tempfile.mkdtemp(prefix='all-w5-',dir=ROOT))/'manifest.json'
+            if path:command.extend(['--evidence',str(path)])
             result=subprocess.run(command,check=False)
             records.append(dict(phase=phase,command=['nix','develop','--command',*command],exit_status=result.returncode,
                                 result='pass' if result.returncode==0 else 'fail'))
-            if result.returncode!=0:
+            if phase=='w5' and result.returncode==0:
+                from w5 import inventory_complete
+                child=json.loads(path.read_text()) if path and path.exists() else {}
+                if not inventory_complete(child):
+                    records[-1].update(result='fail',reason='missing or incomplete W5 phase inventory')
+            if records[-1]['result']!='pass':
                 break
-        status=0 if len(records)==10 and all(r['exit_status']==0 for r in records) else 1
+        status=0 if len(records)==10 and all(r['exit_status']==0 and r['result']=='pass' for r in records) else 1
         if args.evidence:
             args.evidence.write_text(json.dumps(dict(result='pass' if status==0 else 'fail',phases=records),indent=2)+'\n')
         return status
