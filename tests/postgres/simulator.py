@@ -150,6 +150,9 @@ def main():
                 with lock:rows=[r for r in state['resources'].values() if r['account']==body['account']]
                 offset=int(body.get('cursor') or 0);page=rows[offset:offset+2]
                 cursor=str(offset+2) if offset+2<len(rows) else None
+                if proof.get('enumeration')=='rate_limited':
+                    record('enumeration_refused',**identity)
+                    self.reply({'error':{'kind':'rate_limited','message':'controlled enumeration throttle','retryable':True,'details':{'accepted':None,'retry_after_ms':1000}}});return
                 if proof.get('enumeration')=='incomplete':
                     self.reply({'resources':page,'complete':False,'next':None});return
                 self.reply({'resources':page,'complete':cursor is None,'next':cursor});return

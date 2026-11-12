@@ -88,6 +88,21 @@ def empty(w):
     assert not final['exclusions'] and not final['ledger'] and not final['machines']
     checkpoint(w,op,'authoritative empty before and after declared negative window',before=before)
     one_purchase(w,op);restore_resource(w,t)
+    # A matched-but-gone history can independently evidence either charge. Each
+    # native deficiency is operation-subjected; neither is an available debit.
+    for fee,unit in ((True,False),(False,True),(True,True)):
+        _,_,op,hold=lost(w,'charged-gone-'+str(fee)+'-'+str(unit),search='normal',direct='absent')
+        resource=next(e['value'] for e in external(w,op) if e['stage']=='resource_created')
+        w.provider_control(remove_resource=resource['external_id'])
+        proof(w,op,search='normal',direct='absent',resources=[dict(resource,setup_fee_charged=fee,first_unit_charged=unit)])
+        eligible(w,op);w.start_engine();hold.unlink();w.wait_status(op,'failed');w.stop_engine()
+        final=operation_state(w,op)
+        assert final['operation']['resolution']=='absent' and not final['ledger'] and final['machine'] is None
+        causes={d['cause'] for d in final['deficiencies']}
+        assert causes==({'unrecoverable_setup_fee'} if fee else set())|({'unrecoverable_first_unit'} if unit else set())
+        assert all(d['subject_kind']=='operation' and d['absorbed_seconds']==0 for d in final['deficiencies'])
+        checkpoint(w,op,'matched direct absence with independently evidenced charged obligations',setup_fee_charged=fee,first_unit_charged=unit,deficiencies=final['deficiencies'])
+        one_purchase(w,op)
 
 def delayed(w):
     _,_,op,hold=lost(w,'reconcile-delayed',search='normal',direct='absent')
@@ -283,6 +298,13 @@ def late(w):
         w.start_engine();hold.unlink();wait_search(w,op)
         eventually(lambda:snapshot(w,op)['commitment']['state']=='closed');w.stop_engine()
         released=pending(w,op);assert released['exclusions'],'negative-window release must retain outcome exclusion'
+        if arm=='covered':
+            counts=w.h.sql(f"SELECT count(*) FROM provisiond.operations WHERE tenant_id='{t['tenant_id']}'")
+            refusal=w.request('POST','/v1/machines',w.create_body(t),t,'late-competing-key',status=409)
+            assert refusal['error']['details']['reason']=='state'
+            assert w.h.sql(f"SELECT count(*) FROM provisiond.operations WHERE tenant_id='{t['tenant_id']}'")==counts
+            w.h.event('w6_competing_admission_refused',operation=op,money_released=True,exclusion= released['exclusions'],status=409,no_new_operation=True)
+
         if arm=='insufficient':
             w.h.sql(f"INSERT INTO provisiond.ledger_entries(tenant_id,seq,kind,amount_sats,balance_after,idempotency_key) SELECT '{t['tenant_id']}',max(seq)+1,'correction',-115,0,'fixture-consumed-available' FROM provisiond.ledger_entries WHERE tenant_id='{t['tenant_id']}'")
         if arm=='no_rate':w.h.sql("UPDATE provisiond.rates SET available=false WHERE currency='USD'")
@@ -291,6 +313,7 @@ def late(w):
         cleanup=eventually(lambda:w.h.sql(f"SELECT id FROM provisiond.operations WHERE kind='delete' AND tenant_id='{t['tenant_id']}'"))
         state=operation_state(w,op)
         assert state['machine']['first_unit_debit_id'] is None and not state['ledger']
+        assert state['meter'][0]['high_water_mark']==state['machine']['created_at'],'unpaid first seed has no prepaid offset'
         assert len([d for d in state['deficiencies'] if d['cause'].startswith('unrecoverable_')])==2
         assert sum(c['state']=='open' for c in state['commitments'])==(arm=='covered')
         assert sum(d['cause']=='late_attach_cleanup' for d in state['deficiencies'])==(arm!='covered')
@@ -333,6 +356,10 @@ def account(w):
     w.stop_engine();w.provider_control(remove_resource=actual['external_id']);proof(w,None,enumeration='incomplete')
     w.start_engine();eventually(lambda:any(e['complete'] is False for e in events(w.engine,'account_pass_complete')))
     assert operation_state(w,op)['machine']['meter_stopped_at'] is None
+    w.stop_engine();proof(w,None,enumeration='rate_limited')
+    w.start_engine();eventually(lambda:any(e['stage']=='enumeration_refused' for e in w.external()['events']))
+    assert operation_state(w,op)['machine']['meter_stopped_at'] is None
+    w.h.event('w6_enumeration_throttle_activated',operation=op,not_gone=True,provider=[e for e in w.external()['events'] if e['stage']=='enumeration_refused'])
     w.stop_engine();proof(w,None,direct='failed')
     w.start_engine();eventually(lambda:any(e['stage']=='resolution_direct_activated' for e in w.external()['events'] if e.get('command') is None))
     assert operation_state(w,op)['machine']['meter_stopped_at'] is None
@@ -365,8 +392,17 @@ def delete_classification(w):
             assert operation_state(w,op)['commitments']==state['commitments'],'delete abandonment must preserve running funding'
     barrier.unlink()
 
+def eligible(w,op):
+    # This test targets a later transaction boundary, not a visibility timeout.
+    # Advance only its fixture wait-end age beyond the retained effective max;
+    # neither the declaration nor any ordinary application bound is changed.
+    seconds=int(w.h.sql(f"SELECT ceil(greatest((a.descriptor->>'visibility_seconds')::numeric,COALESCE((SELECT max(extract(epoch FROM observed_at-dispatched_at)) FROM provisiond.provider_observations WHERE provider_account=o.provider_account),0)))::bigint+1 FROM provisiond.operations o JOIN provisiond.provider_accounts a ON a.account=o.provider_account WHERE o.id='{op}'"))
+    w.h.sql(f"UPDATE provisiond.operations SET mutation_wait_ended_at=clock_timestamp()-{seconds}*interval '1 second' WHERE id='{op}'")
+    w.h.event('w6_fixture_clock',operation=op,elapsed_seconds=seconds,basis='eligible beyond stored effective visibility before transaction fault; ordinary bounds unchanged')
+
 def resolution_reply(w):
     _,_,op,hold=lost(w,'resolution-reply',search='normal')
+    eligible(w,op)
     enumeration=w.h.root/'provider/hold-enumerate';enumeration.touch()
     statement=w.h.proxy.arm('resolution=$4','send')
     w.start_engine();hold.unlink()
