@@ -271,6 +271,10 @@ def lock_dispatch_arm(w,mode):
 def accepted_identifiers(w):
     """OPS-13/27, PRV-5, WIR-9b/10b, LDG-39/67: evidence is no debit authority."""
     h=w.h;w.stop_engine();w.provider_control(mode='normal')
+    # Retain W4's interrupted verification boundary while W6 read-only evidence
+    # waits at the independent simulator. Worker verification remains active.
+    resolution=h.root/'provider/hold-reconciliation';resolution.touch()
+    h.event('historical_resolution_barrier_requested',scenario='accepted_identifiers')
     # A real, separately admitted order supplies a distinct observed identifier
     # for deliberately wrong/ambiguous verification, never a made-up expected ID.
     seed=funded(w,'identifier-seed')
@@ -328,4 +332,6 @@ def accepted_identifiers(w):
             h.event('accepted_identifiers_survive_restart',operation=op,mode=mode,state=stored,
                     unchanged_operation_count=int(count),orders=1,created_resources=1,second_purchase=False)
             h.results.append(dict(test='W4-accepted-verification-error' if mode=='search_throttle' else 'W4-provider-identifiers-'+mode,result='pass'))
-    finally:w.stop_engine();w.provider_control(mode='normal')
+    finally:
+        w.stop_engine();resolution.unlink();w.provider_control(mode='normal')
+        h.event('historical_resolution_barrier_released',scenario='accepted_identifiers')

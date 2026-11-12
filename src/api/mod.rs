@@ -109,6 +109,10 @@ fn as_error(e: anyhow::Error) -> Error {
 // WIR-34's closed operator list is method-scoped. WIR-29/30 share customer
 // paths and select their customer projection through ordinary authentication.
 fn operator_route(method: &str, path: &str) -> bool {
+    // WIR-34: preflight must not reveal an operator route through customer CORS.
+    if method == "OPTIONS" {
+        return operator_route("GET", path) || operator_route("POST", path);
+    }
     // These reserved namespaces have no customer verbs. Keep their existing
     // hiding, including namespace roots, independently of credential state.
     if path == "/v1/provider-accounts"
@@ -449,15 +453,18 @@ impl State {
             )
             .into());
         }
-        let v = wire::parse(&r.body)?;
         let delete_machine = path
             .strip_prefix("/v1/machines/")
             .and_then(|s| s.strip_suffix("/actions/delete"));
+        // API-7: authorize the named object before parsing its action body.
         if let Some(machine) = delete_machine {
             let owned=self.store.value("SELECT to_json(EXISTS(SELECT 1 FROM provisiond.machines WHERE id::text=$1 AND tenant_id=$2))::text",&[&machine,&id]).await?;
             if owned != true {
                 return Err(Error::missing().into());
             }
+        }
+        let v = wire::parse(&r.body)?;
+        if delete_machine.is_some() {
             let mut bad = wire::unknown(&v, &["acknowledge_destruction"]);
             if v["acknowledge_destruction"] != true {
                 bad.push("/acknowledge_destruction".into());

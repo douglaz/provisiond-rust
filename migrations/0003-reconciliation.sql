@@ -97,3 +97,36 @@ GRANT USAGE ON SEQUENCE provisiond.fixture_rate_history_sequence_seq TO app;
 ALTER TABLE provisiond.operator_deficiencies DROP CONSTRAINT operator_deficiencies_absorbed_seconds_check;
 ALTER TABLE provisiond.operator_deficiencies ADD CHECK(absorbed_seconds>=0 AND (cause='rate_outage' OR absorbed_seconds=0)),
  ADD COLUMN absorbed_from timestamptz,ADD COLUMN absorbed_until timestamptz;
+
+-- LDG-38: a usage entry locates the period/increment it prices even when posted later.
+ALTER TABLE provisiond.ledger_entries ADD COLUMN billing_period text,
+ ADD COLUMN increment_end timestamptz;
+-- LDG-72: an explicit audit runs after the offline migration, before serving.
+-- It is never called by a meter posting. Imports/restores remain refused.
+CREATE TABLE provisiond.meter_alerts (
+ machine_id uuid PRIMARY KEY,reason text NOT NULL,observed_at timestamptz NOT NULL DEFAULT clock_timestamp());
+GRANT SELECT,INSERT ON provisiond.meter_alerts TO app;
+CREATE FUNCTION provisiond.audit_machine_meters() RETURNS bigint LANGUAGE plpgsql
+SET search_path=pg_catalog AS $$ DECLARE affected bigint; BEGIN
+ WITH invalid AS (
+  SELECT m.id FROM provisiond.machines m WHERE m.native_terms IS NULL
+   OR NOT EXISTS(SELECT 1 FROM provisiond.meter_totals t WHERE t.subject_kind='machine' AND t.subject_id=m.id)
+   OR EXISTS(SELECT 1 FROM provisiond.meter_totals t WHERE t.subject_kind='machine' AND t.subject_id=m.id AND (t.credit_num<0 OR t.credit_num>=t.credit_den))
+   OR EXISTS(SELECT 1 FROM provisiond.ledger_entries l LEFT JOIN provisiond.meter_totals t
+     ON t.subject_kind='machine' AND t.subject_id=l.machine_id AND t.billing_period=l.billing_period
+     WHERE l.machine_id=m.id AND l.kind='usage_debit' AND (t.high_water_mark IS NULL OR t.high_water_mark<l.increment_end))
+ ), quarantined AS (UPDATE provisiond.machines SET meter_quarantined=true WHERE id IN (SELECT id FROM invalid) RETURNING id)
+ INSERT INTO provisiond.meter_alerts(machine_id,reason) SELECT id,'migration/import audit: missing evidence, range or high-water failure' FROM quarantined
+ ON CONFLICT(machine_id) DO NOTHING;
+ GET DIAGNOSTICS affected=ROW_COUNT; RETURN affected;
+END $$;
+SELECT provisiond.audit_machine_meters();
+GRANT EXECUTE ON FUNCTION provisiond.audit_machine_meters() TO app;
+-- Keep the exact credit fraction reduced rather than multiplying its denominator
+-- on every piece. Neither value is a reconstruction of cumulative ledger totals.
+CREATE FUNCTION provisiond.reduced_credit(n numeric,d numeric) RETURNS text[] LANGUAGE plpgsql IMMUTABLE
+SET search_path=pg_catalog AS $$ DECLARE a numeric:=abs(n); b numeric:=d; r numeric; BEGIN
+ WHILE b<>0 LOOP r=mod(a,b);a=b;b=r;END LOOP;
+ RETURN ARRAY[(div(n,a))::text,(div(d,a))::text];
+END $$;
+GRANT EXECUTE ON FUNCTION provisiond.reduced_credit(numeric,numeric) TO app;

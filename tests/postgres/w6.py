@@ -3,9 +3,9 @@ import json
 import time
 from w5 import admit, snapshot, external, orders, events, restore_resource
 
-CASES=['w6_positive','w6_empty','w6_delayed','w6_conflicting','w6_multiple',
+CASES=['w6_measurement','w6_positive','w6_empty','w6_delayed','w6_conflicting','w6_multiple',
        'w6_startup','w6_operator','w6_delete','w6_delete_evidence','w6_episodes','w6_late_attach','w6_gone_reply','w6_exact',
-       'w6_account','w6_delete_classification','w6_resolution_reply','w6_exit','w6_channels']
+       'w6_account','w6_delete_classification','w6_resolution_reply','w6_exit','w6_channels','w6_episode_order','w6_meter_edges','w6_default_hooks']
 
 def inventory_complete(manifest):
     inventories=[e for e in manifest.get('events',[]) if e.get('event')=='w6_inventory_complete']
@@ -212,6 +212,9 @@ def caller_delete(w):
     t,create_op,machine=create(w,'caller-delete')
     path=f'/v1/machines/{machine}/actions/delete'
     w.request('POST',path,{},t,'missing-destruction',status=400)
+    code,_,_=http(w.h.ports[4],'POST','/v1/machines/unknown/actions/delete',token=t['spending_token'],key='unknown-delete-key',raw=b'{invalid')
+    assert code==404,'delete ownership authorization must precede body parsing'
+
     op=deletion(w,t,machine,'caller-delete-key')
     w.start_engine();w.wait_status(op,'succeeded');w.stop_engine()
     final=operation_state(w,op)
@@ -417,7 +420,9 @@ def channels(w):
     one_purchase(w,op)
     w.h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(original),t['account']))
 
-SCENARIOS=dict(zip(CASES,[positive,empty,delayed,conflicting,multiple,startup,human,caller_delete,delete_evidence,episodes,late,gone_reply,worker_exact,account,delete_classification,resolution_reply,exit_accounting,channels]))
+from w6_edges import measurement,episode_order,meter_edges,default_hooks
+
+SCENARIOS=dict(zip(CASES,[measurement,positive,empty,delayed,conflicting,multiple,startup,human,caller_delete,delete_evidence,episodes,late,gone_reply,worker_exact,account,delete_classification,resolution_reply,exit_accounting,channels,episode_order,meter_edges,default_hooks],strict=True))
 
 def w6(h,case=None,defect=None):
     global eventually,http

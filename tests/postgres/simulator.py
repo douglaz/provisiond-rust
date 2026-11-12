@@ -233,10 +233,10 @@ def main():
                     record('non_exact_candidate_returned',resources=found,**identity)
                 if mode in ('search_non_authoritative','search_many','get_error','get_absent','search_malformed'):
                     other=state['resources'][state['verification_resource']]
-                    if mode in ('get_error','get_absent','search_malformed'):found=[other]
-                    else:found.append(other)
+                    if mode=='search_malformed':found=found[:1]
+                    elif mode not in ('get_error','get_absent'):found.append(other)
                     record('verification_identifiers_returned',source='search',identifiers=[r['external_id'] for r in found],**identity)
-                    if mode=='search_malformed':found.append({})
+                    if mode=='search_malformed':found.append(dict(account=body['account'],channel=body['channel'],correlator=body['correlator']))
                     if mode.startswith('search_'):record('verification_fault_returned',mode=mode,**identity)
                 if mode=='normal' and (args.root/'hold-get').exists():
                     # OPS-21/13: publish the selected IDs before this reply can

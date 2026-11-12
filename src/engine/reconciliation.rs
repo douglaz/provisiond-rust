@@ -62,6 +62,7 @@ impl Engine {
                 tenant: tenant.into(),
                 verb: verb.into(),
                 resolver: "engine".into(),
+                automatic: true,
                 evidence: json!({"source":"direct_read","external_id":external,"past_effective_window":true}),
                 machine: Value::Null,
                 earliest_date: None,
@@ -366,9 +367,9 @@ impl Engine {
                 let observed_at=chrono::Utc::now();
                 if machine["present"]==true && machine["external_id"]==*external && machine["account"]==account && (machine["correlator"]==row["correlator_value"] || crate::store::test_defect("w6_non_exact")) {
                     let date=d.client.call(component,descriptor,"/constraints",&json!({"account":account,"operation":id,"external_id":external,"resolution":true})).await.ok().and_then(|v|v["earliest_cancellation_date"].as_str().map(str::to_owned));
-                    resolution=Some(Resolution{id:id.into(),tenant:tenant.into(),verb:"observed".into(),resolver:"engine".into(),evidence:evidence.clone(),machine,earliest_date:date,observed_at});
+                    resolution=Some(Resolution{id:id.into(),tenant:tenant.into(),verb:"observed".into(),resolver:"engine".into(),automatic:true,evidence:evidence.clone(),machine,earliest_date:date,observed_at});
                 } else if machine.is_null() || machine["present"]==false && machine["external_id"]==*external && machine["account"]==account {
-                    resolution=Some(Resolution{id:id.into(),tenant:tenant.into(),verb:"absent".into(),resolver:"engine".into(),evidence:json!({"search":evidence,"direct_absence":true,"setup_fee_charged":resources[external]["setup_fee_charged"],"first_unit_charged":resources[external]["first_unit_charged"]}),machine:Value::Null,earliest_date:None,observed_at});
+                    resolution=Some(Resolution{id:id.into(),tenant:tenant.into(),verb:"absent".into(),resolver:"engine".into(),automatic:true,evidence:json!({"search":evidence,"direct_absence":true,"setup_fee_charged":resources[external]["setup_fee_charged"],"first_unit_charged":resources[external]["first_unit_charged"]}),machine:Value::Null,earliest_date:None,observed_at});
                 }
             }
         } else if authoritative && resources.is_empty() && !in_progress && age >= negative {
@@ -377,6 +378,7 @@ impl Engine {
                 tenant: tenant.into(),
                 verb: "absent".into(),
                 resolver: "engine".into(),
+                automatic: true,
                 evidence: evidence.clone(),
                 machine: Value::Null,
                 earliest_date: None,

@@ -239,10 +239,26 @@ impl Transaction {
         stop: &DateTime<Utc>,
     ) -> Result<()> {
         let row=self.rows("SELECT native_terms::text,meter_quarantined FROM provisiond.machines WHERE id=$1::text::uuid",&[&machine]).await?.remove(0);
+        let terms: Value = row
+            .get::<_, Option<String>>(0)
+            .map(|v| serde_json::from_str(&v))
+            .transpose()?
+            .unwrap_or(Value::Null);
         if row.get::<_, bool>(1) {
+            // LDG-72: preserve meter evidence; only an already-open outage may close.
+            let outages=self.rows("SELECT id::text,absorbed_from::text FROM provisiond.operator_deficiencies WHERE subject_kind='machine' AND subject_id=$1::text::uuid AND cause='rate_outage' AND absorbed_until IS NULL",&[&machine]).await?;
+            for outage in outages {
+                let from = parse_pg_time(&outage.get::<_, String>(1))?;
+                let currency = terms["offer"]["currency"]
+                    .as_str()
+                    .context("quarantined outage currency")?;
+                let returned=self.rows("SELECT min(accepted_at)::text FROM provisiond.fixture_rate_history WHERE currency=$1 AND available AND accepted_at>$2::text::timestamptz",&[&currency,&from.to_rfc3339()]).await?[0].get::<_,Option<String>>(0).map(|v|parse_pg_time(&v)).transpose()?;
+                let end = (*stop).min(returned.unwrap_or(*stop));
+                let native = native_elapsed(&terms, from, end)?;
+                self.rows("UPDATE provisiond.operator_deficiencies SET absorbed_until=$2::text::timestamptz,absorbed_seconds=ceil(extract(epoch FROM $2::text::timestamptz-absorbed_from))::bigint,native_minor=$3 WHERE id=$1::text::uuid AND absorbed_until IS NULL RETURNING id",&[&outage.get::<_,String>(0),&end.to_rfc3339(),&native]).await?;
+            }
             return Ok(());
         }
-        let terms: Value = serde_json::from_str(&row.get::<_, String>(0))?;
         let offer = &terms["offer"];
         let currency = offer["currency"].as_str().context("currency")?;
         let mark=self.rows("SELECT max(high_water_mark)::text FROM provisiond.meter_totals WHERE subject_kind='machine' AND subject_id=$1::text::uuid",&[&machine]).await?[0].get::<_,Option<String>>(0).context("billable machine must have a seed")?;
@@ -251,6 +267,7 @@ impl Transaction {
             return Ok(());
         }
         let descriptor:Value=serde_json::from_str(&self.rows("SELECT p.descriptor::text FROM provisiond.provider_accounts p JOIN provisiond.machines m ON m.provider_account=p.account WHERE m.id=$1::text::uuid",&[&machine]).await?[0].get::<_,String>(0))?;
+        let mut outage_window = None;
         while start < *stop {
             let (year, month) = if start.month() == 12 {
                 (start.year() + 1, 1)
@@ -264,7 +281,15 @@ impl Transaction {
                 .and_utc();
             let history=self.rows("SELECT value::text,available FROM provisiond.fixture_rate_history WHERE currency=$1 AND accepted_at<=$2::text::timestamptz ORDER BY accepted_at DESC,sequence DESC LIMIT 1",&[&currency,&start.to_rfc3339()]).await?;
             let next=self.rows("SELECT min(accepted_at)::text FROM provisiond.fixture_rate_history WHERE currency=$1 AND accepted_at>$2::text::timestamptz",&[&currency,&start.to_rfc3339()]).await?[0].get::<_,Option<String>>(0).map(|s|parse_pg_time(&s)).transpose()?;
-            let end = (*stop).min(month_end).min(next.unwrap_or(*stop));
+            let available = history.first().is_some_and(|r| r.get::<_, bool>(1));
+            if !available && outage_window.is_none() {
+                let returned=self.rows("SELECT min(accepted_at)::text FROM provisiond.fixture_rate_history WHERE currency=$1 AND available AND accepted_at>$2::text::timestamptz",&[&currency,&start.to_rfc3339()]).await?[0].get::<_,Option<String>>(0).map(|v|parse_pg_time(&v)).transpose()?;
+                outage_window = Some((start, (*stop).min(returned.unwrap_or(*stop))));
+            } else if available {
+                outage_window = None;
+            }
+            let rate_end = outage_window.map(|v| v.1).or(next).unwrap_or(*stop);
+            let end = (*stop).min(month_end).min(rate_end);
             let period = start.format("%Y-%m").to_string();
             let micros = (end - start).num_microseconds().context("elapsed range")?;
             let native = pricing::minor(
@@ -290,7 +315,7 @@ impl Transaction {
                 let exact_num = (i128::from(micros) * i128::from(price.per_second_num)).to_string();
                 let exact_den = (i128::from(price.per_second_den) * 1_000_000).to_string();
                 // Integer division/modulo avoids finite decimal division changing ceil.
-                let arithmetic=self.rows("WITH credit AS (SELECT COALESCE((SELECT credit_num FROM provisiond.meter_totals WHERE subject_kind='machine' AND subject_id=$1::text::uuid AND billing_period=$2),0) n,COALESCE((SELECT credit_den FROM provisiond.meter_totals WHERE subject_kind='machine' AND subject_id=$1::text::uuid AND billing_period=$2),1) d), fraction AS (SELECT n,d,$3::text::numeric*d-n*$4::text::numeric AS n1,$4::text::numeric*d AS d1 FROM credit), debit AS (SELECT *,div(n1,d1)+CASE WHEN mod(n1,d1)>0 THEN 1 ELSE 0 END AS posted FROM fraction) SELECT posted::bigint,(n*$4::text::numeric+posted*d1-$3::text::numeric*d)::text,d1::text,(n>=0 AND n<d) FROM debit",&[&machine,&period,&exact_num,&exact_den]).await?.remove(0);
+                let arithmetic=self.rows("WITH credit AS (SELECT COALESCE((SELECT credit_num FROM provisiond.meter_totals WHERE subject_kind='machine' AND subject_id=$1::text::uuid AND billing_period=$2),0) n,COALESCE((SELECT credit_den FROM provisiond.meter_totals WHERE subject_kind='machine' AND subject_id=$1::text::uuid AND billing_period=$2),1) d), fraction AS (SELECT n,d,$3::text::numeric*d-n*$4::text::numeric AS n1,$4::text::numeric*d AS d1 FROM credit), debit AS (SELECT *,div(n1,d1)+CASE WHEN mod(n1,d1)>0 THEN 1 ELSE 0 END AS posted FROM fraction) SELECT posted::bigint,(provisiond.reduced_credit(n*$4::text::numeric+posted*d1-$3::text::numeric*d,d1))[1],(provisiond.reduced_credit(n*$4::text::numeric+posted*d1-$3::text::numeric*d,d1))[2],(n>=0 AND n<d) FROM debit",&[&machine,&period,&exact_num,&exact_den]).await?.remove(0);
                 ensure!(
                     arithmetic.get::<_, bool>(3),
                     "meter rounding credit out of range"
@@ -313,7 +338,7 @@ impl Transaction {
                     let commitment = commitment.first().context("open commitment")?;
                     let id: String = commitment.get(0);
                     let version: i64 = commitment.get(2);
-                    let conversion = json!({"native_minor":customer_native,"currency":currency,"rate_num":rate["rate_num"],"rate_den":rate["rate_den"],"rate_source":rate["source"],"rate_observed_at":rate["observed_at"],"haircut_bps":rate["haircut_bps"],"rounding_rule_version":"ceil-credit-v1"});
+                    let conversion = json!({"native_minor":customer_native,"currency":currency,"rate_num":rate["rate_num"],"rate_den":rate["rate_den"],"rate_source":rate["source"],"rate_observed_at":rate["observed_at"],"haircut_bps":rate["haircut_bps"],"rounding_rule_version":"ceil-credit-v1","billing_period":period,"increment_end":end.to_rfc3339()});
                     ledger::append(
                         self,
                         Entry {
@@ -335,8 +360,7 @@ impl Transaction {
                     self.exit_deficiency(
                         machine,
                         "clamp_overflow",
-                        native_cost - customer_native,
-                        computed - debit,
+                        (native_cost - customer_native, computed - debit, Some(&rate)),
                         &key,
                         None,
                     )
@@ -344,14 +368,14 @@ impl Transaction {
                 }
                 self.rows("INSERT INTO provisiond.meter_totals(subject_kind,subject_id,billing_period,high_water_mark,credit_num,credit_den) VALUES('machine',$1::text::uuid,$2,$3::text::timestamptz,$4::text::numeric,$5::text::numeric) ON CONFLICT(subject_kind,subject_id,billing_period) DO UPDATE SET high_water_mark=EXCLUDED.high_water_mark,credit_num=EXCLUDED.credit_num,credit_den=EXCLUDED.credit_den RETURNING subject_id",&[&machine,&period,&end.to_rfc3339(),&arithmetic.get::<_,String>(1),&arithmetic.get::<_,String>(2)]).await?;
             } else {
-                let key = format!("rate_outage:{machine}:{}", start.to_rfc3339());
+                let window = outage_window.context("retained maximal outage")?;
+                let key = format!("rate_outage:{machine}:{}", window.0.to_rfc3339());
                 self.exit_deficiency(
                     machine,
                     "rate_outage",
-                    native_cost,
-                    0,
+                    (native_elapsed(&terms, window.0, window.1)?, 0, None),
                     &key,
-                    Some((start, end)),
+                    Some(window),
                 )
                 .await?;
                 self.rows("INSERT INTO provisiond.meter_totals(subject_kind,subject_id,billing_period,high_water_mark) VALUES('machine',$1::text::uuid,$2,$3::text::timestamptz) ON CONFLICT(subject_kind,subject_id,billing_period) DO UPDATE SET high_water_mark=EXCLUDED.high_water_mark RETURNING subject_id",&[&machine,&period,&end.to_rfc3339()]).await?;
@@ -364,14 +388,16 @@ impl Transaction {
         &mut self,
         machine: &str,
         cause: &str,
-        native: i64,
-        clamped: i64,
+        valuation: (i64, i64, Option<&Value>),
         key: &str,
         window: Option<(DateTime<Utc>, DateTime<Utc>)>,
     ) -> Result<()> {
+        let (native, clamped, rate) = valuation;
+        let rate_num = rate.and_then(|v| v["rate_num"].as_i64());
+        let rate_den = rate.and_then(|v| v["rate_den"].as_i64());
         let from = window.map(|v| v.0);
         let until = window.map(|v| v.1);
-        self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key,absorbed_seconds,absorbed_from,absorbed_until) SELECT m.provider_account,m.id,'machine',m.id,COALESCE((SELECT id FROM provisiond.operations WHERE machine_id=m.id ORDER BY created_at DESC LIMIT 1),m.id),$2,$3,m.native_terms->'offer'->>'currency',$4,CASE WHEN $2='rate_outage' THEN NULL ELSE (r.value->>'rate_num')::bigint END,CASE WHEN $2='rate_outage' THEN NULL ELSE (r.value->>'rate_den')::bigint END,$5,CASE WHEN $6::text IS NULL THEN 0 ELSE ceil(extract(epoch FROM $7::text::timestamptz-$6::text::timestamptz))::bigint END,$6::text::timestamptz,$7::text::timestamptz FROM provisiond.machines m LEFT JOIN provisiond.rates r ON r.currency=m.native_terms->'offer'->>'currency' AND r.available WHERE m.id=$1::text::uuid ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&machine,&cause,&native,&clamped,&key,&from.map(|v|v.to_rfc3339()),&until.map(|v|v.to_rfc3339())]).await?;
+        self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key,absorbed_seconds,absorbed_from,absorbed_until) SELECT m.provider_account,m.id,'machine',m.id,COALESCE((SELECT id FROM provisiond.operations WHERE machine_id=m.id ORDER BY created_at DESC LIMIT 1),m.id),$2,$3,m.native_terms->'offer'->>'currency',$4,$8::bigint,$9::bigint,$5,CASE WHEN $6::text IS NULL THEN 0 ELSE ceil(extract(epoch FROM $7::text::timestamptz-$6::text::timestamptz))::bigint END,$6::text::timestamptz,$7::text::timestamptz FROM provisiond.machines m WHERE m.id=$1::text::uuid ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&machine,&cause,&native,&clamped,&key,&from.map(|v|v.to_rfc3339()),&until.map(|v|v.to_rfc3339()),&rate_num,&rate_den]).await?;
         Ok(())
     }
 }
@@ -381,4 +407,27 @@ fn parse_pg_time(s: &str) -> Result<DateTime<Utc>> {
         s.push_str(":00");
     }
     Ok(DateTime::parse_from_rfc3339(&s)?.with_timezone(&Utc))
+}
+
+fn native_elapsed(terms: &Value, from: DateTime<Utc>, until: DateTime<Utc>) -> Result<i64> {
+    let native = pricing::minor(
+        terms["offer"]["recurring_price"]
+            .as_str()
+            .context("native price")?,
+        terms["rate"]["minor_scale"]
+            .as_u64()
+            .context("native precision")? as u32,
+    )?;
+    let micros = (until - from)
+        .num_microseconds()
+        .context("native elapsed range")?
+        .max(0);
+    let denominator = i128::from(
+        terms["offer"]["period_seconds"]
+            .as_i64()
+            .context("native period")?,
+    ) * 1_000_000;
+    Ok(i64::try_from(
+        (i128::from(native) * i128::from(micros) + denominator - 1) / denominator,
+    )?)
 }

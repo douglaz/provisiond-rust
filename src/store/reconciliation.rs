@@ -10,6 +10,7 @@ pub(crate) struct Resolution {
     pub tenant: String,
     pub verb: String,
     pub resolver: String,
+    pub automatic: bool,
     pub evidence: Value,
     pub machine: Value,
     pub earliest_date: Option<String>,
@@ -76,7 +77,7 @@ impl Transaction {
             if r.verb == "applied" {
                 let machine:String=self.rows("SELECT machine_id::text FROM provisiond.operations WHERE id=$1::text::uuid",&[&r.id]).await?[0].get(0);
                 self.record_gone(&machine, &r.observed_at).await?;
-                if r.resolver == "engine" {
+                if r.automatic {
                     self.record_visibility(&r.id, &r.observed_at).await?;
                 }
             } else {
@@ -136,7 +137,7 @@ impl Transaction {
                 }
             }
         }
-        if r.verb == "observed" && r.resolver == "engine" {
+        if r.verb == "observed" && r.automatic {
             self.record_visibility(&r.id, &r.observed_at).await?;
         }
         Ok(true)
@@ -147,6 +148,17 @@ impl Transaction {
         observed: &chrono::DateTime<chrono::Utc>,
     ) -> Result<()> {
         self.rows("INSERT INTO provisiond.provider_observations(provider_account,operation_id,dispatched_at,observed_at) SELECT provider_account,id,COALESCE(about_to_order_at,write_started_at),$2::text::timestamptz FROM provisiond.operations WHERE id=$1::text::uuid AND COALESCE(about_to_order_at,write_started_at) IS NOT NULL AND COALESCE(about_to_order_at,write_started_at)<=$2::text::timestamptz ON CONFLICT DO NOTHING RETURNING operation_id",&[&id,&observed.to_rfc3339()]).await?;
+        // PRV-36: a declaration breach widens sizing and remains visible to operators.
+        let breach=self.rows("SELECT p.provider_account,extract(epoch FROM p.observed_at-p.dispatched_at)::text FROM provisiond.provider_observations p JOIN provisiond.provider_accounts a ON a.account=p.provider_account WHERE p.operation_id=$1::text::uuid AND extract(epoch FROM p.observed_at-p.dispatched_at)>(a.descriptor->>'visibility_seconds')::numeric",&[&id]).await?;
+        if let Some(row) = breach.first() {
+            (self
+                .checkout
+                .as_ref()
+                .context("live observation transaction")?
+                .trace)(
+                json!({"event":"provider_visibility_declaration_breached","operation":id,"provider_account":row.get::<_,String>(0),"observed_seconds":row.get::<_,String>(1)}),
+            );
+        }
         Ok(())
     }
     async fn order_deficiency(

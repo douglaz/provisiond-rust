@@ -128,6 +128,30 @@ impl Engine {
         }
         let _ = name;
     }
+    /// STO-52 fixture: contend through the same enqueue transaction as attachments.
+    #[cfg(feature = "store-test-hooks")]
+    pub async fn test_join_cleanup(&self, machine: &str, reason: &str) -> Result<String> {
+        let machine = machine.to_owned();
+        let reason = reason.to_owned();
+        self.transaction(&self.component(), move |tx| {
+            let machine = machine.clone();
+            let reason = reason.clone();
+            Box::pin(async move {
+                let tenant: String = tx
+                    .rows(
+                        "SELECT tenant_id FROM provisiond.machines WHERE id=$1::text::uuid",
+                        &[&machine],
+                    )
+                    .await?
+                    .first()
+                    .context("cleanup fixture machine")?
+                    .get(0);
+                crate::ledger::serialize(tx, &[&tenant]).await?;
+                tx.enqueue_cleanup(&machine, &reason).await
+            })
+        })
+        .await
+    }
     #[cfg(feature = "store-test-hooks")]
     pub fn test_owners(&self) -> Value {
         json!({"workers":self.workers.lock().expect("workers").len(),"available_slots":self.worker_slots.available_permits()})

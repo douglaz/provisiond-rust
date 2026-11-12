@@ -257,6 +257,7 @@ impl State {
                 tenant: tenant.into(),
                 verb: verb.into(),
                 resolver: principal.into(),
+                automatic: false,
                 evidence: body.clone(),
                 machine: json!({"external_id":body["external_id"],"state":"unknown","public_ips":[]}),
                 earliest_date: None,

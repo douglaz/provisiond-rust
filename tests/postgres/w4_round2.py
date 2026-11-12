@@ -98,7 +98,9 @@ def operator_hiding(w):
     w.request('GET','/v1/abuse-cases',tenant=active,status=501)
     w.request('POST','/v1/machines/id/actions/power',{},active,'unsupported-power',status=501)
     w.request('GET','/v1/abuse-cases',tenant=pending,status=403)
-    for method,path in routes:w.request('OPTIONS',path)
+    for method,path in routes:
+        code,_,headers=http(w.h.ports[4],'OPTIONS',path)
+        assert code==404 and not any(k.startswith('Access-Control-') for k in headers)
     w.h.results.append(dict(test='W4-complete-operator-hiding',result='pass',customer_requests=len(routes)*4))
 
 
