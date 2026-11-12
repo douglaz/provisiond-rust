@@ -1,34 +1,107 @@
-[
-  {
-    "case": "w5_claim_precommit",
-    "result": "expected negative demonstration",
-    "command": [
-      "python3",
-      "<run-dir>/harness/baseline.py",
-      "w5_claim_precommit"
-    ],
+{
+  "result": "pass",
+  "recognizing_parent_exit_status": 0,
+  "comparisons": [
+    {
+      "case": "w5_claim_precommit",
+      "result": "expected negative demonstration",
+      "exit_status": 1,
+      "intended_assertion": "OPS-49 known pre-COMMIT claim failure must retry the whole transaction",
+      "command": [
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "w5",
+        "--case",
+        "w5_claim_precommit",
+        "--seed",
+        "20261112",
+        "--evidence",
+        "<private-run>/baseline-c_ls5ujr/w5_claim_precommit.json"
+      ],
+      "raw_manifest": "<private-run>/baseline-c_ls5ujr/w5_claim_precommit.json",
+      "stdout_sha256": "94a60993efa0644c7086188e117ab89f11348047473ba5d12e492fac6845662e",
+      "stderr_sha256": "1e1580ccb929028bd94afe0622016e22514a8f7addfcb4a3fe34d6eeee872353",
+      "assertion_drivers": {
+        "tests/postgres/w5.py": "129b6eeec1f745eccfd9b29c30489f4718f17d1748c9364eb10e32b37aed717f",
+        "tests/postgres/w5_accounting.py": "b398662a7b2fbe319df22780e6a3c8ccd94c8ac43cd0ceb9949b96d672779cd3"
+      },
+      "red_evidence": "evidence/w5/red-w5_claim_precommit.json",
+      "green_evidence": "evidence/w5/final-w5.json",
+      "source_proof": "evidence/w5/source-baseline.json",
+      "green_commit": "d21297c57a7351b68def0d5a1d015c7e5166017f",
+      "green_result": "pass"
+    },
+    {
+      "case": "w5_backoff_budget",
+      "result": "expected negative demonstration",
+      "exit_status": 1,
+      "intended_assertion": "OPS-49 backoff exhaustion must forbid another transaction",
+      "command": [
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "w5",
+        "--case",
+        "w5_backoff_budget",
+        "--seed",
+        "20261112",
+        "--evidence",
+        "<private-run>/baseline-c_ls5ujr/w5_backoff_budget.json"
+      ],
+      "raw_manifest": "<private-run>/baseline-c_ls5ujr/w5_backoff_budget.json",
+      "stdout_sha256": "b5259ffa9f77e3e160747906567fc0aadbc6245ee82d42fb4d376e96ee99c0e5",
+      "stderr_sha256": "55261e72a7af20255b6224b6ed7dcde9aebacd8147b147b891a435dc269265da",
+      "assertion_drivers": {
+        "tests/postgres/w5.py": "129b6eeec1f745eccfd9b29c30489f4718f17d1748c9364eb10e32b37aed717f",
+        "tests/postgres/w5_accounting.py": "b398662a7b2fbe319df22780e6a3c8ccd94c8ac43cd0ceb9949b96d672779cd3"
+      },
+      "red_evidence": "evidence/w5/red-w5_backoff_budget.json",
+      "green_evidence": "evidence/w5/final-w5.json",
+      "source_proof": "evidence/w5/source-baseline.json",
+      "green_commit": "d21297c57a7351b68def0d5a1d015c7e5166017f",
+      "green_result": "pass"
+    },
+    {
+      "case": "w5_accounting_reply",
+      "result": "expected negative demonstration",
+      "exit_status": 1,
+      "intended_assertion": "OPS-49 non-standby COMMIT reply delay must consume retry budget",
+      "command": [
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "w5",
+        "--case",
+        "w5_accounting_reply",
+        "--seed",
+        "20261112",
+        "--evidence",
+        "<private-run>/baseline-c_ls5ujr/w5_accounting_reply.json"
+      ],
+      "raw_manifest": "<private-run>/baseline-c_ls5ujr/w5_accounting_reply.json",
+      "stdout_sha256": "5f97df6d1ee1d7ae3ea0c09c649883d15acabf8c00926b12704caee3e92a4392",
+      "stderr_sha256": "3d6b59f5394d17be03734bd58c99826e31607fd38bf40e86e92aabf16c671c91",
+      "assertion_drivers": {
+        "tests/postgres/w5.py": "129b6eeec1f745eccfd9b29c30489f4718f17d1748c9364eb10e32b37aed717f",
+        "tests/postgres/w5_accounting.py": "b398662a7b2fbe319df22780e6a3c8ccd94c8ac43cd0ceb9949b96d672779cd3"
+      },
+      "red_evidence": "evidence/w5/red-w5_accounting_reply.json",
+      "green_evidence": "evidence/w5/final-w5.json",
+      "source_proof": "evidence/w5/source-baseline.json",
+      "green_commit": "d21297c57a7351b68def0d5a1d015c7e5166017f",
+      "green_result": "pass"
+    }
+  ],
+  "historical_reproducer": {
+    "held_ms": 2197,
+    "charged_ms": 21,
+    "bound_ms": 2000,
+    "assertion": "OPS-49 non-standby COMMIT reply delay must consume retry budget",
     "exit_status": 1,
-    "intended_assertion": "OPS-49 known pre-COMMIT claim failure must retry the whole transaction",
-    "raw_root": "<run-dir>/harness/baseline-g8qu5tfo",
-    "protected_runtime_verified": true,
-    "assertion_driver_sha256": "2622479cf93bbf466902b114a09ef862e15e986b0274c9ecf78d0111815c803b",
-    "red_evidence": "evidence/w5/red-w5_claim_precommit.json",
-    "source_proof": "evidence/w5/source-w5_claim_precommit.json"
-  },
-  {
-    "case": "w5_backoff_budget",
-    "result": "expected negative demonstration",
-    "command": [
-      "python3",
-      "<run-dir>/harness/baseline.py",
-      "w5_backoff_budget"
-    ],
-    "exit_status": 1,
-    "intended_assertion": "OPS-49 backoff exhaustion must forbid another transaction",
-    "raw_root": "<run-dir>/harness/baseline-wjih9vaj",
-    "protected_runtime_verified": true,
-    "assertion_driver_sha256": "2622479cf93bbf466902b114a09ef862e15e986b0274c9ecf78d0111815c803b",
-    "red_evidence": "evidence/w5/red-w5_backoff_budget.json",
-    "source_proof": "evidence/w5/source-w5_backoff_budget.json"
+    "money_and_purchase_intact": true,
+    "former_artifact_sha256": "0e421ccf60ca44ef53340430117f5e8c6a3bc5faf13740eff951b786cc3463a8",
+    "former_source_proof_sha256": "ccb8bf47f6d38c3f5f4d75249442b6bd67880fd3b3e60ea49735e944a03ef798",
+    "classification": "historical reproducer; superseded for final runtime validation by canonical baseline comparison"
   }
-]
+}

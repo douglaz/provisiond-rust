@@ -1,0 +1,271 @@
+{
+  "result": "expected negative demonstration",
+  "implementation_commit": "aceea4eea8382c8d3b6fa554706c54920999369c",
+  "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+  "seed": 20261112,
+  "exit_status": 1,
+  "intended_assertion": "OPS-49 non-standby COMMIT reply delay must consume retry budget",
+  "configuration": {
+    "synchronous_commit": "on",
+    "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+    "max_connections": 24,
+    "shared_buffers": "32MB",
+    "wal_level": "replica",
+    "archive_mode": "on",
+    "restart_after_crash": "on",
+    "ports": [
+      55500,
+      55501,
+      55502,
+      55503
+    ],
+    "bootstrap_readiness_seconds": 60,
+    "postgres_stop_wait_seconds": 60,
+    "bootstrap_command_seconds": 180,
+    "authentication": "scram-sha-256 loopback only",
+    "standby_role": "replicator",
+    "store": {
+      "read_pool": 1,
+      "write_pool": 1,
+      "statement_ms": 1000,
+      "lock_ms": 500,
+      "idle_transaction_ms": 1000,
+      "call_ms": 2000,
+      "check_ms": 3000,
+      "checkout_ms": 250,
+      "keepalive_idle_seconds": 2,
+      "keepalive_interval_seconds": 1,
+      "keepalive_count": 2,
+      "isolation": "read committed",
+      "search_path": "pg_catalog,fixture",
+      "stop_fixture_ms": 1000,
+      "transport": "direct TCP; loopback proxy for faults; sslmode=disable"
+    },
+    "engine": {
+      "workers": 3,
+      "write_pool": 3,
+      "compatibility_read_pool": 1,
+      "startup_lock_outside_pool": true,
+      "startup_wait_ms": 500,
+      "store_retry_ms": 2000,
+      "stop_record_ms": 1000,
+      "startup_lock_keepalives": {
+        "idle_seconds": 2,
+        "interval_seconds": 1,
+        "count": 2,
+        "profile_assignment": "shared with pooled local values"
+      },
+      "runtime_build": {
+        "features": [
+          "store-test-hooks"
+        ],
+        "target_directory": "<private-run>/w5-k78jh_5t/target"
+      },
+      "migration_lock_ms": 500,
+      "migration_lock_retries": 2,
+      "schema_version": 2,
+      "semantic_version": 2,
+      "notice_cap": 16
+    },
+    "w5": {
+      "required_scenarios": [
+        "w5_admission_before",
+        "w5_admission_reply",
+        "w5_claim_reply",
+        "w5_step8",
+        "w5_accepted_lost",
+        "w5_settlement_blocked",
+        "w5_settlement_reply",
+        "w5_stop_record",
+        "w5_lock_loss",
+        "w5_retained_checkouts",
+        "w5_process_death",
+        "w5_connection_check",
+        "w5_contention",
+        "w5_remote_completion",
+        "w5_generation_record",
+        "w5_default_hooks",
+        "w5_claim_precommit",
+        "w5_backoff_budget",
+        "w5_accounting_reply",
+        "w5_accounting_syncrep",
+        "w5_accounting_mixed",
+        "w5_accounting_unavailable",
+        "w5_accounting_mismatch",
+        "w5_accounting_stop",
+        "w5_accounting_reconnect"
+      ],
+      "selected_case": "w5_accounting_reply",
+      "defect": null,
+      "automatic_reconciliation": "not run (W6)",
+      "deployment_saturation": "not run (W8)",
+      "recovery_incidents": "not run (W7)"
+    },
+    "effective_primary": {
+      "archive_command": "test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f",
+      "archive_mode": "on",
+      "lc_messages": "C",
+      "listen_addresses": "127.0.0.1",
+      "max_connections": "24",
+      "port": "55500",
+      "restart_after_crash": "on",
+      "shared_buffers": "4096",
+      "superuser_reserved_connections": "3",
+      "synchronous_commit": "on",
+      "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
+      "tcp_keepalives_count": "2",
+      "tcp_keepalives_idle": "2",
+      "tcp_keepalives_interval": "1",
+      "wal_level": "replica"
+    },
+    "workflow": {
+      "parameters": {
+        "activation_sats": 100,
+        "deposit_seconds": 3600,
+        "finality_seconds": 600,
+        "tenant_seconds": 10800,
+        "pending_limit": 64,
+        "admission_delay_ms": 50,
+        "admission_validity_seconds": 60,
+        "admission_capacity": 256,
+        "source_concurrency": 2,
+        "rate_interval_ms": 1000,
+        "read_limit": 1000,
+        "write_limit": 1000,
+        "created_limit": 100,
+        "spend_limit": 1000000,
+        "ceiling_seconds": 3600,
+        "retention_seconds": 86400,
+        "receipt_seconds": 86400,
+        "listing_age_seconds": 3600,
+        "lightning_floor_sats": 1,
+        "onchain_floor_sats": 20,
+        "confirmation_depth": 2
+      },
+      "descriptor": {
+        "account": "sim-a",
+        "kind": "local_simulator",
+        "capabilities": [
+          "provision_virtual",
+          "list_offers",
+          "delete_machine"
+        ],
+        "channel": "orders",
+        "channels": [
+          "orders"
+        ],
+        "offer_is_resource": false,
+        "temporary_keys": false,
+        "currency": "USD",
+        "stop_cost": true,
+        "allow_orders": true,
+        "correlator": "operation_id",
+        "margin_bps": 1000,
+        "order_budget": {
+          "limit": 20,
+          "per_seconds": 86400
+        },
+        "cancellation_bound": "2026-11-12",
+        "meter_seconds": 1,
+        "call_seconds": 1,
+        "visibility_seconds": 1,
+        "resolution_seconds": 1,
+        "read_seconds": 1,
+        "hold_seconds": 1,
+        "margin_seconds": 1,
+        "max_correlator_bytes": 128,
+        "max_rate_outage_seconds": 600
+      },
+      "offer": {
+        "id": "test-small",
+        "name": "Nonpayable simulator virtual machine",
+        "kind": "virtual",
+        "regions": [
+          "test"
+        ],
+        "recurring_price": "0.01",
+        "setup_fee": "0.02",
+        "currency": "USD",
+        "period_seconds": 3600,
+        "billing_unit": {
+          "seconds": 3600,
+          "native_floor": null
+        },
+        "install_strategies": [],
+        "cancellation_bound": null,
+        "traffic_bound": "unlimited",
+        "attachments": [],
+        "sellable": true
+      },
+      "rate": {
+        "currency": "USD",
+        "minor_scale": 2,
+        "rate_num": 10,
+        "rate_den": 1,
+        "margin_bps": 1000,
+        "haircut_bps": 0,
+        "source": "simulator-fixed-rational",
+        "observed_at": "2026-11-12T16:20:13Z"
+      },
+      "listeners": {
+        "api": 55504,
+        "provider": 55505,
+        "rail": 55506
+      },
+      "test_build_features": [
+        "store-test-hooks"
+      ],
+      "builds": {
+        "api": {
+          "executable": "<private-run>/w5-k78jh_5t/target/debug/api",
+          "sha256": "7f339221cfde7f54459c8548150d682c38ea6c157ffc4164d63a870a12f0dd55",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "engine": {
+          "executable": "<private-run>/w5-k78jh_5t/target/debug/engine",
+          "sha256": "084e8a1075208c405db776a0e62d1531138d30fc175cccb3bab1685fd7057d8b",
+          "features": [
+            "store-test-hooks"
+          ]
+        },
+        "migrate": {
+          "executable": "<private-run>/w5-k78jh_5t/target/debug/migrate",
+          "sha256": "cdd175dddb923a0344d8652cd706c4eafc1b6c71ee0bc36f64e39cdba9fa2888",
+          "features": [
+            "store-test-hooks"
+          ]
+        }
+      }
+    }
+  },
+  "assertion_drivers": {
+    "tests/postgres/w5.py": "129b6eeec1f745eccfd9b29c30489f4718f17d1748c9364eb10e32b37aed717f",
+    "tests/postgres/w5_accounting.py": "b398662a7b2fbe319df22780e6a3c8ccd94c8ac43cd0ceb9949b96d672779cd3"
+  },
+  "events": [
+    {"event":"backup_provenance_retained","timestamp":1794500381.9778433,"elapsed":3.196423396933824,"path":"<private-run>/w5-k78jh_5t/standby-backup-manifest.json","sha256":"18ae86a2c9a82ef6fd2056b80e137b5e132b53a2b1672f4c631ea5316c113a19"},
+    {"event":"backup_complete","timestamp":1794500381.9780838,"elapsed":3.196664005983621,"destination":"standby","verified":true,"elapsed_seconds":0.9348292869981378},
+    {"event":"identity_catchup","timestamp":1794500383.0273294,"elapsed":4.245909804012626,"system_identifier":"7707320442933066434","sampled_primary_flush":"0/3003A90","standby_system_identifier":"7707320442933066434","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
+    {"event":"effective_configuration_observed","timestamp":1794500383.053021,"elapsed":4.271601004060358,"configuration":{"archive_command":"test ! -f <owned-run>/archive/%f && cp %p <owned-run>/archive/%f","archive_mode":"on","lc_messages":"C","listen_addresses":"127.0.0.1","max_connections":"24","port":"55500","restart_after_crash":"on","shared_buffers":"4096","superuser_reserved_connections":"3","synchronous_commit":"on","synchronous_standby_names":"FIRST 1 (provisiond_sync)","tcp_keepalives_count":"2","tcp_keepalives_idle":"2","tcp_keepalives_interval":"1","wal_level":"replica"},"sha256":"fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f"},
+    {"event":"bootstrap_complete","timestamp":1794500383.1364155,"elapsed":4.3549957040231675,"maintenance_mode_exception":false,"bootstrap_role":"initdb administrator; offline replication identity only","backup_name":"bootstrap_backup","designated_name":"provisiond_sync"},
+    {"event":"identity_catchup","timestamp":1794500415.279427,"elapsed":36.498007219983265,"system_identifier":"7707320442933066434","sampled_primary_flush":"0/31C0CB0","standby_system_identifier":"7707320442933066434","authenticated_role":"replicator","primary_checkpoint":"1|0/2000028","standby_checkpoint":"1|0/2000028","provenance":"verified pg_basebackup from this primary; exclusive run-owned data and credentials"},
+    {"event":"w5_healthy_before_fault","timestamp":1794500415.3508224,"elapsed":36.56940260203555,"component":"engine-settlement","target":"0/31C0CB0","designated":[{"pid":3824436,"name":"provisiond_sync","role":"replicator","flush":"0/31C0CB0","state":"streaming","address":"127.0.0.1","sync_state":"sync"}]},
+    {"event":"fault_activated","timestamp":1794500416.407062,"elapsed":37.62564203608781,"fault":"transport_gate","direction":"send","session":3827305,"statement_kind":"fixture statement"},
+    {"event":"fault_activated","timestamp":1794500416.4784153,"elapsed":37.69699547998607,"fault":"transport_gate","direction":"commit_reply","session":3827305,"statement_kind":"COMMIT"},
+    {"event":"w5_accounting_activated","timestamp":1794500419.0357807,"elapsed":40.25436089606956,"scenario":"w5_accounting_reply","mode":"reply","activated":true,"operation":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","session":3827305,"owner":14,"held_ms":2481,"backend_samples":["idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead","idle:ClientRead"],"retries":[{"event":"whole_transaction_retry","external_call_repeated":false,"serialization":false,"spent_ms":67}],"engine_exit":null,"provider_orders":1,"durable_rows_unchanged":true},
+    {"event":"application_trace","component":"api","path":"<private-run>/w5-k78jh_5t/api-0.stdout","sha256":"857014ddf65f5d0fbc8515f4670e3fc06685ea8aca83d4728c9483a779efe6f8","events":[]},
+    {"event":"application_trace","component":"engine","path":"<private-run>/w5-k78jh_5t/engine-0.stdout","sha256":"80be5df8f340979023ba687922526367335acdc130e8aa14ac5828c48fb9d6f3","events":[{"claim_number":1,"event":"dispatch_license_acknowledged","operation":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c"},{"direct_read":true,"event":"provider_verified","matches":1,"operation":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","post_order_read":true},{"claim_number":1,"event":"execute_returned","operation":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c"},{"command_tag":"SHOW","diagnostics":[],"event":"commit_classified","outcome":"unresolved","owner":14,"ready_status":84,"reason":"Unresolved { reason: \"COMMIT error/transport death; no rollback inferred: connection closed\" }","session":3827305,"transport_dead":true},{"event":"whole_transaction_retry","external_call_repeated":false,"serialization":false,"spent_ms":67},{"affected":true,"event":"settlement_finished","landed":true,"operation":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c"}]},
+    {"event":"independent_simulator_evidence","timestamp":1794500419.0589256,"elapsed":40.27750575798564,"simulator_kind":"provider","sha256":"7421705df3459467c1bb7693abad0944d9782197a021351605181840d4810b10","records":[{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":null,"monotonic_ns":1113064207311463,"path":"/offers","sequence":1,"stage":"request_received","timestamp":1794500416.1179752},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":null,"monotonic_ns":1113064218037566,"path":"/offers","sequence":2,"stage":"read_only","timestamp":1794500416.1287024},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","monotonic_ns":1113064404211052,"path":"/order","sequence":3,"stage":"request_received","timestamp":1794500416.3148758},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","monotonic_ns":1113064410989463,"path":"/order","sequence":4,"stage":"accepted","timestamp":1794500416.3216546},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","monotonic_ns":1113064417906763,"path":"/order","resource":"SIMULATOR-RESOURCE-4","sequence":5,"stage":"resource_created","timestamp":1794500416.3285713,"value":{"account":"sim-a","channel":"orders","correlator":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","external_id":"SIMULATOR-RESOURCE-4","name":"worker-test","present":true,"public_ips":[],"region":"test","state":"running"}},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","monotonic_ns":1113064424229283,"path":"/order","resource":"SIMULATOR-RESOURCE-4","sequence":6,"stage":"response_returned","timestamp":1794500416.3348944},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","monotonic_ns":1113064432210307,"path":"/search","sequence":7,"stage":"request_received","timestamp":1794500416.3428755},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","monotonic_ns":1113064438442208,"path":"/search","sequence":8,"stage":"read_only","timestamp":1794500416.3491073},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":null,"monotonic_ns":1113064445452021,"path":"/get","sequence":9,"stage":"request_received","timestamp":1794500416.3561168},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":null,"monotonic_ns":1113064455175233,"path":"/get","sequence":10,"stage":"read_only","timestamp":1794500416.3658404},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":null,"monotonic_ns":1113064461309112,"path":"/get","sequence":11,"stage":"read_response_returned","timestamp":1794500416.3719742},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":null,"monotonic_ns":1113064472185224,"path":"/constraints","sequence":12,"stage":"request_received","timestamp":1794500416.3828504},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":null,"monotonic_ns":1113064478360009,"path":"/constraints","sequence":13,"stage":"read_only","timestamp":1794500416.3890247},{"account":"sim-a","command":"4a1cfd8d-d6a5-4a86-9050-bae0605b618c","correlator":null,"monotonic_ns":1113064484551736,"path":"/constraints","sequence":14,"stage":"read_response_returned","timestamp":1794500416.3952167}]},
+    {"event":"independent_simulator_evidence","timestamp":1794500419.0591092,"elapsed":40.27768910001032,"simulator_kind":"rail","sha256":"e7eee7a045c7e06b752b815476fa3adeb7914d944fc3fb7bcac08c1df9eb49f4","records":[{"monotonic_ns":1113063019340549,"sequence":1,"stage":"rail_observation","timestamp":1794500414.930005,"value":{"amount_sats":115,"destination":"TEST/SIMULATOR/NONPAYABLE/LIGHTNING/317364bc-777e-4d82-8da8-c9c0711c73ed/EXPIRES/1794504014","payment_hash":"6a8fd11153d827a2e46aebfb2e4c903c23e95efe0236ff49871e998d5d039082","preimage_known":true,"rail":"lightning","settled":true,"settled_at":"2026-11-12T16:20:14Z"}}]},
+    {"event":"workflow_children_reaped","timestamp":1794500419.059159,"elapsed":40.27773906290531,"count":4},
+    {"event":"proxy_cleanup","timestamp":1794500419.1999376,"elapsed":40.418518065009266,"cancel_requests":0},
+    {"event":"cleanup_removed","timestamp":1794500420.1892216,"elapsed":41.40780233591795,"path":"<private-run>/w5-k78jh_5t/primary"},
+    {"event":"cleanup_removed","timestamp":1794500420.2597315,"elapsed":41.47831210703589,"path":"<private-run>/w5-k78jh_5t/standby"},
+    {"event":"cleanup_removed","timestamp":1794500420.5162177,"elapsed":41.73479801509529,"path":"<private-run>/w5-k78jh_5t/target"},
+    {"event":"allocation_released","timestamp":1794500420.516481,"elapsed":41.735061346087605,"ports":[55500,55501,55502,55503,55504,55505,55506,55507,55508,55509]},
+    {"event":"cleanup_complete","timestamp":1794500420.5165348,"elapsed":41.73511497606523,"result":"pass","errors":[],"raw_evidence":"<private-run>/w5-k78jh_5t"},
+    {"event":"failure","timestamp":1794500419.0592387,"elapsed":40.27781871100888,"type":"AssertionError","message":"OPS-49 non-standby COMMIT reply delay must consume retry budget"}
+  ]
+}

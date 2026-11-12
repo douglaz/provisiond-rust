@@ -77,12 +77,22 @@ not every operation kind in CNF-366, complete CNF-365, or deployment-wide CNF-37
 The process-death drill restores the same designated standby on unchanged history; it does not
 exercise a promotion incident, production supervisor policy or loss of observer access.
 
-**OPS-49 sent-COMMIT accounting remains a known stopped path.** On the unchanged runtime,
-a reply withheld for 2197 ms after the server finished COMMIT consumed only 21 ms of the
-2000 ms retry budget. The implementation still exempts the entire sent-COMMIT interval,
-although OPS-49 exempts only actual standby wait. D-36 records the reproducer, impact and
-measurement decision needed. The passing ten-phase run does not establish this requirement
-or full W5 acceptance. No policy, timeout, pool size or accepted deployment profile was changed.
+**OPS-49 accounting is implemented for the supported engine paths, with conservative observation.**
+One dedicated checked read-only observer, outside the pools, samples registered COMMITs every
+20 ms. Exact pid and backend start, active state, SyncRep wait and store COMMIT text are required.
+Only spans inside uninterrupted matching runs are exempt; missing/failed/mismatched observations,
+reconnect gaps, idle reply delay and ordinary backoff stay charged. A receipt's completion charges
+its complete attempt once, without abandoning a sent COMMIT. Engine startup includes the observer
+and transient generation session in its ordinary capacity check; the API gets no such observer.
+The final run records real wait, mixed wait/reply delay, observer failure and checked re-establishment,
+original stop precedence, and same-driver unchanged-runtime reds. D-36 is settled by that evidence.
+
+The accepted limits remain: observer loss during a standby stall followed by a lost COMMIT reply
+can cause one alarmed ordinary exhaustion exit without money loss; a live transport that answers
+keepalives but withholds the COMMIT reply forever triggers no accounting exit. The PostgreSQL 18.6
+one-contiguous-SyncRep-wait-per-COMMIT source premise is **unverified** here. D-39 distinguishes
+executed attribution from source assumptions and production parameter selection. No timeout,
+pool bound or deployment profile was changed. Independent acceptance is separate from these runs.
 
 - A local two-process PostgreSQL cluster tests PostgreSQL behaviour. It does not demonstrate
   failure-domain independence, arbitrary hardware durability or production fencing.
@@ -276,7 +286,7 @@ Supported traffic configurations must allow list, balance and machine reads at t
 not select production capacities or close D-6/7/8/9.
 
 The canonical runner requires ten phases and retains the full W1–W3 inventory plus the workflow,
-default-feature workflow, W5 and thirty-three sensitivity controls. Historical W3 evidence above
+default-feature workflow, W5 and thirty-four sensitivity controls. Historical W3 evidence above
 retains its original source identity. Fresh W4 evidence is recorded separately. Default API startup
 checks build into a separate target directory. The workflow records executable hashes and feature
 modes for API/engine/migrator builds
