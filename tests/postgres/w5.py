@@ -39,6 +39,15 @@ def events(p, kind=None):
     return [e for e in rows if kind is None or e.get('event')==kind]
 
 
+def publish_control(path, value):
+    """Publish complete payloads: existence is the executable's request signal."""
+    import os
+    pending=path.with_name(path.name+'.pending')
+    # This invocation owns the private control directory and this exact path.
+    with pending.open('x') as stream:stream.write(value)
+    os.replace(pending,path)
+
+
 def snapshot(w, op):
     """STO-3/23/28: compare complete durable status, machine and money rows."""
     import json
@@ -224,7 +233,7 @@ def step8(w):
             if arm=='failure':
                 fail.touch();hold.unlink();w.wait_status(op,'failed');w.stop_engine()
             elif arm=='stop':
-                (w.control/'stop-operation').write_text(op);reaped(w,p)
+                publish_control(w.control/'stop-operation',op);reaped(w,p)
             else:
                 p.kill();p.wait(timeout=5)
                 w.h.event('w5_engine_crash',operation=op,exit_status=p.returncode,recorded=False)
@@ -354,12 +363,12 @@ def stop_record(w):
                 eventually(lambda:any(e.get('operation')==op for e in events(p,'dispatch_step_held')))
                 pause=pause_dispatch(w,p)
                 gate=h.proxy.arm('SET status=$3,result=','send')
-                (w.control/'stop-operation').write_text(op)
+                publish_control(w.control/'stop-operation',op)
             else:
                 gate.wait()
                 assert any(e.get('operation')==op for e in events(p,'execute_returned'))
                 pause=pause_dispatch(w,p)
-                (w.control/'stop-operation').write_text(op)
+                publish_control(w.control/'stop-operation',op)
                 eventually(lambda:any(e.get('operation')==op for e in events(p,'stop_record_started')))
             connection=gate.wait()
             start=[e for e in events(p,'stop_record_started') if e.get('operation')==op];assert len(start)==1 and start[0]['bound_ms']==1000
@@ -407,7 +416,7 @@ def generation_record(w):
         eventually(lambda:any(e.get('operation')==op and e.get('step')==9 for e in events(p,'dispatch_step_held')))
         pause_dispatch(w,p)
         gate=h.proxy.arm('FOR SHARE /* OPS-50 first statement */','send')
-        (w.control/'stop-operation').write_text(op)
+        publish_control(w.control/'stop-operation',op)
         connection=gate.wait();before=snapshot(w,op)
         old=h.sql('SELECT generation FROM provisiond.startup_generation')
         new=h.sql('UPDATE provisiond.startup_generation SET generation=gen_random_uuid() RETURNING generation')
@@ -447,7 +456,7 @@ def lock_loss(w):
             lock=events(p,'startup_lock_acquired')[-1]['session']
             gate=h.proxy.arm('SET status=$3,result=','send')
             if arm=='returned_retry':hold.unlink()
-            else:(w.control/'stop-operation').write_text(op)
+            else:publish_control(w.control/'stop-operation',op)
             connection=gate.wait()
             if arm!='freeze':
                 first=connection
@@ -525,7 +534,7 @@ def retained_checkouts(w):
         # Let the isolated defect's closed-receiver branch run before checking.
         if w.defect=='w5_checkout':
             eventually(lambda:any(e.get('owner')==owner for e in events(w.api,'defect_checkout_released')))
-        (w.control/'observe-commit-owner').write_text(str(owner))
+        publish_control(w.control/'observe-commit-owner',str(owner))
         eventually(lambda:any(e.get('owner')==owner for e in events(w.api,'test_commit_checkout')))
         ownership=[e for e in events(w.api,'test_commit_checkout') if e.get('owner')==owner][-1]
         assert ownership['session']==pid and ownership['transport_dead'] is False
@@ -734,7 +743,7 @@ def default_hooks(w):
         for name in ('hold-http-response','cancel-disconnected','hold-step-9','later-stop','hold-dispatch'):
             path=w.control/name;path.touch();paths.append(path)
         op=w.request('POST','/v1/machines',body,t,'w5-default-success',status=202)['id']
-        stop=w.control/'stop-operation';stop.write_text(op);paths.append(stop)
+        stop=w.control/'stop-operation';publish_control(stop,op);paths.append(stop)
         p=w.start_engine();w.wait_status(op,'succeeded');w.stop_engine()
         assert not any(events(p,kind) for kind in ('test_stop_requested','test_dispatch_paused','dispatch_step_held','defect_provider_retry'))
         assert not events(w.api,'http_response_held') and not events(w.api,'http_handler_cancelled')
@@ -858,7 +867,7 @@ def generation_after_lost_record(w):
         eventually(lambda:any(e.get('operation')==op and e.get('step')==9 for e in events(p,'dispatch_step_held')))
         pause_dispatch(w,p)
         statement=h.proxy.arm('SET status=$3,result=','send')
-        (w.control/'stop-operation').write_text(op)
+        publish_control(w.control/'stop-operation',op)
         connection=statement.wait();pid=connection['pid']
         reply=h.proxy.arm('store COMMIT','commit_reply',session=pid)
         statement.release();reply.wait()
