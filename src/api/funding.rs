@@ -9,11 +9,17 @@ use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
 use std::{sync::Arc, time::Duration};
 
-pub(super) fn deposit_body(id: &str, amount: i64, expiry: i64, p: &Parameters) -> Value {
+pub(super) fn deposit_body(
+    id: &str,
+    index: i64,
+    amount: i64,
+    expiry: i64,
+    p: &Parameters,
+) -> Value {
     let expires = auth::time(expiry);
     json!({"id":id,"requested_sats":amount,"activation_minimum_sats":p.n("activation_sats"),"expires_at":expires,
  "lightning":{"invoice":format!("TEST/SIMULATOR/NONPAYABLE/LIGHTNING/{id}/EXPIRES/{expiry}"),"floor_sats":p.n("lightning_floor_sats"),"enforced":true},
- "onchain":{"address":format!("TEST/SIMULATOR/NONPAYABLE/ONCHAIN/{id}"),"floor_sats":p.n("onchain_floor_sats"),"enforced":false},
+ "onchain":{"address":format!("TEST/SIMULATOR/NONPAYABLE/ONCHAIN/INDEX/{index}"),"floor_sats":p.n("onchain_floor_sats"),"enforced":false},
  "disclosures":[
  {"code":"test_only","text":"NONPAYABLE TEST/SIMULATOR destinations. Never send real funds."},
  {"code":"onchain_expiry_unwatched","text":"After expires_at the on-chain address stays payable but is no longer watched; a late payment may be lost. During a solvency halt it stays payable and observed payments are credited as unsecured claims."},
@@ -141,6 +147,72 @@ pub(super) async fn watch(
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+}
+
+/// STO-54(3), STO-31/32, SEC-39: listener remains down until the replay and
+/// forward-only credential/index writes have an acknowledged durable step mark.
+pub(super) async fn recover(
+    store: Arc<Store>,
+    p: &Parameters,
+    address: std::net::SocketAddr,
+) -> Result<()> {
+    let incident = crate::recovery::current(&store).await?;
+    if incident.is_null() || incident["steps_completed"] == 3 {
+        return Ok(());
+    }
+    ensure!(
+        incident["legacy"] == false && incident["steps_completed"] == 2,
+        "recovery phase 2 must precede API recovery"
+    );
+    let id = incident["id"].as_str().context("incident ID")?;
+    let component = store.component();
+    let watches=store.value("SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'invoice',invoice,'address',address) ORDER BY expires_at,id),'[]'::jsonb)::text FROM provisiond.deposits WHERE expires_at>statement_timestamp()", &[]).await?;
+    component.trace(json!({"event":"recovery_watch_set_derived","incident":id,"deposits":watches.as_array().context("watch set")?.iter().map(|v|v["id"].clone()).collect::<Vec<_>>(),"query_bound":"unexpired deposits"}));
+    let observations = {
+        let _permit = component.external(crate::store::ExternalKind::Rail)?;
+        http::call(
+            address,
+            "GET",
+            "/settlements",
+            &json!({}),
+            Duration::from_secs(2),
+        )
+        .await?
+    };
+    for observation in observations.as_array().context("rail replay array")? {
+        if watches
+            .as_array()
+            .expect("validated watch set")
+            .iter()
+            .any(|d| {
+                d["invoice"] == observation["destination"]
+                    || d["address"] == observation["destination"]
+            })
+        {
+            credit(&component, &store, p, observation).await?;
+        }
+    }
+    let mut tx = component.begin().await?;
+    crate::recovery::lock(&mut tx).await?;
+    let rows=tx.rows("SELECT steps_completed,rederivation_seconds,derivation_gap FROM provisiond.recovery_incidents WHERE id=$1::text::uuid AND closed_at IS NULL FOR UPDATE", &[&id]).await?;
+    ensure!(rows.len() == 1, "incident changed during rail replay");
+    if rows[0].get::<_, i32>(0) == 2 {
+        // Re-derive surviving usage rather than clear counters. Lost admissions
+        // are not reconstructed entitlement; surviving larger counters remain.
+        let interval = p.n("ceiling_seconds");
+        tx.rows("WITH boundary AS (SELECT floor(extract(epoch FROM transaction_timestamp())/$1::bigint)::bigint*$1::bigint AS start), counts AS (SELECT tenant_id AS principal,'machines_created'::text AS ceiling,count(*)::bigint AS used FROM provisiond.operations,boundary WHERE kind='create' AND created_at>=to_timestamp(start) GROUP BY tenant_id UNION ALL SELECT tenant_id,'machines_destroyed',count(*)::bigint FROM provisiond.operations,boundary WHERE kind='delete' AND requested_by='caller' AND created_at>=to_timestamp(start) GROUP BY tenant_id UNION ALL SELECT tenant_id,'spend',sum(COALESCE(admitted_sats,0))::bigint FROM provisiond.operations,boundary WHERE kind='create' AND created_at>=to_timestamp(start) GROUP BY tenant_id) INSERT INTO provisiond.ceiling_counters(principal,ceiling,interval_start,used) SELECT principal,ceiling,start,used FROM counts,boundary ON CONFLICT(principal,ceiling,interval_start) DO UPDATE SET used=greatest(provisiond.ceiling_counters.used,EXCLUDED.used) RETURNING principal", &[&interval]).await?;
+        tx.rows("UPDATE provisiond.tenants SET credential_generation=credential_generation+1 RETURNING id", &[]).await?;
+        // Sequence allocation is nontransactional and only moves forward on an
+        // interrupted unmarked repeat. Never reset it to max(restored rows).
+        tx.rows("SELECT setval('provisiond.deposit_derivation_index',greatest((SELECT last_value FROM provisiond.deposit_derivation_index),(SELECT COALESCE(max(derivation_index),0) FROM provisiond.deposits))+$1::bigint,true)", &[&rows[0].get::<_,i64>(2)]).await?;
+        tx.rows("UPDATE provisiond.recovery_incidents SET steps_completed=3,grace_ends_at=transaction_timestamp()+rederivation_seconds*interval '1 second' WHERE id=$1::text::uuid AND steps_completed=2 RETURNING id", &[&id]).await?;
+    }
+    ensure!(
+        component.commit(tx)?.wait().await? == CommitOutcome::Acknowledged,
+        "API recovery phase 3 unacknowledged; listener remains closed"
+    );
+    component.trace(json!({"event":"recovery_step_acknowledged","incident":id,"step":3}));
+    Ok(())
 }
 
 // LDG-20/54/55: closing the simulator invoice cannot close an on-chain address.

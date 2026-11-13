@@ -229,3 +229,36 @@ pub async fn close(store: &Store, id: &str) -> Result<()> {
     );
     Ok(())
 }
+
+/// STO-54/56: a local database operator explicitly disposes a held parent. This
+/// adds no suspension enqueuer or fan-out worker to the simulator profile.
+pub async fn parent(
+    store: &Store,
+    incident: &str,
+    operation: &str,
+    disposition: &str,
+) -> Result<()> {
+    ensure!(
+        matches!(disposition, "confirmed" | "cancelled"),
+        "invalid parent disposition"
+    );
+    uuid::Uuid::parse_str(incident)?;
+    uuid::Uuid::parse_str(operation)?;
+    let mut tx = store.begin().await?;
+    lock(&mut tx).await?;
+    let rows=tx.rows("SELECT o.tenant_id FROM provisiond.recovery_waiting_parents p JOIN provisiond.operations o ON o.id=p.operation_id JOIN provisiond.recovery_incidents r ON r.id=p.incident_id WHERE r.id=$1::text::uuid AND r.closed_at IS NULL AND o.id=$2::text::uuid AND o.kind='suspend_tenant'", &[&incident,&operation]).await?;
+    let tenant: String = rows
+        .first()
+        .context("no waiting parent in current incident")?
+        .get(0);
+    tx.serialize_tenants(&[&tenant]).await?;
+    tx.rows("UPDATE provisiond.recovery_waiting_parents SET disposition=$3 WHERE incident_id=$1::text::uuid AND operation_id=$2::text::uuid AND (disposition IS NULL OR disposition=$3) RETURNING operation_id", &[&incident,&operation,&disposition]).await?;
+    if disposition == "cancelled" {
+        tx.rows("UPDATE provisiond.operations SET status='failed',request=NULL,error=COALESCE(error,jsonb_build_object('kind','internal','message','recovery parent cancelled by operator','retryable',false,'details','{}'::jsonb)),revision=revision+1,updated_at=transaction_timestamp() WHERE id=$1::text::uuid AND status IN ('queued','running','needs_reconciliation') RETURNING id", &[&operation]).await?;
+    }
+    ensure!(
+        store.commit(tx)?.wait().await? == CommitOutcome::Acknowledged,
+        "parent decision unacknowledged"
+    );
+    Ok(())
+}

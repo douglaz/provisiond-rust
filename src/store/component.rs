@@ -236,6 +236,21 @@ impl EngineDatabase {
         if !super::test_defect("startup_order") {
             store.compatible_schema().await?;
         }
+        // STO-56/STO-54(1): initial incident decision precedes the lifetime lock.
+        // A distinct operator recovery actor owns the pre-lock status writes;
+        // OPS-15's first engine write remains the generation-only transaction.
+        if !super::test_defect("startup_order") {
+            let incident = crate::recovery::current(&store).await?;
+            (store.trace)(
+                json!({"event":"recovery_startup_decision","component":"engine","incident":incident}),
+            );
+            ensure!(
+                incident.is_null()
+                    || incident["legacy"] == false
+                        && incident["steps_completed"].as_i64().unwrap_or(0) >= 1,
+                "open recovery incident unsupported or pre-lock preparation unacknowledged"
+            );
+        }
         let keepalives = StartupKeepalives::local_profile(&store.settings)?;
         let lock = keepalives.connect(&store).await?;
         let capacity=lock.scalar("SELECT (current_setting('max_connections')::int-current_setting('superuser_reserved_connections')::int-current_setting('reserved_connections')::int)::text").await?.parse::<usize>()?;

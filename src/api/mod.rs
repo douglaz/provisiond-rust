@@ -229,7 +229,7 @@ impl State {
             .and_then(|s| s.strip_prefix("Bearer "))
             .unwrap_or("");
         let digest = wire::digest(token.as_bytes());
-        let tenant=self.store.value("SELECT COALESCE((SELECT jsonb_build_object('id',id,'status',status,'digest',credential_digest) FROM provisiond.tenants WHERE credential_digest=$1),'null'::jsonb)::text",&[&digest]).await?;
+        let tenant=self.store.value("SELECT COALESCE((SELECT jsonb_build_object('id',id,'status',status,'digest',credential_digest) FROM provisiond.tenants WHERE credential_digest=$1 AND issued_credential_generation=credential_generation),'null'::jsonb)::text",&[&digest]).await?;
         let stored = tenant["digest"]
             .as_str()
             .unwrap_or("0000000000000000000000000000000000000000000000000000000000000000");
@@ -246,6 +246,91 @@ impl State {
             .into());
         }
         Ok(tenant)
+    }
+    /// API-56/WIR-38/API-7: recovery-only maintenance, serialized per tenant.
+    /// No response containing a live bearer is retained for replay.
+    async fn revoke(&self, r: &Request, source: IpAddr) -> Result<(u16, Value)> {
+        let token = r
+            .headers
+            .get("authorization")
+            .and_then(|v| v.strip_prefix("Bearer "))
+            .unwrap_or("");
+        let digest = wire::digest(token.as_bytes());
+        let tenant = self.store.value("SELECT COALESCE((SELECT jsonb_build_object('id',id,'digest',recovery_digest) FROM provisiond.tenants WHERE recovery_digest=$1),'null'::jsonb)::text", &[&digest]).await?;
+        if token.is_empty()
+            || tenant.is_null()
+            || !bool::from(
+                digest
+                    .as_bytes()
+                    .ct_eq(tenant["digest"].as_str().unwrap_or("").as_bytes()),
+            )
+        {
+            self.rate(&format!("source:{source}"), true)?;
+            return Err(Error::new(
+                "authentication",
+                "recovery credential required",
+                false,
+                json!({"reason":"token"}),
+            )
+            .into());
+        }
+        let id = tenant["id"].as_str().context("recovery tenant")?;
+        self.rate(id, true)?;
+        let key = r
+            .headers
+            .get("idempotency-key")
+            .map(String::as_str)
+            .unwrap_or("");
+        ensure!(
+            (8..=200).contains(&key.len())
+                && key
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"._:-".contains(&b)),
+            Error::new(
+                "invalid_request",
+                "invalid idempotency key",
+                false,
+                json!({})
+            )
+        );
+        let body = wire::parse(&r.body)?;
+        wire::least(wire::unknown(&body, &[]))?;
+        let fingerprint = wire::fingerprint(&r.method, &r.target, &body);
+        let component = self.store.component();
+        let mut tx = component.begin().await?;
+        tx.serialize_tenants(&[id]).await?;
+        let prior = tx.rows("SELECT fingerprint FROM provisiond.credential_replacements WHERE tenant_id=$1 AND key=$2", &[&id,&key]).await?;
+        if let Some(row) = prior.first() {
+            return Err(Error::conflict(if row.get::<_, String>(0) == fingerprint {
+                "credential_already_replaced"
+            } else {
+                "idempotency_mismatch"
+            })
+            .into());
+        }
+        // STO-35 principal keys also conflict with ordinary retained requests.
+        ensure!(tx.rows("SELECT key FROM provisiond.idempotency_records WHERE scope_kind='tenant' AND scope_id=$1 AND key=$2", &[&id,&key]).await?.is_empty(),Error::conflict("idempotency_mismatch"));
+        let replacement = auth::secret("pvd_s_")?;
+        let rows = tx.rows("UPDATE provisiond.tenants SET credential_digest=$2,credential_generation=credential_generation+1,issued_credential_generation=credential_generation+1 WHERE id=$1 AND recovery_digest=$3 RETURNING credential_generation,provisiond.wire_time(transaction_timestamp())", &[&id,&wire::digest(replacement.as_bytes()),&digest]).await?;
+        let row = rows.first().ok_or_else(|| {
+            Error::new(
+                "authentication",
+                "recovery credential expired",
+                false,
+                json!({"reason":"token"}),
+            )
+        })?;
+        let generation: i64 = row.get(0);
+        let revoked_at: String = row.get(1);
+        tx.rows("INSERT INTO provisiond.credential_replacements(tenant_id,key,fingerprint) VALUES($1,$2,$3) RETURNING key", &[&id,&key,&fingerprint]).await?;
+        ensure!(
+            component.commit(tx)?.wait().await? == CommitOutcome::Acknowledged,
+            "credential replacement unacknowledged; use recovery credential with a fresh key"
+        );
+        Ok((
+            200,
+            json!({"spending_token":replacement,"credential_generation":generation,"revoked_at":revoked_at}),
+        ))
     }
     async fn receipt(
         &self,
@@ -404,6 +489,9 @@ impl State {
         if operator_route(&r.method, path) {
             return Err(Error::missing().into());
         }
+        if path == "/v1/recovery/revoke" && r.method == "POST" {
+            return self.revoke(r, source).await;
+        }
         // API-3/29/50: identify valid callers through the ordinary checked read
         // before consulting the failed-auth source allowance. That allowance
         // must not block unrelated principals sharing an address. Credential
@@ -520,6 +608,15 @@ impl State {
             json!({"event":"http_business_begin","correlation_id":correlation,"tenant":id,"key_digest":wire::digest(key.as_bytes())}),
         );
         tx.serialize_tenants(&[id]).await?;
+        ensure!(
+            tx.rows(
+                "SELECT key FROM provisiond.credential_replacements WHERE tenant_id=$1 AND key=$2",
+                &[&id, &key]
+            )
+            .await?
+            .is_empty(),
+            Error::conflict("idempotency_mismatch")
+        );
         let prior=tx.rows("SELECT fingerprint FROM provisiond.idempotency_records WHERE scope_kind='tenant' AND scope_id=$1 AND key=$2",&[&id,&key]).await?;
         if !prior.is_empty() {
             tx.rollback().await?;
@@ -605,15 +702,22 @@ impl State {
             return Err(Error::conflict("signup_window_closed").into());
         }
         let id = uuid::Uuid::new_v4().to_string();
+        // STO-54/STO-28: the simulator address is derived from the allocated
+        // index, so a rollback fixture can actually detect address reuse.
+        let index: i64 = tx
+            .rows("SELECT nextval('provisiond.deposit_derivation_index')", &[])
+            .await?[0]
+            .get(0);
         let body = funding::deposit_body(
             &id,
+            index,
             v["amount_sats"].as_i64().context("amount")?,
             expiry,
             &self.p,
         );
         let invoice = body["lightning"]["invoice"].as_str().context("invoice")?;
         let address = body["onchain"]["address"].as_str().context("address")?;
-        tx.rows("INSERT INTO provisiond.deposits(id,tenant_id,requested_sats,payment_hash,address,derivation_index,idempotency_key,expires_at,invoice) VALUES($1::text::uuid,$2,$3,$4,$5,nextval('provisiond.deposit_derivation_index'),$6,$7::text::timestamptz,$8) RETURNING id",&[&id,&tenant,&v["amount_sats"].as_i64(),&wire::digest(id.as_bytes()),&address,&key,&auth::time(expiry),&invoice]).await?;
+        tx.rows("INSERT INTO provisiond.deposits(id,tenant_id,requested_sats,payment_hash,address,derivation_index,idempotency_key,expires_at,invoice) VALUES($1::text::uuid,$2,$3,$4,$5,$9,$6,$7::text::timestamptz,$8) RETURNING id",&[&id,&tenant,&v["amount_sats"].as_i64(),&wire::digest(id.as_bytes()),&address,&key,&auth::time(expiry),&invoice,&index]).await?;
         tx.rows("INSERT INTO provisiond.idempotency_records(scope_kind,scope_id,key,fingerprint,resource_kind,resource_id,status,response_body,expires_at) VALUES('tenant',$1,$2,$3,'deposit',$4::text::uuid,200,$5::text::jsonb,transaction_timestamp()+$6::bigint*interval '1 second') RETURNING resource_id",&[&tenant,&key,&fingerprint,&id,&body.to_string(),&self.p.n("receipt_seconds")]).await?;
         Ok((200, body))
     }
@@ -1166,6 +1270,14 @@ fn decode_query(s: &str) -> Option<String> {
 pub async fn serve(store: Store, trace: Trace) -> Result<()> {
     store.compatible_schema().await?;
     let store = Arc::new(store);
+    let incident = crate::recovery::current(&store).await?;
+    trace(json!({"event":"recovery_startup_decision","component":"api","incident":incident}));
+    ensure!(
+        incident.is_null()
+            || incident["legacy"] == false
+                && incident["steps_completed"].as_i64().unwrap_or(0) >= 2,
+        "open recovery incident unsupported or pre-claim phase unacknowledged"
+    );
     let p = Parameters::load()?;
     // OVR-10b, STO-13: validate the whole local service configuration before
     // binding or reporting readiness. --check-schema never enters this path.
@@ -1211,6 +1323,7 @@ pub async fn serve(store: Store, trace: Trace) -> Result<()> {
         trace: trace.clone(),
         operators,
     });
+    funding::recover(store.clone(), &p, rail_address).await?;
     let operator_listener = if let Some(authority) = &state.operators {
         Some(TcpListener::bind(authority.address).await?)
     } else {
@@ -1419,6 +1532,9 @@ async fn housekeeping(store: Arc<Store>, p: Parameters) -> Result<()> {
     let component = store.component();
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
+        if crate::recovery::frozen(&store).await? {
+            continue;
+        }
         let probe = format!(
             "SELECT to_json(EXISTS(SELECT 1 FROM provisiond.enrolments e JOIN provisiond.tenants t ON t.id=e.tenant_id WHERE t.status='pending' AND e.expires_at<statement_timestamp()) OR EXISTS(SELECT 1 FROM {SETTLED_RETENTION} due))::text"
         );
@@ -1427,6 +1543,12 @@ async fn housekeeping(store: Arc<Store>, p: Parameters) -> Result<()> {
             continue;
         }
         let mut tx = component.begin().await?;
+        // STO-54: serialize the live freeze check with new establishment/marks.
+        crate::recovery::lock(&mut tx).await?;
+        if !tx.rows("SELECT id FROM provisiond.recovery_incidents WHERE closed_at IS NULL AND (grace_ends_at IS NULL OR grace_ends_at>transaction_timestamp())", &[]).await?.is_empty() {
+            tx.rollback().await?;
+            continue;
+        }
         tx.rows("SELECT pg_advisory_xact_lock(1347572816,0)", &[])
             .await?;
         let expired=tx.rows("SELECT e.tenant_id FROM provisiond.enrolments e JOIN provisiond.tenants t ON t.id=e.tenant_id WHERE t.status='pending' AND e.expires_at<transaction_timestamp() AND NOT EXISTS(SELECT 1 FROM provisiond.deposits d WHERE d.tenant_id=t.id AND d.expires_at+$1::bigint*interval '1 second'>transaction_timestamp()) ORDER BY e.tenant_id",&[&p.n("finality_seconds")]).await?;
