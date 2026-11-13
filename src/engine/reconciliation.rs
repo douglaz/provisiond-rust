@@ -29,7 +29,10 @@ impl Engine {
         execution: Option<&Execution>,
     ) -> Result<std::result::Result<Value, crate::wire::Error>> {
         let account = body["account"].as_str().context("provider account")?;
-        if !self.credential_healthy(component, account).await? {
+        if !self
+            .credential_healthy(component, account, execution)
+            .await?
+        {
             return Ok(Err(crate::wire::Error::conflict("state")));
         }
         let result = if let Some(execution) = execution {
@@ -56,7 +59,10 @@ impl Engine {
     ) -> Result<Value> {
         let account = body["account"].as_str().context("provider account")?;
         let descriptor = d.catalog.get(account).context("provider descriptor")?;
-        if !self.credential_healthy(component, account).await? {
+        if !self
+            .credential_healthy(component, account, Some(execution))
+            .await?
+        {
             return Err(crate::wire::Error::conflict("state").into());
         }
         let permit = {
@@ -85,7 +91,12 @@ impl Engine {
             .credential_result(component, account, path, result?)
             .await??)
     }
-    async fn credential_healthy(&self, component: &Component, account: &str) -> Result<bool> {
+    async fn credential_healthy(
+        &self,
+        component: &Component,
+        account: &str,
+        execution: Option<&Execution>,
+    ) -> Result<bool> {
         if self
             .rejected_credentials
             .lock()
@@ -95,12 +106,14 @@ impl Engine {
             return Ok(false);
         }
         let query_account = account.to_owned();
-        let healthy = self.transaction(component, move |tx| {
+        // OPS-21/49: this worker read may finish a sent attempt, but a stop
+        // forbids beginning or repeating another transaction before dispatch.
+        let healthy = self.transaction_stoppable(component, &mut move |tx| {
             let account = query_account.clone();
             Box::pin(async move {
                 Ok(tx.rows("SELECT status='healthy' FROM provisiond.provider_account_status WHERE provider_account=$1", &[&account]).await?.first().is_some_and(|row| row.get::<_,bool>(0)))
             })
-        }).await?;
+        }, execution.map(|e| &e.stopped), None).await?;
         Ok(healthy
             && !self
                 .rejected_credentials
