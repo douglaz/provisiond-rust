@@ -3,6 +3,46 @@ use super::*;
 use crate::store::Resolution;
 
 impl Engine {
+    /// PRV-41: every reconciliation read and key cleanup uses the same durable
+    /// credential stop. A pending snapshot never licenses a later rejected call.
+    async fn reconciliation_call(
+        &self,
+        component: &Component,
+        d: &Dispatcher,
+        descriptor: &Value,
+        path: &str,
+        body: &Value,
+    ) -> Result<std::result::Result<Value, crate::wire::Error>> {
+        let account = body["account"]
+            .as_str()
+            .context("evidence account")?
+            .to_owned();
+        let query_account = account.clone();
+        let healthy = self.transaction(component, move |tx| {
+            let account = query_account.clone();
+            Box::pin(async move {
+                Ok(tx.rows("SELECT status='healthy' FROM provisiond.provider_account_status WHERE provider_account=$1", &[&account]).await?.first().is_some_and(|row| row.get::<_,bool>(0)))
+            })
+        }).await?;
+        if !healthy {
+            return Ok(Err(crate::wire::Error::conflict("state")));
+        }
+        let result = d.client.call(component, descriptor, path, body).await;
+        if result
+            .as_ref()
+            .is_err_and(|error| error.0["kind"] == "authentication")
+        {
+            component.trace(json!({"event":"provider_credentials_rejected","provider_account":account,"path":path,"scheduled_retry":false}));
+            self.transaction(component, move |tx| {
+                let account = account.clone();
+                Box::pin(async move {
+                    tx.rows("UPDATE provisiond.provider_account_status SET status='credentials_rejected',source='provider',observed_at=clock_timestamp() WHERE provider_account=$1 AND status<>'terminated' RETURNING provider_account", &[&account]).await?;
+                    Ok(())
+                })
+            }).await?;
+        }
+        Ok(result)
+    }
     // OPS-49 fixture: retain completed read-only evidence without a store owner.
     // Ordinary binaries never read this file or pause their reconciliation.
     async fn reconciliation_read_boundary(
@@ -48,15 +88,15 @@ impl Engine {
         let external = row["request_summary"]["external_id"]
             .as_str()
             .context("retained delete identity")?;
-        let result = d
-            .client
-            .call(
+        let result = self
+            .reconciliation_call(
                 component,
+                d,
                 descriptor,
                 "/get",
                 &json!({"account":account,"operation":id,"external_id":external,"resolution":true}),
             )
-            .await;
+            .await?;
         let observed_at = chrono::Utc::now();
         let verb = match result {
             Ok(v)
@@ -109,13 +149,13 @@ impl Engine {
         // pool checkout is retained across the provider reads below.
         let component = self.component();
         let pending=self.transaction(&component,|tx|Box::pin(async move {
-            // OPS-33: inability to search an account must not freeze money.
-            // This is local bookkeeping, independent of provider read eligibility.
-            // A retained positive in-progress match remains exempt from this timer.
-            let expired=tx.rows("SELECT o.id::text,o.tenant_id FROM provisiond.operations o JOIN provisiond.provider_accounts a ON a.account=o.provider_account JOIN provisiond.provider_account_status s ON s.provider_account=o.provider_account WHERE o.kind='create' AND o.status='needs_reconciliation' AND o.resolution IS NULL AND s.status<>'healthy' AND COALESCE(o.error->'details'->'reconciliation'->>'in_progress','false')<>'true' AND clock_timestamp()>=COALESCE(o.mutation_wait_ended_at,o.updated_at)+(a.descriptor->>'negative_seconds')::bigint*interval '1 second' AND EXISTS(SELECT 1 FROM provisiond.commitments c WHERE c.id=o.commitment_id AND c.state='open') ORDER BY o.tenant_id,o.id",&[]).await?;
-            for row in expired {
+            // OPS-33: normalize older unresolved rows once, before any mutable
+            // evidence write. New startup classifications already have an origin.
+            let legacy=tx.rows("SELECT id::text,tenant_id FROM provisiond.operations WHERE status='needs_reconciliation' AND mutation_wait_ended_at IS NULL ORDER BY tenant_id,id",&[]).await?;
+            for row in legacy {
                 let id:String=row.get(0);let tenant:String=row.get(1);
-                tx.release_negative(&id,&tenant).await?;
+                crate::ledger::serialize(tx,&[&tenant]).await?;
+                tx.rows("UPDATE provisiond.operations SET mutation_wait_ended_at=updated_at WHERE id=$1::text::uuid AND tenant_id=$2 AND status='needs_reconciliation' AND mutation_wait_ended_at IS NULL RETURNING id",&[&id,&tenant]).await?;
             }
             let rows=tx.rows("SELECT COALESCE(jsonb_agg(to_jsonb(o)||jsonb_build_object('wait_ended',COALESCE(o.mutation_wait_ended_at,o.updated_at),'effective_visibility',greatest(COALESCE((a.descriptor->>'visibility_seconds')::numeric,1),COALESCE((SELECT max(extract(epoch FROM p.observed_at-p.dispatched_at)) FROM provisiond.provider_observations p WHERE p.provider_account=o.provider_account),0)))),'[]')::text FROM provisiond.operations o JOIN provisiond.provider_accounts a ON a.account=o.provider_account WHERE o.status='needs_reconciliation' AND o.resolution IS NULL AND EXISTS(SELECT 1 FROM provisiond.provider_account_status s WHERE s.provider_account=o.provider_account AND s.status='healthy')",&[]).await?;
             Ok(serde_json::from_str::<Value>(&rows[0].get::<_,String>(0))?)
@@ -136,6 +176,17 @@ impl Engine {
                     .await?;
             }
         }
+        // OPS-33 is local money bookkeeping, independent of PRV-36 read
+        // eligibility and credential health. Run after eligible evidence reads
+        // so a newly observed in-progress match is retained before this check.
+        self.transaction(&component,|tx|Box::pin(async move {
+            let expired=tx.rows("SELECT o.id::text,o.tenant_id FROM provisiond.operations o JOIN provisiond.provider_accounts a ON a.account=o.provider_account JOIN provisiond.provider_account_status s ON s.provider_account=o.provider_account WHERE o.kind='create' AND o.status='needs_reconciliation' AND o.resolution IS NULL AND COALESCE(o.error->'details'->'reconciliation'->>'in_progress','false')<>'true' AND clock_timestamp()>=COALESCE(o.mutation_wait_ended_at,o.updated_at)+(a.descriptor->>'negative_seconds')::bigint*interval '1 second' AND EXISTS(SELECT 1 FROM provisiond.commitments c WHERE c.id=o.commitment_id AND c.state='open') ORDER BY o.tenant_id,o.id",&[]).await?;
+            for row in expired {
+                let id:String=row.get(0);let tenant:String=row.get(1);
+                tx.release_negative(&id,&tenant).await?;
+            }
+            Ok(())
+        })).await?;
         for (account, descriptor) in &d.catalog {
             self.database.ensure_new_work()?;
             let account_owned = account.clone();
@@ -164,7 +215,7 @@ impl Engine {
             let mut visited = std::collections::BTreeSet::new();
             loop {
                 self.database.ensure_new_work()?;
-                let page=d.client.call(component,descriptor,"/enumerate",&json!({"account":account,"channel":channel,"cursor":cursor,"resolution":true})).await;
+                let page=self.reconciliation_call(component, d, descriptor,"/enumerate",&json!({"account":account,"channel":channel,"cursor":cursor,"resolution":true})).await?;
                 let Ok(page) = page else {
                     complete = false;
                     break;
@@ -232,15 +283,15 @@ impl Engine {
                 if !eligible {
                     continue;
                 }
-                match d
-                    .client
-                    .call(
+                match self
+                    .reconciliation_call(
                         component,
+                        d,
                         descriptor,
                         "/get",
                         &json!({"account":account,"external_id":external,"resolution":true}),
                     )
-                    .await
+                    .await?
                 {
                     Ok(v) if v.is_null() => Some((true, v, chrono::Utc::now())),
                     Ok(v)
@@ -284,15 +335,15 @@ impl Engine {
         // OPS-32/PRV-9: key cleanup is independent of create resolution. A pending
         // operation or provisioning machine never licenses deletion of its key.
         if descriptor["temporary_keys"] == true {
-            if let Ok(keys) = d
-                .client
-                .call(
+            if let Ok(keys) = self
+                .reconciliation_call(
                     component,
+                    d,
                     descriptor,
                     "/keys/list",
                     &json!({"account":account,"resolution":true}),
                 )
-                .await
+                .await?
             {
                 for key in keys.as_array().context("temporary keys")? {
                     let Some(operation) = key["operation"]
@@ -304,15 +355,15 @@ impl Engine {
                     let id = operation.to_owned();
                     let eligible=self.transaction(component,move|tx|{let id=id.clone();Box::pin(async move{Ok(tx.rows("SELECT NOT EXISTS(SELECT 1 FROM provisiond.operations WHERE id::text=$1 AND status NOT IN ('succeeded','failed')) AND NOT EXISTS(SELECT 1 FROM provisiond.machines WHERE correlator_kind='operation_uuid' AND correlator_value=$1 AND state='provisioning')",&[&id]).await?[0].get::<_,bool>(0))})}).await?;
                     if eligible {
-                        let _ = d
-                            .client
-                            .call(
+                        let _ = self
+                            .reconciliation_call(
                                 component,
+                                d,
                                 descriptor,
                                 "/keys/delete",
                                 &json!({"account":account,"operation":operation}),
                             )
-                            .await;
+                            .await?;
                     }
                 }
             }
@@ -349,7 +400,7 @@ impl Engine {
         let mut identifiers = std::collections::BTreeSet::new();
         if authoritative {
             for channel in descriptor["channels"].as_array().context("channels")? {
-                let found=d.client.call(component,descriptor,"/search",&json!({"account":account,"operation":id,"correlator":row["correlator_value"],"channel":channel,"resolution":true})).await;
+                let found=self.reconciliation_call(component, d, descriptor,"/search",&json!({"account":account,"operation":id,"correlator":row["correlator_value"],"channel":channel,"resolution":true})).await?;
                 match found {
                     Ok(found) => {
                         authoritative &=
@@ -382,10 +433,6 @@ impl Engine {
                     Err(error) => {
                         authoritative = false;
                         component.trace(json!({"event":"resolution_read_refused","operation":id,"channel":channel,"kind":error.0["kind"]}));
-                        if error.0["kind"] == "authentication" {
-                            let account = account.to_owned();
-                            self.transaction(component,move |tx|{let account=account.clone();Box::pin(async move{tx.rows("UPDATE provisiond.provider_account_status SET status='credentials_rejected',source='provider',observed_at=clock_timestamp() WHERE provider_account=$1 AND status<>'terminated' RETURNING provider_account",&[&account]).await?;Ok(())})}).await?;
-                        }
                     }
                 }
             }
@@ -400,10 +447,10 @@ impl Engine {
         let mut resolution = None;
         if authoritative && resources.len() == 1 && !in_progress {
             let external = resources.keys().next().context("matched resource")?;
-            if let Ok(machine)=d.client.call(component,descriptor,"/get",&json!({"account":account,"operation":id,"external_id":external,"resolution":true})).await {
+            if let Ok(machine)=self.reconciliation_call(component, d, descriptor,"/get",&json!({"account":account,"operation":id,"external_id":external,"resolution":true})).await? {
                 let observed_at=chrono::Utc::now();
                 if machine["present"]==true && machine["external_id"]==*external && machine["account"]==account && (machine["correlator"]==row["correlator_value"] || crate::store::test_defect("w6_non_exact")) {
-                    let date=d.client.call(component,descriptor,"/constraints",&json!({"account":account,"operation":id,"external_id":external,"resolution":true})).await.ok().and_then(|v|v["earliest_cancellation_date"].as_str().map(str::to_owned));
+                    let date=self.reconciliation_call(component, d, descriptor,"/constraints",&json!({"account":account,"operation":id,"external_id":external,"resolution":true})).await?.ok().and_then(|v|v["earliest_cancellation_date"].as_str().map(str::to_owned));
                     resolution=Some(Resolution{id:id.into(),tenant:tenant.into(),verb:"observed".into(),resolver:"engine".into(),automatic:true,evidence:evidence.clone(),machine,earliest_date:date,observed_at});
                 } else if machine.is_null() || machine["present"]==false && machine["external_id"]==*external && machine["account"]==account {
                     resolution=Some(Resolution{id:id.into(),tenant:tenant.into(),verb:"absent".into(),resolver:"engine".into(),automatic:true,evidence:json!({"search":evidence,"direct_absence":true,"setup_fee_charged":resources[external]["setup_fee_charged"],"first_unit_charged":resources[external]["first_unit_charged"]}),machine:Value::Null,earliest_date:None,observed_at});
@@ -434,15 +481,12 @@ impl Engine {
             component.trace(json!({"event":"resolution_recorded","operation":operation,"resolution":verb,"affected":affected}));
         } else {
             // Positive, in-progress evidence is never a negative timeout.
-            let release =
-                age >= negative && !in_progress && (!authoritative || resources.len() != 1);
             let id = id.to_owned();
             let tenant = tenant.to_owned();
             self.transaction(component,move |tx|{let id=id.clone();let tenant=tenant.clone();let evidence=evidence.clone();Box::pin(async move{
                 crate::ledger::serialize(tx,&[&tenant]).await?;
                 let ids=evidence["provider_identifiers"].to_string();
                 tx.rows("UPDATE provisiond.operations SET resolution_attempted_at=clock_timestamp(),error=jsonb_set(error,'{details}',COALESCE(error->'details','{}')||jsonb_build_object('reconciliation', $2::text::jsonb,'provider_identifiers',COALESCE(error->'details'->'provider_identifiers','{}')||jsonb_build_object('reconciliation',$3::text::jsonb))),updated_at=CASE WHEN error->'details'->'reconciliation' IS DISTINCT FROM $2::text::jsonb THEN clock_timestamp() ELSE updated_at END,revision=revision+CASE WHEN error->'details'->'reconciliation' IS DISTINCT FROM $2::text::jsonb THEN 1 ELSE 0 END WHERE id=$1::text::uuid AND status='needs_reconciliation' AND resolution IS NULL RETURNING id",&[&id,&evidence.to_string(),&ids]).await?;
-                if release {tx.release_negative(&id,&tenant).await?;}
                 Ok(())
             })}).await?;
         }

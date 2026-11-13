@@ -357,11 +357,20 @@ impl Engine {
                 if rows.is_empty() {
                     // WIR-9b/API-51: unresolved mutations cannot safely be repeated;
                     // the read-only refresh exception retains retryable advice.
-                    rows=tx.rows("UPDATE provisiond.operations SET status=CASE WHEN kind='refresh' THEN 'failed' ELSE 'needs_reconciliation' END,error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',kind='refresh','details','{}'::jsonb)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' RETURNING kind,status,commitment_id::text",&[&id]).await?;
+                    // OPS-33: startup is a conservative upper bound on when the
+                    // interrupted wait ended. Persist it once, before evidence
+                    // writes can move updated_at or a later restart can renew it.
+                    rows=tx.rows("UPDATE provisiond.operations SET status=CASE WHEN kind='refresh' THEN 'failed' ELSE 'needs_reconciliation' END,error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',kind='refresh','details','{}'::jsonb)),mutation_wait_ended_at=COALESCE(mutation_wait_ended_at,clock_timestamp()),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' RETURNING kind,status,commitment_id::text",&[&id]).await?;
                 }
                 if let Some(row) = rows.first() {
                     if row.get::<_, String>(0) == "create" && row.get::<_, String>(1) == "failed" {
                         tx.release_create(&id, row.get::<_, Option<String>>(2).as_deref())
+                            .await?;
+                    }
+                    if row.get::<_, String>(0) == "delete" {
+                        // OPS-48: classification and current open episode state
+                        // commit together; the actual fence remains unchanged.
+                        tx.delete_episode_state(&id, &row.get::<_, String>(1), None)
                             .await?;
                     }
                     count += 1;

@@ -42,7 +42,7 @@ impl Transaction {
             "engine resolution requires generation fence"
         );
         ledger::serialize(self, &[tenant]).await?;
-        let rows=self.rows("UPDATE provisiond.operations SET resolution_attempted_at=clock_timestamp() WHERE id=$1::text::uuid AND tenant_id=$2 AND status='needs_reconciliation' AND kind='create' AND resolution IS NULL RETURNING commitment_id::text",&[&id,&tenant]).await?;
+        let rows=self.rows("UPDATE provisiond.operations SET resolution_attempted_at=clock_timestamp() WHERE id=$1::text::uuid AND tenant_id=$2 AND status='needs_reconciliation' AND kind='create' AND resolution IS NULL AND COALESCE(error->'details'->'reconciliation'->>'in_progress','false')<>'true' RETURNING commitment_id::text",&[&id,&tenant]).await?;
         if let Some(row) = rows.first() {
             self.rows("UPDATE provisiond.commitments SET state='closed',reserved_sats=0,closed_at=clock_timestamp(),version=version+1 WHERE id=$1::text::uuid AND state='open' RETURNING id",&[&row.get::<_,Option<String>>(0)]).await?;
             return Ok(true);
