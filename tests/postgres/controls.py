@@ -6,6 +6,10 @@ from harness import ROOT, cap_check
 import tempfile
 
 CONTROLS=[
+    ('w6_blind_repeat','w6','w6_positive','one purchase/no repeated order','w6_lost_reply_activated'),
+    ('w6_non_exact','w6','w6_conflicting','exact-correlator/no-attachment','w6_exact_observed'),
+    ('w6_release_timeout','w6','w6_empty','original-reservation-preserved before negative window','w6_lost_reply_activated'),
+    ('w6_skip_startup','w6','w6_startup','interrupted-running-row classification/count','w6_startup_observed'),
     ('w5_observer_run','w5','w5_accounting_failure_run','OPS-49 observer failure must close an established SyncRep sample run','w5_observer_run_closure_observed'),
     ('w5_stop_reset','w5','w5_stop_record','OPS-21 later stop arbitration must preserve original absolute deadline','w5_later_stop_arbitration_observed'),
     ('w5_generation','w5','w5_generation_record','OPS-50 stale generation record must refuse without retry','w5_generation_observed'),
@@ -44,11 +48,11 @@ CONTROLS=[
 ]
 
 
-def controls(seed,evidence,w5_only=False):
+def controls(seed,evidence,w5_only=False,w6_only=False):
     cap_check()
     root=Path(tempfile.mkdtemp(prefix='controls-',dir=ROOT))
     results=[]
-    required=[c for c in CONTROLS if c[0].startswith('w5_')] if w5_only else CONTROLS
+    required=[c for c in CONTROLS if c[0].startswith('w6_')] if w6_only else [c for c in CONTROLS if c[0].startswith('w5_')] if w5_only else CONTROLS
     # OPS-49: exercise the actual release helper with a retained checkout record,
     # without claiming a runtime leak. Keep these separate from runtime controls.
     from w5_release_control import sensitivity
@@ -66,6 +70,10 @@ def controls(seed,evidence,w5_only=False):
         observed=[e for e in events if e['event']==observation]
         valid=(child.returncode==1 and len(failures)==1 and failures[0].get('type')=='AssertionError'
             and failures[0].get('message')==assertion and cleanup and cleanup[-1]['result']=='pass' and observed)
+        if defect=='w6_blind_repeat':valid=valid and observed[-1].get('accepted_count')==2 and observed[-1].get('reply_delivered') is False
+        if defect=='w6_non_exact':valid=valid and observed[-1].get('search')=='wrong' and observed[-1].get('attached') is True
+        if defect=='w6_release_timeout':valid=valid and observed[-1]['snapshot']['commitment']['state']=='closed' and observed[-1]['snapshot']['commitment']['reserved_sats']==0
+        if defect=='w6_skip_startup':valid=valid and observed[-1].get('found')==0 and observed[-1].get('status')=='running' and observed[-1].get('closed_marker') is True
         if defect=='w5_observer_run':
             activated=observed[-1] if observed else {}
             valid=valid and activated.get('real_syncrep') is True and activated.get('established_run') is True and activated.get('run_still_open') is True and activated['closure']['before']==activated['closure']['after']
@@ -96,7 +104,7 @@ def controls(seed,evidence,w5_only=False):
             # The raw child retains its actual fail. The final red manifest records
             # why the parent recognizes that precise failure as the expected control.
             if evidence:
-                path=evidence.parent/(('w5-red-' if defect.startswith('w5_') else 'w4-red-' if defect.startswith('w4_') else 'w3-red-')+defect+'.json')
+                path=evidence.parent/(('w6-red-' if defect.startswith('w6_') else 'w5-red-' if defect.startswith('w5_') else 'w4-red-' if defect.startswith('w4_') else 'w3-red-')+defect+'.json')
                 manifest['command']=['nix','develop','--command',*command[:-1],'<run-dir>/control-manifest.json']
                 path.write_text(json.dumps(manifest,indent=2)+'\n')
                 results[-1]['evidence']=str(path)

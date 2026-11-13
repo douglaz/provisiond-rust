@@ -6,8 +6,8 @@ use crate::{
     wire::{self, Error},
 };
 pub struct Dispatcher {
-    client: Client,
-    catalog: BTreeMap<String, Value>,
+    pub(super) client: Client,
+    pub(super) catalog: BTreeMap<String, Value>,
 }
 impl Dispatcher {
     pub async fn load(engine: &Arc<Engine>) -> Result<Self> {
@@ -31,7 +31,7 @@ impl Engine {
     /// OPS-49: each preflight SELECT is a complete autocommit store unit.
     /// Release its session before backoff; never repeat any provider I/O here.
     /// OPS-21: cancelling a read is safe (unlike a sent COMMIT) and stops dispatch.
-    async fn preflight_value(
+    pub(super) async fn preflight_value(
         &self,
         c: &Claim,
         component: &Component,
@@ -91,7 +91,7 @@ impl Engine {
             return Ok(());
         }
         if let Some(c) = self.claim().await? {
-            if c.kind != "create" {
+            if !matches!(c.kind.as_str(), "create" | "delete") {
                 self.settle(
                     &c,
                     &Outcome::Settled {
@@ -135,7 +135,7 @@ impl Engine {
         let engine = self.clone();
         self.process.submit(async move{
    let _execution_slot=slot;
-   let returned=engine.run_order(&claim,&component,&execution,&dispatcher).await;
+   let returned=if claim.kind=="delete" {engine.run_delete(&claim,&component,&execution,&dispatcher).await} else {engine.run_order(&claim,&component,&execution,&dispatcher).await};
    match returned{
     Ok(Some(value))=>{*outcome.lock().expect("outcome")=Some(value);component.trace(json!({"event":"execute_returned","operation":claim.id,"claim_number":claim.number}));}
     Ok(None)=>{execution.done.store(true,Ordering::Release);engine.retire(&claim.id,claim.number);return;}
@@ -148,8 +148,8 @@ impl Engine {
      let uncertain_kind=matches!(error.0["kind"].as_str(),Some("network"|"timeout"|"internal")) || error.0["kind"]=="provider" && error.0["details"]["status"].as_u64().is_none_or(|code|code>=500) || error.0["kind"]=="conflict" && error.0["details"]["reason"]=="cut_off";
      let ambiguous=dispatched&&(uncertain_kind||error.0["details"]["accepted"]==true);
      if !dispatched && uncertain_kind {error.0["retryable"]=json!(true);}
-     if ambiguous{error.0["retryable"]=json!(false);error.0["details"]["attempted"]=json!("create_machine");}
-     *outcome.lock().expect("outcome")=Some(Outcome::Settled{status:if ambiguous{"needs_reconciliation"}else{"failed"}.into(),result:Value::Null,error:error.0});
+     if ambiguous{error.0["retryable"]=json!(false);error.0["details"]["attempted"]=json!(if claim.kind=="delete" {"delete_machine"}else{"create_machine"});}
+     *outcome.lock().expect("outcome")=Some(if claim.kind=="delete" {Outcome::DeleteFailure{error:error.0}} else {Outcome::Settled{status:if ambiguous{"needs_reconciliation"}else{"failed"}.into(),result:Value::Null,error:error.0}});
     }
    }
    execution.done.store(true,Ordering::Release);
@@ -158,7 +158,7 @@ impl Engine {
   })?;
         Ok(())
     }
-    async fn order_step(
+    pub(super) async fn order_step(
         &self,
         c: &Claim,
         component: &Component,
@@ -279,16 +279,16 @@ impl Engine {
             )
             .into());
         }
-        let offers = provider_io(
-            e,
-            d.client.call(
+        let offers = self
+            .credential_read(
                 component,
+                d,
                 descriptor,
                 "/offers",
                 &json!({"account":account,"operation":c.id}),
-            ),
-        )
-        .await?;
+                Some(e),
+            )
+            .await??;
         self.order_step(c, component, e, 5).await?;
         let current = offers
             .as_array()
@@ -343,23 +343,6 @@ impl Engine {
         component.trace(json!({"event":"dispatch_license_acknowledged","operation":c.id,"claim_number":c.number}));
         self.order_step(c, component, e, 9).await?;
         // OPS-21: same arbitration as the W3 executor; position changes at invocation.
-        let permit = {
-            let workers = self.workers.lock().expect("workers");
-            let w = workers.get(&c.id).context("worker")?;
-            if e.stopped.load(Ordering::Acquire) {
-                return Err(ExecutionStopped.into());
-            }
-            ensure!(
-                w.claim.number == c.number
-                    && w.execution
-                        .as_ref()
-                        .is_some_and(|x| std::ptr::eq(x.as_ref(), e)),
-                "execution replaced"
-            );
-            let permit = component.external(crate::store::ExternalKind::Provider)?;
-            e.dispatched.store(true, Ordering::Release);
-            permit
-        };
         let forwarded: serde_json::Map<String, Value> = [
             "offer",
             "hostname",
@@ -376,41 +359,44 @@ impl Engine {
         let command = json!({"account":account,"operation":c.id,"correlator":c.id,"channel":descriptor["channel"],"request":forwarded});
         // PRV-9 temporary-key mode is a real branch; it is separately exercised.
         let owned_key = if descriptor["temporary_keys"] == true {
-            provider_io(e, d.client.call_entered(descriptor, "/keys", &command)).await?["owned"]
+            self.credential_mutation(c, component, d, "/keys", &command, e)
+                .await?["owned"]
                 == true
         } else {
             false
         };
-        let reply =
-            match provider_io(e, d.client.call_entered(descriptor, "/order", &command)).await {
-                Ok(reply) => reply,
-                Err(error) => {
-                    // OPS-12/49 sensitivity control: deliberately repeat an
-                    // uncertain mutation only in an isolated fixture build.
-                    #[cfg(feature = "store-test-hooks")]
-                    if crate::store::test_defect("w5_blind_retry") {
-                        component.trace(json!({"event":"defect_provider_retry","operation":c.id}));
-                        let _ = d.client.call_entered(descriptor, "/order", &command).await;
-                    }
-                    if owned_key
-                        && error.downcast_ref::<Error>().is_some_and(|error| {
-                            error.0["details"]["accepted"] == false
-                                && !matches!(
-                                    error.0["kind"].as_str(),
-                                    Some("network" | "timeout" | "internal")
-                                )
-                        })
-                    {
-                        let _ = provider_io(
-                            e,
-                            d.client.call_entered(descriptor, "/keys/delete", &command),
-                        )
-                        .await;
-                    }
-                    return Err(error);
+        let reply = match self
+            .credential_mutation(c, component, d, "/order", &command, e)
+            .await
+        {
+            Ok(reply) => reply,
+            Err(error) => {
+                // OPS-12/49 sensitivity control: deliberately repeat an
+                // uncertain mutation only in an isolated fixture build.
+                #[cfg(feature = "store-test-hooks")]
+                if crate::store::test_defect("w5_blind_retry")
+                    || crate::store::test_defect("w6_blind_repeat")
+                {
+                    component.trace(json!({"event":"defect_provider_retry","operation":c.id}));
+                    let _permit = component.external(crate::store::ExternalKind::Provider)?;
+                    let _ = d.client.call_entered(descriptor, "/order", &command).await;
                 }
-            };
-        drop(permit);
+                if owned_key
+                    && error.downcast_ref::<Error>().is_some_and(|error| {
+                        error.0["details"]["accepted"] == false
+                            && !matches!(
+                                error.0["kind"].as_str(),
+                                Some("network" | "timeout" | "internal")
+                            )
+                    })
+                {
+                    let _ = self
+                        .credential_mutation(c, component, d, "/keys/delete", &command, e)
+                        .await;
+                }
+                return Err(error);
+            }
+        };
         ensure!(reply["accepted"] == true, "order acceptance absent");
         // OPS-13/PRV-5: accepted reply and later reads are surviving evidence,
         // including when malformed data would otherwise become an untyped error
@@ -423,7 +409,7 @@ impl Engine {
             .as_array()
             .context("reachable ordering channels")?
         {
-            let found=provider_io(e,async {d.client.call(component,descriptor,"/search",&json!({"account":account,"operation":c.id,"correlator":c.id,"channel":channel})).await.map_err(|mut error| {error.0["details"]["accepted"]=json!(true);error})}).await?;
+            let found=self.credential_read(component,d,descriptor,"/search",&json!({"account":account,"operation":c.id,"correlator":c.id,"channel":channel}),Some(e)).await?.map_err(|mut error| {error.0["details"]["accepted"]=json!(true);error})?;
             if let Some(resources) = found["resources"].as_array() {
                 for resource in resources {
                     identifiers.remember("search", resource);
@@ -439,6 +425,9 @@ impl Engine {
                 .into());
             }
             for resource in found["resources"].as_array().context("search resources")? {
+                if resource["correlator"]!=c.id || resource["account"]!=account || resource["channel"]!=*channel {
+                    return Err(Error::new("provider","non-exact correlator evidence",false,json!({"accepted":true})).into());
+                }
                 resources.insert(
                     resource["external_id"]
                         .as_str()
@@ -458,26 +447,19 @@ impl Engine {
             .into());
         }
         let external = resources.keys().next().context("resource")?;
-        let machine = provider_io(e, async {
-            d.client
-                .call(
-                    component,
-                    descriptor,
-                    "/get",
-                    &json!({"account":account,"operation":c.id,"external_id":external}),
-                )
-                .await
-                .map_err(|mut error| {
-                    error.0["details"]["accepted"] = json!(true);
-                    error
-                })
-        })
-        .await?;
+        identifiers.single_match = identifiers.by_source.get("search").is_some_and(|ids| ids.contains(external));
+        let machine = self.credential_read(
+            component, d, descriptor, "/get",
+            &json!({"account":account,"operation":c.id,"external_id":external}), Some(e),
+        ).await?.map_err(|mut error| {
+            error.0["details"]["accepted"] = json!(true);
+            error
+        })?;
         identifiers.remember("get", &machine);
         // WIR-11/STO-48: this read establishes state. OPS-21/49 retain its
         // instant with the verified outcome across constraint I/O and settlement.
         let observed_at = chrono::Utc::now();
-        if machine["present"] != true {
+        if machine["present"] != true || machine["account"]!=account || machine["external_id"]!=*external || machine["correlator"]!=c.id {
             return Err(Error::new(
                 "provider",
                 "resource presence unconfirmed",
@@ -487,18 +469,15 @@ impl Engine {
             .into());
         }
         // PRV-13c: one post-confirmation read. Failure leaves null, never reclassifies success.
-        let date = provider_io(
-            e,
-            d.client.call(
-                component,
-                descriptor,
-                "/constraints",
-                &json!({"account":account,"operation":c.id,"external_id":external}),
-            ),
-        )
-        .await
-        .ok()
-        .and_then(|v| v["earliest_cancellation_date"].as_str().map(str::to_owned));
+        let constraints = self.credential_read(
+            component, d, descriptor, "/constraints",
+            &json!({"account":account,"operation":c.id,"external_id":external}), Some(e),
+        ).await;
+        let date = match constraints {
+            Ok(result) => result.ok().and_then(|v| v["earliest_cancellation_date"].as_str().map(str::to_owned)),
+            Err(error) if error.downcast_ref::<ExecutionStopped>().is_some() => None,
+            Err(error) => return Err(error),
+        };
         component.trace(json!({"event":"provider_verified","operation":c.id,"matches":1,"direct_read":true,"post_order_read":date.is_some(),"state_observed_at":observed_at.to_rfc3339()}));
         Ok(Some(Outcome::VerifiedCreateDetails {
             external_id: external.clone(),
@@ -514,7 +493,10 @@ impl Engine {
 /// OPS-13, DOM-18, WIR-10b: only safe opaque identifiers, labeled by observation
 /// source. Keep distinct observations rather than replacing the accepted reply.
 #[derive(Default)]
-struct ProviderIdentifiers(BTreeMap<&'static str, std::collections::BTreeSet<String>>);
+struct ProviderIdentifiers {
+    by_source: BTreeMap<&'static str, std::collections::BTreeSet<String>>,
+    single_match: bool,
+}
 impl ProviderIdentifiers {
     fn remember(&mut self, source: &'static str, value: &Value) {
         if let Some(id) = value["external_id"].as_str().filter(|id| {
@@ -524,7 +506,10 @@ impl ProviderIdentifiers {
                     .bytes()
                     .all(|b| b.is_ascii_alphanumeric() || b"_-:".contains(&b))
         }) {
-            self.0.entry(source).or_default().insert(id.to_owned());
+            self.by_source
+                .entry(source)
+                .or_default()
+                .insert(id.to_owned());
         }
     }
     fn failure(self, error: anyhow::Error) -> anyhow::Error {
@@ -549,8 +534,14 @@ impl ProviderIdentifiers {
             }
         });
         error.0["details"]["accepted"] = json!(true);
-        if !self.0.is_empty() {
-            error.0["details"]["provider_identifiers"] = json!(self.0);
+        // OPS-27/33: retain the exact single match through failed reads and
+        // survived cancellation, including an outer verification error.
+        if self.single_match {
+            error.0["details"]["reconciliation"] =
+                json!({"authoritative":true,"matches":1,"single_match":true,"in_progress":false});
+        }
+        if !self.by_source.is_empty() {
+            error.0["details"]["provider_identifiers"] = json!(self.by_source);
         }
         error.into()
     }
@@ -710,7 +701,7 @@ fn validate_admission_fields(
 
 // OPS-21: cancel external I/O only. Licensing/sent-COMMIT ownership stays in its
 // existing transaction future. A ready provider return wins over a concurrent stop.
-async fn provider_io<T>(
+pub(super) async fn provider_io<T>(
     execution: &Execution,
     call: impl std::future::Future<Output = std::result::Result<T, Error>>,
 ) -> Result<T> {

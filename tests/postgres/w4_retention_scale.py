@@ -54,7 +54,7 @@ def plan(w, label, query, types, values, analyze=True):
               execution_ms=data[0].get('Execution Time'),
               planning_ms=data[0].get('Planning Time'),
               complete_psql_seconds=time.monotonic()-started, exit_status=0,
-              path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+              path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest(),plan=data)
     return data
 
 
@@ -218,6 +218,7 @@ def mixed(w, shape, probe, purge, total):
       ANALYZE provisiond.operations; ANALYZE provisiond.idempotency_records;
     """)
     before=snapshot(w)
+    retired_before=sql(w,"SELECT count(*)||':'||COALESCE(md5(string_agg(to_jsonb(r)::text,'' ORDER BY id)),'') FROM provisiond.retired_operations r")
     expected={hashlib.md5(('scale-'+str(i)).encode()).hexdigest() for i in range(11,1001)}
     expected.add(hashlib.md5(b'scale-extra-1').hexdigest())
     result=sql(w,'SET statement_timeout=1000; PREPARE probe(bigint) AS '+probe+'; EXECUTE probe(86400);')
@@ -230,19 +231,23 @@ def mixed(w, shape, probe, purge, total):
     returned={line.replace('-','') for line in output.splitlines() if re.fullmatch(r'[0-9a-f-]{36}',line)}
     assert returned==expected
     assert snapshot(w)==before
+    assert sql(w,"SELECT count(*)||':'||COALESCE(md5(string_agg(to_jsonb(r)::text,'' ORDER BY id)),'') FROM provisiond.retired_operations r")==retired_before,'rolled-back deletion must leave no retired identity'
     start=len(h.events)
     w.restart_api()
     eventually(lambda:int(sql(w,'SELECT count(*) FROM provisiond.operations'))==total+5-len(expected),seconds=12)
     eventually(lambda:len(completions(h,start,WORK))>=3,seconds=12)
-    deletes=completions(h,start,DELETE)
-    assert deletes and any(e.get('command_tag')=='DELETE '+str(len(expected)) for e in deletes)
+    deletes=completions(h,start,purge.split('(',1)[0])
+    assert deletes and any(e.get('command_tag') in ('DELETE '+str(len(expected)), 'INSERT 0 '+str(len(expected))) for e in deletes)
     assert snapshot(w)==before
+    retired=json.loads(sql(w,"SELECT jsonb_agg(to_jsonb(r) ORDER BY id) FROM provisiond.retired_operations r WHERE id IN (SELECT md5('scale-'||i)::uuid FROM generate_series(11,1000) i UNION ALL SELECT md5('scale-extra-1')::uuid)"))
+    assert {r['id'].replace('-','') for r in retired}==expected
+    assert sql(w,"SELECT count(*) FROM provisiond.retired_operations o JOIN provisiond.idempotency_records r ON r.resource_kind='operation' AND r.resource_id=o.id WHERE o.retained_until<>r.expires_at")== '0'
     survivors=sql(w,"SELECT idempotency_key||':'||status FROM provisiond.operations WHERE idempotency_key LIKE 'scale-extra-%' ORDER BY idempotency_key")
     assert survivors.splitlines()==['scale-extra-2:succeeded','scale-extra-3:queued','scale-extra-4:running','scale-extra-5:needs_reconciliation']
     assert sql(w,"SELECT count(*) FROM provisiond.operations WHERE id IN (SELECT md5('scale-'||i)::uuid FROM generate_series(1,10) i)")=='10'
     assert sql(w,"SELECT count(*) FROM provisiond.idempotency_records WHERE scope_id='scale-history' AND key IN (SELECT 'scale-'||i FROM generate_series(11,1000) i)")=='990'
     h.event('retention_scale_mixed',shape=shape,deleted_ids=sorted(expected),actual_delete_command_tags=[e['command_tag'] for e in deletes],
-            expected_deleted=len(expected),protected_aliases=10,unsettled_statuses=3,receiptless_old_deleted=True,
+            expected_deleted=len(expected),retired=retired,rollback_preserved_identities=True,protected_aliases=10,unsettled_statuses=3,receiptless_old_deleted=True,
             receiptless_recent_retained=True,financial_history_receipts_and_external_unchanged=True,
             before_sha256=hashlib.sha256(json.dumps(before,sort_keys=True).encode()).hexdigest())
 
@@ -255,7 +260,7 @@ def retention_scale(w):
     w.start_engine();w.wait_status(op,'succeeded');w.stop_engine()
     source=Path('src/api/mod.rs').read_text()
     relation=re.search(r'const SETTLED_RETENTION: &str = "([^"]+)";',source).group(1)
-    purge_template=re.search(r'format!\(\s*"(DELETE FROM provisiond.operations[^"\n]+)"\s*\)',source).group(1)
+    purge_template=re.search(r'let purge = format!\(\s*"([^"\n]+)"\s*\)',source).group(1)
     purge=purge_template.replace('{SETTLED_RETENTION}',relation)
     shape=tuple(map(int,os.environ.get('PROVISIOND_TEST_RETENTION_SCALE','20000:200000').split(':')))
     assert shape in SHAPES

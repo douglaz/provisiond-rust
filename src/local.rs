@@ -83,6 +83,16 @@ impl Parameters {
         ] {
             ensure!(p.n(k) > 0, "invalid rail parameter {k}");
         }
+        // SEC-39: local provisional operator allowance; absent means the stated
+        // created_limit, as with the existing local operator retry allowance.
+        if let Some(limit) = p.value.get("operator_resolution_limit") {
+            ensure!(
+                limit
+                    .as_i64()
+                    .is_some_and(|n| n > 0 && n <= crate::wire::SAFE_INTEGER),
+                "invalid operator_resolution_limit"
+            );
+        }
         Ok(p)
     }
     pub fn n(&self, k: &str) -> i64 {

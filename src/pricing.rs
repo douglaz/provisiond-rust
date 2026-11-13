@@ -85,15 +85,29 @@ pub fn wind_seconds(d: &Value) -> Result<i64> {
         "hold_seconds",
         "margin_seconds",
     ] {
-        n = n
-            .checked_add(
-                d[k].as_i64()
-                    .filter(|x| *x > 0)
-                    .context("missing positive wind-down term")?,
-            )
-            .context("duration overflow")?;
+        let declared = d[k]
+            .as_i64()
+            .filter(|n| *n > 0)
+            .context("missing positive wind-down term")?;
+        let value = if k == "visibility_seconds" {
+            d["effective_visibility_seconds"]
+                .as_i64()
+                .unwrap_or(declared)
+                .max(declared)
+        } else {
+            declared
+        };
+        n = n.checked_add(value).context("duration overflow")?;
     }
     Ok(n)
+}
+/// PRV-36/STO-53: declaration stays immutable; effective sizing only widens.
+pub(crate) fn with_visibility(d: &Value, seconds: i64) -> Value {
+    let mut effective = d.clone();
+    if seconds > d["visibility_seconds"].as_i64().unwrap_or(0) {
+        effective["effective_visibility_seconds"] = json!(seconds);
+    }
+    effective
 }
 pub fn sellable(o: &Value, d: &Value) -> bool {
     let today = chrono::Utc::now().date_naive();
@@ -260,18 +274,36 @@ pub(crate) fn native_coverage_shortfall(
     )?
     .ceil()
 }
-/// PRV-44/OVR-19: this profile accepts one explicit simulator ordering channel.
+/// PRV-44/OVR-19: explicit simulator ordering channels and immediate destruction.
 pub(crate) fn validate_descriptor(d: &Value) -> Result<()> {
     ensure!(
-        d["kind"] == "local_simulator"
-            && d["channels"]
+        d["delete_shape"] == "immediate_destroy"
+            && d["surviving_attachments"]
                 .as_array()
-                .is_some_and(|a| a.len() == 1 && a[0] == d["channel"])
+                .is_some_and(|a| a.is_empty()),
+        "local deletion requires an explicit no-survivor immediate-destroy declaration"
+    );
+    ensure!(
+        d["negative_seconds"]
+            .as_i64()
+            .is_some_and(|n| n > 0 && n <= i64::from(i32::MAX)),
+        "missing bounded provider negative window"
+    );
+    ensure!(
+        d["kind"] == "local_simulator"
+            && d["channels"].as_array().is_some_and(|a| !a.is_empty()
+                && a.iter().all(|v| v.as_str().is_some_and(|s| !s.is_empty()))
+                && a.contains(&d["channel"])
+                && a.iter()
+                    .map(|v| v.as_str().expect("validated channel"))
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
+                    == a.len())
             && d["channel"].is_string(),
         "unsupported local ordering-channel declaration"
     );
     ensure!(
-        d["correlator"] == "operation_id"
+        matches!(d["correlator"].as_str(), Some("operation_id" | "none"))
             && d["temporary_keys"].is_boolean()
             && d["offer_is_resource"].is_boolean(),
         "unsupported correlator/key declaration"

@@ -41,14 +41,22 @@ impl Client {
     ) -> Result<Value, Error> {
         // PRV-13b/OVR-19: the mutation and its confirming read are separate
         // sequential waits, each bounded by its own priced descriptor term.
-        let read = ["/offers", "/search", "/get", "/constraints"].contains(&path);
+        let read = [
+            "/offers",
+            "/search",
+            "/get",
+            "/constraints",
+            "/enumerate",
+            "/keys/list",
+        ]
+        .contains(&path);
         let read_bound = Duration::from_secs(d["read_seconds"].as_u64().unwrap_or(1));
         let bound = if read {
             read_bound
         } else {
             Duration::from_secs(d["call_seconds"].as_u64().unwrap_or(1))
         };
-        let deletion_read = (path == "/delete").then(|| v.clone());
+
         let v = http::call(
             self.address,
             if read { "GET" } else { "POST" },
@@ -112,26 +120,11 @@ impl Client {
                 error["details"].clone(),
             ));
         }
-        if let Some(request) = deletion_read {
-            let observed = http::call(self.address, "GET", "/get", &request, read_bound)
-                .await
-                .map_err(|_| {
-                    Error::new(
-                        "network",
-                        "stop-cost read unavailable",
-                        false,
-                        json!({"accepted":true}),
-                    )
-                })?;
-            if !observed.is_null() && observed["present"] != false {
-                return Err(Error::new(
-                    "provider",
-                    "stop-cost absence unconfirmed",
-                    false,
-                    json!({"accepted":true}),
-                ));
-            }
-            return Ok(json!({"gone":true,"confirmed":true}));
+        // PRV-29/36: a gone report from the mutation endpoint is strongest.
+        // Acceptance without that report remains unresolved; do not hide it
+        // behind a confirming GET or let a weaker stale read reverse it.
+        if path == "/delete" && v["gone"] == true {
+            return Ok(json!({"gone":true,"confirmed":true,"accepted":true}));
         }
         Ok(v)
     }

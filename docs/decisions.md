@@ -1370,6 +1370,368 @@ PostgreSQL observations.
 versions, commands/exits, driver/source identity and cleanup. API retry semantics, ordinary pool
 bounds, money guards and the accepted deployment profile are unchanged.
 
+### D-41. Delete the machine as W6's non-create mutation
+
+**Settled 2026-11-12 by a four-reader implementation consultation, four of four** (the fifth seat
+was unavailable). W6's non-create mutation is `delete_machine` on the local immediate-destroy
+simulator profile, with no surviving billable attachments. It is implemented only after the create
+reconciliation scenarios pass.
+
+The first private pilot's scenarios end on a termination path, and only a delete ends provider
+cost: a powered-off machine still bills (`LDG-37`), and `PRV-13b` requires an API path that stops
+the cost. Power on/off was the alternative and was not chosen. The local profile narrows the
+provider shape to `PRV-13`'s immediate destroy; it waives no rule the delete reaches. The scheduled
+cancellation shape is not built.
+
+### D-42. W6's delete covers every cleanup W6 makes reachable
+
+**Decided 2026-11-12, accepted under the owner's 2026-11-05 panel rule (four of four readers;
+the fifth seat was unavailable).** The delete worker runs the caller's delete and every
+exposure-reducing cancellation W6 itself makes reachable, `OPS-36`'s late-attach cleanup included,
+with `OPS-39`, `OPS-41`, `OPS-42`, `OPS-44` and `OPS-48` applied in full. All four readers rejected
+a caller-only worker that leaves system deletes refused.
+
+Reachability: a create whose reply is lost stays unresolved; once `OPS-33`'s bounded negative
+window elapses its commitment is released while the operation stays open, and the account sweep
+keeps searching (`03-operation-lifecycle.md:1735-1738`). A later exact correlator match is
+`OPS-27`'s row 1, "`OPS-36` where it was already released" (`:570`), whose transaction attaches the
+machine and enqueues its cleanup (`:663`). Refusing that cleanup leaves an attached, unfunded
+machine billing with nothing to stop it; refusing the attach instead is the hole `OPS-36` closes
+(`:716`).
+
+Conditions, each four of four:
+
+- **(a)** The late-attach cleanup runs with `OPS-42`'s fence column (`machines.destroy_committed`),
+  `OPS-41`'s ordered decision in the `LDG-35` transaction that writes the fence, `OPS-48`'s episode
+  states and close reasons as `STO-52` stores them, and `LDG-40`'s wind-down floor or `LDG-66`'s
+  deficiency in the attach transaction.
+- **(b)** `OPS-41`'s restore deferral is `not run`, owned by W7, and ordinary startup keeps refusing
+  an open recovery incident. The exhaustion sweep and the suspension fan-out stay refused entry
+  points, reported `not run`.
+
+No narrowing or widening of an earlier owner pick.
+
+### D-43. Stalled-episode retry and keep are built in W6
+
+**Decided 2026-11-12, accepted under the owner's 2026-11-05 panel rule (three of four readers,
+with the reader the rule requires in the majority; the fifth seat was unavailable).** `API-64`
+retry and `API-68` keep are built for a stalled episode. A cleanup attempt that settles `failed` or
+`not_applied` leaves its episode `stalled` (`OPS-48`), and these two operator routes are its only
+exits; today both are hidden. One reader would have kept them refused. No narrowing or widening of
+an earlier owner pick.
+
+### D-44. No extend-runway for a late-attached machine
+
+**Decided 2026-11-12 by the owner.** Asked whether W6 builds `LDG-62` extend-runway, which lets a
+tenant fund an `OPS-36` late-attached machine and keep it, the owner chose **"Leave out
+(Recommended)"**. The late-attach cleanup always runs. A four-reader panel stayed tied 2-2 after
+one consensus round, so the question went to the owner.
+
+**Known limit.** `OPS-36`'s survival path, in which the tenant extends the runway and the machine
+is kept, is `not run`. W6 adds no extend-runway route.
+
+### D-45. A queued suspension cleanup runs through the same worker
+
+**Decided 2026-11-12 by the owner.** Asked how W6 treats a queued delete whose enqueue reason is
+`tenant_suspended`, the owner chose **"Same worker"**. The cleanup worker runs every queued
+exposure-reducing cancellation whatever its enqueue reason, including a queued `tenant_suspended`
+attempt. `OPS-41`'s ordered decision handles it on the tenant's current state, by step 2 while the
+tenant is still suspended. The suspension fan-out
+enqueuer itself stays refused, `not run`. The panel had no majority on this point.
+
+### D-46. The no-rate wait is not run
+
+**Decided 2026-11-12 by the owner.** Asked whether W6 builds `OPS-41` steps 4-5, the branches
+taken when the machine's currency has no rate, the owner chose **"Leave out (Recommended)"**.
+Steps 4-5 are `not run`. If an attempt reaches the no-rate branch, it stops safely: it makes no
+provider call and writes no fence, and the path is stopped and reported. Only fixtures write rates
+in this profile. The panel had no majority on this point.
+
+### D-47. A delete reply that reports gone settles the delete
+
+**Decided 2026-11-12 by the owner.** Asked whether a delete reply that itself reports the machine
+gone settles the delete, the owner chose **"Yes, reply settles (Recommended)"**. That reply is the
+mutation endpoint's own report that the goal state holds, the strongest source `PRV-36` ranks
+(`02-provider-contract.md:1147`). It settles the attempt `succeeded` and is the gone-write and
+meter stop in the terminal transaction, at the reply's observation instant (`PRV-29`, `LDG-74`). A
+read inside the visibility window that still shows the machine is no evidence (`:1172`) and does
+not override it. Three of four readers chose this form, but the reader the owner's 2026-11-05 rule
+requires was in the minority, so it went to the owner.
+
+### D-48. An acceptance-only delete reply goes to reconciliation
+
+**Decided 2026-11-12, accepted under the owner's 2026-11-05 panel rule (three of four readers,
+with the reader the rule requires in the majority; the fifth seat was unavailable).** A successful
+immediate-delete reply that reports acceptance but not that the machine is gone does not
+establish absence (`PRV-29`, `02-provider-contract.md:480-485`). The attempt enters
+`needs_reconciliation` as known acceptance, with no gone-write on the reply. `OPS-27`'s non-create
+evidence path resolves it after the visibility window without repeating the delete: absent
+resolves `applied` with the gone-write, and present past the window resolves `not_applied`.
+`WIR-35` is the operator fallback. A reply that reports gone is D-47's case. One reader would have
+settled every successful reply as gone. No narrowing or widening of an earlier owner pick.
+
+
+### D-49. Local reconciliation evidence and independent lifetimes
+
+**Demonstrated 2026-11-12; timing corrected 2026-11-13.** Schema/semantics 3 retains write-once resolution/evidence,
+append-only provider observations and original pending terms. Timing is conservative: the persisted
+wait end is a settlement-time upper bound for worker classification, or the first startup
+classification timestamp for an interrupted running mutation. Previously unresolved rows with no
+origin freeze their last updated_at once under tenant serialization, before evidence writes.
+Evidence changes and later ordinary restarts cannot renew that origin. Sample start uses the
+acknowledged licensing/write-start marker. These bounds are not a measurement of
+the exact wire-dispatch instant. Independent simulator acceptance/allocation timestamps provide the
+separate measured allocation basis. Resolution uses its own conditional
+needs-reconciliation/write-once guard, separate from a worker's claim-number guard. Exact
+all-channel union plus direct confirmation can land one machine; failed, partial and duplicate
+evidence cannot. OPS-33 releases money independently of STO-58's exclusion. Late attach atomically
+records unpaid seed, separate fee/unit deficiencies, floor-or-deficiency and cleanup.
+
+The [W6 measurement](../evidence/w6/final-w6.json) records twenty ordinary simulator allocation
+samples. Its negative window is ceiling(worst observed allocation) plus 59 conservative seconds,
+60 seconds in the recorded run. The descriptor's one-second visibility declaration remains
+explicitly unmeasured; stored request-to-observation samples widen the effective maximum and
+surface declaration breaches. These are local simulator parameters, not another provider's bound.
+
+### D-50. Isolated static operator authority
+
+**Demonstrated 2026-11-12.** Optional loopback operator authority is loaded from a private
+principal/environment-name/admin file; token values come from environment, are hashed and are
+checked against customer/recovery credential digests. Customer routes hide operator verbs and
+preflight without CORS. Supported synchronous per-kind decisions and stalled retry/keep retain
+principal-scoped receipts, authenticated identity and evidence in the business transaction.
+Operation enumeration supports intersecting status, origin, reason and terminal filters, with
+principal/effective-tenant scoped pagination under OPS-26/API-23.
+Operator observed attachment does no external I/O and stores a null constraint date. This is the
+local authority boundary, not production credential custody.
+
+### D-51. Immediate-destroy execution and reached exit accounting
+
+**Demonstrated 2026-11-12.** D-41–D-48 are unchanged. Caller, late-attach and already-queued
+suspension cleanup share the delete worker. The ordered current funding decision and conditional
+open-episode fence share LDG-35; reason history and never-fenced operator origin do not create
+step-2 authority. A gone reply settles at its observation instant; mere acceptance requires
+non-mutating later evidence and never a second delete. Retry/keep and permanent episode closure
+are exercised against real rows and concurrent requests.
+
+Exit increments use durable fixture rate-acceptance history, UTC month splits and reduced exact
+rounding credits. Clamp deficiencies retain their piece's valuation; rate-outage records remain
+native-only and cover maximal spans. Offline migration audits key-derived one-sided high-water
+and credit range. Subject quarantine alerts preserve the meter while admitting deletion and closure
+of an already-open outage. Fixture inputs are not the general rate estimator or periodic meter.
+No-rate cancellation steps 4–5 stop without fence/call; W7 incident work remains refused.
+
+### D-52. W6 verification and evidence boundary
+
+**Recorded 2026-11-13.** PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7,
+Nix 2.34.9; tokio 1.54.1, tokio-postgres 0.7.18 and deadpool 0.12.3. Exact versions,
+configuration, source inventory, full command/status proof and output hashes are in
+[validation](../evidence/w6/validation.json). On its final committed operational source:
+
+- `nix develop --command bash tools/check.sh`: exit 0.
+- `nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <private-evidence>/all.json`:
+  exit 0, all eleven phases and 31 W6 groups.
+- `nix develop --command python3 -m unittest discover -s tests/postgres -p 'test_*.py'`:
+  exit 0, nine tests.
+
+All 39 isolated controls exit 1 at recognized assertions after activation, with cleanup passing;
+the four new W6 controls detect blind repeat, non-exact attachment, premature money release and
+startup-pass skipping. Two separate unchanged-base regressions reproduce actual old worker/adapter
+faults; their final drivers pass on the fixed source. All 32 protected base runtime/migration/
+dependency hashes are unchanged before/after. Create reconciliation passed its focused checkpoint
+before delete implementation began. Historical W4/W5 unresolved and accounting fixtures now hold
+explicit provider/evidence boundaries; no retry bound, observer fault or original release assertion
+was weakened. New evidence, source protection, cleanup and recursive redaction are recorded in
+[report](../evidence/w6/report.md). D-6 remains Open for production/W8.
+
+### D-53. Blocking reconciliation and operator repairs
+
+**Demonstrated 2026-11-13.** The nine current-W6 regressions are recorded as `w6_r1` through
+`w6_r9` in the [final W6 inventory](../evidence/w6/final-w6.json). Their unchanged-current-W6
+reds protect 37 runtime, migration and dependency/configuration files. Each exits 1 at its intended
+assertion; each corresponding final green passes with cleanup. These are distinct from the two
+original review-base defects. [Validation](../evidence/w6/validation.json) records the exact versions,
+commands, true exit statuses and source identity for the final fast gate, eleven-phase PostgreSQL
+suite and nine Python units, all exit 0.
+
+OPS-33 local expiry follows eligible pending evidence updates and precedes account enumeration.
+It applies to healthy and unhealthy accounts even when PRV-36 forbids reading, retains positive
+in-progress knowledge and releases only money. D-49's persisted origin prevents an evidence write
+or ordinary successor from restarting the timer. The one-second unmeasured declaration and the
+retained observed maximum keep their existing PRV-36/STO-53 meaning; the separately measured
+negative window remains 60 seconds. Pass duration includes ordinary evidence I/O and is not a
+production outage guarantee. Startup also applies OPS-48's current-open-episode transition in the
+same serialized, generation-guarded transaction, without changing its actual fence or permanent close.
+
+PRV-41 rejection is durable `credentials_rejected` status, with monitorable account/path evidence.
+Every reached reconciliation provider call checks the current credential state, so a previously read
+pending snapshot cannot issue remaining calls after rejection. Other accounts and local expiry
+continue. A confirming read followed by failed constraint authentication still settles the confirmed
+create with a null date under PRV-13c. Malformed successful keys replies and general throttle pacing
+retain their deferred behavior.
+
+SEC-39's provisional resolution allowance is `operator_resolution_limit` when supplied, otherwise
+`created_limit` (100 in the ordinary local fixture), per `ceiling_seconds` (3600 locally). A supplied
+allowance must be a positive wire-safe integer. Principal serialization spans target tenants; replay
+returns before allowance checks, and the consumed slot, resolution and receipt commit together.
+The regression uses two slots in a stated 86400-second fixture interval and verifies exhaustion,
+concurrency, another principal and actual API restart. This selects no production allowance or
+incident-override policy. Retry retains its separate ceiling; keep gains none.
+
+Structured resolve/retry/keep events name principal, effective tenant, target, correlation and safe
+reason reference. Free-form retry reasons are hashed. Intent, acknowledged database commit,
+unacknowledged commit uncertainty, refusal and replay are distinct outcomes. A retry's acknowledged
+event names its fresh operation. Operator operation detail shares the existing logical expiry and
+retained-receipt horizon; a retained episode supplies tenant scope for its retired current attempt.
+Unknown and out-of-scope IDs remain hidden; no receipt horizon is extended.
+
+OPS-2 retains the validated live caller-delete body, and OPS-23 repeats caller fields first, then
+API-written target evidence, before the fence decision, capability, marker or provider call. System
+cleanup and operator retries require no customer acknowledgment. The offline schema-2-to-3 program
+fills only the supported empty-summary system cleanup shape from its matching tenant, machine,
+account and open episode; unrelated malformed rows fail safely before dispatch. No operation is
+re-enqueued, and no mutation success is inferred by the migration.
+
+### D-54. Positive confirmation knowledge and remaining cleanup/operator repairs
+
+**Demonstrated 2026-11-13.** On committed operational source
+`16c4f1123167a063f14bd4594add60c045080143`, the fast gate, complete eleven-phase PostgreSQL
+suite and nine Python harness units each exit 0. The final W6 inventory contains 40 groups and
+all 39 sensitivity controls are recognized at their intended exit-1 assertions. Nine additional
+reds use protected runtime/migration/dependency blobs from unchanged `5061fe3`; earlier reds keep
+their original identities. Exact commands, whole-stream hashes, versions and proof references are in
+[validation](../evidence/w6/validation.json), [new regression proof](../evidence/w6/continuation-regressions.json)
+and the [report](../evidence/w6/report.md). Versions remain PostgreSQL 18.6, Rust 1.97.1,
+Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9, with locked dependency versions in the manifests.
+
+OPS-27 positive single-match knowledge is retained in reconciliation evidence and checked by both
+the expiry selection and guarded release write. Incomplete/failed rereads preserve it; later complete
+evidence applies its existing resolution rule. Ordinary confirming-read failures and survived
+cancellation retain the same knowledge. The isolated fixture crosses the measured 60-second negative
+window, keeps the original 43 sats through ordinary successors, then records ordinary 20/11-sat
+debits and a 12-sat running reserve, without a late deficiency or cleanup. PRV-36 samples and the
+immutable clock origin retain their existing meaning. R2's in-progress arm now observes the retained
+row before its controlled stop; its age and money assertions are unchanged.
+
+The offline schema-2 upgrade preserves failed/unresolved cleanup outcomes as stalled/uncertain and
+fills only their supported, ownership/account-checked retained target. It neither revives attempts
+nor infers a provider call or fence. Schema 3 is unpublished until this final migration content is
+released; discarded intermediate W6 test schemas are not a production upgrade line.
+
+WIR-27/51 receiptless retirement uses an append-only identity table containing tenant, creation time
+and the actual configured age horizon. A single DELETE/INSERT statement snapshot retains exactly
+the removed set, in the housekeeping transaction. Logical reads use that same age rule; receipt-backed
+operations retain the maximum stored receipt horizon. No synthetic receipt or request history is added.
+
+The existing durable PRV-41 credential check/rejection path also covers ordinary create verification
+search/get/constraint reads. Provider I/O keeps its existing deadline and stop arbitration; confirmed
+constraint-read failure remains a successful null-date settlement. SEC-32/39 early-refusal events use
+known safe principal/target/correlation and scoped metadata, with nulls before a safe lookup. Keys,
+malformed body text and retry prose are never copied into these events. Existing intent, acknowledged,
+replayed, refused and uncertain outcomes retain their meanings.
+
+### D-55. Bounded retirement, terminal credentials and nullable deficiency fields
+
+**Demonstrated 2026-11-13.** Final operational source `cb355b1124e584f49b337639a397846033e720b6`; PostgreSQL 18.6,
+Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and tokio-postgres 0.7.18.
+[Validation](../evidence/w6/validation.json) records exact commands, environments, true exits and
+whole separate stdout/stderr hashes. `nix develop --command bash tools/check.sh`, the complete
+`nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <private-evidence>/all.json`
+and nine Python units each exit 0. The canonical run contains all eleven phases, 47 W6 groups
+and 39 recognized controls. [Protected reds](../evidence/w6/blocking-regressions.json) retain eleven
+intended exit-1 assertions on unchanged `ac83e17`, with 37 protected runtime/migration/dependency
+hashes and byte-identical final fixture drivers. Earlier reds keep their historical identities.
+
+STO-14/25/33 retirement materializes the already grouped due set with its maximum all-scope receipt
+expiry, then uses it for both deletion and identity insertion in one statement. Receiptless age
+eligibility and its actual horizon remain unchanged. No index, statement-bound increase or task
+failure-policy change is needed. The [supplemental matrix](../evidence/w6/retention-bounds.json)
+records one receipt scan per plan, with mixed-purge execution 49.982, 144.978 and 195.318 ms at
+20k/200k, 20k/1M and 50k/1M respectively, under statement_timeout=1000 ms. Each actual API
+retirement removes the exact 991 IDs, retains their horizons and preserves financial history and
+permanent receipts. The default 20k/2M read selector and ordinary retention selector also exit 0.
+These local measurements select no production capacity. Canonical `w6_e1` independently activates
+the due transaction; permanent retired identities and deferred eventual read scans are unchanged.
+
+PRV-41 checks durable health before every remaining supported provider call. A local latch stops
+new calls immediately while a rejection's status write completes; restart reads the durable stop.
+Read-only and entered mutation calls share status/rejection handling while mutations acquire only
+their existing external permit around I/O. Worker health reads honor cancellation and whole-store
+retry rules; rejection recording retains the received fact without repeating I/O. Already in-flight
+outcomes still classify normally. Generic order/delete refusal fixtures are non-authentication
+provider/400 responses; the secret-redaction authentication fault uses an independent account.
+No credential rotation, automatic health reset, general backoff or production status API is added.
+
+STO-37 schema 3 drops only `clamped_sats`' inherited NOT NULL restriction and constrains it to be
+present for clamp_overflow and null otherwise. Every reached W6 non-clamp producer writes null.
+Native costs, per-record rates, absorbed windows, account/subject provenance, keys and money
+atomicity are unchanged. Actual clamps keep their original direct satoshi remainder. Real charged
+absence, abandoned estimates, late-attach floor-or-deficiency, reached no-rate exits, quarantine
+closure and a lost-resolution COMMIT repeat cover the supported field contract. Earlier migration
+files and W1–W5 evidence remain unchanged; discarded intermediate schema-3 prototypes are not an
+upgrade line. D-41–D-48 and D-37/D-38 remain unchanged.
+
+### D-56. Separate deficiency opening evidence and retain operator replay decisions
+
+**Demonstrated 2026-11-13.** Operational source `a063df0c33f94e1228fb9e393bef93e966fd18cf`; PostgreSQL 18.6,
+Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and tokio-postgres 0.7.18.
+The exact commands, environments, true exit statuses and whole separate stream hashes are in
+[validation](../evidence/w6/validation.json). `nix develop --command bash tools/check.sh`,
+`nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <private-evidence>/all.json`
+and `nix develop --command python3 -m unittest discover -s tests/postgres -p 'test_*.py'`
+each exit 0. The canonical run includes eleven phases, 50 W6 groups and 39 recognized controls;
+the three existing retention scale shapes, default retained reads and ordinary retention also exit 0.
+[Three protected reds](../evidence/w6/opening-retention-regressions.json) fail their intended
+assertions on unchanged `96c6001`, protecting all runtime/migration/dependency blobs before/after
+with identical final fixture overlays. Earlier reds retain their historical identities.
+
+LDG-66/STO-37 opening-rate columns describe the current condition at the deficiency insert.
+`exit_deficiency` reads that condition in its producing statement; LDG-38 continues to price each
+elapsed piece from the existing fixture history. An absent current rate yields null permanently;
+an available different rate is recorded, while rate-outage rows always remain null. No schema,
+native partition, money guard, rounding credit or high-water rule changes. Two real exits keep
+historical 10/1 usage, 12 customer sats and 11 clamped sats with native remainder 2, while opening
+fields are null or current 20/1. Rate return before an actually lost settlement reply, observed
+whole-transaction retry, ordinary successor and keyed replay preserve those exact rows.
+
+API-7/11/12/38 and STO-25/33 use the permanent retired identity's tenant for authorization and
+the retained resolution response's kind for strict body validation. Principal/key fingerprint
+checks still precede expiry. Matching operation receipts use the same all-scope maximum and
+logical cutoff as GET, then return the exact stored response while readable or gone with its
+retained horizon. Retired metadata cannot reach a new decision or ceiling write. The real
+housekeeping regression proves 410 after physical deletion, 409 mismatch, actual effective-tenant
+authorization, wrong-tenant/unknown-id privacy, principal isolation, canonical equivalence and
+unchanged receipts, deadlines, money, machines, episodes, provider history and ceilings. An expired
+operator receipt with another resolving receipt still live continues to replay without renewal.
+
+D-32/D-33's finite horizon, D-37/D-38 and D-41–D-48 remain unchanged. No rate model,
+incident, unsupported verb, provider, production policy or previously deferred repair is added.
+
+### D-57. Retain strict validation metadata independently of receipt scope
+
+**Demonstrated 2026-11-13.** Operational source `813c7130ab1c9f2b3ec752004b1847333a443441`;
+PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9, with locked
+dependencies in [validation](../evidence/w6/validation.json). Retirement copies actual `kind` and
+nullable `machine_id` beside the permanent tenant/id/time/horizon metadata in its existing atomic
+bounded transaction. API-7/11 target authorization and WIR-35 validation therefore do not borrow
+an operator receipt or infer kind from the submitted decision. The retired mutability barrier
+remains before ceilings, resolution and receipt writes. No payload or previous result is invented.
+The unpublished offline schema-3 release first ships this final content; the supported schema-2
+upgrade and earlier migration meanings remain unchanged.
+
+`nix develop --command bash tools/check.sh`, nine Python units, the complete
+`nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <private-evidence>/all.json`,
+the three original retention scale shapes, retained reads and ordinary retention each exit 0.
+All eleven phases, 52 W6 groups and 39 recognized controls are present. The command
+`nix develop --command python3 tests/postgres/w6_blocking_baseline.py --retained-targets --evidence <private-evidence>/manifest.json`
+exits 0 recognizing two exact child exits 1 on unchanged `ab014865`; both normally completed
+customer targets have no operator receipt, return 409 while live, and incorrectly return 404 after
+actual retirement on that baseline. The same drivers stay 409 on the final source, retain strict
+validation/privacy/isolation and refuse fresh keys with full state and provider history unchanged.
+[Regression proof](../evidence/w6/retained-target-regressions.json) binds protected hashes,
+identical fixtures, activation, actual outcomes and cleanup. Existing F1/F2 and earlier reds remain
+separate. D-32/D-33, D-37/D-38 and D-41–D-48 are unchanged; all deferred work remains deferred.
+
 ## Open
 
 
@@ -1408,6 +1770,7 @@ not outage guarantees.
 | Startup-lock connection keepalives | OPS-47, OVR-19 | explicit local assignment sharing pooled values; client/server idle 2 s, interval 1 s, count 2; validated and observed on lock session |
 | Pooled-connection keepalives | STO-7 | client/server idle 2 s, interval 1 s, count 2 |
 | Stop-record bound | OPS-21 | 1000 ms in lifecycle and W3 worker record fixtures |
+| W6 reconciliation scheduling | ENG-05, OPS-32/33 | one-second delay between supervised passes on ordinary admitted pools; pass duration includes evidence I/O; no outage bound or general maintenance scheduler; production policy remains W8 |
 | Connection budget | STO-55 | local max 24, reserved 3 (21 ordinary); engine 6 steady / 7 startup; API 2; offline migrator plus waiting runner 2 with components stopped; remaining operator/fixture/replication headroom, no residual-backend upper bound |
 
 Client call/connect 2000 ms and check 3000 ms are implementation bounds obeying STO-7/OPS-49's

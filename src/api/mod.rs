@@ -1,5 +1,6 @@
 //! API-7/33/43/57, WIR-4/4a: local customer service; no provider dependency.
 mod funding;
+mod operator;
 use crate::{
     auth::{self, Admission},
     engine::{Enqueue, Queue},
@@ -27,16 +28,16 @@ use tokio::{
 // operation receipt, including other scopes. Select candidate identities before
 // aggregation, without narrowing the receipts by scope/tenant. A single statement
 // observes state, deadline and time, including permanent receipt-only identities.
-fn operation_history(operations: &str, receipts: &str) -> String {
+fn operation_history(operations: &str, receipts: &str, retention_seconds: i64) -> String {
     format!(
-        "(SELECT COALESCE(o.id,d.resource_id) AS id,o.tenant_id,o.created_at,v.body,d.expires_at,COALESCE(o.status IN ('succeeded','failed') AND d.expires_at<=statement_timestamp(),false) AS expired FROM (SELECT * FROM provisiond.operations candidate WHERE {operations}) o FULL JOIN (SELECT i.resource_id,max(i.expires_at) AS expires_at FROM provisiond.idempotency_records i WHERE i.resource_kind='operation' AND {receipts} GROUP BY i.resource_id) d ON d.resource_id=o.id LEFT JOIN provisiond.operation_views v ON v.id=o.id)"
+        "(SELECT COALESCE(o.id,d.resource_id) AS id,o.tenant_id,o.created_at,v.body,COALESCE(d.expires_at,o.age_deadline) AS expires_at,COALESCE(o.status IN ('succeeded','failed') AND COALESCE(d.expires_at,o.age_deadline)<=statement_timestamp(),false) AS expired FROM (SELECT candidate.id,candidate.tenant_id,candidate.created_at,candidate.status,candidate.updated_at+{retention_seconds}::bigint*interval '1 second' AS age_deadline FROM provisiond.operations candidate WHERE {operations} UNION ALL SELECT candidate.id,candidate.tenant_id,candidate.created_at,'failed',candidate.retained_until FROM provisiond.retired_operations candidate WHERE {operations}) o FULL JOIN (SELECT i.resource_id,max(i.expires_at) AS expires_at FROM provisiond.idempotency_records i WHERE i.resource_kind='operation' AND {receipts} GROUP BY i.resource_id) d ON d.resource_id=o.id LEFT JOIN provisiond.operation_views v ON v.id=o.id)"
     )
 }
 // STO-14/24/25/33: resolve all receipts for the settled candidate set once,
 // including other scopes, rather than scanning live receipts per operation.
 // Receipt presence is distinct from expiry; receiptless rows keep the strict age
 // fallback. Both statements evaluate this relation afresh at statement time.
-const SETTLED_RETENTION: &str = "(WITH candidates AS MATERIALIZED (SELECT id,updated_at FROM provisiond.operations WHERE status IN ('succeeded','failed')) SELECT c.id FROM candidates c LEFT JOIN (SELECT r.resource_id,max(r.expires_at) AS expires_at FROM provisiond.idempotency_records r JOIN candidates c ON c.id=r.resource_id WHERE r.resource_kind='operation' GROUP BY r.resource_id) r ON r.resource_id=c.id WHERE (r.resource_id IS NOT NULL AND r.expires_at<=statement_timestamp()) OR (r.resource_id IS NULL AND c.updated_at<statement_timestamp()-$1::bigint*interval '1 second'))";
+const SETTLED_RETENTION: &str = "(WITH candidates AS MATERIALIZED (SELECT id,updated_at FROM provisiond.operations WHERE status IN ('succeeded','failed')) SELECT c.id,COALESCE(r.expires_at,c.updated_at+$1::bigint*interval '1 second') AS retained_until FROM candidates c LEFT JOIN (SELECT r.resource_id,max(r.expires_at) AS expires_at FROM provisiond.idempotency_records r JOIN candidates c ON c.id=r.resource_id WHERE r.resource_kind='operation' GROUP BY r.resource_id) r ON r.resource_id=c.id WHERE (r.resource_id IS NOT NULL AND r.expires_at<=statement_timestamp()) OR (r.resource_id IS NULL AND c.updated_at<statement_timestamp()-$1::bigint*interval '1 second'))";
 
 fn operation_result(v: &Value) -> Result<Value> {
     if !v["body"].is_null() && v["expired"] != true {
@@ -64,6 +65,7 @@ struct State {
     sources: Mutex<BTreeMap<IpAddr, Arc<Semaphore>>>,
     rates: Mutex<BTreeMap<String, (Instant, i64)>>,
     trace: Trace,
+    operators: Option<operator::Authority>,
 }
 fn unsupported() -> Error {
     Error::new(
@@ -107,6 +109,10 @@ fn as_error(e: anyhow::Error) -> Error {
 // WIR-34's closed operator list is method-scoped. WIR-29/30 share customer
 // paths and select their customer projection through ordinary authentication.
 fn operator_route(method: &str, path: &str) -> bool {
+    // WIR-34: preflight must not reveal an operator route through customer CORS.
+    if method == "OPTIONS" {
+        return operator_route("GET", path) || operator_route("POST", path);
+    }
     // These reserved namespaces have no customer verbs. Keep their existing
     // hiding, including namespace roots, independently of credential state.
     if path == "/v1/provider-accounts"
@@ -253,6 +259,7 @@ impl State {
         let history = operation_history(
             "candidate.id=r.resource_id AND r.resource_kind='operation'",
             "i.resource_id=r.resource_id AND r.resource_kind='operation'",
+            self.p.n("retention_seconds"),
         );
         let sql = format!(
             "SELECT COALESCE((SELECT jsonb_build_object('fingerprint',r.fingerprint,'resource_kind',r.resource_kind,'status',r.status,'body',r.response_body,'expires',provisiond.wire_time(r.expires_at),'expired',r.expires_at<=statement_timestamp(),'operation',jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at))) FROM provisiond.idempotency_records r LEFT JOIN LATERAL {history} h ON r.resource_kind='operation' AND h.id=r.resource_id AND (h.tenant_id=$1 OR h.tenant_id IS NULL) WHERE r.scope_kind='tenant' AND r.scope_id=$1 AND r.key=$2),'null'::jsonb)::text"
@@ -285,7 +292,11 @@ impl State {
         // DOM-21/WIR-27: use the same snapshot and maximum as keyed replay.
         // Tombstone authorization remains tenant-scoped; deadline aggregation is
         // across all resolving receipts, never an arbitrary receipt LIMIT 1.
-        let history = operation_history("candidate.id::text=$2", "i.resource_id::text=$2");
+        let history = operation_history(
+            "candidate.id::text=$2",
+            "i.resource_id::text=$2",
+            self.p.n("retention_seconds"),
+        );
         let sql = format!(
             "SELECT COALESCE((SELECT jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at)) FROM {history} h WHERE h.id::text=$2 AND (h.tenant_id=$1 OR (h.tenant_id IS NULL AND EXISTS(SELECT 1 FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=h.id AND r.scope_kind='tenant' AND r.scope_id=$1)))),'null'::jsonb)::text"
         );
@@ -447,8 +458,24 @@ impl State {
             )
             .into());
         }
+        let delete_machine = path
+            .strip_prefix("/v1/machines/")
+            .and_then(|s| s.strip_suffix("/actions/delete"));
+        // API-7: authorize the named object before parsing its action body.
+        if let Some(machine) = delete_machine {
+            let owned=self.store.value("SELECT to_json(EXISTS(SELECT 1 FROM provisiond.machines WHERE id::text=$1 AND tenant_id=$2))::text",&[&machine,&id]).await?;
+            if owned != true {
+                return Err(Error::missing().into());
+            }
+        }
         let v = wire::parse(&r.body)?;
-        if path == "/v1/machines" {
+        if delete_machine.is_some() {
+            let mut bad = wire::unknown(&v, &["acknowledge_destruction"]);
+            if v["acknowledge_destruction"] != true {
+                bad.push("/acknowledge_destruction".into());
+            }
+            wire::least(bad)?;
+        } else if path == "/v1/machines" {
             if let Some(account) = v["provider_account"].as_str() {
                 self.authorize_account(id, account, false).await?;
             }
@@ -523,6 +550,9 @@ impl State {
         }
         let response = if path == "/v1/deposits" {
             self.deposit(&mut tx, id, key, &fingerprint, &v, &status)
+                .await?
+        } else if let Some(machine) = delete_machine {
+            self.delete(&mut tx, id, machine, r, &v, correlation)
                 .await?
         } else {
             self.create(&mut tx, id, key, &fingerprint, &v, correlation)
@@ -650,7 +680,24 @@ impl State {
             .catalog
             .get(account)
             .context("missing configured descriptor")?;
-        let snapshot:Value=serde_json::from_str(&tx.rows("SELECT jsonb_build_object('status',s.status,'offers',COALESCE(l.offers,'[]'::jsonb),'stale',l.read_at IS NULL OR l.read_at<transaction_timestamp()-$2::bigint*interval '1 second','solvency',(SELECT solvency_halt FROM provisiond.funding_health WHERE singleton),'rate',r.value,'rate_available',COALESCE(r.available,false),'closed_ms',COALESCE((SELECT greatest(0,ceil(extract(epoch FROM closed_until-transaction_timestamp())*1000))::bigint FROM provisiond.channel_closures WHERE provider_account=$1 AND channel=$3),0),'ledger_valid',(SELECT ledger_valid FROM provisiond.spending_health WHERE singleton))::text FROM provisiond.provider_account_status s LEFT JOIN provisiond.offer_listings l USING(provider_account) LEFT JOIN provisiond.rates r ON r.currency=$4 WHERE s.provider_account=$1",&[&account,&self.p.n("listing_age_seconds"),&descriptor["channel"].as_str(),&descriptor["currency"].as_str()]).await?[0].get::<_,String>(0))?;
+        let snapshot:Value=serde_json::from_str(&tx.rows("SELECT jsonb_build_object('status',s.status,'offers',COALESCE(l.offers,'[]'::jsonb),'stale',l.read_at IS NULL OR l.read_at<transaction_timestamp()-$2::bigint*interval '1 second','solvency',(SELECT solvency_halt FROM provisiond.funding_health WHERE singleton),'rate',r.value,'rate_available',COALESCE(r.available,false),'closed_ms',COALESCE((SELECT greatest(0,ceil(extract(epoch FROM closed_until-transaction_timestamp())*1000))::bigint FROM provisiond.channel_closures WHERE provider_account=$1 AND channel=$3),0),'ledger_valid',(SELECT ledger_valid FROM provisiond.spending_health WHERE singleton),'effective_visibility',ceil(COALESCE((SELECT max(extract(epoch FROM observed_at-dispatched_at)) FROM provisiond.provider_observations WHERE provider_account=$1),0)))::text FROM provisiond.provider_account_status s LEFT JOIN provisiond.offer_listings l USING(provider_account) LEFT JOIN provisiond.rates r ON r.currency=$4 WHERE s.provider_account=$1",&[&account,&self.p.n("listing_age_seconds"),&descriptor["channel"].as_str(),&descriptor["currency"].as_str()]).await?[0].get::<_,String>(0))?;
+        let effective = pricing::with_visibility(
+            descriptor,
+            snapshot["effective_visibility"].as_i64().unwrap_or(0),
+        );
+        let descriptor = &effective;
+        if v["runway_seconds"]
+            .as_i64()
+            .is_some_and(|n| n < pricing::wind_seconds(descriptor).unwrap_or(i64::MAX))
+        {
+            return Err(Error::new(
+                "invalid_request",
+                "runway below effective wind-down bound",
+                false,
+                json!({"field":"/runway_seconds"}),
+            )
+            .into());
+        }
         let offer = snapshot["offers"]
             .as_array()
             .and_then(|a| a.iter().find(|o| o["id"] == offer_id));
@@ -922,6 +969,17 @@ impl State {
         Err(unsupported().into())
     }
     async fn page(&self, r: &Request, tenant: &str, collection: &str) -> Result<Value> {
+        self.scoped_page(r, Some(tenant), tenant, collection).await
+    }
+    // OPS-26/API-23: optional effective tenant is available only to authenticated
+    // operator reads. Customer callers always supply their own tenant above.
+    async fn scoped_page(
+        &self,
+        r: &Request,
+        tenant: Option<&str>,
+        scope: &str,
+        collection: &str,
+    ) -> Result<Value> {
         let limit = query(&r.target, "limit")
             .map(|s| s.parse::<i64>().map_err(|_| Error::field("/limit")))
             .transpose()?
@@ -1010,7 +1068,7 @@ impl State {
                 .open(&cursor)
                 .ok_or_else(|| Error::field("/cursor"))?;
             let value: Value = serde_json::from_str(&data).map_err(|_| Error::field("/cursor"))?;
-            if value["tenant"] != tenant
+            if value["tenant"] != scope
                 || value["collection"] != collection
                 || value["filter"] != filter
                 || value["requested"] != requested
@@ -1031,8 +1089,9 @@ impl State {
         // STO-33/CNF-158: logical expiry also excludes settled collection rows,
         // independently of physical sweep timing. Unsettled rows never expire.
         let history = operation_history(
-            "candidate.tenant_id=$1",
-            "i.resource_id IN (SELECT id FROM provisiond.operations WHERE tenant_id=$1)",
+            "($1::text IS NULL OR candidate.tenant_id=$1)",
+            "i.resource_id IN (SELECT id FROM provisiond.operations WHERE $1::text IS NULL OR tenant_id=$1)",
+            self.p.n("retention_seconds"),
         );
         let operation_table = format!("(SELECT * FROM {history} h WHERE NOT h.expired)");
         let table = match collection {
@@ -1048,7 +1107,7 @@ impl State {
             "status"
         };
         let sql = format!(
-            "SELECT COALESCE(jsonb_agg(jsonb_build_object('body',body,'time',created_at::text,'id',id) ORDER BY created_at DESC,id),'[]'::jsonb)::text FROM (SELECT * FROM {table} v WHERE tenant_id=$1 AND ($2='' OR body->>'{status_field}'=ANY(string_to_array($2,','))) AND ($3='' OR body->>'requested_by'=ANY(string_to_array($3,','))) AND ($4='' OR body->>'system_reason'=ANY(string_to_array($4,','))) AND ($5='' OR (body->>'terminal')::boolean=$5::boolean) AND ($6='' OR created_at<NULLIF($6,'')::timestamptz OR (created_at=NULLIF($6,'')::timestamptz AND id::text>$7)) ORDER BY created_at DESC,id LIMIT $8) page"
+            "SELECT COALESCE(jsonb_agg(jsonb_build_object('body',body,'time',created_at::text,'id',id) ORDER BY created_at DESC,id),'[]'::jsonb)::text FROM (SELECT * FROM {table} v WHERE ($1::text IS NULL OR tenant_id=$1) AND body IS NOT NULL AND ($2='' OR body->>'{status_field}'=ANY(string_to_array($2,','))) AND ($3='' OR body->>'requested_by'=ANY(string_to_array($3,','))) AND ($4='' OR body->>'system_reason'=ANY(string_to_array($4,','))) AND ($5='' OR (body->>'terminal')::boolean=$5::boolean) AND ($6='' OR created_at<NULLIF($6,'')::timestamptz OR (created_at=NULLIF($6,'')::timestamptz AND id::text>$7)) ORDER BY created_at DESC,id LIMIT $8) page"
         );
         let rows = self
             .store
@@ -1070,7 +1129,7 @@ impl State {
         let selected: Vec<_> = rows.iter().take(limit as usize).collect();
         let next = if rows.len() > limit as usize {
             let last = selected.last().context("last row")?;
-            Some(self.admission.seal(&json!({"tenant":tenant,"collection":collection,"filter":filter,"requested":requested,"reason":reason,"terminal":terminal,"time":last["time"],"id":last["id"]}).to_string()))
+            Some(self.admission.seal(&json!({"tenant":scope,"collection":collection,"filter":filter,"requested":requested,"reason":reason,"terminal":terminal,"time":last["time"],"id":last["id"]}).to_string()))
         } else {
             None
         };
@@ -1118,6 +1177,10 @@ pub async fn serve(store: Store, trace: Trace) -> Result<()> {
         &std::env::var("PROVISIOND_RAIL_SIMULATOR").context("missing PROVISIOND_RAIL_SIMULATOR")?,
     )
     .context("PROVISIOND_RAIL_SIMULATOR must be a loopback socket address with a positive port")?;
+    let operators = operator::Authority::load()?;
+    if let Some(authority) = &operators {
+        authority.exclude_customer_credentials(&store).await?;
+    }
     let descriptors=store.value("SELECT COALESCE(jsonb_object_agg(account,descriptor),'{}'::jsonb)::text FROM provisiond.provider_accounts",&[]).await?;
     for descriptor in descriptors
         .as_object()
@@ -1146,7 +1209,13 @@ pub async fn serve(store: Store, trace: Trace) -> Result<()> {
         sources: Mutex::new(BTreeMap::new()),
         rates: Mutex::new(BTreeMap::new()),
         trace: trace.clone(),
+        operators,
     });
+    let operator_listener = if let Some(authority) = &state.operators {
+        Some(TcpListener::bind(authority.address).await?)
+    } else {
+        None
+    };
     let listener = TcpListener::bind(address).await?;
     let maintenance_store = store.clone();
     let maintenance_parameters = p.clone();
@@ -1178,14 +1247,19 @@ pub async fn serve(store: Store, trace: Trace) -> Result<()> {
                     let state = state.clone();
                     requests.spawn(async move {
                         // Caller disconnects carry no secret diagnostic.
-                        let _ = connection(socket, peer, state).await;
+                        let _ = connection(socket, peer, state, false).await;
                     });
+                }
+                accepted = async {match &operator_listener {Some(listener)=>listener.accept().await,None=>std::future::pending().await}} => {
+                    let (socket,peer)=accepted?;let state=state.clone();
+                    requests.spawn(async move {let _=connection(socket,peer,state,true).await;});
                 }
             }
         }
     }
     .await;
     drop(listener);
+    drop(operator_listener);
     trace(json!({"event":"api_stopping","pending_requests":requests.len()}));
     // STO-7/55, OPS-49: cancellation drops only caller work. The existing
     // Process still owns every sent COMMIT, including one whose waiter ends here.
@@ -1230,7 +1304,12 @@ fn task_stopped(
         Err(_) => anyhow::bail!("API {name} panicked or was cancelled"),
     }
 }
-async fn connection(mut socket: TcpStream, peer: SocketAddr, state: Arc<State>) -> Result<()> {
+async fn connection(
+    mut socket: TcpStream,
+    peer: SocketAddr,
+    state: Arc<State>,
+    operator: bool,
+) -> Result<()> {
     let r = tokio::time::timeout(Duration::from_secs(5), http::read(&mut socket)).await??;
     let correlation = r
         .headers
@@ -1247,7 +1326,15 @@ async fn connection(mut socket: TcpStream, peer: SocketAddr, state: Arc<State>) 
         ("Access-Control-Allow-Origin".into(), "*".into()),
         ("Vary".into(), "Origin".into()),
     ];
-    let (status, body) = if r.method == "OPTIONS" && r.target.starts_with("/v1") {
+    let hidden = operator_route(&r.method, r.target.split('?').next().unwrap_or(&r.target));
+    if operator || hidden {
+        headers.retain(|(k, _)| k == "X-Correlation-Id");
+    }
+    let (status, body) = if !operator
+        && !hidden
+        && r.method == "OPTIONS"
+        && r.target.starts_with("/v1")
+    {
         headers.extend([
             (
                 "Access-Control-Allow-Methods".into(),
@@ -1262,8 +1349,9 @@ async fn connection(mut socket: TcpStream, peer: SocketAddr, state: Arc<State>) 
         (200, json!({}))
     } else {
         // WIR-49: dropping the held caller cancels issuance and frees its source slot.
-        let result = if r.target.split('?').next() == Some("/v1/enrol/token") && r.method == "POST"
-        {
+        let result = if operator {
+            state.operator_handle(&r, &correlation).await
+        } else if r.target.split('?').next() == Some("/v1/enrol/token") && r.method == "POST" {
             let mut peek = [0];
             tokio::select! {result=state.handle(&r,peer.ip(),&correlation)=>result,_=socket.peek(&mut peek)=>{(state.trace)(json!({"event":"token_request_abandoned","correlation_id":correlation}));return Ok(());}}
         } else {
@@ -1352,8 +1440,10 @@ async fn housekeeping(store: Arc<Store>, p: Parameters) -> Result<()> {
             .await?;
             tx.rows("DELETE FROM provisiond.enrolments e WHERE tenant_id=$1 AND NOT EXISTS(SELECT 1 FROM provisiond.tenants t WHERE t.id=e.tenant_id) RETURNING handle",&[&tenant]).await?;
         }
+        // WIR-27/51, API-7/11: the deleted set, actual horizons and strict
+        // validation/audit metadata share one statement snapshot.
         let purge = format!(
-            "DELETE FROM provisiond.operations o WHERE o.id IN (SELECT id FROM {SETTLED_RETENTION} due) RETURNING o.id"
+            "WITH due AS MATERIALIZED (SELECT id,retained_until FROM {SETTLED_RETENTION} eligible), removed AS (DELETE FROM provisiond.operations o USING due WHERE o.id=due.id RETURNING o.id,o.tenant_id,o.created_at,o.kind,o.machine_id) INSERT INTO provisiond.retired_operations(id,tenant_id,created_at,retained_until,kind,machine_id) SELECT o.id,o.tenant_id,o.created_at,due.retained_until,o.kind,o.machine_id FROM removed o JOIN due ON due.id=o.id RETURNING id"
         );
         tx.rows(&purge, &[&p.n("retention_seconds")]).await?;
         ensure!(

@@ -559,8 +559,8 @@ def startup(h,defect=None):
     empty_queue(h)
     for mode in ('newer','older','semantics','uninitialized','missing_history','missing_schema'):
         if mode in ('newer','older','semantics'):
-            version,semantics={'newer':(3,2),'older':(0,2),'semantics':(2,3)}[mode]
-            h.sql(f'UPDATE provisiond.schema_migrations SET version={version},semantics={semantics} WHERE version<>1')
+            version,semantics={'newer':(4,3),'older':(0,3),'semantics':(3,4)}[mode]
+            h.sql(f'UPDATE provisiond.schema_migrations SET version={version},semantics={semantics} WHERE version NOT IN (1,2)')
         elif mode=='uninitialized':h.sql('DELETE FROM provisiond.schema_migrations')
         elif mode=='missing_history':h.sql('ALTER TABLE provisiond.schema_migrations RENAME TO saved_migrations')
         else:h.sql('ALTER SCHEMA provisiond RENAME TO missing_schema_fixture')
@@ -574,8 +574,8 @@ def startup(h,defect=None):
         assert h.sql(f'SELECT generation FROM {schema}.startup_generation')==generation
         if mode=='missing_schema':h.sql('ALTER SCHEMA missing_schema_fixture RENAME TO provisiond')
         elif mode=='missing_history':h.sql('ALTER TABLE provisiond.saved_migrations RENAME TO schema_migrations')
-        elif mode=='uninitialized':h.sql('INSERT INTO provisiond.schema_migrations(version,semantics) VALUES(1,1),(2,2)')
-        else:h.sql('UPDATE provisiond.schema_migrations SET version=2,semantics=2 WHERE version<>1')
+        elif mode=='uninitialized':h.sql('INSERT INTO provisiond.schema_migrations(version,semantics) VALUES(1,1),(2,2),(3,3)')
+        else:h.sql('UPDATE provisiond.schema_migrations SET version=3,semantics=3 WHERE version NOT IN (1,2)')
     # Ordinary supported startup, no --check-schema: terminate only its lock session.
     log=h.root/'supported-engine-startup.log'
     with log.open('w') as output:

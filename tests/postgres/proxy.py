@@ -57,6 +57,9 @@ class Proxy:
         # Focused worker preflight regression: kill only matching read transports.
         self.fail_query = None
         self.observer_identity_mismatch = False
+        # Opt-in F1 evidence: only the named machine's gone-write timestamp,
+        # never general parameters or authentication payloads.
+        self.exit_stop_machine = None
         self.spawn(self.accept)
 
     def spawn(self, fn, *args):
@@ -137,6 +140,23 @@ class Proxy:
                         self.h.event('fault_activated',fault='preflight_read_transport',query=c['query'],session=c['pid'])
                         self.close_connection(c,'preflight_read_transport')
                         return
+                if (tag==b'B' and self.exit_stop_machine is not None and
+                    c['query'].startswith("UPDATE provisiond.machines SET state='deleted',state_observed_at=")):
+                    # Bind: portal, statement, format codes, parameter values.
+                    offset=body.index(b'\0')+1;offset=body.index(b'\0',offset)+1
+                    formats=struct.unpack('!H',body[offset:offset+2])[0];offset+=2+2*formats
+                    count=struct.unpack('!H',body[offset:offset+2])[0];offset+=2
+                    assert count==2,'gone-write timestamp observation requires its two known parameters'
+                    values=[]
+                    for _ in range(count):
+                        size=struct.unpack('!i',body[offset:offset+4])[0];offset+=4
+                        assert size>=0
+                        values.append(body[offset:offset+size]);offset+=size
+                    if values[0].decode()==self.exit_stop_machine:
+                        instant=values[1].decode()
+                        assert len(instant)<=64 and 'T' in instant
+                        self.h.event('w6_exit_stop_input',machine=self.exit_stop_machine,
+                                     observed_at=instant,session=c['pid'])
                 try:
                     c['server'].sendall(tag+length+body)
                 except OSError:

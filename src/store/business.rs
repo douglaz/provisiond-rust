@@ -372,7 +372,7 @@ impl Transaction {
     }
     /// STO-3: exact repeats preserve revision and timestamp. Status guard always
     /// precedes money. A zero row prevents every related effect.
-    async fn settle_inner(
+    pub(crate) async fn settle_inner(
         &mut self,
         c: &Claim,
         target: &str,
@@ -397,11 +397,21 @@ impl Transaction {
         } else {
             Some(crate::wire::redact(error.clone()).to_string())
         };
-        let rows=self.rows("UPDATE provisiond.operations SET status=$3,result=$4::text::jsonb,error=$5::text::jsonb,request=NULL,revision=CASE WHEN status='running' THEN revision+1 ELSE revision END,updated_at=CASE WHEN status='running' THEN clock_timestamp() ELSE updated_at END WHERE id=$1::text::uuid AND tenant_id=$7 AND kind=$8 AND (claim_number=$2 OR $6) AND (status='running' OR (status=$3 AND result IS NOT DISTINCT FROM $4::text::jsonb AND error IS NOT DISTINCT FROM $5::text::jsonb AND request IS NULL)) RETURNING kind,commitment_id::text",&[&c.id,&guard,&target,&result,&error,&bypass,&c.tenant,&c.kind]).await?;
+        let rows=self.rows("UPDATE provisiond.operations SET status=$3,result=$4::text::jsonb,error=$5::text::jsonb,request=NULL,mutation_wait_ended_at=CASE WHEN $3='needs_reconciliation' THEN COALESCE(mutation_wait_ended_at,clock_timestamp()) ELSE mutation_wait_ended_at END,revision=CASE WHEN status='running' THEN revision+1 ELSE revision END,updated_at=CASE WHEN status='running' THEN clock_timestamp() ELSE updated_at END WHERE id=$1::text::uuid AND tenant_id=$7 AND kind=$8 AND (claim_number=$2 OR $6) AND (status='running' OR (status=$3 AND result IS NOT DISTINCT FROM $4::text::jsonb AND error IS NOT DISTINCT FROM $5::text::jsonb AND request IS NULL)) RETURNING kind,commitment_id::text",&[&c.id,&guard,&target,&result,&error,&bypass,&c.tenant,&c.kind]).await?;
         let Some(row) = rows.first() else {
             return Ok(false);
         };
         if row.get::<_, String>(0) == "create" && target == "failed" {
+            self.release_create(&c.id, row.get::<_, Option<String>>(1).as_deref())
+                .await?;
+        }
+        if c.kind == "delete" {
+            self.delete_episode_state(&c.id, target, None).await?;
+        }
+        if c.kind == "create"
+            && target == "needs_reconciliation"
+            && super::test_defect("w6_release_timeout")
+        {
             self.release_create(&c.id, row.get::<_, Option<String>>(1).as_deref())
                 .await?;
         }
@@ -440,6 +450,16 @@ impl Transaction {
         {
             return Ok(false);
         }
+        self.land_create(c, external_id, earliest_date).await?;
+        Ok(true)
+    }
+    /// OPS-27: shared effects after the caller has won its own status guard.
+    pub(crate) async fn land_create(
+        &mut self,
+        c: &Claim,
+        external_id: &str,
+        earliest_date: Option<&str>,
+    ) -> Result<()> {
         let row=self.rows("SELECT provider_account,commitment_id::text,request_summary::text FROM provisiond.operations WHERE id=$1::text::uuid",&[&c.id]).await?.remove(0);
         let account: String = row.get(0);
         let commitment: String = row.get(1);
@@ -477,11 +497,8 @@ impl Transaction {
             let key = format!("{kind}:{}", c.id);
             if !self.rows("SELECT id FROM provisiond.ledger_entries WHERE tenant_id=$1 AND idempotency_key=$2",&[&c.tenant,&key]).await?.is_empty() {continue;}
             let row=self.rows("SELECT reserved_sats,version,state FROM provisiond.commitments WHERE id=$1::text::uuid",&[&commitment]).await?.remove(0);
-            ensure!(
-                row.get::<_, String>(2) == "open",
-                "late attach unsupported; original commitment closed"
-            );
-            let remaining: i64 = row.get(0);
+            let released = row.get::<_, String>(2) != "open";
+            let remaining: i64 = if released { 0 } else { row.get(0) };
             let version: i64 = row.get(1);
             let debit = requested.min(remaining);
             let native = charge["native_minor"]
@@ -516,12 +533,21 @@ impl Transaction {
             if debit < requested {
                 // LDG-66: opening evidence is independent of the debit's accepted
                 // conversion. An unavailable opening rate remains null on repeats.
-                self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,absorbed_seconds,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) SELECT $1,$2::text::uuid,'machine',$2::text::uuid,0,$3::text::uuid,'clamp_overflow',$4,$5,$6,(r.value->>'rate_num')::bigint,(r.value->>'rate_den')::bigint,$7 FROM (VALUES(1)) AS one(n) LEFT JOIN provisiond.rates r ON r.currency=$5 AND r.available ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&machine,&c.id,&(native-customer_native),&charge["currency"].as_str(),&(requested-debit),&key]).await?;
+                let cause = if released {
+                    if field == "setup_fee" {
+                        "unrecoverable_setup_fee"
+                    } else {
+                        "unrecoverable_first_unit"
+                    }
+                } else {
+                    "clamp_overflow"
+                };
+                self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,absorbed_seconds,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) SELECT $1,$2::text::uuid,'machine',$2::text::uuid,0,$3::text::uuid,$8,$4,$5,$6,(r.value->>'rate_num')::bigint,(r.value->>'rate_den')::bigint,$7 FROM (VALUES(1)) AS one(n) LEFT JOIN provisiond.rates r ON r.currency=$5 AND r.available ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&machine,&c.id,&(native-customer_native),&charge["currency"].as_str(),&(!released).then_some(requested-debit),&key,&cause]).await?;
             }
         }
         self.rows("DELETE FROM provisiond.resource_exclusions WHERE operation_id=$1::text::uuid RETURNING operation_id",&[&c.id]).await?;
         ledger::balance(self, &c.tenant).await?;
-        Ok(true)
+        Ok(())
     }
 }
 pub(crate) fn validate_charge(c: &Value) -> Result<()> {

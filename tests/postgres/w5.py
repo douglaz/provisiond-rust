@@ -15,14 +15,28 @@ CASES = [
 
 def w5(h, case=None, defect=None):
     from workflow import Workflow
-    h.config['w5']=dict(required_scenarios=CASES,selected_case=case,defect=defect,automatic_reconciliation='not run (W6)',deployment_saturation='not run (W8)',recovery_incidents='not run (W7)')
+    h.config['w5']=dict(required_scenarios=CASES,selected_case=case,defect=defect,automatic_reconciliation='read-only simulator barrier for named interrupted-state assertions; W6 separately verified',deployment_saturation='not run (W8)',recovery_incidents='not run (W7)')
     w = Workflow(h, defect='generation' if defect == 'w5_generation' else defect)
     try:
         for name in ([case] if case else CASES):
             w.case = name
             w.stop_engine()
             before=len(h.events)
-            SCENARIOS[name](w)
+            # These interruption fixtures inspect an unresolved boundary across a
+            # successor. W6 remains live; only its independent provider reads wait.
+            interrupted={'w5_step8','w5_accepted_lost','w5_stop_record','w5_lock_loss',
+                         'w5_process_death','w5_contention','w5_remote_completion','w5_generation_record'}
+            barrier=h.root/'provider/hold-reconciliation'
+            needs_boundary=name in interrupted or name.startswith('w5_accounting_')
+            evidence_hold=w.control/'hold-reconciliation-record'
+            if needs_boundary:
+                barrier.touch();evidence_hold.touch()
+                h.event('historical_resolution_barrier_requested',scenario=name,boundary='provider reads and retained evidence before next store unit')
+            try:SCENARIOS[name](w)
+            finally:
+                if needs_boundary:
+                    w.stop_engine();barrier.unlink();evidence_hold.unlink(missing_ok=True)
+                    h.event('historical_resolution_barrier_released',scenario=name)
             assert any(e['event']=='w5_causal_trace' or e['event']=='w5_connection_check_activated' for e in h.events[before:]), 'W5 scenario missing causal trace'
             h.results.append(dict(test=name,result='pass'))
         expected=[case] if case else CASES
@@ -323,7 +337,7 @@ def accepted_lost(w):
         successor(w,op,'needs_reconciliation')
         assert w.request('POST','/v1/machines',body,t,'w5-accepted-lost',status=202)['id']==op
         assert snapshot(w,op)==before and len(orders(w,op))==1
-        trace(w,op,'provider accepted and created; reply lost',unknown_acceptance=True,automatic_reconciliation='not run (W6)')
+        trace(w,op,'provider accepted and created; reply lost',unknown_acceptance=True,automatic_reconciliation='read-only simulator barrier for named interrupted-state assertions; W6 separately verified')
     finally:w.provider_control(mode='normal')
 
 
@@ -706,7 +720,7 @@ def process_death(w):
     w.start_engine();w.wait_status(op,'succeeded');w.stop_engine()
     assert len(orders(w,op))==1
     trace(w,op,'process killed with residual SyncRep backend',replacement_attempts=attempts,operator_recovery_completed=True,
-          deployment_saturation='not run (W8)',promotion_incident='not run (W7)',automatic_reconciliation='not run (W6)')
+          deployment_saturation='not run (W8)',promotion_incident='not run (W7)',automatic_reconciliation='read-only simulator barrier for named interrupted-state assertions; W6 separately verified')
 
 
 def contention(w):
@@ -717,10 +731,17 @@ def contention(w):
     t,body,op=admit(w,'w5-contention');h=w.h
     hold=w.control/'hold-step-9';hold.touch();funding=w.control/'hold-funding';funding.touch()
     gate=None;locker=None;paused=False
+    evidence_hold=w.control/'hold-reconciliation-record';evidence_hold.touch()
     try:
         p=w.start_engine()
         eventually(lambda:any(e.get('operation')==op and e.get('step')==9 for e in events(p,'dispatch_step_held')))
         pause_dispatch(w,p)
+        # W6 adds another engine component. Attribute its read-only provider hold
+        # before pausing replication, so this W5 global-pool assertion still has
+        # exactly one checkout owner. Never weaken the release assertion.
+        held=eventually(lambda:events(p,'reconciliation_evidence_held'))[-1]
+        assert held['checkout_held'] is False
+        h.event('w5_periodic_read_held_before_contention',operation=op,evidence_boundary=held)
         gate=h.proxy.arm('SET status=$3,result=','send');hold.unlink();connection=gate.wait()
         provider=external(w,op);assert any(e.get('operation')==op for e in events(p,'execute_returned'))
         output=h.root/'w5-locker.stdout';error=h.root/'w5-locker.stderr'
@@ -749,11 +770,11 @@ def contention(w):
             locker.stdin.write('ROLLBACK;\n\\q\n');locker.stdin.flush();locker.wait(timeout=5)
         if paused:resume_standby(h)
         if gate:gate.release()
-        for path in (hold,funding,w.control/'hold-dispatch'):
+        for path in (hold,funding,evidence_hold,w.control/'hold-dispatch'):
             if path.exists():path.unlink()
     successor(w,op,'needs_reconciliation')
     assert len(orders(w,op))==1
-    trace(w,op,'business row contention during replication stall',automatic_reconciliation='not run (W6)')
+    trace(w,op,'business row contention during replication stall',automatic_reconciliation='read-only simulator barrier for named interrupted-state assertions; W6 separately verified')
 
 
 def remote_completion(w):
@@ -780,7 +801,7 @@ def remote_completion(w):
         successor(w,op,'needs_reconciliation')
         assert w.request('POST','/v1/machines',body,t,'w5-remote-completion',status=202)['id']==op
         assert snapshot(w,op)==before and len(orders(w,op))==1
-        trace(w,op,'remote effect held until after lock-loss record and engine exit',remote_effect_completed_after_exit=True,automatic_reconciliation='not run (W6)')
+        trace(w,op,'remote effect held until after lock-loss record and engine exit',remote_effect_completed_after_exit=True,automatic_reconciliation='read-only simulator barrier for named interrupted-state assertions; W6 separately verified')
     finally:
         if hold.exists():hold.unlink()
 

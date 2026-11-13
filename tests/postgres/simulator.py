@@ -24,12 +24,15 @@ def main():
     args.root.mkdir(exist_ok=True)
     events=args.root/'effects.jsonl'
     lock=threading.RLock()
-    state=dict(mode='normal',offers={},settlements=[],resources={},keys={},cancelled=[])
+    state=dict(mode='normal',offers={},settlements=[],resources={},orders={},keys={},cancelled=[],evidence={})
     sequence=0
     if events.exists():
         for line in events.read_text().splitlines():
             e=json.loads(line);sequence=e['sequence']
             if e['stage']=='resource_created':state['resources'][e['resource']]=e['value']
+            if e['stage']=='resource_created' and not e.get('test_fixture'):state['orders'][e['resource']]=e['value']
+            if e['stage']=='key_registered':state['keys'][e['command']]={'name':e['command'],'owner':e['command'],'account':e['account']}
+            if e['stage']=='key_deleted':state['keys'].pop(e['command'],None)
             if e['stage']=='resource_deleted':state['resources'].pop(e['resource'],None)
             if e['stage']=='rail_observation':state['settlements'].append(e['value'])
             if e['stage']=='invoice_cancelled':state['cancelled'].append(e['destination'])
@@ -71,11 +74,18 @@ def main():
             if self.path=='/control':
                 with lock:
                     if body.get('clear'):state['settlements']=[]
+                    if 'evidence' in body:
+                        proof=body['evidence'];state['evidence'][proof['operation']]=proof
+                        record('evidence_control_activated',value=proof)
+                    if 'remove_resource' in body:
+                        external=body['remove_resource'];state['resources'].pop(external,None)
+                        record('resource_deleted',resource=external,test_fixture=True)
                     if 'fixture_resource' in body:
                         resource=body['fixture_resource'];state['resources'][resource['external_id']]=resource
                         record('resource_created',resource=resource['external_id'],value=resource,test_fixture=True)
                     if 'offers' in body:state['offers']=body['offers']
                     if 'mode' in body:state['mode']=body['mode']
+                    if 'authentication_fault' in body:state['authentication_fault']=body['authentication_fault']
                     if 'deadline_delay' in body:state['deadline_delay']=body['deadline_delay']
                     if 'verification_resource' in body:state['verification_resource']=body['verification_resource']
                     if 'settlement' in body:
@@ -104,7 +114,7 @@ def main():
                     record('invalid_settlements_returned');self.reply({});return
                 self.reply(state['settlements']);return
             operation=body.get('operation')
-            identity=dict(command=operation,account=body.get('account'),correlator=body.get('correlator'),path=self.path)
+            identity=dict(command=operation,account=body.get('account'),correlator=body.get('correlator'),path=self.path,resolution=body.get('resolution',False))
             record('request_received',**identity)
             # PRV-13b/OVR-19 test tooling only: one attributed request, after
             # readiness. Observe peer EOF while withholding the response, so the
@@ -132,12 +142,33 @@ def main():
             if held:record('request_held',**identity)
             while hold.exists():time.sleep(.002)
             if held:record('request_released',**identity)
+            if body.get('resolution'):
+                barrier=args.root/'hold-reconciliation'
+                if barrier.exists():record('resolution_read_held',**identity)
+                while barrier.exists():time.sleep(.002)
+            proof=state['evidence'].get(operation,{})
+            fault=state.get('authentication_fault')
+            if fault and body.get('account')==fault['account'] and self.path==fault['path'] and ('operation' not in fault or operation==fault['operation']):
+                record('authentication_rejected',**identity)
+                self.reply({'error':{'kind':'authentication','message':'controlled credential rejection','retryable':False,'details':{'accepted':False,'status':401}}});return
+            if self.path=='/enumerate':
+                with lock:rows=[r for r in state['resources'].values() if r['account']==body['account']]
+                offset=int(body.get('cursor') or 0);page=rows[offset:offset+2]
+                cursor=str(offset+2) if offset+2<len(rows) else None
+                if proof.get('enumeration')=='rate_limited':
+                    record('enumeration_refused',**identity)
+                    self.reply({'error':{'kind':'rate_limited','message':'controlled enumeration throttle','retryable':True,'details':{'accepted':None,'retry_after_ms':1000}}});return
+                if proof.get('enumeration')=='incomplete':
+                    self.reply({'resources':page,'complete':False,'next':None});return
+                self.reply({'resources':page,'complete':cursor is None,'next':cursor});return
+            if self.path=='/keys/list':
+                self.reply([dict(v,operation=k) for k,v in state['keys'].items() if v['account']==body['account']]);return
             mode=state['mode']
             if self.path=='/offers':record('read_only',**identity);self.reply(state['offers'].get(body['account'],[]));return
             if self.path=='/keys':
                 if mode=='duplicate_key':
                     self.reply({'error':{'kind':'conflict','message':'duplicate simulator key','retryable':False,'details':{'reason':'state','accepted':False}}});return
-                state['keys'][operation]={'name':operation,'owner':operation};record('key_registered',**identity)
+                state['keys'][operation]={'name':operation,'owner':operation,'account':body['account']};record('key_registered',**identity)
                 if mode=='drop_key_reply':
                     self.close_connection=True;self.connection.shutdown(2);self.connection.close();return
                 self.reply({'id':operation,'owned':True});return
@@ -156,7 +187,7 @@ def main():
                 if mode=='secret_error':
                     self.reply({'error':{'kind':'authentication','message':'TEST_ONLY_SECRET_MARKER','retryable':False,'details':{'accepted':False,'api_key':'TEST_ONLY_SECRET_MARKER','nested':[{'password':'TEST_ONLY_SECRET_MARKER'}]}}});return
                 if mode=='reject_order':
-                    self.reply({'error':{'kind':'authentication','message':'controlled order rejection','retryable':False,'details':{'accepted':False}}});return
+                    self.reply({'error':{'kind':'provider','message':'controlled order rejection','retryable':False,'details':{'accepted':False,'status':400}}});return
                 accepted=record('accepted',**identity)
                 # OPS-47/50: independent remote effect can outlive its caller.
                 effect=args.root/'hold-before-effect'
@@ -170,6 +201,7 @@ def main():
                 resource={'external_id':external,'account':body['account'],'correlator':body['correlator'],'channel':body['channel'],'name':body['request']['hostname'],'region':body['request'].get('region'),'state':'running','public_ips':[],'present':True}
                 with lock:
                     state['resources'][external]=resource
+                    state['orders'][external]=resource
                     record('resource_created',resource=external,value=resource,**identity)
                 after=args.root/'hold-after-create'
                 while after.exists():time.sleep(.002)
@@ -179,6 +211,21 @@ def main():
                 return
             if self.path=='/search':
                 record('read_only',**identity)
+                if body.get('resolution') and proof:
+                    search=proof.get('search','normal')
+                    if search=='failed':
+                        record('resolution_search_failed',**identity)
+                        self.reply({'error':{'kind':'network','message':'controlled search failure','retryable':True,'details':{}}});return
+                    with lock:found=[r for r in state['orders'].values() if r['account']==body['account'] and r['channel']==body['channel'] and r['correlator']==body['correlator']]
+                    if search=='empty':found=[]
+                    if search=='wrong':found=[dict(r,correlator='unrelated') for r in found]
+                    if search=='many':found=found+[dict(r,external_id=r['external_id']+'-duplicate') for r in found]
+                    if search=='in_progress':found=[]
+                    if 'resources' in proof:found=proof['resources']
+                    if 'channels' in proof:found=proof['channels'].get(body['channel'],[])
+                    authoritative=search!='incomplete' and body['channel']!=proof.get('incomplete_channel')
+                    record('resolution_evidence_returned',search=search,authoritative=authoritative,resources=found,**identity)
+                    self.reply({'authoritative':authoritative,'resources':found,'in_progress':search=='in_progress'});return
                 if mode=='search_provider_400':
                     error={'kind':'provider','message':'controlled verification refusal','retryable':True,'details':{'accepted':False,'status':400}}
                     record('verification_fault_returned',mode=mode,error=error,**identity)
@@ -192,12 +239,15 @@ def main():
                 # iterator. Resources are replaced, not mutated, after insertion.
                 with lock:resources=tuple(state['resources'].values())
                 found=[r for r in search_values(resources,identity) if r['account']==body['account'] and r['channel']==body['channel'] and r['correlator']==body['correlator']]
+                if mode=='search_wrong_exact':
+                    found=[dict(r,correlator='unrelated') for r in found]
+                    record('non_exact_candidate_returned',resources=found,**identity)
                 if mode in ('search_non_authoritative','search_many','get_error','get_absent','search_malformed'):
                     other=state['resources'][state['verification_resource']]
-                    if mode in ('get_error','get_absent','search_malformed'):found=[other]
-                    else:found.append(other)
+                    if mode=='search_malformed':found=found[:1]
+                    elif mode not in ('get_error','get_absent'):found.append(other)
                     record('verification_identifiers_returned',source='search',identifiers=[r['external_id'] for r in found],**identity)
-                    if mode=='search_malformed':found.append({})
+                    if mode=='search_malformed':found.append(dict(account=body['account'],channel=body['channel'],correlator=body['correlator']))
                     if mode.startswith('search_'):record('verification_fault_returned',mode=mode,**identity)
                 if mode=='normal' and (args.root/'hold-get').exists():
                     # OPS-21/13: publish the selected IDs before this reply can
@@ -210,6 +260,17 @@ def main():
             if self.path in ['/get','/constraints']:
                 record('read_only',**identity)
                 resource=state['resources'].get(body['external_id'])
+                if mode=='delete_gone_stale' and self.path=='/get':resource=state.get('stale_deleted',{}).get(body['external_id'],resource)
+                if mode=='search_wrong_exact' and self.path=='/get':resource=dict(resource,correlator='unrelated')
+                if body.get('resolution') and self.path=='/get' and proof.get('search')=='wrong':
+                    resource=dict(resource,correlator='unrelated')
+                if body.get('resolution') and self.path=='/get' and proof.get('direct'):
+                    record('resolution_direct_activated',direct=proof['direct'],**identity)
+                    if proof['direct']=='failed':
+                        self.reply({'error':{'kind':'network','message':'controlled read failure','retryable':True,'details':{'accepted':None}}});return
+                    if proof['direct']=='absent':self.reply(None);return
+                    if proof['direct']=='wrong_account':self.reply(dict(resource,account='unrelated'));return
+
                 if self.path=='/get' and mode in ('get_error','get_absent'):
                     record('verification_fault_returned',mode=mode,**identity)
                     if mode=='get_error':
@@ -221,7 +282,23 @@ def main():
                 if self.path=='/get' and held:record('verification_read_finished',reply_returned=returned,**identity)
                 return
             if self.path=='/delete':
-                state['resources'].pop(body['external_id'],None);record('resource_deleted',resource=body['external_id'],**identity);self.reply({'gone':True});return
+                decision=proof.get('delete',mode)
+                if decision=='reject':
+                    record('delete_rejected',**identity)
+                    self.reply({'error':{'kind':'provider','message':'controlled delete rejection','retryable':False,'details':{'accepted':False,'status':400}}});return
+                if decision=='unknown':
+                    record('delete_reply_dropped',accepted=None,**identity);self.close_connection=True;self.connection.shutdown(2);self.connection.close();return
+                accepted=record('delete_accepted',**identity)
+                if decision=='acceptance_not_applied':
+                    if self.reply({'accepted':True}):record('delete_response_returned',gone=False,**identity)
+                    return
+                if mode=='delete_gone_stale':state.setdefault('stale_deleted',{})[body['external_id']]=state['resources'].get(body['external_id'])
+                state['resources'].pop(body['external_id'],None);record('resource_deleted',resource=body['external_id'],**identity)
+                if decision=='drop_reply':
+                    record('delete_reply_dropped',accepted=True,**identity);self.close_connection=True;self.connection.shutdown(2);self.connection.close();return
+                reply={'accepted':True} if decision=='acceptance_applied' else {'gone':True}
+                if self.reply(reply):record('delete_response_returned',gone=reply.get('gone',False),**identity)
+                return
             self.reply({'error':{'kind':'unsupported','message':'test route unsupported','retryable':False,'details':{'accepted':False}}})
     server=ThreadingHTTPServer(('127.0.0.1',args.port),Handler)
     print(json.dumps({'event':'simulator_listening','port':args.port,'kind':args.kind}),flush=True)

@@ -11,8 +11,10 @@ adapters remain future work.
 **Status: not a conforming service.** The local prototype has an admitted database client,
 offline migrations, fenced engine transactions and atomic money primitives. The API checks schema
 compatibility before serving a loopback customer HTTP subset. The engine dispatches local simulated
-creates through acknowledged licensing and verified settlement. Provider execution is simulator-only; automatic reconciliation,
-metering and recovery incidents remain unimplemented. No real provider accounts or funds may be used.
+creates through acknowledged licensing and verified settlement, reconciles independent simulator evidence,
+and executes immediate-destroy deletion. An isolated operator listener resolves uncertain outcomes and
+retries or keeps stalled cleanup episodes. Reached exit metering is implemented; general billing and
+recovery incidents remain unimplemented. No real provider accounts or funds may be used.
 
 ## Where to start
 
@@ -74,10 +76,10 @@ destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, 
 primary restart, residual-backend and bounded-process-stop fixtures, retained-object deadline
 closure, caller-runtime shutdown, constructor cancellation/deadlines, the transactional core,
 the complete HTTP funding/create workflow, a default-feature workflow, W5 interruption scenarios,
-thirty-five defect controls, and cleanup. The parent accepts a failing control only with its
+thirty-nine defect controls, and cleanup. The parent accepts a failing control only with its
 exact exit code and intended assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
-non-zero. The aggregate manifest requires all ten phases (W1, checks, commits, regressions, corrections,
-core, workflow, default-workflow, W5, controls);
+non-zero. The aggregate manifest requires all eleven phases (W1, checks, commits, regressions, corrections,
+core, workflow, default-workflow, W5, W6, controls);
 each writes its own sanitized manifest and retains raw evidence under the private harness root.
 
 The `commits` and `regressions` phases can also run alone with the same harness options.
@@ -90,8 +92,9 @@ unchanged-runtime regressions, and completion-only COMMIT accounting. One checke
 read-only engine observer attributes actual SyncRep spans; missing evidence stays charged.
 Observer loss can cause a conservative exhaustion exit, while a live transport withholding a
 COMMIT reply forever causes no accounting exit. Original stop bounds remain independent.
-This is selected local coverage, with the known limits in D-37–D-39; automatic reconciliation
-and deployment-wide saturation recovery remain deferred.
+This is selected historical W5 coverage, with the known limits in D-37–D-39.
+[W6](evidence/w6/report.md) adds simulator reconciliation and deletion; deployment-wide saturation
+and recovery remain deferred.
 The protected unchanged-runtime comparisons are reproducible in the same private allocation with
 `nix develop --command python3 tests/postgres/w5_baseline.py --evidence <private-baseline-manifest>`.
 The runner exports the fixed base, overlays fixtures only and verifies runtime/dependency hashes
@@ -112,8 +115,8 @@ The [W4 evidence](evidence/w4/report.md) records actual-value funding, operator 
 lifecycle regressions alongside the complete local workflow. Verified creates retain the confirming
 provider read time across later constraint I/O and settlement retries; their billing seed still uses
 the billable creation instant. Worker preflight reads retry store failures within the existing bound,
-retain their running claim and reserve, and exit nonzero on exhaustion. Automatic reconciliation
-remains deferred.
+retain their running claim and reserve, and exit nonzero on exhaustion. W6 adds non-mutating
+reconciliation of create/delete uncertainty and account-wide simulator observations.
 
 The named `local-simulator` profile uses D-6's provisional settings. Configure
 `PROVISIOND_PROFILE=local-simulator`, `PROVISIOND_DATABASE_URL` (private, never committed),
@@ -133,7 +136,7 @@ preparatory database command. This bootstrap fixture is not a production deploym
 
 For an offline release, first stop old components, prevent their restart, and establish that their
 sessions cannot write. Run `nix develop --command cargo run --bin migrate`; only an acknowledged
-migration permits new components to start. Schema/semantic history must be exactly 1/1 followed by 2/2;
+migration permits new components to start. Schema/semantic history must be exactly 1/1, 2/2 and 3/3;
 there is no down-migration. Lock-timeout retries are bounded; failed initial/reconnect acquisition
 exits immediately. Uncertain completion requires a later invocation to inspect durable history.
 
@@ -142,16 +145,17 @@ only for a supported database. Ordinary `api` also requires a local parameter fi
 (`PROVISIOND_LOCAL_PARAMETERS`), an explicit loopback listener (`PROVISIOND_API_LISTEN`) and
 the independent rail simulator (`PROVISIOND_RAIL_SIMULATOR`). Ordinary `engine` requires the
 independent provider simulator (`PROVISIOND_PROVIDER_SIMULATOR`), advances the generation,
-performs the ordinary restart pass, dispatches queued creates and monitors its lifetime lock.
+performs the ordinary restart pass, dispatches queued creates/deletes, reconciles evidence and
+monitors its lifetime lock.
 Missing local configuration refuses startup. Only the isolated test profile is supported.
 
 The customer subset supports enrolment token issuance, enrolment and status; deposit creation and
-detail; assigned providers and offers; create; machine and operation list/detail; balance and optional
-commitments; and unauthenticated OPTIONS. All other mutations, recovery and operator endpoints are
-unsupported. Fleet callers should poll `GET /v1/operations?terminal=false`, plus balance and machines,
+detail; assigned providers and offers; create and acknowledged delete; machine and operation list/detail;
+balance and optional commitments; and customer OPTIONS. Recovery and other customer mutations remain
+unsupported. Operator-only routes stay hidden on this listener, including preflight. Fleet callers should poll `GET /v1/operations?terminal=false`, plus balance and machines,
 at the server's advertised cadence. Use the same idempotency key after a lost reply. A fresh key
 creates a fresh operation and can buy a second machine; `needs_reconciliation` is never an invitation
-to buy again. Automatic reconciliation remains deferred.
+to buy again. Reconciliation searches exact retained evidence and never repeats the purchase.
 
 Deposits expose only literal `TEST/SIMULATOR/NONPAYABLE` destinations. They are not Bitcoin
 addresses or Lightning invoices and must never receive real funds. Both simulated destinations can
@@ -202,11 +206,11 @@ zero-row record and B's refusal without its own result, then settles B's distinc
 Queued waits require one pending attempt with no precommit retry and actual checked-entry
 refusal. `--case queued_claim_pool --defect queued_claim_pool` isolates the pool defect;
 the canonical controls include both queued entry and pool windows.
-`--phase controls` runs all thirty-five required defects. Each defect requires its exact phase/case;
+`--phase controls` runs all thirty-nine required defects. Each defect requires its exact phase/case;
 unknown or mismatched selectors exit nonzero before setup. The canonical command includes every
 control and accepts only its intended assertion failure after activation and successful cleanup.
-ENG-05 automatic reconciliation and DB-10 deployment-wide saturation remain `not run` for their
-later work packages. W5 demonstrates ENG-07's named create-record replication-freeze arm.
+ENG-05 simulator reconciliation is recorded in W6. DB-10 deployment-wide saturation remains
+`not run` for W8. W5 demonstrates ENG-07's named create-record replication-freeze arm.
 [Historical W3 acceptance](evidence/w3.md) retains its original tested source. The
 [defer cancellation supplement](evidence/defer/report.md) records its seven-phase run,
 27 negative controls, original-runtime reproduction and claim-specific capacity return.
@@ -250,3 +254,74 @@ errors and authenticated detail/list reads retain learned identifiers, accepted 
 frozen terms and the open reserve across ordinary successor startup, with no second purchase.
 Both windows also run in the complete canonical workflow. These are additional checks of the
 existing identifier correction, with no new runtime defect established.
+
+
+## Local reconciliation and operator subset
+
+`--phase w6` runs all 40 required groups; a focused `--case` cannot satisfy aggregate acceptance.
+`--phase controls --case w6_controls` runs the four new exact-assertion controls. The
+[W6 report](evidence/w6/report.md) records the final eleven-phase command, unchanged-base
+regressions, source protection and explicit limits. Automatic create resolution searches every
+configured ordering channel and directly confirms exact identity/account attribution. Unknown,
+partial and duplicate evidence remains unresolved. The original commitment and resource-offer
+exclusion have separate lifetimes; a late attach records deficiencies, a floor-or-deficiency and
+queued cleanup atomically.
+
+Only simulator immediate destroy with no surviving billable attachments is supported. A gone reply
+settles at its observation instant; acceptance alone requires later non-mutating evidence. Caller,
+late-attach and already-queued suspension cleanup share the worker. Ordered funding/fence decisions
+precede capability/marker/provider dispatch. No-rate steps 4–5 stop before a fence/call; general
+exhaustion, suspension fan-out, extend-runway, scheduled cancellation and open-incident startup
+continuation are not implemented.
+
+The optional separate loopback operator listener uses `PROVISIOND_OPERATOR_LISTEN` and
+`PROVISIOND_OPERATOR_AUTHORITY`. The latter names a private JSON file such as
+`[{"principal":"local-operator","token_env":"PROVISIOND_OPERATOR_TOKEN","admin":true}]`;
+provide a distinct token of at least 24 bytes through that environment variable. Tokens are held as
+hashes and cannot coincide with customer/recovery credentials. This local authority is not a
+production credential-management design. Supported routes are operation list/detail/resolve, episode
+list/detail, stalled-episode retry and keep. Resolver identity, evidence and principal-scoped
+receipts commit together; exact-key replay repeats no effects. Retry creates a fresh delete attempt;
+keep clears the stalled episode's fence without buying runway or moving money.
+
+Demonstrating no duplicate purchase for the supported traces is not a proof of exactly-once execution by an arbitrary provider. External uncertainty remains part of the product model. [S5] [S10]
+
+The W6 continuation adds nine activated regression groups. Startup persists a stable negative-window
+origin; local money expiry runs independently of visibility and credential health. Interrupted
+cleanup episodes become uncertain in the startup transaction. Operator resolutions consume a durable
+principal allowance (local `operator_resolution_limit`, defaulting to `created_limit`, per
+`ceiling_seconds`) after keyed replay; resolve/retry/keep emit safe correlated decision events.
+Operator operation detail uses the shared retention horizon, including retained episode identities.
+The offline schema-2 upgrade fills the supported old cleanup target, and the delete worker repeats
+caller/API-field validation before fencing or dispatch. Production allowance selection remains open.
+
+The remaining W6 repairs retain a single exact match's original commitment while its confirming
+read fails, including incomplete rereads and ordinary restart. Schema-2 failed/unresolved cleanup
+attempts become stalled/uncertain with retained targets. Automatically settled cleanup and retry
+attempts retain scoped `410 gone` identities after housekeeping removes them, using the configured
+horizon. Ordinary create search/get/constraint authentication failures stop that credential;
+confirmed creates still settle with a null constraint date. Authenticated early operator refusals
+emit safe correlated events before key, target, body, override or rate validation exits.
+
+The final W6 repair also covers preflight offers, temporary-key registration, ordering, eligible
+pre-acceptance key cleanup and deletion credential failures. Each rejection stops that credential
+durably; queued work makes no later provider call and healthy accounts continue. Generic refusal
+fixtures use provider/400 errors; the secret-redaction fixture keeps its authentication fault on an
+independent account. Non-clamp deficiencies store SQL/JSON null in `clamped_sats`, retaining native
+cost and opening-rate provenance; actual clamps retain their exact satoshi remainder.
+Retirement carries the grouped maximum receipt horizon into the atomic delete/identity insert.
+The canonical `w6_e1` activates a due backlog; the three `w4_retention_scale` shapes and default
+`w4_retention_reads` remain separate supplemental checks. The [W6 report](evidence/w6/report.md)
+records 52 groups, protected baseline reds and final validation. Minimal retired identities remain
+permanent; eventual retired-history read scaling remains deferred.
+
+
+Exit clamp deficiencies record the current opening rate independently of the historical rate
+that prices elapsed usage. An opening without a current rate stays null after rates return.
+Operator resolve receipts remain reachable after physical operation retirement: an identical
+expired replay returns `410 gone` with the retained horizon; a valid changed fingerprint returns
+`409 idempotency_mismatch`. Retained identities authorize receipt decisions only, never a new
+resolution. The actual operation kind and machine identity survive retirement independently of
+prior operator receipts, so normally completed customer creates and deletes retain cross-target
+key conflicts and strict per-kind validation. See the [opening-rate and retention regressions](evidence/w6/opening-retention-regressions.json)
+and [retained-target regressions](evidence/w6/retained-target-regressions.json).

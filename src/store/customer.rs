@@ -99,11 +99,7 @@ impl super::Transaction {
         machine: &Value,
         observed_at: &chrono::DateTime<chrono::Utc>,
     ) -> Result<()> {
-        if !self.engine_fenced {
-            self.failed = true;
-            anyhow::bail!("engine-only transaction requires generation fence");
-        }
-        let rows=self.rows("SELECT o.machine_id::text,o.request_summary::text,m.first_unit_debit_id IS NOT NULL,m.state_observed_at IS NOT NULL,COALESCE(t.status,'active') FROM provisiond.operations o JOIN provisiond.machines m ON m.id=o.machine_id LEFT JOIN provisiond.tenants t ON t.id=o.tenant_id WHERE o.id=$1::text::uuid AND o.claim_number=$2 AND o.status='succeeded'",&[&c.id,&c.number]).await?;
+        let rows=self.rows("SELECT o.machine_id::text,o.request_summary::text,m.first_unit_debit_id IS NOT NULL,m.state_observed_at IS NOT NULL,COALESCE(t.status,'active') FROM provisiond.operations o JOIN provisiond.machines m ON m.id=o.machine_id LEFT JOIN provisiond.tenants t ON t.id=o.tenant_id WHERE o.id=$1::text::uuid AND o.status='succeeded'",&[&c.id]).await?;
         let Some(row) = rows.first() else {
             return Ok(());
         };
@@ -113,6 +109,7 @@ impl super::Transaction {
         let id: String = row.get(0);
         let summary: Value = serde_json::from_str(&row.get::<_, String>(1))?;
         let terms = &summary["offer"]["accepted_terms"];
+        self.rows("UPDATE provisiond.machines SET native_terms=$2::text::jsonb WHERE id=$1::text::uuid AND native_terms IS NULL RETURNING id",&[&id,&terms.to_string()]).await?;
         let offer = &terms["offer"];
         let rate: Value = serde_json::from_str(
             &self
@@ -123,15 +120,9 @@ impl super::Transaction {
                 .await?[0]
                 .get::<_, String>(0),
         )?;
-        let descriptor: Value = serde_json::from_str(
-            &self
-                .rows(
-                    "SELECT descriptor::text FROM provisiond.provider_accounts WHERE account=$1",
-                    &[&summary["provider_account"].as_str()],
-                )
-                .await?[0]
-                .get::<_, String>(0),
-        )?;
+        let descriptor = self
+            .effective_descriptor(summary["provider_account"].as_str().context("account")?)
+            .await?;
         // LDG-33/40: settle the accepted effect even without a current rate,
         // but halt re-derivation rather than publishing a stale-rate runway.
         let price = (rate["available"] == true)
@@ -158,8 +149,7 @@ impl super::Transaction {
             self.rows("UPDATE provisiond.machines m SET runway_until=greatest(transaction_timestamp(),meter_seed_at)+CASE WHEN customer_rate_num>0 THEN floor(greatest(0,c.reserved_sats-protected_sats)::numeric*customer_rate_den/customer_rate_num)::bigint ELSE 0 END*interval '1 second' FROM provisiond.commitments c WHERE m.id=$1::text::uuid AND c.machine_id=m.id AND c.state='open' RETURNING m.id",&[&id]).await?;
         }
         if row.get::<_, String>(4) == "suspended" {
-            let episode:String=self.rows("INSERT INTO provisiond.episodes(machine_id,key,reasons,state) VALUES($1::text::uuid,'delete','[\"tenant_suspended\"]','open') ON CONFLICT(machine_id,key) WHERE state='open' DO UPDATE SET reasons=EXCLUDED.reasons RETURNING id::text",&[&id]).await?[0].get(0);
-            self.rows("INSERT INTO provisiond.operations(tenant_id,idempotency_key,kind,status,machine_id,provider_account,request,request_summary,correlation_id,requested_by,system_reason,episode_id) VALUES($1,$2,'delete','queued',$3::text::uuid,$4,'{}','{}',$5,'system','tenant_suspended',$6::text::uuid) RETURNING id",&[&c.tenant,&format!("suspension:{episode}"),&id,&summary["provider_account"].as_str(),&c.id,&episode]).await?;
+            self.enqueue_cleanup(&id, "tenant_suspended").await?;
         }
         Ok(())
     }

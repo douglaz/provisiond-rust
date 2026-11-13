@@ -54,6 +54,7 @@ def descriptor(w,account):
 
 def read_deadline(w):
     h=w.h;w.stop_engine();w.provider_control(mode='normal')
+    resolution_hold=w.control/'hold-reconciliation-record';resolution_hold.touch()
     originals={a:json.loads(h.sql(f"SELECT descriptor FROM provisiond.provider_accounts WHERE account='{a}'"))
                for a in ('sim-a','sim-b')}
     try:
@@ -69,11 +70,15 @@ def read_deadline(w):
             commitment=h.sql(f"SELECT to_jsonb(c) FROM provisiond.commitments c WHERE operation_id='{op}'")
             assert admitted['reserved']==43
             terms=admitted['summary']['offer']['accepted_terms']['pricing_descriptor']
-            assert terms==d and sum(terms[k] for k in ('meter_seconds','call_seconds','visibility_seconds','resolution_seconds','read_seconds','hold_seconds','margin_seconds'))==11
+            declared={k:v for k,v in terms.items() if k!='effective_visibility_seconds'}
+            assert declared==d and sum(declared[k] for k in ('meter_seconds','call_seconds','visibility_seconds','resolution_seconds','read_seconds','hold_seconds','margin_seconds'))==11
+            effective=terms.get('effective_visibility_seconds',terms['visibility_seconds'])
+            assert effective>=d['visibility_seconds']
+            priced_wind=11+effective-d['visibility_seconds']
             w.provider_control(deadline_delay=dict(operation=op,path=path,seconds=DELAY_SECONDS))
             p=w.start_engine()
             h.event('provider_deadline_fixture_ready',operation=op,path=path,engine_ready=p.poll() is None,
-                    mutation_seconds=CALL_SECONDS,read_seconds=READ_SECONDS,priced_wind_seconds=11)
+                    mutation_seconds=CALL_SECONDS,read_seconds=READ_SECONDS,priced_wind_seconds=priced_wind,immutable_declaration=d,effective_visibility_seconds=effective)
             records=assert_read_bound(w,op,path,d)
             expected='succeeded' if path=='/constraints' else 'failed' if path=='/offers' else 'needs_reconciliation'
             w.wait_status(op,expected);w.stop_engine();stored=state(w,op)
@@ -86,7 +91,12 @@ def read_deadline(w):
                 assert created=='SIMULATOR-RESOURCE-'+str(external)
                 identifiers={'order_reply':[created]}
                 if path=='/get':identifiers['search']=[created]
-                assert details==dict(accepted=True,attempted='create_machine',provider_identifiers=identifiers)
+                expected_details=dict(accepted=True,attempted='create_machine',provider_identifiers=identifiers)
+                if path=='/get':
+                    # OPS-27/33: timeout preserves the complete exact single
+                    # match while confirmation is still pending, across restart.
+                    expected_details['reconciliation']=dict(authoritative=True,matches=1,single_match=True,in_progress=False)
+                assert details==expected_details
                 view=w.operation_reads(t,op,'timeout',False,details)
                 assert stored['summary']==dict(admitted['summary'],correlator={'kind':'operation_uuid','value':op})
                 assert stored['request_purged'] and stored['result'] is None and stored['machine'] is None
@@ -137,7 +147,7 @@ def read_deadline(w):
         # This separate adapter /get bypasses ordinary request dispatch.
         stop_read(w)
     finally:
-        w.stop_engine();w.provider_control(deadline_delay=None)
+        w.stop_engine();resolution_hold.unlink();w.provider_control(deadline_delay=None)
         for account,d in originals.items():
             h.sql("UPDATE provisiond.provider_accounts SET descriptor='%s' WHERE account='%s'"%(json.dumps(d),account))
         w.restart_api()
@@ -146,7 +156,7 @@ def read_deadline(w):
 def stop_read(w):
     h=w.h;d=descriptor(w,'sim-a')
     resource=dict(external_id='TEST-READ-DEADLINE-STOP',account='sim-a',channel='orders',correlator='test-fixture',name='stop-cost-fixture',region='test',state='running',public_ips=[],present=True)
-    w.provider_control(fixture_resource=resource)
+    w.provider_control(fixture_resource=resource,evidence={'operation':'stop-cost-fixture','delete':'acceptance_applied'})
     since=w.external()['events'][-1]['sequence']
     h.run(['cargo','build','--example','provider-probe','--features','store-test-hooks','--locked'],timeout=120)
     executable=h.target/'debug/examples/provider-probe'
