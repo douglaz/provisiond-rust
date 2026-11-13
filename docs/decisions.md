@@ -1470,6 +1470,77 @@ resolves `applied` with the gone-write, and present past the window resolves `no
 `WIR-35` is the operator fallback. A reply that reports gone is D-47's case. One reader would have
 settled every successful reply as gone. No narrowing or widening of an earlier owner pick.
 
+
+### D-49. Local reconciliation evidence and independent lifetimes
+
+**Demonstrated 2026-11-12.** Schema/semantics 3 retains write-once resolution/evidence,
+append-only provider observations and original pending terms. Timing is conservative: the persisted
+wait end is a settlement-time upper bound (interrupted legacy rows use updated_at), while sample
+start uses the acknowledged licensing/write-start marker. These bounds are not a measurement of
+the exact wire-dispatch instant. Independent simulator acceptance/allocation timestamps provide the
+separate measured allocation basis. Resolution uses its own conditional
+needs-reconciliation/write-once guard, separate from a worker's claim-number guard. Exact
+all-channel union plus direct confirmation can land one machine; failed, partial and duplicate
+evidence cannot. OPS-33 releases money independently of STO-58's exclusion. Late attach atomically
+records unpaid seed, separate fee/unit deficiencies, floor-or-deficiency and cleanup.
+
+The [W6 measurement](../evidence/w6/final-w6.json) records twenty ordinary simulator allocation
+samples. Its negative window is ceiling(worst observed allocation) plus 59 conservative seconds,
+60 seconds in the recorded run. The descriptor's one-second visibility declaration remains
+explicitly unmeasured; stored request-to-observation samples widen the effective maximum and
+surface declaration breaches. These are local simulator parameters, not another provider's bound.
+
+### D-50. Isolated static operator authority
+
+**Demonstrated 2026-11-12.** Optional loopback operator authority is loaded from a private
+principal/environment-name/admin file; token values come from environment, are hashed and are
+checked against customer/recovery credential digests. Customer routes hide operator verbs and
+preflight without CORS. Supported synchronous per-kind decisions and stalled retry/keep retain
+principal-scoped receipts, authenticated identity and evidence in the business transaction.
+Operation enumeration supports intersecting status, origin, reason and terminal filters, with
+principal/effective-tenant scoped pagination under OPS-26/API-23.
+Operator observed attachment does no external I/O and stores a null constraint date. This is the
+local authority boundary, not production credential custody.
+
+### D-51. Immediate-destroy execution and reached exit accounting
+
+**Demonstrated 2026-11-12.** D-41–D-48 are unchanged. Caller, late-attach and already-queued
+suspension cleanup share the delete worker. The ordered current funding decision and conditional
+open-episode fence share LDG-35; reason history and never-fenced operator origin do not create
+step-2 authority. A gone reply settles at its observation instant; mere acceptance requires
+non-mutating later evidence and never a second delete. Retry/keep and permanent episode closure
+are exercised against real rows and concurrent requests.
+
+Exit increments use durable fixture rate-acceptance history, UTC month splits and reduced exact
+rounding credits. Clamp deficiencies retain their piece's valuation; rate-outage records remain
+native-only and cover maximal spans. Offline migration audits key-derived one-sided high-water
+and credit range. Subject quarantine alerts preserve the meter while admitting deletion and closure
+of an already-open outage. Fixture inputs are not the general rate estimator or periodic meter.
+No-rate cancellation steps 4–5 stop without fence/call; W7 incident work remains refused.
+
+### D-52. W6 verification and evidence boundary
+
+**Recorded 2026-11-12.** PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7,
+Nix 2.34.9; tokio 1.54.1, tokio-postgres 0.7.18 and deadpool 0.12.3. Exact versions,
+configuration, source inventory, full command/status proof and output hashes are in
+[validation](../evidence/w6/validation.json). On its final committed operational source:
+
+- `nix develop --command bash tools/check.sh`: exit 0.
+- `nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <private-evidence>/all.json`:
+  exit 0, all eleven phases and 22 W6 groups.
+- `nix develop --command python3 -m unittest discover -s tests/postgres -p 'test_*.py'`:
+  exit 0, nine tests.
+
+All 39 isolated controls exit 1 at recognized assertions after activation, with cleanup passing;
+the four new W6 controls detect blind repeat, non-exact attachment, premature money release and
+startup-pass skipping. Two separate unchanged-base regressions reproduce actual old worker/adapter
+faults; their final drivers pass on the fixed source. All 32 protected base runtime/migration/
+dependency hashes are unchanged before/after. Create reconciliation passed its focused checkpoint
+before delete implementation began. Historical W4/W5 unresolved and accounting fixtures now hold
+explicit provider/evidence boundaries; no retry bound, observer fault or original release assertion
+was weakened. New evidence, source protection, cleanup and recursive redaction are recorded in
+[report](../evidence/w6/report.md). D-6 remains Open for production/W8.
+
 ## Open
 
 
@@ -1508,6 +1579,7 @@ not outage guarantees.
 | Startup-lock connection keepalives | OPS-47, OVR-19 | explicit local assignment sharing pooled values; client/server idle 2 s, interval 1 s, count 2; validated and observed on lock session |
 | Pooled-connection keepalives | STO-7 | client/server idle 2 s, interval 1 s, count 2 |
 | Stop-record bound | OPS-21 | 1000 ms in lifecycle and W3 worker record fixtures |
+| W6 reconciliation scheduling | ENG-05, OPS-32/33 | one-second delay between supervised passes on ordinary admitted pools; pass duration includes evidence I/O; no outage bound or general maintenance scheduler; production policy remains W8 |
 | Connection budget | STO-55 | local max 24, reserved 3 (21 ordinary); engine 6 steady / 7 startup; API 2; offline migrator plus waiting runner 2 with components stopped; remaining operator/fixture/replication headroom, no residual-backend upper bound |
 
 Client call/connect 2000 ms and check 3000 ms are implementation bounds obeying STO-7/OPS-49's

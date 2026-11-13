@@ -112,12 +112,14 @@ cancelled receipts and sent COMMIT completion; provider/rail/rescue instrumentat
 external entry while that component owns a transaction. A later generation cannot retract an
 already-licensed simulator call, prove a stale process dead or fence two writable histories.
 
-The schema supports the represented `create`, `refresh` and `power` primitives. Only create has a
-cancellable execute simulator; provider execution for other kinds is explicitly refused. Ordinary restart
+The schema supports the represented `create`, `refresh`, `power` and `delete` primitives. Create
+and immediate-destroy delete have cancellable simulator execution; other provider mutations remain
+refused. Ordinary restart
 moves interrupted writes to reconciliation, fails refreshes and conditionally fails pre-order
 creates with atomic commitment/exclusion release. Existing errors and markers survive. Open
 recovery incidents stop the unsupported startup path. Parent fan-out, install/rescue workflows,
-late attach, resolution, full metering/rates/solvency and operator recovery remain unimplemented.
+full metering/rates/solvency and operator recovery remain unimplemented. W6 implements create/delete
+resolution and late attach with its atomic cleanup obligation.
 Unsupported kinds are refused rather than silently requeued.
 
 Lock loss refuses queued claims after their component/pool waits, before BEGIN dispatch, and
@@ -135,8 +137,8 @@ worker. Completed records release capacity while captured observers retain their
 stop, retry exhaustion and supersession require process exit, retaining uncertainty about any last
 reply. W5 demonstrates the dedicated replication-freeze stop-record drill's named create arm
 (ENG-07): an older record retains its original deadline through lock loss and exits nonzero
-while its sent COMMIT remains unacknowledged. ENG-05 automatic provider reconciliation and
-DB-10 deployment-wide saturation remain not run. Local pool
+while its sent COMMIT remains unacknowledged. W6 demonstrates selected ENG-05 simulator
+reconciliation; DB-10 deployment-wide saturation remains not run. Local pool
 budgets do not guarantee observer access or bound residual backends across process lifetimes.
 
 The API serves only the explicit loopback `local-simulator` profile after schema compatibility.
@@ -196,10 +198,12 @@ conformance claim or production availability guarantee.
 ## Local funding and provisioning subset
 
 The loopback customer listener supports `POST /v1/enrol/token`, `POST /v1/enrol`,
-`GET /v1/enrol/{handle}`, deposit create/detail, assigned providers/offers, machine create/list/detail,
+`GET /v1/enrol/{handle}`, deposit create/detail, assigned providers/offers, machine create/list/detail
+and immediate delete,
 operation list/detail, balance with optional commitments, and unauthenticated OPTIONS. Credentials
-are shown once and stored hashed. Recovery credentials do not authenticate ordinary routes; recovery,
-maintenance and operator APIs remain unsupported. Traffic and enrolment concurrency state stays in
+are shown once and stored hashed. Recovery credentials do not authenticate ordinary routes; recovery
+and maintenance remain unsupported. W6 adds an isolated operator subset, described below. Traffic
+and enrolment concurrency state stays in
 memory without persisted caller addresses. Ordinary checked credential verification precedes the
 failed-auth source allowance, so a full abuse bucket cannot refuse a valid principal sharing the
 address. This source allowance is not a pre-database work bound. Principal create/spend ceilings are
@@ -244,13 +248,12 @@ seed still uses the billable row's creation instant, plus copied billing seconds
 unit was actually debited. Its high-water mark and settlement effects commit together. General
 metering remains deferred.
 
-Only one virtual simulator product, one reachable ordering channel per account, hourly native pricing,
-no billable attachments, unlimited traffic and an already-effective cancellation bound are supported.
-The driver adapter can stop a separate simulator fixture and confirm absence. Production deletion,
-suspension fan-out and settled-key cleanup are not demonstrated: a verified attach while suspended
-retains its required queued cancellation obligation without claiming a complete cancellation worker.
-An accepted order with a dropped reply remains `needs_reconciliation`, with its reserve intact and no
-blind resend. This is a partial lost-reply demonstration, not ENG-05 automatic reconciliation.
+The profile supports one virtual simulator product, explicit ordering channels, hourly native pricing,
+no billable attachments, unlimited traffic and an already-effective cancellation bound. W6 adds
+immediate deletion, eligible temporary-key cleanup and execution of already-queued suspended-attach
+cancellations; general suspension fan-out and production deletion remain untested. An accepted order
+with a dropped reply initially remains `needs_reconciliation`, preserving its original reserve and
+never blindly resending. W6 then resolves supported independent evidence or retains explicit uncertainty.
 Accepted verification failures retain safe opaque provider IDs from the order reply, searches and
 direct reads in `error.details.provider_identifiers`, grouped by observation source. These are
 unverified evidence, never attachment or debit authority. Actual error kind/details, accepted
@@ -276,9 +279,10 @@ debit with commitment decrement, clamps at remaining authority and records nativ
 The first-unit debit reference exists only for a nonzero customer debit; paid-first-unit seed and
 protected runway projections are implemented. If the current currency rate is unavailable, accepted
 settlement and the eligible seed still commit; runway re-derivation stops and the new machine's
-runway/rate/protection fields stay null. No exhaustion is inferred. Later re-derivation, general rate
-construction, recurring metering, late attach and reconciliation remain deferred. Rate fixtures are
-controlled inputs, not a real market feed.
+runway/rate/protection fields stay null. No exhaustion is inferred. General background re-derivation,
+rate construction and recurring metering remain deferred. W6 implements re-derivation for delete
+decisions and keep, reached exit increments and late attach. Rate fixtures are controlled inputs,
+not a real market feed.
 
 `tests/postgres/workflow.py` owns the disclosed local parameter fixture: activation 100 sats, a 3600 s
 deposit, 600 s finality allowance, 10800 s pending lifetime, 64 pending tenants, a 50 ms admission delay,
@@ -341,3 +345,43 @@ The three focused workflow selectors are `w4_provider_refusal`, `w4_provider_amb
 commitment/exclusion without a debit, while dispatched provider 5xx/no-status and known acceptance
 retain unresolved reservations. This supplement runs the complete workflow, focused default-feature
 checks and six affected controls; it makes no new nine-phase or production-conformance claim.
+
+
+## W6 reconciliation and termination subset
+
+The [W6 report](../evidence/w6/report.md) and [final aggregate](../evidence/w6/final-all.json)
+record 22 W6 groups, all prior phases, 39 recognized controls and two unchanged-base regressions.
+Automatic create resolution uses exact correlators on every channel, direct identity/account
+confirmation, an effective visibility maximum and the independently measured simulator negative
+window. Original terms, safe IDs, errors and pending obligations survive payload purge and restart.
+A money-only negative-window release leaves an unresolved offer exclusion intact. A late attach
+commits fee/unit deficiencies, unpaid seed, wind-down floor-or-deficiency and cleanup together.
+Human observed attachment performs no provider read and records a null cancellation date.
+
+Caller deletion and all W6-reachable queued cleanup run the same fenced worker. OPS-41's ordered
+current funding decision shares the tenant transaction with its episode fence. A mutation reply
+reporting gone is authoritative immediately; acceptance-only and dropped replies retain funding
+until non-mutating evidence or an authenticated decision resolves them. Stalled episodes have no
+timer retry. Operator retry creates a fresh attempt under the same episode; keep closes/clears
+without money movement. Closed episodes remain closed under later actions and observations.
+
+Every reached gone writer closes the elapsed exit tail before releasing funding, with period and
+durable fixture rate-acceptance splits, reduced rational credit, clamped paired debit/decrement,
+native deficiencies and no-entry mark updates. Paid-unit exits discard elapsed tails inside the
+prepaid mark. Schema-3's offline audit checks credit range and one-sided key-derived high-water
+before serving; quarantined deletion preserves meter evidence and closes only an existing outage.
+This is an exit-only subset, not general periodic billing or a real rate estimator.
+
+Optional environment-provisioned static operator authority runs on a separate loopback listener,
+without customer CORS. Only supported per-kind resolutions, operation list/detail, episode list/detail,
+retry and keep are exposed. Principal-scoped receipts retain the authenticated decision. Production
+authority distribution and credential management remain outside the prototype.
+
+Open recovery incidents still refuse startup: continuation, restore grace and exception suppression
+belong to W7. General exhaustion and suspension fan-out, extension/survival by extension, scheduled
+cancellation, surviving attachments, other mutations and import/rescue remain `not run`, owned by
+deferred follow-on work. No-rate OPS-41 steps 4–5 remain `not run`; reaching them stops safely before
+fence/provider dispatch. Production D-6 policy and saturation/recovery are W8; W9–W11 and any real
+pilot remain unauthorized. Known P2/P3 and preexisting limits are retained in the W6 report.
+
+Demonstrating no duplicate purchase for the supported traces is not a proof of exactly-once execution by an arbitrary provider. External uncertainty remains part of the product model. [S5] [S10]
