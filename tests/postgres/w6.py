@@ -491,6 +491,7 @@ def exit_accounting(w):
     computed=math.ceil(Fraction(11*micros,3600*1000000))
     clamps=[d for d in final['deficiencies'] if d['cause']=='clamp_overflow']
     assert len(clamps)==1 and clamps[0]['clamped_sats']==computed-12>0
+    assert (clamps[0]['rate_num'],clamps[0]['rate_den'])==(10,1),'LDG-66 unchanged current opening rate remains recorded'
     assert sum(e['native_minor'] for e in usage)+clamps[0]['native_minor']==math.ceil(Fraction(micros,3600*1000000))
     w.h.event('w6_exact_clamp',operation=delete,computed_sats=computed,customer_debit=12,
         clamped_sats=clamps[0]['clamped_sats'],elapsed_microseconds=micros,native_remainder=clamps[0]['native_minor'])
@@ -536,6 +537,10 @@ SCENARIOS.update(CONTINUATION)
 from w6_blocking import BLOCKING,deficiency_fields
 CASES[CASES.index('w6_r7'):CASES.index('w6_r7')]=list(BLOCKING)
 SCENARIOS.update(BLOCKING)
+from w6_final_repairs import FINAL_REPAIRS
+# F2 retains complete relevant state before E1 adds its large synthetic history.
+CASES[CASES.index(next(iter(BLOCKING))):CASES.index(next(iter(BLOCKING)))]=list(FINAL_REPAIRS)
+SCENARIOS.update(FINAL_REPAIRS)
 
 def w6(h,case=None,defect=None):
     global eventually,http

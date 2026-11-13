@@ -261,7 +261,11 @@ impl State {
             })
             .ok_or_else(|| invalid("/idempotency_key"))?;
         let record = if entity == "operation" {
-            self.store.value("SELECT COALESCE((SELECT to_jsonb(o) FROM provisiond.operations o WHERE id::text=$1 AND ($2::text IS NULL OR tenant_id=$2)),'null')::text",&[&id,&tenant_override]).await?
+            // API-7/11, STO-25/33: authorize a retired identity by its retained
+            // tenant. Its permanent resolution receipt supplies only the kind
+            // and audit metadata needed for the same strict body validation.
+            // No retired identity is eligible for a new decision below.
+            self.store.value("SELECT COALESCE((SELECT to_jsonb(o) FROM provisiond.operations o WHERE id::text=$1 AND ($2::text IS NULL OR tenant_id=$2)),(SELECT jsonb_build_object('tenant_id',o.tenant_id,'retired',true,'kind',CASE r.response_body->>'kind' WHEN 'create_machine' THEN 'create' WHEN 'delete_machine' THEN 'delete' END,'machine_id',r.response_body->'machine_id') FROM provisiond.retired_operations o JOIN LATERAL (SELECT response_body FROM provisiond.idempotency_records WHERE resource_kind='operation' AND resource_id=o.id AND scope_kind='operator' AND response_body->>'kind' IN ('create_machine','delete_machine') LIMIT 1) r ON true WHERE o.id::text=$1 AND ($2::text IS NULL OR o.tenant_id=$2)),'null')::text",&[&id,&tenant_override]).await?
         } else {
             self.store.value("SELECT COALESCE((SELECT to_jsonb(e)||jsonb_build_object('tenant_id',m.tenant_id,'provider_account',m.provider_account) FROM provisiond.episodes e JOIN provisiond.machines m ON m.id=e.machine_id WHERE e.id::text=$1 AND ($2::text IS NULL OR m.tenant_id=$2)),'null')::text",&[&id,&tenant_override]).await?
         };
@@ -369,12 +373,23 @@ impl State {
             &[&principal],
         )
         .await?;
-        let prior=tx.rows("SELECT fingerprint,status,response_body::text,expires_at<=transaction_timestamp() FROM provisiond.idempotency_records WHERE scope_kind='operator' AND scope_id=$1 AND key=$2",&[&principal,&key]).await?;
+        let history = operation_history(
+            "candidate.id=r.resource_id AND r.resource_kind='operation'",
+            "i.resource_id=r.resource_id AND r.resource_kind='operation'",
+            self.p.n("retention_seconds"),
+        );
+        let prior_sql = format!("SELECT r.fingerprint,r.status,r.response_body::text,r.expires_at<=transaction_timestamp(),jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at))::text FROM provisiond.idempotency_records r LEFT JOIN LATERAL {history} h ON r.resource_kind='operation' AND h.id=r.resource_id WHERE r.scope_kind='operator' AND r.scope_id=$1 AND r.key=$2");
+        let prior=tx.rows(&prior_sql,&[&principal,&key]).await?;
         if let Some(prior) = prior.first() {
             if prior.get::<_, String>(0) != fingerprint {
                 return Err(Error::conflict("idempotency_mismatch").into());
             }
-            if prior.get::<_, bool>(3) {
+            if entity == "operation" {
+                // Mismatch wins above. Operation receipts share the all-scope
+                // maximum and logical cutoff used by GET, even after retirement.
+                let retained: Value = serde_json::from_str(&prior.get::<_, String>(4))?;
+                operation_result(&retained)?;
+            } else if prior.get::<_, bool>(3) {
                 return Err(Error::new("gone", "receipt retention ended", false, json!({})).into());
             }
             let response = (
@@ -384,6 +399,11 @@ impl State {
             tx.rollback().await?;
             observed_outcome="replayed";
             return Ok(response);
+        }
+        // Retained metadata authorizes receipt decisions only. A fresh key must
+        // never reach a ceiling, resolution write or synthetic success.
+        if record["retired"] == true {
+            return Err(Error::missing().into());
         }
         tx.serialize_tenants(&[tenant]).await?;
         if verb == "resolve" {

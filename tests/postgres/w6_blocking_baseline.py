@@ -12,6 +12,7 @@ import tarfile
 import tempfile
 from harness import ROOT,cap_check,preflight_ports
 from w6_blocking import RETIRE_ASSERTION,FIELD_ASSERTION
+from w6_final_repairs import RATE_ASSERTIONS,REPLAY_ASSERTION
 
 BASE='ac83e172dae1d3c0cc7934c9633a403cfca0a679'
 ASSERTIONS={'w6_e1':RETIRE_ASSERTION,
@@ -24,20 +25,26 @@ def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--evidence',type=Path,required=True)
-    ap.add_argument('--case',choices=ASSERTIONS,action='append');args=ap.parse_args()
-    cases=args.case or list(ASSERTIONS);cap_check();preflight_ports()
+    final_assertions={**RATE_ASSERTIONS,'w6_f2':REPLAY_ASSERTION}
+    ap.add_argument('--final-repairs',action='store_true')
+    ap.add_argument('--case',choices=[*ASSERTIONS,*final_assertions],action='append');args=ap.parse_args()
+    assertions=final_assertions if args.final_repairs else ASSERTIONS
+    base='96c6001999a50fb4b3247b77ba29e60500baf72f' if args.final_repairs else BASE
+    cases=args.case or list(assertions)
+    assert all(case in assertions for case in cases),'case does not belong to selected baseline'
+    cap_check();preflight_ports()
     repo=Path.cwd();ROOT.mkdir(parents=True,exist_ok=True)
     root=Path(tempfile.mkdtemp(prefix='blocking-baseline-',dir=ROOT));export=root/'source';export.mkdir()
     def git(*cmd):return subprocess.check_output(['git',*cmd])
-    with tarfile.open(fileobj=io.BytesIO(git('archive',BASE))) as tree:tree.extractall(export,filter='data')
+    with tarfile.open(fileobj=io.BytesIO(git('archive',base))) as tree:tree.extractall(export,filter='data')
     subprocess.run(['git','init','--bare',str(export/'.git')],check=True,capture_output=True)
-    subprocess.run(['git','--git-dir',str(export/'.git'),'fetch','--no-tags','--no-write-fetch-head',str(repo),BASE],check=True,capture_output=True)
-    (export/'.git/HEAD').write_text(BASE+'\n')
+    subprocess.run(['git','--git-dir',str(export/'.git'),'fetch','--no-tags','--no-write-fetch-head',str(repo),base],check=True,capture_output=True)
+    (export/'.git/HEAD').write_text(base+'\n')
     subprocess.run(['git','-C',str(export),'config','core.bare','false'],check=True)
-    subprocess.run(['git','-C',str(export),'read-tree',BASE],check=True)
+    subprocess.run(['git','-C',str(export),'read-tree',base],check=True)
     assert not subprocess.check_output(['git','-C',str(export),'for-each-ref'])
-    paths=git('ls-tree','-r','--name-only',BASE).decode().splitlines()
-    protected={p:hashlib.sha256(git('show',BASE+':'+p)).hexdigest() for p in paths
+    paths=git('ls-tree','-r','--name-only',base).decode().splitlines()
+    protected={p:hashlib.sha256(git('show',base+':'+p)).hexdigest() for p in paths
         if p.startswith(('src/','migrations/')) or p in ('Cargo.toml','Cargo.lock','flake.nix','flake.lock')}
     def protect():
         assert {p:digest(export/p) for p in protected}==protected
@@ -46,7 +53,7 @@ def main():
     for path in sorted((repo/'tests/postgres').iterdir()):
         if path.is_file():
             relative=path.relative_to(repo);(export/relative).write_bytes(path.read_bytes());overlays[str(relative)]=digest(path)
-    proof=dict(baseline=BASE,protected_before=protected,fixture_overlays=overlays,branch_or_tag_created=False)
+    proof=dict(baseline=base,protected_before=protected,fixture_overlays=overlays,branch_or_tag_created=False)
     results=[]
     try:
         for case in cases:
@@ -58,14 +65,18 @@ def main():
             manifest=json.loads(raw.read_text()) if raw.exists() else {}
             failures=[e for e in manifest.get('events',[]) if e['event']=='failure']
             cleanup=[e for e in manifest.get('events',[]) if e['event']=='cleanup_complete']
-            activation=[e for e in manifest.get('events',[]) if e['event']==('w6_retirement_bound' if case=='w6_e1' else 'w6_terminal_credential' if case.startswith('w6_e2_') else 'w6_deficiency_fields')]
-            valid=child.returncode==1 and len(failures)==1 and failures[0].get('type')=='AssertionError' and failures[0].get('message')==ASSERTIONS[case] and cleanup and cleanup[-1]['result']=='pass' and bool(activation)
-            if case=='w6_e1':
+            activation=[e for e in manifest.get('events',[]) if e['event']==('w6_opening_rate' if case in RATE_ASSERTIONS else 'w6_retired_operator_replay' if case=='w6_f2' else 'w6_retirement_bound' if case=='w6_e1' else 'w6_terminal_credential' if case.startswith('w6_e2_') else 'w6_deficiency_fields')]
+            valid=child.returncode==1 and len(failures)==1 and failures[0].get('type')=='AssertionError' and failures[0].get('message')==assertions[case] and cleanup and cleanup[-1]['result']=='pass' and bool(activation)
+            if case in RATE_ASSERTIONS:
+                valid=valid and activation[-1]['computed_sats']==23 and activation[-1]['state']['deficiencies'] and activation[-1]['commit_reply_held']
+            elif case=='w6_f2':
+                valid=valid and activation[-1]['responses'][-1]['status']==404 and any(r['id']==activation[-1]['operation'] for r in activation[-1]['retained']['retired_operations'])
+            elif case=='w6_e1':
                 valid=valid and activation[-1]['due_query_sent'] and activation[-1]['due_query_errors'] and '57014' in activation[-1]['sqlstates'] and activation[-1]['housekeeping_failure'] and activation[-1]['state_rolled_back']
             elif case.startswith('w6_e2_'):
                 valid=valid and (activation[-1]['credential_status']=='healthy' or sum(e['stage']=='authentication_rejected' for e in activation[-1]['provider'])>1) and any(e['stage']=='authentication_rejected' and e['command']==activation[-1]['operation'] and e['path']==activation[-1]['site'] for e in activation[-1]['provider'])
             else:valid=valid and any(d['cause']!='clamp_overflow' and d['clamped_sats'] is not None for d in activation[-1]['rows'])
-            result=dict(case=case,result='expected negative demonstration' if valid else 'fail',exit_status=child.returncode,intended_assertion=ASSERTIONS[case],command=command,raw_manifest=str(raw),stdout_sha256=digest(out),stderr_sha256=digest(err),activation=activation)
+            result=dict(case=case,result='expected negative demonstration' if valid else 'fail',exit_status=child.returncode,intended_assertion=assertions[case],command=command,raw_manifest=str(raw),stdout_sha256=digest(out),stderr_sha256=digest(err),activation=activation)
             results.append(result);print(json.dumps(dict(case=case,result=result['result'],exit_status=child.returncode,raw_manifest=str(raw))),flush=True)
             if not valid:break
     finally:

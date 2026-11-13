@@ -360,7 +360,7 @@ impl Transaction {
                     self.exit_deficiency(
                         machine,
                         "clamp_overflow",
-                        (native_cost - customer_native, computed - debit, Some(&rate)),
+                        (native_cost - customer_native, computed - debit),
                         &key,
                         None,
                     )
@@ -373,7 +373,7 @@ impl Transaction {
                 self.exit_deficiency(
                     machine,
                     "rate_outage",
-                    (native_elapsed(&terms, window.0, window.1)?, 0, None),
+                    (native_elapsed(&terms, window.0, window.1)?, 0),
                     &key,
                     Some(window),
                 )
@@ -388,18 +388,19 @@ impl Transaction {
         &mut self,
         machine: &str,
         cause: &str,
-        valuation: (i64, i64, Option<&Value>),
+        valuation: (i64, i64),
         key: &str,
         window: Option<(DateTime<Utc>, DateTime<Utc>)>,
     ) -> Result<()> {
-        let (native, clamped, rate) = valuation;
+        let (native, clamped) = valuation;
         // STO-37: a no-rate native cost has no satoshi-origin clamp.
         let clamped = (cause == "clamp_overflow").then_some(clamped);
-        let rate_num = rate.and_then(|v| v["rate_num"].as_i64());
-        let rate_den = rate.and_then(|v| v["rate_den"].as_i64());
+        // LDG-66/STO-37: opening evidence comes from the current rate in the
+        // producing statement, independently of LDG-38 historical usage pricing.
+        // Outage rows always carry null; ON CONFLICT never backfills a null.
         let from = window.map(|v| v.0);
         let until = window.map(|v| v.1);
-        self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key,absorbed_seconds,absorbed_from,absorbed_until) SELECT m.provider_account,m.id,'machine',m.id,COALESCE((SELECT id FROM provisiond.operations WHERE machine_id=m.id ORDER BY created_at DESC LIMIT 1),m.id),$2,$3,m.native_terms->'offer'->>'currency',$4,$8::bigint,$9::bigint,$5,CASE WHEN $6::text IS NULL THEN 0 ELSE ceil(extract(epoch FROM $7::text::timestamptz-$6::text::timestamptz))::bigint END,$6::text::timestamptz,$7::text::timestamptz FROM provisiond.machines m WHERE m.id=$1::text::uuid ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&machine,&cause,&native,&clamped,&key,&from.map(|v|v.to_rfc3339()),&until.map(|v|v.to_rfc3339()),&rate_num,&rate_den]).await?;
+        self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key,absorbed_seconds,absorbed_from,absorbed_until) SELECT m.provider_account,m.id,'machine',m.id,COALESCE((SELECT id FROM provisiond.operations WHERE machine_id=m.id ORDER BY created_at DESC LIMIT 1),m.id),$2,$3,m.native_terms->'offer'->>'currency',$4,CASE WHEN $2<>'rate_outage' AND r.available THEN (r.value->>'rate_num')::bigint END,CASE WHEN $2<>'rate_outage' AND r.available THEN (r.value->>'rate_den')::bigint END,$5,CASE WHEN $6::text IS NULL THEN 0 ELSE ceil(extract(epoch FROM $7::text::timestamptz-$6::text::timestamptz))::bigint END,$6::text::timestamptz,$7::text::timestamptz FROM provisiond.machines m LEFT JOIN provisiond.rates r ON r.currency=m.native_terms->'offer'->>'currency' WHERE m.id=$1::text::uuid ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&machine,&cause,&native,&clamped,&key,&from.map(|v|v.to_rfc3339()),&until.map(|v|v.to_rfc3339())]).await?;
         Ok(())
     }
 }
