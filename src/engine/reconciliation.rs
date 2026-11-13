@@ -1,4 +1,5 @@
 //! OPS-27/28/29/30/32/33: read-only provider evidence, retained across store retries.
+use super::dispatch::provider_io;
 use super::*;
 use crate::store::Resolution;
 
@@ -12,6 +13,20 @@ impl Engine {
         descriptor: &Value,
         path: &str,
         body: &Value,
+    ) -> Result<std::result::Result<Value, crate::wire::Error>> {
+        self.credential_read(component, d, descriptor, path, body, None)
+            .await
+    }
+    /// PRV-41/OPS-21: ordinary verification and periodic reads share the durable
+    /// credential stop; only external I/O is subject to worker cancellation.
+    pub(super) async fn credential_read(
+        &self,
+        component: &Component,
+        d: &Dispatcher,
+        descriptor: &Value,
+        path: &str,
+        body: &Value,
+        execution: Option<&Execution>,
     ) -> Result<std::result::Result<Value, crate::wire::Error>> {
         let account = body["account"]
             .as_str()
@@ -27,7 +42,14 @@ impl Engine {
         if !healthy {
             return Ok(Err(crate::wire::Error::conflict("state")));
         }
-        let result = d.client.call(component, descriptor, path, body).await;
+        let result = if let Some(execution) = execution {
+            provider_io(execution, async {
+                Ok(d.client.call(component, descriptor, path, body).await)
+            })
+            .await?
+        } else {
+            d.client.call(component, descriptor, path, body).await
+        };
         if result
             .as_ref()
             .is_err_and(|error| error.0["kind"] == "authentication")
@@ -180,7 +202,7 @@ impl Engine {
         // eligibility and credential health. Run after eligible evidence reads
         // so a newly observed in-progress match is retained before this check.
         self.transaction(&component,|tx|Box::pin(async move {
-            let expired=tx.rows("SELECT o.id::text,o.tenant_id FROM provisiond.operations o JOIN provisiond.provider_accounts a ON a.account=o.provider_account JOIN provisiond.provider_account_status s ON s.provider_account=o.provider_account WHERE o.kind='create' AND o.status='needs_reconciliation' AND o.resolution IS NULL AND COALESCE(o.error->'details'->'reconciliation'->>'in_progress','false')<>'true' AND clock_timestamp()>=COALESCE(o.mutation_wait_ended_at,o.updated_at)+(a.descriptor->>'negative_seconds')::bigint*interval '1 second' AND EXISTS(SELECT 1 FROM provisiond.commitments c WHERE c.id=o.commitment_id AND c.state='open') ORDER BY o.tenant_id,o.id",&[]).await?;
+            let expired=tx.rows("SELECT o.id::text,o.tenant_id FROM provisiond.operations o JOIN provisiond.provider_accounts a ON a.account=o.provider_account JOIN provisiond.provider_account_status s ON s.provider_account=o.provider_account WHERE o.kind='create' AND o.status='needs_reconciliation' AND o.resolution IS NULL AND COALESCE(o.error->'details'->'reconciliation'->>'in_progress','false')<>'true' AND COALESCE(o.error->'details'->'reconciliation'->>'single_match','false')<>'true' AND NOT (COALESCE(o.error->'details'->'reconciliation'->>'authoritative','false')='true' AND COALESCE(o.error->'details'->'reconciliation'->>'matches','0')='1') AND clock_timestamp()>=COALESCE(o.mutation_wait_ended_at,o.updated_at)+(a.descriptor->>'negative_seconds')::bigint*interval '1 second' AND EXISTS(SELECT 1 FROM provisiond.commitments c WHERE c.id=o.commitment_id AND c.state='open') ORDER BY o.tenant_id,o.id",&[]).await?;
             for row in expired {
                 let id:String=row.get(0);let tenant:String=row.get(1);
                 tx.release_negative(&id,&tenant).await?;
@@ -441,8 +463,18 @@ impl Engine {
         // in-progress match. Only complete evidence of delivered resources clears it.
         in_progress |= row["error"]["details"]["reconciliation"]["in_progress"] == true
             && !(authoritative && !resources.is_empty());
+        // OPS-27: positive single-resource knowledge awaits confirmation. A
+        // failed/incomplete search cannot retract it; a complete later search
+        // applies its own cardinality and the existing resolution rules.
+        let previous = &row["error"]["details"]["reconciliation"];
+        let single_match = if authoritative {
+            resources.len() == 1
+        } else {
+            previous["single_match"] == true
+                || previous["authoritative"] == true && previous["matches"] == 1
+        };
         self.reconciliation_read_boundary(component, id).await?;
-        let evidence = json!({"source":"all_channel_search","authoritative":authoritative,"matches":resources.len(),"provider_identifiers":identifiers,"in_progress":in_progress});
+        let evidence = json!({"source":"all_channel_search","authoritative":authoritative,"matches":resources.len(),"provider_identifiers":identifiers,"in_progress":in_progress,"single_match":single_match});
         component.trace(json!({"event":"resolution_search","operation":id,"evidence":evidence}));
         let mut resolution = None;
         if authoritative && resources.len() == 1 && !in_progress {

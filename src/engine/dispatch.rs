@@ -425,7 +425,7 @@ impl Engine {
             .as_array()
             .context("reachable ordering channels")?
         {
-            let found=provider_io(e,async {d.client.call(component,descriptor,"/search",&json!({"account":account,"operation":c.id,"correlator":c.id,"channel":channel})).await.map_err(|mut error| {error.0["details"]["accepted"]=json!(true);error})}).await?;
+            let found=self.credential_read(component,d,descriptor,"/search",&json!({"account":account,"operation":c.id,"correlator":c.id,"channel":channel}),Some(e)).await?.map_err(|mut error| {error.0["details"]["accepted"]=json!(true);error})?;
             if let Some(resources) = found["resources"].as_array() {
                 for resource in resources {
                     identifiers.remember("search", resource);
@@ -463,21 +463,14 @@ impl Engine {
             .into());
         }
         let external = resources.keys().next().context("resource")?;
-        let machine = provider_io(e, async {
-            d.client
-                .call(
-                    component,
-                    descriptor,
-                    "/get",
-                    &json!({"account":account,"operation":c.id,"external_id":external}),
-                )
-                .await
-                .map_err(|mut error| {
-                    error.0["details"]["accepted"] = json!(true);
-                    error
-                })
-        })
-        .await?;
+        identifiers.single_match = identifiers.by_source.get("search").is_some_and(|ids| ids.contains(external));
+        let machine = self.credential_read(
+            component, d, descriptor, "/get",
+            &json!({"account":account,"operation":c.id,"external_id":external}), Some(e),
+        ).await?.map_err(|mut error| {
+            error.0["details"]["accepted"] = json!(true);
+            error
+        })?;
         identifiers.remember("get", &machine);
         // WIR-11/STO-48: this read establishes state. OPS-21/49 retain its
         // instant with the verified outcome across constraint I/O and settlement.
@@ -492,18 +485,15 @@ impl Engine {
             .into());
         }
         // PRV-13c: one post-confirmation read. Failure leaves null, never reclassifies success.
-        let date = provider_io(
-            e,
-            d.client.call(
-                component,
-                descriptor,
-                "/constraints",
-                &json!({"account":account,"operation":c.id,"external_id":external}),
-            ),
-        )
-        .await
-        .ok()
-        .and_then(|v| v["earliest_cancellation_date"].as_str().map(str::to_owned));
+        let constraints = self.credential_read(
+            component, d, descriptor, "/constraints",
+            &json!({"account":account,"operation":c.id,"external_id":external}), Some(e),
+        ).await;
+        let date = match constraints {
+            Ok(result) => result.ok().and_then(|v| v["earliest_cancellation_date"].as_str().map(str::to_owned)),
+            Err(error) if error.downcast_ref::<ExecutionStopped>().is_some() => None,
+            Err(error) => return Err(error),
+        };
         component.trace(json!({"event":"provider_verified","operation":c.id,"matches":1,"direct_read":true,"post_order_read":date.is_some(),"state_observed_at":observed_at.to_rfc3339()}));
         Ok(Some(Outcome::VerifiedCreateDetails {
             external_id: external.clone(),
@@ -519,7 +509,10 @@ impl Engine {
 /// OPS-13, DOM-18, WIR-10b: only safe opaque identifiers, labeled by observation
 /// source. Keep distinct observations rather than replacing the accepted reply.
 #[derive(Default)]
-struct ProviderIdentifiers(BTreeMap<&'static str, std::collections::BTreeSet<String>>);
+struct ProviderIdentifiers {
+    by_source: BTreeMap<&'static str, std::collections::BTreeSet<String>>,
+    single_match: bool,
+}
 impl ProviderIdentifiers {
     fn remember(&mut self, source: &'static str, value: &Value) {
         if let Some(id) = value["external_id"].as_str().filter(|id| {
@@ -529,7 +522,10 @@ impl ProviderIdentifiers {
                     .bytes()
                     .all(|b| b.is_ascii_alphanumeric() || b"_-:".contains(&b))
         }) {
-            self.0.entry(source).or_default().insert(id.to_owned());
+            self.by_source
+                .entry(source)
+                .or_default()
+                .insert(id.to_owned());
         }
     }
     fn failure(self, error: anyhow::Error) -> anyhow::Error {
@@ -554,8 +550,14 @@ impl ProviderIdentifiers {
             }
         });
         error.0["details"]["accepted"] = json!(true);
-        if !self.0.is_empty() {
-            error.0["details"]["provider_identifiers"] = json!(self.0);
+        // OPS-27/33: retain the exact single match through failed reads and
+        // survived cancellation, including an outer verification error.
+        if self.single_match {
+            error.0["details"]["reconciliation"] =
+                json!({"authoritative":true,"matches":1,"single_match":true,"in_progress":false});
+        }
+        if !self.by_source.is_empty() {
+            error.0["details"]["provider_identifiers"] = json!(self.by_source);
         }
         error.into()
     }
