@@ -98,6 +98,8 @@ def visibility_money(w):
     # The released original attaches later under OPS-36, with exclusion settled.
     proof(w,op,search='normal');eligible(w,op);w.start_engine();w.wait_status(op,'succeeded');w.stop_engine()
     assert not snapshot(w,op)['exclusions'];one_purchase(w,op)
+    from w5 import restore_resource
+    restore_resource(w,t)
 
 
 def cleanup_restart(w):
@@ -187,7 +189,10 @@ def auth_stop(w):
                 # Eligible settled key, already owned by this test's real operation.
                 http(w.h.ports[5],'POST','/keys',{'account':account,'operation':created})
         endpoint='/get' if site in ('account-get','delete-get') else site
-        before=len(w.external()['events']);w.provider_control(authentication_fault={'account':account,'path':endpoint})
+        fault={'account':account,'path':endpoint}
+        if site in ('/search','/get','/constraints','delete-get'):fault['operation']=op
+        elif site=='account-get':fault['operation']=None
+        before=len(w.external()['events']);w.provider_control(authentication_fault=fault)
         p=w.start_engine()
         eventually(lambda:any(e['stage']=='authentication_rejected' and e['account']==account and e['path']==endpoint for e in w.external()['events'][before:]))
         if site=='/search':
@@ -198,10 +203,11 @@ def auth_stop(w):
         time.sleep(2.4);w.stop_engine();observed=w.external()['events'][before:]
         failed=[e for e in observed if e['stage']=='authentication_rejected' and e['account']==account]
         state=w.h.sql(f"SELECT status FROM provisiond.provider_account_status WHERE provider_account='{account}'")
-        w.h.event('w6_authentication_stop_activated',site=site,credential_status=state,provider=observed,trace=events(p))
+        w.h.event('w6_authentication_stop_activated',site=site,fault=fault,credential_status=state,provider=observed,trace=events(p))
         assert len(failed)==1 and state=='credentials_rejected','R5 PRV-41 one terminal authentication failure per credential'
         assert any(e.get('event')=='provider_credentials_rejected' and e.get('provider_account')==account and e.get('path')==endpoint
                    or e.get('event')=='resolution_read_refused' and e.get('kind')=='authentication' for e in events(p))
+        if 'operation' in fault:assert failed[0]['command']==fault['operation'],'authentication fault must hit the selected read site'
         index=observed.index(failed[0])
         assert not any(e['stage']=='request_received' and e['account']==account for e in observed[index+1:]),'R5 PRV-41 no remaining or scheduled credential calls'
         assert any(e['stage']=='request_received' and e['account']==other for e in observed[index+1:]),'healthy account continues after credential stop'

@@ -148,7 +148,7 @@ def main():
                 while barrier.exists():time.sleep(.002)
             proof=state['evidence'].get(operation,{})
             fault=state.get('authentication_fault')
-            if fault and body.get('account')==fault['account'] and self.path==fault['path']:
+            if fault and body.get('account')==fault['account'] and self.path==fault['path'] and ('operation' not in fault or operation==fault['operation']):
                 record('authentication_rejected',**identity)
                 self.reply({'error':{'kind':'authentication','message':'controlled credential rejection','retryable':False,'details':{}}});return
             if self.path=='/enumerate':
