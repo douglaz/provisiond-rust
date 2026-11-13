@@ -84,6 +84,7 @@ class Harness:
         self.root = Path(tempfile.mkdtemp(prefix=f'{phase}-', dir=ROOT))
         self.phase, self.seed = phase, seed
         self.events, self.commands, self.results, self.nodes = [], [], [], {}
+        self.retired_authorities = set()
         self.started = time.monotonic()
         self.passwords = {r: secrets.token_hex(24) for r in
                           ['replicator', 'administrator', 'migrator', 'app', 'observer', 'denied']}
@@ -258,6 +259,7 @@ tcp_keepalives_count = 2
 
     def start(self, name, role='administrator'):
         cap_check()
+        assert name not in self.retired_authorities, 'STO-54 old authority launch identity is fenced'
         n = self.nodes[name]
         self.release_port(n['port'])
         free_port(n['port'])
@@ -296,35 +298,78 @@ tcp_keepalives_count = 2
         self.event('fault_activated', fault='owned_backend_crash', pid=pid,
                    postmaster_pid=self.nodes['primary']['process'].pid)
 
-    def backup(self, name, standby=False):
+    def backup(self, name, standby=False, source='primary'):
         dest = self.root / name
+        assert not dest.exists(), 'backup destination must be fresh and invocation-owned'
+        source_port = self.nodes[source]['port']
+        source_system = self.sql('SELECT system_identifier FROM pg_control_system()', node=source)
+        source_timeline = self.sql('SELECT timeline_id FROM pg_control_checkpoint()', node=source)
         started=time.monotonic()
-        self.event('backup_requested', destination=name, wal_mode='stream', application_name='bootstrap_backup',command_bound_seconds=self.config['bootstrap_command_seconds'])
-        self.run(['pg_basebackup','-d',f'host=127.0.0.1 port={self.ports[0]} user=replicator dbname=postgres application_name=bootstrap_backup',
+        self.event('backup_requested', destination=name, source=source, source_system_identifier=source_system,
+                   source_timeline=source_timeline, wal_mode='stream', application_name='bootstrap_backup',command_bound_seconds=self.config['bootstrap_command_seconds'])
+        self.run(['pg_basebackup','-d',f'host=127.0.0.1 port={source_port} user=replicator dbname=postgres application_name=bootstrap_backup',
                   '-D',str(dest),'-X','stream','--checkpoint=fast','--no-password'],timeout=self.config['bootstrap_command_seconds'])
         self.run(['pg_verifybackup',str(dest)],timeout=self.config['bootstrap_command_seconds'])
         provenance=self.root/(name+'-backup-manifest.json')
         provenance.write_bytes((dest/'backup_manifest').read_bytes())
-        self.event('backup_provenance_retained',path=str(provenance),sha256=hashlib.sha256(provenance.read_bytes()).hexdigest())
+        manifest = json.loads(provenance.read_text())
+        assert str(manifest['System-Identifier']) == source_system
+        self.event('backup_provenance_retained',path=str(provenance),sha256=hashlib.sha256(provenance.read_bytes()).hexdigest(),
+                   source=source, system_identifier=source_system, wal_ranges=manifest['WAL-Ranges'])
+        self.owned_extra_paths = getattr(self, 'owned_extra_paths', [])
+        self.owned_extra_paths.append(dest)
         if standby:
             (dest/'standby.signal').touch()
             # Set the final application name and authenticated role before startup.
             (dest/'postgresql.auto.conf').write_text(
-                f"primary_conninfo = 'host=127.0.0.1 port={self.ports[0]} user=replicator application_name=provisiond_sync passfile={self.pgpass}'\n")
-        self.event('backup_complete', destination=name, verified=True,elapsed_seconds=time.monotonic()-started)
+                f"primary_conninfo = 'host=127.0.0.1 port={source_port} user=replicator application_name=provisiond_sync passfile={self.pgpass}'\n")
+        self.event('backup_complete', destination=name, source=source, verified=True,
+                   maintenance_session_closed=True, maintenance_mode_exception=False,
+                   elapsed_seconds=time.monotonic()-started)
 
-    def identity(self):
-        target = self.sql('SELECT pg_current_wal_flush_lsn()')
-        eventually(lambda: self.sql(f"SELECT count(*)=1 FROM pg_stat_replication WHERE application_name='provisiond_sync' AND usename='replicator' AND client_addr='127.0.0.1' AND sync_state='sync' AND flush_lsn >= '{target}'::pg_lsn")=='t')
-        p = self.sql('SELECT system_identifier FROM pg_control_system()')
-        s = self.sql('SELECT system_identifier FROM pg_control_system()',node='standby')
+    def identity(self, primary='primary', standby='standby'):
+        target = self.sql('SELECT pg_current_wal_flush_lsn()', node=primary)
+        eventually(lambda: self.sql(f"SELECT count(*)=1 FROM pg_stat_replication WHERE application_name='provisiond_sync' AND usename='replicator' AND client_addr='127.0.0.1' AND sync_state='sync' AND flush_lsn >= '{target}'::pg_lsn", node=primary)=='t')
+        p = self.sql('SELECT system_identifier FROM pg_control_system()', node=primary)
+        s = self.sql('SELECT system_identifier FROM pg_control_system()',node=standby)
         assert p == s
-        assert self.sql('SELECT pg_is_in_recovery()',node='standby') == 't'
-        self.event('identity_catchup', system_identifier=p, sampled_primary_flush=target,
+        assert self.sql('SELECT pg_is_in_recovery()',node=standby) == 't'
+        self.event('identity_catchup', primary=primary, standby=standby, system_identifier=p, sampled_primary_flush=target,
                    standby_system_identifier=s, authenticated_role='replicator',
-                   primary_checkpoint=self.sql('SELECT timeline_id, redo_lsn FROM pg_control_checkpoint()'),
-                   standby_checkpoint=self.sql('SELECT timeline_id, redo_lsn FROM pg_control_checkpoint()',node='standby'),
+                   primary_checkpoint=self.sql('SELECT timeline_id, redo_lsn FROM pg_control_checkpoint()', node=primary),
+                   standby_checkpoint=self.sql('SELECT timeline_id, redo_lsn FROM pg_control_checkpoint()',node=standby),
                    provenance='verified pg_basebackup from this primary; exclusive run-owned data and credentials')
+
+    def fence_authority(self, name, workflow):
+        """STO-54: local-only fence over the complete owned component inventory."""
+        workflow.quiesced = True
+        inventory = [p for p in self.extra if getattr(p, 'name', None) in ('api', 'engine')]
+        assert set(inventory) == {p for p in workflow.children if getattr(p, 'name', None) in ('api', 'engine')}
+        for process in inventory:
+            if process.poll() is None:
+                process.terminate()
+            process.wait(timeout=5)
+        assert all(p.poll() is not None for p in inventory)
+        self.event('components_quiesced', inventory=[dict(component=p.name, pid=p.pid, exit_status=p.returncode) for p in inventory],
+                   restart_prevented=True, complete_inventory=True)
+        self.stop(name)
+        node = self.nodes[name]
+        quarantine = self.root / (name + '-quarantined')
+        assert not quarantine.exists()
+        node['data'].rename(quarantine)
+        node['data'] = quarantine
+        self.retired_authorities.add(name)
+        refused = self.run(['psql', '-XAt', '-h', '127.0.0.1', '-p', str(node['port']),
+                            '-U', 'app', '-d', 'postgres', '-c', 'SELECT 1'], ok=False)
+        assert refused.returncode != 0, 'STO-54 fenced authority must refuse new component connections'
+        try:
+            self.start(name)
+        except AssertionError as error:
+            assert str(error) == 'STO-54 old authority launch identity is fenced'
+        else:
+            raise AssertionError('STO-54 fenced authority must refuse normal relaunch')
+        self.event('authority_fenced', node=name, quarantine=str(quarantine), new_connection_exit=refused.returncode,
+                   old_identity_relaunch_refused=True, local_only=True)
 
     def drill(self):
         self.init()

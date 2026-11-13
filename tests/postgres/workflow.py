@@ -46,6 +46,7 @@ class Workflow:
     def __init__(self,h,defect=None,default_build=False,parameters=None,operator=False):
         self.defect=defect
         self.default_build=default_build
+        self.quiesced=False
         self.h=h;self.children=[];self.engine=None;self.private=[]
         prepare(h)
         h.run(['cargo','build','--bins',*(['--features','store-test-hooks'] if not default_build else []),'--locked'],timeout=120)
@@ -97,6 +98,7 @@ class Workflow:
         eventually(lambda:(h.root/(kind+'.stdout')).read_text())
         return p
     def start(self,name,extra=None):
+        assert not self.quiesced, 'STO-54 component restart prevented by local deployment fence'
         h=self.h
         identity=self.build_identity(h.target/'debug'/name,self.builds[name]['features'])
         assert identity==self.builds[name],'workflow executable changed after its recorded build'
