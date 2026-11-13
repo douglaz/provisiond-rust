@@ -129,10 +129,10 @@
       "command": [
         "initdb",
         "-D",
-        "<run-dir>/corrections-x1ist4vp/primary",
+        "<run-dir>/corrections-chg4knnf/primary",
         "-U",
         "administrator",
-        "--pwfile=<run-dir>/corrections-x1ist4vp/init-password",
+        "--pwfile=<run-dir>/corrections-chg4knnf/init-password",
         "--auth=scram-sha-256",
         "--no-locale",
         "--encoding=UTF8"
@@ -144,7 +144,7 @@
         "postgres",
         "--single",
         "-D",
-        "<run-dir>/corrections-x1ist4vp/primary",
+        "<run-dir>/corrections-chg4knnf/primary",
         "postgres"
       ],
       "exit_status": 0
@@ -153,7 +153,7 @@
       "command": [
         "postgres",
         "-D",
-        "<run-dir>/corrections-x1ist4vp/primary"
+        "<run-dir>/corrections-chg4knnf/primary"
       ],
       "exit_status": 0
     },
@@ -197,7 +197,7 @@
         "-d",
         "host=<loopback> port=55500 user=replicator dbname=postgres application_name=bootstrap_backup",
         "-D",
-        "<run-dir>/corrections-x1ist4vp/standby",
+        "<run-dir>/corrections-chg4knnf/standby",
         "-X",
         "stream",
         "--checkpoint=fast",
@@ -208,7 +208,7 @@
     {
       "command": [
         "pg_verifybackup",
-        "<run-dir>/corrections-x1ist4vp/standby"
+        "<run-dir>/corrections-chg4knnf/standby"
       ],
       "exit_status": 0
     },
@@ -216,9 +216,26 @@
       "command": [
         "postgres",
         "-D",
-        "<run-dir>/corrections-x1ist4vp/standby"
+        "<run-dir>/corrections-chg4knnf/standby"
       ],
       "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "<opaque-12ca17b49af2289436f3>",
+        "-p",
+        "55501",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
     },
     {
       "command": [
@@ -664,7 +681,7 @@
     },
     {
       "command": [
-        "<run-dir>/corrections-x1ist4vp/target/debug/examples/store-probe"
+        "<run-dir>/corrections-chg4knnf/target/debug/examples/store-probe"
       ],
       "exit_status": 0,
       "test_defect": "notice_sticky"
@@ -673,7 +690,7 @@
       "command": [
         "pg_ctl",
         "-D",
-        "<run-dir>/corrections-x1ist4vp/primary",
+        "<run-dir>/corrections-chg4knnf/primary",
         "stop",
         "-m",
         "fast",
@@ -687,7 +704,7 @@
       "command": [
         "pg_ctl",
         "-D",
-        "<run-dir>/corrections-x1ist4vp/standby",
+        "<run-dir>/corrections-chg4knnf/standby",
         "stop",
         "-m",
         "fast",
@@ -754,9 +771,8 @@
   },
   "configuration_sha256": "4cc2d7a5041bfa3e007ef68531557d6b5f5a1207e456309a5b175f2005fc83c4",
   "event_selection": {
-    "basis": "consequential manifests; complete private trace content hash retained",
+    "basis": "consequential manifests; private full application trace hashes retained",
     "omitted_event_types": [
-      "application_trace",
       "commit_observer_sample",
       "connection_created",
       "connection_recycled",
@@ -807,15 +823,15 @@
         "wal_level": "replica"
       },
       "configuration_sha256": "2db90917605c2de2e296f33ea72a302ec45759972c8c1e732ade841335625742",
-      "elapsed": 0.00033497391268610954,
+      "elapsed": 0.00037595094181597233,
       "event": "invocation",
       "phase": "corrections",
       "seed": 20261112,
       "specification": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-      "timestamp": 1794527302.0839815
+      "timestamp": 1794535616.4783752
     },
     {
-      "elapsed": 0.0812540811020881,
+      "elapsed": 0.08532137889415026,
       "event": "allocation_reserved",
       "ports": [
         55500,
@@ -829,63 +845,63 @@
         55508,
         55509
       ],
-      "timestamp": 1794527302.1649003
+      "timestamp": 1794535616.5633206
     },
     {
       "bootstrap_readiness_seconds": 60,
-      "elapsed": 18.003392674028873,
+      "elapsed": 17.834230045089498,
       "event": "server_started",
       "node": "primary",
-      "pid": 2226248,
+      "pid": 2838383,
       "port": 55500,
-      "readiness_elapsed_seconds": 0.06851928681135178,
-      "timestamp": 1794527320.0870392
+      "readiness_elapsed_seconds": 0.07043752679601312,
+      "timestamp": 1794535634.3122294
     },
     {
       "application_name": "bootstrap_backup",
       "command_bound_seconds": 180,
       "destination": "standby",
-      "elapsed": 18.003449118928984,
+      "elapsed": 17.834307349054143,
       "event": "backup_requested",
-      "timestamp": 1794527320.0870957,
+      "timestamp": 1794535634.3123066,
       "wal_mode": "stream"
     },
     {
-      "elapsed": 18.64861823199317,
+      "elapsed": 18.53576218499802,
       "event": "backup_provenance_retained",
-      "path": "<run-dir>/corrections-x1ist4vp/standby-backup-manifest.json",
-      "sha256": "54931604c61a39a0210a20018779f06487113f55863d8ff2529c3f40fd7fd1fa",
-      "timestamp": 1794527320.7322648
+      "path": "<run-dir>/corrections-chg4knnf/standby-backup-manifest.json",
+      "sha256": "14b4f3b09fd31904bcd66e89558c111af94a0029979ede149a8d7901dc3de83a",
+      "timestamp": 1794535635.0137613
     },
     {
       "destination": "standby",
-      "elapsed": 18.648857488995418,
-      "elapsed_seconds": 0.6454074571374804,
+      "elapsed": 18.535940707894042,
+      "elapsed_seconds": 0.70163335907273,
       "event": "backup_complete",
-      "timestamp": 1794527320.7325041,
+      "timestamp": 1794535635.0139403,
       "verified": true
     },
     {
       "bootstrap_readiness_seconds": 60,
-      "elapsed": 19.15905164508149,
+      "elapsed": 19.10138654196635,
       "event": "server_started",
       "node": "standby",
-      "pid": 2226293,
+      "pid": 2838441,
       "port": 55501,
-      "readiness_elapsed_seconds": 0.5009967379737645,
-      "timestamp": 1794527321.2426982
+      "readiness_elapsed_seconds": 0.5564572850707918,
+      "timestamp": 1794535635.5793858
     },
     {
       "authenticated_role": "replicator",
-      "elapsed": 19.33850308903493,
+      "elapsed": 19.305363294901326,
       "event": "identity_catchup",
       "primary_checkpoint": "1|0/2000028",
       "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials",
       "sampled_primary_flush": "0/3003A90",
       "standby_checkpoint": "1|0/2000028",
-      "standby_system_identifier": "7707436147714435091",
-      "system_identifier": "7707436147714435091",
-      "timestamp": 1794527321.4221497
+      "standby_system_identifier": "7707471856776429394",
+      "system_identifier": "7707471856776429394",
+      "timestamp": 1794535635.7833626
     },
     {
       "configuration": {
@@ -905,30 +921,30 @@
         "tcp_keepalives_interval": "1",
         "wal_level": "replica"
       },
-      "elapsed": 19.347646137000993,
+      "elapsed": 19.314767960924655,
       "event": "effective_configuration_observed",
       "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f",
-      "timestamp": 1794527321.4312928
+      "timestamp": 1794535635.7927673
     },
     {
       "backup_name": "bootstrap_backup",
       "bootstrap_role": "initdb administrator; offline replication identity only",
       "designated_name": "provisiond_sync",
-      "elapsed": 19.39382683299482,
+      "elapsed": 19.366212835069746,
       "event": "bootstrap_complete",
       "maintenance_mode_exception": false,
-      "timestamp": 1794527321.4774733
+      "timestamp": 1794535635.8442123
     },
     {
-      "elapsed": 19.535429405979812,
+      "elapsed": 19.512369226897135,
       "event": "client_process_started",
-      "pid": 2226356,
+      "pid": 2838505,
       "probe": 0,
       "test_defect": "notice_sticky",
-      "timestamp": 1794527321.6190758
+      "timestamp": 1794535635.9903684
     },
     {
-      "elapsed": 19.53745725704357,
+      "elapsed": 19.514117557089776,
       "event": "client_observation",
       "message": {
         "count": 2,
@@ -937,28 +953,28 @@
         "interval_seconds": 1
       },
       "probe": 0,
-      "timestamp": 1794527321.6211038
+      "timestamp": 1794535635.992117
     },
     {
-      "elapsed": 19.589946846012026,
+      "elapsed": 19.563353511039168,
       "event": "client_observation",
       "message": {
         "event": "check_target",
         "kind": "admission",
-        "session": 2226362,
+        "session": 2838512,
         "target": "0/3061558"
       },
       "probe": 0,
-      "timestamp": 1794527321.6735933
+      "timestamp": 1794535636.041353
     },
     {
-      "elapsed": 19.591238144086674,
+      "elapsed": 19.56485723494552,
       "event": "client_observation",
       "message": {
         "event": "check_observation",
         "kind": "admission",
         "observed": [
-          "2226318",
+          "2838468",
           "replicator",
           "provisiond_sync",
           "<opaque-12ca17b49af2289436f3>",
@@ -966,24 +982,24 @@
           "sync",
           "0/3061558"
         ],
-        "session": 2226362,
+        "session": 2838512,
         "target": "0/3061558"
       },
       "probe": 0,
-      "timestamp": 1794527321.6748846
+      "timestamp": 1794535636.0428567
     },
     {
-      "elapsed": 19.5914227780886,
+      "elapsed": 19.564973151078448,
       "event": "client_observation",
       "message": {
         "event": "session_admitted",
-        "session": 2226362
+        "session": 2838512
       },
       "probe": 0,
-      "timestamp": 1794527321.6750693
+      "timestamp": 1794535636.0429726
     },
     {
-      "elapsed": 19.59251839108765,
+      "elapsed": 19.56610820791684,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -993,10 +1009,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6761649
+      "timestamp": 1794535636.0441074
     },
     {
-      "elapsed": 19.59261853690259,
+      "elapsed": 19.56629974511452,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1006,10 +1022,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6762652
+      "timestamp": 1794535636.0442994
     },
     {
-      "elapsed": 19.592813580995426,
+      "elapsed": 19.566457069013268,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1019,10 +1035,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6764603
+      "timestamp": 1794535636.0444565
     },
     {
-      "elapsed": 19.592926350887865,
+      "elapsed": 19.56659771106206,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1032,10 +1048,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.676573
+      "timestamp": 1794535636.0445971
     },
     {
-      "elapsed": 19.593000238994136,
+      "elapsed": 19.56667099799961,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1045,10 +1061,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.676647
+      "timestamp": 1794535636.0446706
     },
     {
-      "elapsed": 19.593187467893586,
+      "elapsed": 19.5668357249815,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1058,10 +1074,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.676834
+      "timestamp": 1794535636.044835
     },
     {
-      "elapsed": 19.593264071037993,
+      "elapsed": 19.566913960967213,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1071,10 +1087,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6769106
+      "timestamp": 1794535636.0449133
     },
     {
-      "elapsed": 19.593450147891417,
+      "elapsed": 19.56708227400668,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1084,10 +1100,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6770966
+      "timestamp": 1794535636.0450816
     },
     {
-      "elapsed": 19.593581011984497,
+      "elapsed": 19.567177711986005,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1097,10 +1113,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6772275
+      "timestamp": 1794535636.045177
     },
     {
-      "elapsed": 19.593673614086583,
+      "elapsed": 19.56724423589185,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1110,10 +1126,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6773202
+      "timestamp": 1794535636.0452437
     },
     {
-      "elapsed": 19.593771476997063,
+      "elapsed": 19.56735109607689,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1123,10 +1139,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.677418
+      "timestamp": 1794535636.0453506
     },
     {
-      "elapsed": 19.593870331067592,
+      "elapsed": 19.56746033905074,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1136,10 +1152,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6775167
+      "timestamp": 1794535636.0454597
     },
     {
-      "elapsed": 19.59399390197359,
+      "elapsed": 19.56760347611271,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1149,10 +1165,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6776404
+      "timestamp": 1794535636.0456028
     },
     {
-      "elapsed": 19.594172013923526,
+      "elapsed": 19.56769118993543,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1162,10 +1178,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6778185
+      "timestamp": 1794535636.0456905
     },
     {
-      "elapsed": 19.594250129070133,
+      "elapsed": 19.567785104969516,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1175,10 +1191,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6778967
+      "timestamp": 1794535636.0457845
     },
     {
-      "elapsed": 19.594354233006015,
+      "elapsed": 19.567885872907937,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1188,10 +1204,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.678001
+      "timestamp": 1794535636.0458853
     },
     {
-      "elapsed": 19.594504724023864,
+      "elapsed": 19.567985658999532,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1201,10 +1217,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6781514
+      "timestamp": 1794535636.045985
     },
     {
-      "elapsed": 19.59459758689627,
+      "elapsed": 19.56804199400358,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1214,10 +1230,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.678244
+      "timestamp": 1794535636.0460413
     },
     {
-      "elapsed": 19.59466242790222,
+      "elapsed": 19.56815093709156,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1227,10 +1243,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6783092
+      "timestamp": 1794535636.0461504
     },
     {
-      "elapsed": 19.594753056997433,
+      "elapsed": 19.568269307957962,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1240,10 +1256,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6783998
+      "timestamp": 1794535636.0462687
     },
     {
-      "elapsed": 19.594869123073295,
+      "elapsed": 19.568357361946255,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1253,10 +1269,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6785157
+      "timestamp": 1794535636.0463567
     },
     {
-      "elapsed": 19.594970853067935,
+      "elapsed": 19.5684197479859,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1266,10 +1282,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6786172
+      "timestamp": 1794535636.0464191
     },
     {
-      "elapsed": 19.595077882986516,
+      "elapsed": 19.568525434937328,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1279,10 +1295,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6787245
+      "timestamp": 1794535636.046525
     },
     {
-      "elapsed": 19.595185552956536,
+      "elapsed": 19.568677217932418,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1292,10 +1308,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.678832
+      "timestamp": 1794535636.0466766
     },
     {
-      "elapsed": 19.595327086979523,
+      "elapsed": 19.568749913945794,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1305,10 +1321,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6789737
+      "timestamp": 1794535636.0467494
     },
     {
-      "elapsed": 19.59541298705153,
+      "elapsed": 19.568833488970995,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1318,10 +1334,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6790597
+      "timestamp": 1794535636.0468328
     },
     {
-      "elapsed": 19.595528011908755,
+      "elapsed": 19.56894115009345,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1331,10 +1347,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6791747
+      "timestamp": 1794535636.0469406
     },
     {
-      "elapsed": 19.595619813073426,
+      "elapsed": 19.56900938693434,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1344,10 +1360,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6792662
+      "timestamp": 1794535636.0470088
     },
     {
-      "elapsed": 19.595741430064663,
+      "elapsed": 19.569115976104513,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1357,10 +1373,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.679388
+      "timestamp": 1794535636.0471153
     },
     {
-      "elapsed": 19.595806991914287,
+      "elapsed": 19.56925094802864,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1370,10 +1386,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6794534
+      "timestamp": 1794535636.0472505
     },
     {
-      "elapsed": 19.595949006965384,
+      "elapsed": 19.56930552003905,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1383,10 +1399,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6795955
+      "timestamp": 1794535636.0473049
     },
     {
-      "elapsed": 19.59602714306675,
+      "elapsed": 19.56938698096201,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1396,10 +1412,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.679674
+      "timestamp": 1794535636.0473864
     },
     {
-      "elapsed": 19.5962073688861,
+      "elapsed": 19.569461670937017,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1409,10 +1425,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6798542
+      "timestamp": 1794535636.047461
     },
     {
-      "elapsed": 19.59628589497879,
+      "elapsed": 19.569549043895677,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1422,10 +1438,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6799324
+      "timestamp": 1794535636.0475485
     },
     {
-      "elapsed": 19.596396951936185,
+      "elapsed": 19.56962144910358,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1435,10 +1451,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6800435
+      "timestamp": 1794535636.0476208
     },
     {
-      "elapsed": 19.596508250106126,
+      "elapsed": 19.569677944062278,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1448,10 +1464,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6801548
+      "timestamp": 1794535636.0476775
     },
     {
-      "elapsed": 19.596671374049038,
+      "elapsed": 19.56976643903181,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1461,10 +1477,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6803179
+      "timestamp": 1794535636.0477657
     },
     {
-      "elapsed": 19.59683153196238,
+      "elapsed": 19.56984355300665,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1474,10 +1490,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.680478
+      "timestamp": 1794535636.047843
     },
     {
-      "elapsed": 19.59691486810334,
+      "elapsed": 19.569939993089065,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1487,10 +1503,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6805613
+      "timestamp": 1794535636.0479393
     },
     {
-      "elapsed": 19.597036313964054,
+      "elapsed": 19.569999102968723,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1500,10 +1516,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.680683
+      "timestamp": 1794535636.0479984
     },
     {
-      "elapsed": 19.597198096103966,
+      "elapsed": 19.570103568024933,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1513,10 +1529,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6808448
+      "timestamp": 1794535636.0481029
     },
     {
-      "elapsed": 19.597265942022204,
+      "elapsed": 19.570185519987717,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1526,10 +1542,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6809127
+      "timestamp": 1794535636.048185
     },
     {
-      "elapsed": 19.597385674947873,
+      "elapsed": 19.570244720904157,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1539,10 +1555,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6810322
+      "timestamp": 1794535636.0482442
     },
     {
-      "elapsed": 19.59749720292166,
+      "elapsed": 19.57031655497849,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1552,10 +1568,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6811438
+      "timestamp": 1794535636.048316
     },
     {
-      "elapsed": 19.597659766906872,
+      "elapsed": 19.570425257086754,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1565,10 +1581,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6813064
+      "timestamp": 1794535636.0484247
     },
     {
-      "elapsed": 19.59772844496183,
+      "elapsed": 19.57047668308951,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1578,10 +1594,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.681375
+      "timestamp": 1794535636.0484762
     },
     {
-      "elapsed": 19.59783361107111,
+      "elapsed": 19.570581078063697,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1591,10 +1607,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6814802
+      "timestamp": 1794535636.0485806
     },
     {
-      "elapsed": 19.597961849998683,
+      "elapsed": 19.570648113032803,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1604,10 +1620,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6816084
+      "timestamp": 1794535636.0486474
     },
     {
-      "elapsed": 19.59808419807814,
+      "elapsed": 19.570774087915197,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1617,10 +1633,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6817307
+      "timestamp": 1794535636.0487735
     },
     {
-      "elapsed": 19.598197950050235,
+      "elapsed": 19.570823679910973,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1630,10 +1646,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6818445
+      "timestamp": 1794535636.048823
     },
     {
-      "elapsed": 19.598308556014672,
+      "elapsed": 19.570935417898,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1643,10 +1659,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.681955
+      "timestamp": 1794535636.048935
     },
     {
-      "elapsed": 19.59842047491111,
+      "elapsed": 19.57101105991751,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1656,10 +1672,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6820672
+      "timestamp": 1794535636.0490105
     },
     {
-      "elapsed": 19.59857534407638,
+      "elapsed": 19.571085277944803,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1669,10 +1685,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6822221
+      "timestamp": 1794535636.0490847
     },
     {
-      "elapsed": 19.59864548407495,
+      "elapsed": 19.571137194987386,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1682,10 +1698,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.682292
+      "timestamp": 1794535636.0491366
     },
     {
-      "elapsed": 19.598802637076005,
+      "elapsed": 19.57123733102344,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1695,10 +1711,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.682449
+      "timestamp": 1794535636.0492368
     },
     {
-      "elapsed": 19.59887529304251,
+      "elapsed": 19.571290601044893,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1708,10 +1724,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6825218
+      "timestamp": 1794535636.04929
     },
     {
-      "elapsed": 19.598999605048448,
+      "elapsed": 19.57143508992158,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1721,10 +1737,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6826463
+      "timestamp": 1794535636.0494347
     },
     {
-      "elapsed": 19.599194749025628,
+      "elapsed": 19.571530708111823,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1734,10 +1750,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6828413
+      "timestamp": 1794535636.04953
     },
     {
-      "elapsed": 19.599275047890842,
+      "elapsed": 19.5716097059194,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1747,10 +1763,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6829216
+      "timestamp": 1794535636.0496092
     },
     {
-      "elapsed": 19.599435467040166,
+      "elapsed": 19.57175073889084,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1760,10 +1776,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6830819
+      "timestamp": 1794535636.0497503
     },
     {
-      "elapsed": 19.599531477084383,
+      "elapsed": 19.571857488015667,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1773,10 +1789,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.683178
+      "timestamp": 1794535636.0498571
     },
     {
-      "elapsed": 19.59962398908101,
+      "elapsed": 19.571940462104976,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1786,10 +1802,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6832707
+      "timestamp": 1794535636.0499399
     },
     {
-      "elapsed": 19.59976581390947,
+      "elapsed": 19.572061076993123,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1799,10 +1815,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6834126
+      "timestamp": 1794535636.0500605
     },
     {
-      "elapsed": 19.599876740016043,
+      "elapsed": 19.572147828992456,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1812,10 +1828,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6835234
+      "timestamp": 1794535636.0501473
     },
     {
-      "elapsed": 19.600023865001276,
+      "elapsed": 19.572280446067452,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1825,10 +1841,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6836705
+      "timestamp": 1794535636.0502799
     },
     {
-      "elapsed": 19.600146452896297,
+      "elapsed": 19.572363490937278,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1838,10 +1854,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.683793
+      "timestamp": 1794535636.0503628
     },
     {
-      "elapsed": 19.60023051011376,
+      "elapsed": 19.572495046071708,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1851,10 +1867,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6838772
+      "timestamp": 1794535636.0504944
     },
     {
-      "elapsed": 19.600349681917578,
+      "elapsed": 19.57255793409422,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1864,10 +1880,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6839964
+      "timestamp": 1794535636.0505574
     },
     {
-      "elapsed": 19.60049493308179,
+      "elapsed": 19.572703073965386,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1877,10 +1893,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6841416
+      "timestamp": 1794535636.0507026
     },
     {
-      "elapsed": 19.600568970898166,
+      "elapsed": 19.57282087393105,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1890,10 +1906,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6842155
+      "timestamp": 1794535636.0508204
     },
     {
-      "elapsed": 19.60070874192752,
+      "elapsed": 19.572900312021375,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1903,10 +1919,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6843553
+      "timestamp": 1794535636.0508997
     },
     {
-      "elapsed": 19.600821041036397,
+      "elapsed": 19.573033190099522,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1916,10 +1932,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6844678
+      "timestamp": 1794535636.0510325
     },
     {
-      "elapsed": 19.600892544956878,
+      "elapsed": 19.57314418698661,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1929,10 +1945,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.684539
+      "timestamp": 1794535636.0511436
     },
     {
-      "elapsed": 19.601006447104737,
+      "elapsed": 19.573204058920965,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1942,10 +1958,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.684653
+      "timestamp": 1794535636.0512035
     },
     {
-      "elapsed": 19.60109011293389,
+      "elapsed": 19.573340743081644,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1955,10 +1971,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6847367
+      "timestamp": 1794535636.0513403
     },
     {
-      "elapsed": 19.601198504911736,
+      "elapsed": 19.573409592034295,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1968,10 +1984,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.684845
+      "timestamp": 1794535636.051409
     },
     {
-      "elapsed": 19.60132740600966,
+      "elapsed": 19.573551856912673,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1981,10 +1997,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6849742
+      "timestamp": 1794535636.0515513
     },
     {
-      "elapsed": 19.601438412908465,
+      "elapsed": 19.57363446103409,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -1994,10 +2010,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6850853
+      "timestamp": 1794535636.0516338
     },
     {
-      "elapsed": 19.60151870199479,
+      "elapsed": 19.573776094941422,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -2007,10 +2023,10 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6851654
+      "timestamp": 1794535636.0517755
     },
     {
-      "elapsed": 19.601644397014752,
+      "elapsed": 19.573860373115167,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -2020,32 +2036,32 @@
         "sqlstate": "00000"
       },
       "probe": 0,
-      "timestamp": 1794527321.685291
+      "timestamp": 1794535636.0518596
     },
     {
-      "elapsed": 19.603192392969504,
+      "elapsed": 19.574924937915057,
       "event": "client_observation",
       "message": {
         "event": "owner_accepted",
         "owner": 1,
-        "session": 2226362
+        "session": 2838512
       },
       "probe": 0,
-      "timestamp": 1794527321.686839
+      "timestamp": 1794535636.0529244
     },
     {
-      "elapsed": 19.603306926088408,
+      "elapsed": 19.574964652070776,
       "event": "client_observation",
       "message": {
         "event": "commit_possible_dispatch",
         "owner": 1,
-        "session": 2226362
+        "session": 2838512
       },
       "probe": 0,
-      "timestamp": 1794527321.6869535
+      "timestamp": 1794535636.0529642
     },
     {
-      "elapsed": 19.603554768953472,
+      "elapsed": 19.575296621071175,
       "event": "client_observation",
       "message": {
         "detail": null,
@@ -2055,151 +2071,38 @@
         "sqlstate": "01000"
       },
       "probe": 0,
-      "timestamp": 1794527321.6872013
+      "timestamp": 1794535636.053296
     },
     {
-      "elapsed": 19.60991246206686,
+      "elapsed": 19.5820755509194,
       "event": "client_observation",
       "message": {
         "command_tag": "COMMIT",
-        "diagnostics": [
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 1",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 2",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 3",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 4",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 5",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 6",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 7",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 8",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 9",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 10",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 11",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 12",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 13",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 14",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 15",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          },
-          {
-            "detail": null,
-            "event": "driver_notice",
-            "message": "fixture notice 16",
-            "severity": "NOTICE",
-            "sqlstate": "00000"
-          }
-        ],
+        "diagnostics": [],
         "event": "commit_classified",
         "outcome": "acknowledged",
         "owner": 1,
         "ready_status": 73,
         "reason": "Acknowledged",
-        "session": 2226362,
+        "session": 2838512,
         "transport_dead": false
       },
       "probe": 0,
-      "timestamp": 1794527321.693559
+      "timestamp": 1794535636.060075
     },
     {
-      "elapsed": 19.609999073902145,
+      "elapsed": 19.582164536928758,
       "event": "client_observation",
       "message": {
         "event": "commit_owner_completed",
         "owner": 1,
-        "session": 2226362
+        "session": 2838512
       },
       "probe": 0,
-      "timestamp": 1794527321.6936457
+      "timestamp": 1794535636.0601642
     },
     {
-      "elapsed": 19.610116051975638,
+      "elapsed": 19.58223172207363,
       "event": "client_observation",
       "message": {
         "command": "notice_warning",
@@ -2212,83 +2115,83 @@
         }
       },
       "probe": 0,
-      "timestamp": 1794527321.6937625
+      "timestamp": 1794535636.0602312
     },
     {
-      "elapsed": 19.610225646058097,
+      "elapsed": 19.58233496407047,
       "event": "commit_warning_after_flood_observed",
       "initial": 0,
       "outcome": "acknowledged",
       "retained": 16,
-      "timestamp": 1794527321.6938722
+      "timestamp": 1794535636.0603344
     },
     {
-      "elapsed": 19.610291749006137,
+      "elapsed": 19.582392882090062,
       "event": "failure",
       "message": "COMMIT warning after notice cap must remain unresolved",
-      "timestamp": 1794527321.6939385,
+      "timestamp": 1794535636.0603921,
       "type": "AssertionError"
     },
     {
-      "elapsed": 19.611233555013314,
+      "elapsed": 19.583506148075685,
       "event": "client_observation",
       "message": {
-        "event": "driver_closed_unused"
+        "event": "driver_closed"
       },
       "probe": 0,
-      "timestamp": 1794527321.69488
+      "timestamp": 1794535636.0615056
     },
     {
-      "elapsed": 19.611339322989807,
+      "elapsed": 19.583567942958325,
       "event": "client_observation",
       "message": {
         "event": "supervisor_drained"
       },
       "probe": 0,
-      "timestamp": 1794527321.6949859
+      "timestamp": 1794535636.0615675
     },
     {
       "cancel_requests": 0,
-      "elapsed": 19.743186467094347,
+      "elapsed": 19.716174178989604,
       "event": "proxy_cleanup",
-      "timestamp": 1794527321.8268325
+      "timestamp": 1794535636.1941729
     },
     {
-      "elapsed": 20.04487559804693,
+      "elapsed": 20.01793486904353,
       "event": "server_stopped",
       "exit_status": 0,
       "mode": "fast",
       "node": "primary",
-      "timestamp": 1794527322.1285222
+      "timestamp": 1794535636.495934
     },
     {
-      "elapsed": 20.246337581891567,
+      "elapsed": 20.219412351958454,
       "event": "server_stopped",
       "exit_status": 0,
       "mode": "fast",
       "node": "standby",
-      "timestamp": 1794527322.3299842
+      "timestamp": 1794535636.6974115
     },
     {
-      "elapsed": 20.273814423009753,
+      "elapsed": 20.249861828051507,
       "event": "cleanup_removed",
-      "path": "<run-dir>/corrections-x1ist4vp/primary",
-      "timestamp": 1794527322.3574607
+      "path": "<run-dir>/corrections-chg4knnf/primary",
+      "timestamp": 1794535636.727861
     },
     {
-      "elapsed": 20.296831550076604,
+      "elapsed": 20.274877211079,
       "event": "cleanup_removed",
-      "path": "<run-dir>/corrections-x1ist4vp/standby",
-      "timestamp": 1794527322.380478
+      "path": "<run-dir>/corrections-chg4knnf/standby",
+      "timestamp": 1794535636.7528763
     },
     {
-      "elapsed": 20.396188765065745,
+      "elapsed": 20.372891136910766,
       "event": "cleanup_removed",
-      "path": "<run-dir>/corrections-x1ist4vp/target",
-      "timestamp": 1794527322.479835
+      "path": "<run-dir>/corrections-chg4knnf/target",
+      "timestamp": 1794535636.8508902
     },
     {
-      "elapsed": 20.39639440807514,
+      "elapsed": 20.37310796091333,
       "event": "allocation_released",
       "ports": [
         55500,
@@ -2302,19 +2205,19 @@
         55508,
         55509
       ],
-      "timestamp": 1794527322.480041
+      "timestamp": 1794535636.8511074
     },
     {
-      "elapsed": 20.39642885304056,
+      "elapsed": 20.37314598192461,
       "errors": [],
       "event": "cleanup_complete",
-      "raw_evidence": "<run-dir>/corrections-x1ist4vp",
+      "raw_evidence": "<run-dir>/corrections-chg4knnf",
       "result": "pass",
-      "timestamp": 1794527322.4800756
+      "timestamp": 1794535636.8511455
     }
   ],
   "external_provider_rail_evidence": "not applicable: no external effects",
-  "implementation_commit": "39d6808994dbf31c1addced496718c48901cdb5c",
+  "implementation_commit": "02b7203343d860524457ed3953199e5464749fae",
   "intended_assertion": "COMMIT warning after notice cap must remain unresolved",
   "limitations": [
     "local processes only; no separate-host durability or fencing proof",
@@ -2322,7 +2225,7 @@
     "DB-10 full saturation: not run (W8)"
   ],
   "negative_command_exit_status": 1,
-  "raw_evidence": "<run-dir>/corrections-x1ist4vp",
+  "raw_evidence": "<run-dir>/corrections-chg4knnf",
   "result": "expected negative demonstration",
   "scenarios": [
     {
@@ -2339,32 +2242,32 @@
     "AGENTS.md": "3d31f1fc55bac309e2fac72b2cbcc67137b3da0353d5e2f39d096bab0e612032",
     "Cargo.lock": "2591f28e7ee8bf70ad19077bf726aeeec58dadac28f53e5510a75841da01b94d",
     "Cargo.toml": "439237dfa99f243dbe8d31edbccca79f0b57afb414ba2b7490950c3b17b91dce",
-    "README.md": "faf4aa9cebca060ccd9a49fbc2796ab71bd858136432da2809461449cfff0fa7",
-    "docs/conformance-map.md": "2c3809fcd9ae8fc450716e9c7b506b766764da7095603cdcda467b568c54a0c7",
-    "docs/decisions.md": "0ba4757f2d4e667172d663557e138b0a9bddc10057b2bb79ad011fc98b3ff4be",
-    "docs/scope.md": "4ceb13b08d9ba0bd53ebb61060887a0e563bbd181ea8d125b30534f9d0228073",
+    "README.md": "08913b861543c6dfa7bdc249f14346c928518b9c3496b6b41a3ec42ca3f58f9b",
+    "docs/conformance-map.md": "3a7ef34dc81d151fd2208c1eb55c24ccaec26d944967582ec87daab440c19b6c",
+    "docs/decisions.md": "bf3ffdea241d60b7b98bc5b08a3ffb81a69ce10c9cb7c7bd32afc5585a4309fb",
+    "docs/scope.md": "0f4202a05ca8fdcda2a8bd17236c868103feb9d60f0c421736bddad6f3ee28d2",
     "flake.lock": "859b34962b11f1e85bdb97add8c34f37a74262cb689ff78a9501a0b7d067eb13",
     "flake.nix": "db3d0e22fd444ed2ecf666ad3b3de447334c265cadb5475eae4f84c762b0f2ee",
     "migrations/0001-core.sql": "857e69cfe049b230f3441f9b547e8ed3ee0fd65d6ec0b7f58893be097ecbba89",
     "migrations/0002-local-service.sql": "12895278c7c36936bd9435b390d6e555715c1f9aa4072060be51af790f2c394d",
-    "migrations/0003-reconciliation.sql": "64afcc2844a19c596661640f3c79836d7719c3c41081f179805f0da880cb9d5c",
+    "migrations/0003-reconciliation.sql": "61915672920c537bf6ae66e9cb8822d9c426c66a93a69bf962cf4efa859a03e4",
     "spec-lock.json": "7a65f0e88a21b9861dc7735a5a505f0be66098a996bfbfe28009266372561370",
     "src/api/funding.rs": "d23ce028d63d8038ba4bac399e099e252d453b3b181c7fe94aee4450acdad68f",
-    "src/api/mod.rs": "7eff653035fa11a9c19dcda605ec9e8c35ec1491f8d262d34f5cc5a273534a30",
-    "src/api/operator.rs": "4e63e110daca2a30e21fc930db296835b79abc082ad425bc6d06090cd6197da3",
+    "src/api/mod.rs": "5779a61e02578363fda7e714030bbec61938f7011b85aca8d9f59045ab9c21fd",
+    "src/api/operator.rs": "34e8734f74bf46208ab791778ab1812b8027e56143e3f47e28843ebdded89b47",
     "src/auth.rs": "3b4b8a8337f41c5d12f2ae5a4b7365008b898d4dec3cfafa4a62149f369eb9ef",
     "src/bin/api.rs": "22e64e47901fdc6786202c25c164bdd7053cbfdb2b2649c3306f570dfadc7dc0",
     "src/bin/engine.rs": "09afd4eeac8c1d369ba1046ae9be335ed891d47c02bf5db30e52e9e82a7da0b7",
     "src/bin/migrate.rs": "86cf838f72854c7af2fa34cc28eb7a94634052e88594d84fc5724545fcad9c7f",
-    "src/engine.rs": "46ddab76a2a69f234ce6e3f64d91824b199e1073dc3508cac6b310cb09624e7b",
-    "src/engine/deletion.rs": "72f8201b40689877b69e063a625a15b2c6d2d4b12b7e9e6f41a0d7fd81a214a5",
+    "src/engine.rs": "f3e688d3871944aaecfe5856ed7524aa29264e9e23a47331edf3d0679270da32",
+    "src/engine/deletion.rs": "4a83b9ea492949aebd4bb041f7080b2755a4c96a2293f69cc5851e86738a7d3a",
     "src/engine/dispatch.rs": "4900440e8943cc5fd279536aecf20d6d1816514543cadb2aca011ca916855d98",
-    "src/engine/reconciliation.rs": "8b76610a88dee0f0f8e833b8c26fdc9f5fe8d110cfb0547a1526bb6423a72d4b",
+    "src/engine/reconciliation.rs": "9cc4941725a01dbc9e26caf7aff2dcd81ab2fb48591ffe3e225fac9dbdc852c3",
     "src/entry.rs": "0ae44900f726f81ace6a4f6c8b1cca5ed028e6ca85c7ba3a7cd0171c1c78e7a7",
     "src/http.rs": "5431cf1682b1feb02ce5e127e523a9cbcaee79bd22a9a1694c01b135e363667f",
     "src/ledger.rs": "ef8a0cf1bb7ca63fcb6aee54240694ad22f1426ce57bc8db06cf908b44c64af6",
     "src/lib.rs": "3321c2cf19c5ebf2daf1c3f41fcef750b45be1b5544d74bc491bfd2b054709b8",
-    "src/local.rs": "44adb34b48407b3a7b162d02f2b4afed189a8eefa83d32fc7c4c117c5206a4bf",
+    "src/local.rs": "b1f65af586e884ef44dd524a8025bb1bd71700f3ba7da72bb90d119fea6fb90f",
     "src/pricing.rs": "b38950fda4d52cd56b02ec1984b56efb5301cf4c5e8f069cf8be08623a789850",
     "src/provider.rs": "e292b8c8a7878f3575c853c71d204927d4a64edc0bd0c38d54646f1978888b20",
     "src/store/accounting.rs": "77cb2747dd2ad251287b614bdb09e7e8e462eeacecf4634310a52fd728751327",
@@ -2376,7 +2279,7 @@
     "src/store/migration.rs": "b9d309b77d06cc60582be6517846f36beabb5678cfcf3baea02acfe5506b4c30",
     "src/store/mod.rs": "27b21901a58ef087306b4d1311bbb4df19aacbb503028936268f0be476d20b02",
     "src/store/process.rs": "88604efc765fd9138e7f9bb674cf627cf30f98942c038e8b7eb962ae38f6c4ee",
-    "src/store/reconciliation.rs": "07acb58b57811370163a816445f9f2a9c2a3dfd2e0e84ddea0dabbde3e99849c",
+    "src/store/reconciliation.rs": "cdd930226bbbdb699681811db40c01e986f6445891bbfe4deca7846e191d388c",
     "src/store/transport.rs": "9b364e704ab09744fa5aaa75373d5e3d01c625d3842defc565c0d1c37fa36e88",
     "src/wire.rs": "d653bcd39eac3057b1978e8b18675119a1a5f6654d9d06979d1928ba2ad92a12",
     "tests/entry_points.rs": "667993b20f87bd29525ba768c8e7791e4d2091cd5ec9ccd748fbc0d3bb70cc1a",
@@ -2391,7 +2294,7 @@
     "tests/postgres/provider_client.rs": "559418b43b5476e681a52c3e2eb0b1c99d5b2145734c7bacadc18c1b5da3c72f",
     "tests/postgres/proxy.py": "9b41ad8662e87cfd63634256cbe6b82b2019d14171ac7a49f5415bea71f97f64",
     "tests/postgres/scenarios.py": "07a9531c2d80b234d7df1bcd8f340c15d5e7bd68039d0928f9f4f342ed5def95",
-    "tests/postgres/simulator.py": "f302dc6dd805b133a552d340ec450543a65ff682f5a374ac20c440e7e046119a",
+    "tests/postgres/simulator.py": "b3b95496dedc5412e6369a596855be38cba5c1e2f138d6b3818276a0d7118f0c",
     "tests/postgres/test_ports.py": "509878cf1dd9281e745f125d940e72992690f7472c0bb6cddb8814afe70ca3ce",
     "tests/postgres/test_trace.py": "135c6dbf6b412e7f5d7e895c2231b5eb4fdf0dc77b02663bab7c6ead4eca8af2",
     "tests/postgres/test_w5_inventory.py": "2776332cb52f9a3f76d70cff4cf6cedcbedbadb3f26a808b227bb7479b0c9a8a",
@@ -2411,20 +2314,21 @@
     "tests/postgres/w5_accounting.py": "7e391b59facd02dd4e691b044ab4dd7614e2f6d08fc539bb797d253a63e3f87e",
     "tests/postgres/w5_baseline.py": "69d90ebf96204d7545cbd7775d34ffa58aec598667f536ae94d39d10d33c8d92",
     "tests/postgres/w5_release_control.py": "adc2a25a3d3e7ef5e8f6cf03305706f04adb0371f99de56f2432ed65aedf6708",
-    "tests/postgres/w6.py": "c428b3bd0e26b9ef98f7698b3b699a47fd9c8ec0bb21840efcdf6a01dc15d0e3",
+    "tests/postgres/w6.py": "e7b66a386e65649045007bd11fda53508d5f522d9e0e979e650fe7ae35d11b4d",
     "tests/postgres/w6_edges.py": "69a19744d9d200791e1b636e3cf7603209ce5e179319008cf2e1e48226838fff",
     "tests/postgres/w6_exact.py": "28db3aeef367261cf99a0e7c81c139b68a4012e350702e4a0907bf11e268ba43",
     "tests/postgres/w6_gone_reply.py": "9b03a5c2627b2f2bceffebf7466dc7abf0ea9da249516f06f329d61697b6fe56",
+    "tests/postgres/w6_repairs.py": "a29739802c296ceec0016888e19bf9779c21d7294999721f3f5459d8b22011b0",
     "tests/postgres/workflow.py": "ea729d1b0eeeae5228ac7c558d64fbe9d38ee49e13d192251704a6820ba40eb1",
     "tests/support/pause.py": "12d95b008fb86fd73513bb513a4ecefea0598d0d0ea5a377b48664fefa4700e8",
     "tools/check.sh": "eb6fc0f8f3386de84a0abddba2585ec64617117f8bdc460a4e92f4bc20cd7200",
     "tools/postgres.sh": "7f2256c81544d8151d5820671bae2102781bf44ecb4f582fead975a93bc5dc4b"
   },
   "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-  "tested_source_sha256": "5993babb12c064d2e69abef4219daa1f04cd5cfb92a3302fa6f9ce7f767d4267",
+  "tested_source_sha256": "b56f68a858f13fbdfb37236963b557130e89ac184f64abde37dc4a59a0985b05",
   "trace": {
-    "path": "<run-dir>/corrections-x1ist4vp/events.jsonl",
-    "sha256": "0e1b97a452bd812e4f582112c052acc85697094f381e5fbe55cf4e442df4bda6"
+    "path": "<run-dir>/corrections-chg4knnf/events.jsonl",
+    "sha256": "c56d2fe023cf52c0ed778246e55884b7ddb110d18555b8414e42aaf490b761d7"
   },
   "versions": {
     "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",

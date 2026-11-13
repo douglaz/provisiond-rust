@@ -258,7 +258,7 @@ existing identifier correction, with no new runtime defect established.
 
 ## Local reconciliation and operator subset
 
-`--phase w6` runs all 22 required groups; a focused `--case` cannot satisfy aggregate acceptance.
+`--phase w6` runs all 31 required groups; a focused `--case` cannot satisfy aggregate acceptance.
 `--phase controls --case w6_controls` runs the four new exact-assertion controls. The
 [W6 report](evidence/w6/report.md) records the final eleven-phase command, unchanged-base
 regressions, source protection and explicit limits. Automatic create resolution searches every
@@ -285,3 +285,12 @@ receipts commit together; exact-key replay repeats no effects. Retry creates a f
 keep clears the stalled episode's fence without buying runway or moving money.
 
 Demonstrating no duplicate purchase for the supported traces is not a proof of exactly-once execution by an arbitrary provider. External uncertainty remains part of the product model. [S5] [S10]
+
+The W6 continuation adds nine activated regression groups. Startup persists a stable negative-window
+origin; local money expiry runs independently of visibility and credential health. Interrupted
+cleanup episodes become uncertain in the startup transaction. Operator resolutions consume a durable
+principal allowance (local `operator_resolution_limit`, defaulting to `created_limit`, per
+`ceiling_seconds`) after keyed replay; resolve/retry/keep emit safe correlated decision events.
+Operator operation detail uses the shared retention horizon, including retained episode identities.
+The offline schema-2 upgrade fills the supported old cleanup target, and the delete worker repeats
+caller/API-field validation before fencing or dispatch. Production allowance selection remains open.

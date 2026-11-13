@@ -350,7 +350,8 @@ checks and six affected controls; it makes no new nine-phase or production-confo
 ## W6 reconciliation and termination subset
 
 The [W6 report](../evidence/w6/report.md) and [final aggregate](../evidence/w6/final-all.json)
-record 22 W6 groups, all prior phases, 39 recognized controls and two unchanged-base regressions.
+record 31 W6 groups, all prior phases, 39 recognized controls, two unchanged-base regressions and
+nine regressions against the unchanged pre-fix W6 runtime.
 Automatic create resolution uses exact correlators on every channel, direct identity/account
 confirmation, an effective visibility maximum and the independently measured simulator negative
 window. Original terms, safe IDs, errors and pending obligations survive payload purge and restart.
@@ -385,3 +386,10 @@ fence/provider dispatch. Production D-6 policy and saturation/recovery are W8; W
 pilot remain unauthorized. Known P2/P3 and preexisting limits are retained in the W6 report.
 
 Demonstrating no duplicate purchase for the supported traces is not a proof of exactly-once execution by an arbitrary provider. External uncertainty remains part of the product model. [S5] [S10]
+
+The nine continuation groups cover stable startup timing, money release before a larger effective
+visibility window, atomic uncertain-episode startup, durable principal resolution ceilings,
+terminal authentication handling at every reached reconciliation read, operator retention,
+legacy cleanup evidence upgrade, monitorable operator decision outcomes and repeated caller-delete
+validation. Their recorded decision traces and protected-source reds are in the W6 report. These are selected
+simulator arms; the receiptless-history gap and the report's seventeen deferred P2/P3 defects remain.

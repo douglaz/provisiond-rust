@@ -1473,10 +1473,13 @@ settled every successful reply as gone. No narrowing or widening of an earlier o
 
 ### D-49. Local reconciliation evidence and independent lifetimes
 
-**Demonstrated 2026-11-12.** Schema/semantics 3 retains write-once resolution/evidence,
+**Demonstrated 2026-11-12; timing corrected 2026-11-13.** Schema/semantics 3 retains write-once resolution/evidence,
 append-only provider observations and original pending terms. Timing is conservative: the persisted
-wait end is a settlement-time upper bound (interrupted legacy rows use updated_at), while sample
-start uses the acknowledged licensing/write-start marker. These bounds are not a measurement of
+wait end is a settlement-time upper bound for worker classification, or the first startup
+classification timestamp for an interrupted running mutation. Previously unresolved rows with no
+origin freeze their last updated_at once under tenant serialization, before evidence writes.
+Evidence changes and later ordinary restarts cannot renew that origin. Sample start uses the
+acknowledged licensing/write-start marker. These bounds are not a measurement of
 the exact wire-dispatch instant. Independent simulator acceptance/allocation timestamps provide the
 separate measured allocation basis. Resolution uses its own conditional
 needs-reconciliation/write-once guard, separate from a worker's claim-number guard. Exact
@@ -1520,14 +1523,14 @@ No-rate cancellation steps 4–5 stop without fence/call; W7 incident work remai
 
 ### D-52. W6 verification and evidence boundary
 
-**Recorded 2026-11-12.** PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7,
+**Recorded 2026-11-13.** PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7,
 Nix 2.34.9; tokio 1.54.1, tokio-postgres 0.7.18 and deadpool 0.12.3. Exact versions,
 configuration, source inventory, full command/status proof and output hashes are in
 [validation](../evidence/w6/validation.json). On its final committed operational source:
 
 - `nix develop --command bash tools/check.sh`: exit 0.
 - `nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <private-evidence>/all.json`:
-  exit 0, all eleven phases and 22 W6 groups.
+  exit 0, all eleven phases and 31 W6 groups.
 - `nix develop --command python3 -m unittest discover -s tests/postgres -p 'test_*.py'`:
   exit 0, nine tests.
 
@@ -1540,6 +1543,54 @@ before delete implementation began. Historical W4/W5 unresolved and accounting f
 explicit provider/evidence boundaries; no retry bound, observer fault or original release assertion
 was weakened. New evidence, source protection, cleanup and recursive redaction are recorded in
 [report](../evidence/w6/report.md). D-6 remains Open for production/W8.
+
+### D-53. Blocking reconciliation and operator repairs
+
+**Demonstrated 2026-11-13.** The nine current-W6 regressions are recorded as `w6_r1` through
+`w6_r9` in the [final W6 inventory](../evidence/w6/final-w6.json). Their unchanged-current-W6
+reds protect 37 runtime, migration and dependency/configuration files. Each exits 1 at its intended
+assertion; each corresponding final green passes with cleanup. These are distinct from the two
+original review-base defects. [Validation](../evidence/w6/validation.json) records the exact versions,
+commands, true exit statuses and source identity for the final fast gate, eleven-phase PostgreSQL
+suite and nine Python units, all exit 0.
+
+OPS-33 local expiry follows eligible pending evidence updates and precedes account enumeration.
+It applies to healthy and unhealthy accounts even when PRV-36 forbids reading, retains positive
+in-progress knowledge and releases only money. D-49's persisted origin prevents an evidence write
+or ordinary successor from restarting the timer. The one-second unmeasured declaration and the
+retained observed maximum keep their existing PRV-36/STO-53 meaning; the separately measured
+negative window remains 60 seconds. Pass duration includes ordinary evidence I/O and is not a
+production outage guarantee. Startup also applies OPS-48's current-open-episode transition in the
+same serialized, generation-guarded transaction, without changing its actual fence or permanent close.
+
+PRV-41 rejection is durable `credentials_rejected` status, with monitorable account/path evidence.
+Every reached reconciliation provider call checks the current credential state, so a previously read
+pending snapshot cannot issue remaining calls after rejection. Other accounts and local expiry
+continue. A confirming read followed by failed constraint authentication still settles the confirmed
+create with a null date under PRV-13c. Malformed successful keys replies and general throttle pacing
+retain their deferred behavior.
+
+SEC-39's provisional resolution allowance is `operator_resolution_limit` when supplied, otherwise
+`created_limit` (100 in the ordinary local fixture), per `ceiling_seconds` (3600 locally). A supplied
+allowance must be a positive wire-safe integer. Principal serialization spans target tenants; replay
+returns before allowance checks, and the consumed slot, resolution and receipt commit together.
+The regression uses two slots in a stated 86400-second fixture interval and verifies exhaustion,
+concurrency, another principal and actual API restart. This selects no production allowance or
+incident-override policy. Retry retains its separate ceiling; keep gains none.
+
+Structured resolve/retry/keep events name principal, effective tenant, target, correlation and safe
+reason reference. Free-form retry reasons are hashed. Intent, acknowledged database commit,
+unacknowledged commit uncertainty, refusal and replay are distinct outcomes. A retry's acknowledged
+event names its fresh operation. Operator operation detail shares the existing logical expiry and
+retained-receipt horizon; a retained episode supplies tenant scope for its retired current attempt.
+Unknown and out-of-scope IDs remain hidden; no receipt horizon is extended.
+
+OPS-2 retains the validated live caller-delete body, and OPS-23 repeats caller fields first, then
+API-written target evidence, before the fence decision, capability, marker or provider call. System
+cleanup and operator retries require no customer acknowledgment. The offline schema-2-to-3 program
+fills only the supported empty-summary system cleanup shape from its matching tenant, machine,
+account and open episode; unrelated malformed rows fail safely before dispatch. No operation is
+re-enqueued, and no mutation success is inferred by the migration.
 
 ## Open
 
