@@ -350,8 +350,9 @@ checks and six affected controls; it makes no new nine-phase or production-confo
 ## W6 reconciliation and termination subset
 
 The [W6 report](../evidence/w6/report.md) and [final aggregate](../evidence/w6/final-all.json)
-record 31 W6 groups, all prior phases, 39 recognized controls, two unchanged-base regressions and
-nine regressions against the unchanged pre-fix W6 runtime.
+record 40 W6 groups, all prior phases and 39 recognized controls. Two review-base regressions,
+two early lifetime regressions, nine regressions against `9454e45` and nine against `5061fe3`
+retain their actual distinct source identities.
 Automatic create resolution uses exact correlators on every channel, direct identity/account
 confirmation, an effective visibility maximum and the independently measured simulator negative
 window. Original terms, safe IDs, errors and pending obligations survive payload purge and restart.
@@ -392,4 +393,19 @@ visibility window, atomic uncertain-episode startup, durable principal resolutio
 terminal authentication handling at every reached reconciliation read, operator retention,
 legacy cleanup evidence upgrade, monitorable operator decision outcomes and repeated caller-delete
 validation. Their recorded decision traces and protected-source reds are in the W6 report. These are selected
-simulator arms; the receiptless-history gap and the report's seventeen deferred P2/P3 defects remain.
+simulator arms. Nine further groups cover failed confirmation after a single exact match, both
+older cleanup outcomes, receiptless cleanup/retry retirement, ordinary verification credential
+stops and early authenticated refusals. The report retains nineteen deferred P2/P3 defects.
+
+A retained authoritative single exact match awaiting confirmation is positive evidence, so its
+original commitment survives failed/incomplete rereads and ordinary restart. Later complete evidence
+uses the existing resolution rules; genuine negative/non-authoritative/duplicate expiry remains
+independent of visibility and account health. The offline schema-3 release is first released with
+its final migration content and supports the scoped schema-2 upgrade. Discarded intermediate W6
+test schemas are not a supported production upgrade line.
+
+Receiptless settled attempts use the same configured age fallback for logical expiry and actual
+housekeeping retirement. Retirement atomically retains only identity, tenant, creation time and the
+actual horizon, while the episode outlives the deleted operation. Keyed operations still use their
+maximum stored receipt horizon; unresolved operations remain readable. No request body or synthetic
+receipt is retained to make a retired attempt discoverable.

@@ -258,7 +258,7 @@ existing identifier correction, with no new runtime defect established.
 
 ## Local reconciliation and operator subset
 
-`--phase w6` runs all 31 required groups; a focused `--case` cannot satisfy aggregate acceptance.
+`--phase w6` runs all 40 required groups; a focused `--case` cannot satisfy aggregate acceptance.
 `--phase controls --case w6_controls` runs the four new exact-assertion controls. The
 [W6 report](evidence/w6/report.md) records the final eleven-phase command, unchanged-base
 regressions, source protection and explicit limits. Automatic create resolution searches every
@@ -294,3 +294,11 @@ principal allowance (local `operator_resolution_limit`, defaulting to `created_l
 Operator operation detail uses the shared retention horizon, including retained episode identities.
 The offline schema-2 upgrade fills the supported old cleanup target, and the delete worker repeats
 caller/API-field validation before fencing or dispatch. Production allowance selection remains open.
+
+The remaining W6 repairs retain a single exact match's original commitment while its confirming
+read fails, including incomplete rereads and ordinary restart. Schema-2 failed/unresolved cleanup
+attempts become stalled/uncertain with retained targets. Automatically settled cleanup and retry
+attempts retain scoped `410 gone` identities after housekeeping removes them, using the configured
+horizon. Ordinary create search/get/constraint authentication failures stop that credential;
+confirmed creates still settle with a null constraint date. Authenticated early operator refusals
+emit safe correlated events before key, target, body, override or rate validation exits.

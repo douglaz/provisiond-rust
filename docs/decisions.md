@@ -1592,6 +1592,44 @@ fills only the supported empty-summary system cleanup shape from its matching te
 account and open episode; unrelated malformed rows fail safely before dispatch. No operation is
 re-enqueued, and no mutation success is inferred by the migration.
 
+### D-54. Positive confirmation knowledge and remaining cleanup/operator repairs
+
+**Demonstrated 2026-11-13.** On committed operational source
+`16c4f1123167a063f14bd4594add60c045080143`, the fast gate, complete eleven-phase PostgreSQL
+suite and nine Python harness units each exit 0. The final W6 inventory contains 40 groups and
+all 39 sensitivity controls are recognized at their intended exit-1 assertions. Nine additional
+reds use protected runtime/migration/dependency blobs from unchanged `5061fe3`; earlier reds keep
+their original identities. Exact commands, whole-stream hashes, versions and proof references are in
+[validation](../evidence/w6/validation.json), [new regression proof](../evidence/w6/continuation-regressions.json)
+and the [report](../evidence/w6/report.md). Versions remain PostgreSQL 18.6, Rust 1.97.1,
+Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9, with locked dependency versions in the manifests.
+
+OPS-27 positive single-match knowledge is retained in reconciliation evidence and checked by both
+the expiry selection and guarded release write. Incomplete/failed rereads preserve it; later complete
+evidence applies its existing resolution rule. Ordinary confirming-read failures and survived
+cancellation retain the same knowledge. The isolated fixture crosses the measured 60-second negative
+window, keeps the original 43 sats through ordinary successors, then records ordinary 20/11-sat
+debits and a 12-sat running reserve, without a late deficiency or cleanup. PRV-36 samples and the
+immutable clock origin retain their existing meaning. R2's in-progress arm now observes the retained
+row before its controlled stop; its age and money assertions are unchanged.
+
+The offline schema-2 upgrade preserves failed/unresolved cleanup outcomes as stalled/uncertain and
+fills only their supported, ownership/account-checked retained target. It neither revives attempts
+nor infers a provider call or fence. Schema 3 is unpublished until this final migration content is
+released; discarded intermediate W6 test schemas are not a production upgrade line.
+
+WIR-27/51 receiptless retirement uses an append-only identity table containing tenant, creation time
+and the actual configured age horizon. A single DELETE/INSERT statement snapshot retains exactly
+the removed set, in the housekeeping transaction. Logical reads use that same age rule; receipt-backed
+operations retain the maximum stored receipt horizon. No synthetic receipt or request history is added.
+
+The existing durable PRV-41 credential check/rejection path also covers ordinary create verification
+search/get/constraint reads. Provider I/O keeps its existing deadline and stop arbitration; confirmed
+constraint-read failure remains a successful null-date settlement. SEC-32/39 early-refusal events use
+known safe principal/target/correlation and scoped metadata, with nulls before a safe lookup. Keys,
+malformed body text and retry prose are never copied into these events. Existing intent, acknowledged,
+replayed, refused and uncertain outcomes retain their meanings.
+
 ## Open
 
 

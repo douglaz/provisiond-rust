@@ -10,7 +10,7 @@
     "--seed",
     "20261112",
     "--evidence",
-    "<private-evidence>/repair-all-final-02/all-default-workflow.json"
+    "<run-dir>/all-default-workflow.json"
   ],
   "commands": [
     {
@@ -113,10 +113,10 @@
       "command": [
         "initdb",
         "-D",
-        "<run-dir>/default-workflow-z24k0la1/primary",
+        "<run-dir>/default-workflow-y9jt574b/primary",
         "-U",
         "administrator",
-        "--pwfile=<run-dir>/default-workflow-z24k0la1/init-password",
+        "--pwfile=<run-dir>/default-workflow-y9jt574b/init-password",
         "--auth=scram-sha-256",
         "--no-locale",
         "--encoding=UTF8"
@@ -128,7 +128,7 @@
         "postgres",
         "--single",
         "-D",
-        "<run-dir>/default-workflow-z24k0la1/primary",
+        "<run-dir>/default-workflow-y9jt574b/primary",
         "postgres"
       ],
       "exit_status": 0
@@ -137,7 +137,7 @@
       "command": [
         "postgres",
         "-D",
-        "<run-dir>/default-workflow-z24k0la1/primary"
+        "<run-dir>/default-workflow-y9jt574b/primary"
       ],
       "exit_status": 0
     },
@@ -181,7 +181,7 @@
         "-d",
         "host=<loopback> port=55500 user=replicator dbname=postgres application_name=bootstrap_backup",
         "-D",
-        "<run-dir>/default-workflow-z24k0la1/standby",
+        "<run-dir>/default-workflow-y9jt574b/standby",
         "-X",
         "stream",
         "--checkpoint=fast",
@@ -192,7 +192,7 @@
     {
       "command": [
         "pg_verifybackup",
-        "<run-dir>/default-workflow-z24k0la1/standby"
+        "<run-dir>/default-workflow-y9jt574b/standby"
       ],
       "exit_status": 0
     },
@@ -200,7 +200,7 @@
       "command": [
         "postgres",
         "-D",
-        "<run-dir>/default-workflow-z24k0la1/standby"
+        "<run-dir>/default-workflow-y9jt574b/standby"
       ],
       "exit_status": 0
     },
@@ -640,7 +640,24 @@
     },
     {
       "command": [
-        "<run-dir>/default-workflow-z24k0la1/target/debug/migrate"
+        "<run-dir>/default-workflow-y9jt574b/target/debug/migrate"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "<opaque-12ca17b49af2289436f3>",
+        "-p",
+        "55500",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
       ],
       "exit_status": 0
     },
@@ -988,7 +1005,7 @@
       "command": [
         "pg_ctl",
         "-D",
-        "<run-dir>/default-workflow-z24k0la1/primary",
+        "<run-dir>/default-workflow-y9jt574b/primary",
         "stop",
         "-m",
         "fast",
@@ -1002,7 +1019,7 @@
       "command": [
         "pg_ctl",
         "-D",
-        "<run-dir>/default-workflow-z24k0la1/standby",
+        "<run-dir>/default-workflow-y9jt574b/standby",
         "stop",
         "-m",
         "fast",
@@ -1042,7 +1059,7 @@
       "notice_cap": 16,
       "runtime_build": {
         "features": [],
-        "target_directory": "<run-dir>/default-workflow-z24k0la1/target"
+        "target_directory": "<run-dir>/default-workflow-y9jt574b/target"
       },
       "schema_version": 3,
       "semantic_version": 3,
@@ -1093,19 +1110,19 @@
     "workflow": {
       "builds": {
         "api": {
-          "executable": "<run-dir>/default-workflow-z24k0la1/target/debug/api",
+          "executable": "<run-dir>/default-workflow-y9jt574b/target/debug/api",
           "features": [],
-          "sha256": "e28616762a7b9cc551370fd577fd85cc06d6ec459ad6a08739f0b1f5598c1341"
+          "sha256": "31c5bf9720e1c58c22f880c11e0fca6e49ad62822e5ce2989361503e2289bb09"
         },
         "engine": {
-          "executable": "<run-dir>/default-workflow-z24k0la1/target/debug/engine",
+          "executable": "<run-dir>/default-workflow-y9jt574b/target/debug/engine",
           "features": [],
-          "sha256": "d317ff14dd23fb1af887bf41faa4cb928fc4c79090ec930c00e23198ca03174e"
+          "sha256": "bd1358725649483529c80b85855f135b78e0b518ee3617b7996498eb3f3edab0"
         },
         "migrate": {
-          "executable": "<run-dir>/default-workflow-z24k0la1/target/debug/migrate",
+          "executable": "<run-dir>/default-workflow-y9jt574b/target/debug/migrate",
           "features": [],
-          "sha256": "a8ad17ace9723c8c105729a1355b36e270daa133be99ba189171e72fe38f8e57"
+          "sha256": "df1051657bc36ca639eea704e9be05f7de37a618354177a1934ca395d9b7658d"
         }
       },
       "descriptor": {
@@ -1209,7 +1226,7 @@
         "haircut_bps": 0,
         "margin_bps": 1000,
         "minor_scale": 2,
-        "observed_at": "2026-11-13T01:51:01Z",
+        "observed_at": "2026-11-13T04:32:01Z",
         "rate_den": 1,
         "rate_num": 10,
         "source": "simulator-fixed-rational"
@@ -1217,7 +1234,7 @@
       "test_build_features": []
     }
   },
-  "configuration_sha256": "ba643949612368d210d8bcb0d410a1f09add9b4c966d83b2f462e721ede77684",
+  "configuration_sha256": "45604996302946b3299331e561c601483e01293d66ead5f909b3506dff1a780e",
   "event_selection": {
     "basis": "consequential manifests; private full application trace hashes retained",
     "omitted_event_types": [
@@ -1228,7 +1245,7 @@
       "protocol_response",
       "transport_closed"
     ],
-    "original_count": 147,
+    "original_count": 157,
     "retained_count": 41
   },
   "events": [
@@ -1247,7 +1264,7 @@
             "features": [
               "store-test-hooks"
             ],
-            "target_directory": "<run-dir>/default-workflow-z24k0la1/target"
+            "target_directory": "<run-dir>/default-workflow-y9jt574b/target"
           },
           "schema_version": 3,
           "semantic_version": 3,
@@ -1296,16 +1313,16 @@
         "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
         "wal_level": "replica"
       },
-      "configuration_sha256": "b8a4c5b7e00463624e4d8c9721dd86cc3cd99462912b82621a5735b1b3f7f8f1",
-      "elapsed": 0.00039883400313556194,
+      "configuration_sha256": "5afe44ebd68ec74d75e0616b30463c465cebedf738b180d4464059708f8ddf21",
+      "elapsed": 0.0003738070372492075,
       "event": "invocation",
       "phase": "default-workflow",
       "seed": 20261112,
       "specification": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-      "timestamp": 1794534642.3427818
+      "timestamp": 1794544300.744518
     },
     {
-      "elapsed": 0.08356559206731617,
+      "elapsed": 0.08322120201773942,
       "event": "allocation_reserved",
       "ports": [
         55500,
@@ -1319,63 +1336,63 @@
         55508,
         55509
       ],
-      "timestamp": 1794534642.4259484
+      "timestamp": 1794544300.8273654
     },
     {
       "bootstrap_readiness_seconds": 60,
-      "elapsed": 1.1704032870475203,
+      "elapsed": 1.1654863189905882,
       "event": "server_started",
       "node": "primary",
-      "pid": 2742077,
+      "pid": 3484953,
       "port": 55500,
-      "readiness_elapsed_seconds": 0.07011130615137517,
-      "timestamp": 1794534643.5127864
+      "readiness_elapsed_seconds": 0.06853291485458612,
+      "timestamp": 1794544301.9096308
     },
     {
       "application_name": "bootstrap_backup",
       "command_bound_seconds": 180,
       "destination": "standby",
-      "elapsed": 1.1704809120856225,
+      "elapsed": 1.1655480940826237,
       "event": "backup_requested",
-      "timestamp": 1794534643.512864,
+      "timestamp": 1794544301.9096928,
       "wal_mode": "stream"
     },
     {
-      "elapsed": 1.8017275480087847,
+      "elapsed": 1.8689652539324015,
       "event": "backup_provenance_retained",
-      "path": "<run-dir>/default-workflow-z24k0la1/standby-backup-manifest.json",
-      "sha256": "22ac5185a5d3f7f687d0955a75621feae87d3ed6dcd9aebd6b832ffcd7a6cc13",
-      "timestamp": 1794534644.1441104
+      "path": "<run-dir>/default-workflow-y9jt574b/standby-backup-manifest.json",
+      "sha256": "397153f8d6d781052912e056e3e6d3946deaf46156075478cabdbb43dd20a611",
+      "timestamp": 1794544302.6131096
     },
     {
       "destination": "standby",
-      "elapsed": 1.8018888588994741,
-      "elapsed_seconds": 0.6314088189974427,
+      "elapsed": 1.869148446014151,
+      "elapsed_seconds": 0.7036003309767693,
       "event": "backup_complete",
-      "timestamp": 1794534644.144272,
+      "timestamp": 1794544302.6132932,
       "verified": true
     },
     {
       "bootstrap_readiness_seconds": 60,
-      "elapsed": 2.312768064904958,
+      "elapsed": 2.3810794760938734,
       "event": "server_started",
       "node": "standby",
-      "pid": 2742128,
+      "pid": 3484978,
       "port": 55501,
-      "readiness_elapsed_seconds": 0.5014332630671561,
-      "timestamp": 1794534644.6551514
+      "readiness_elapsed_seconds": 0.502328195143491,
+      "timestamp": 1794544303.1252239
     },
     {
       "authenticated_role": "replicator",
-      "elapsed": 2.485700143966824,
+      "elapsed": 2.5672506850678474,
       "event": "identity_catchup",
       "primary_checkpoint": "1|0/2000028",
       "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials",
       "sampled_primary_flush": "0/3003A90",
       "standby_checkpoint": "1|0/2000028",
-      "standby_system_identifier": "7707467601510082355",
-      "system_identifier": "7707467601510082355",
-      "timestamp": 1794534644.8280833
+      "standby_system_identifier": "7707509084118174975",
+      "system_identifier": "7707509084118174975",
+      "timestamp": 1794544303.3113952
     },
     {
       "configuration": {
@@ -1395,256 +1412,256 @@
         "tcp_keepalives_interval": "1",
         "wal_level": "replica"
       },
-      "elapsed": 2.4950460998807102,
+      "elapsed": 2.5767298799473792,
       "event": "effective_configuration_observed",
       "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f",
-      "timestamp": 1794534644.8374293
+      "timestamp": 1794544303.3208742
     },
     {
       "backup_name": "bootstrap_backup",
       "bootstrap_role": "initdb administrator; offline replication identity only",
       "designated_name": "provisiond_sync",
-      "elapsed": 2.5418475940823555,
+      "elapsed": 2.6225850901100785,
       "event": "bootstrap_complete",
       "maintenance_mode_exception": false,
-      "timestamp": 1794534644.8842306
+      "timestamp": 1794544303.3667295
     },
     {
       "case": "setup",
       "component": "api",
-      "elapsed": 19.94986127386801,
+      "elapsed": 21.193162387004122,
       "event": "workflow_binary_started",
-      "executable": "<run-dir>/default-workflow-z24k0la1/target/debug/api",
+      "executable": "<run-dir>/default-workflow-y9jt574b/target/debug/api",
       "features": [],
-      "sha256": "e28616762a7b9cc551370fd577fd85cc06d6ec459ad6a08739f0b1f5598c1341",
-      "timestamp": 1794534662.2922437
+      "sha256": "31c5bf9720e1c58c22f880c11e0fca6e49ad62822e5ce2989361503e2289bb09",
+      "timestamp": 1794544321.9373064
     },
     {
       "credit_path": false,
-      "elapsed": 20.26682173088193,
+      "elapsed": 21.45376446703449,
       "event": "exact_rail_decision_observed",
-      "observation_digest": "ce6f5d8320510ee51f123f2fccc2c192179d55ef7e7314dae6b619811e059bd2",
+      "observation_digest": "1bcc7c9d7951c22b37210b854151c9ef07b443660092c4fa95a1f8dd9e99bee3",
       "rail": "lightning",
-      "timestamp": 1794534662.609205
+      "timestamp": 1794544322.1979089
     },
     {
       "credit_path": true,
-      "elapsed": 20.39764825301245,
+      "elapsed": 21.581704820971936,
       "event": "exact_rail_decision_observed",
-      "observation_digest": "7b4ea6cc0f137cd695d6acdc381943b7098eaca055f01e513407faa42eeed252",
+      "observation_digest": "0fb6edfb58be0d1798efff6a8f13a46f91b41c7470ead2d08548ecd7b407fca0",
       "rail": "lightning",
-      "timestamp": 1794534662.7400315
+      "timestamp": 1794544322.3258493
     },
     {
       "credit_path": false,
-      "elapsed": 20.510794438887388,
+      "elapsed": 21.69421200803481,
       "event": "exact_rail_decision_observed",
-      "observation_digest": "2c6dd4332b89392b556ed0a1fd45eb3039e57a35ea3596f94d91c9d4094c7543",
+      "observation_digest": "d3079cb4208b1829470eb328f8ff13196312a603c7cd4dca533bd3ca494e9b9e",
       "rail": "onchain",
-      "timestamp": 1794534662.8531775
+      "timestamp": 1794544322.4383564
     },
     {
       "credit_path": true,
-      "elapsed": 20.648676856886595,
+      "elapsed": 21.844381570117548,
       "event": "exact_rail_decision_observed",
-      "observation_digest": "9b13bf3e4f44732d930716c1d266f7b6b8f9a321b9ca9c0d936e8e4d5ce14d19",
+      "observation_digest": "cee0c12c672cd42f672d8adf8eada19a77303be69a374bb3752ba169fd1139ed",
       "rail": "onchain",
-      "timestamp": 1794534662.99106
+      "timestamp": 1794544322.588526
     },
     {
       "credit_path": true,
-      "elapsed": 20.73350564390421,
+      "elapsed": 21.92959854309447,
       "event": "exact_rail_decision_observed",
-      "observation_digest": "b9cc4ab9bc20f3256066260befc32263ce8d234817228b087c4fd0c3cd577c75",
+      "observation_digest": "784e104da9f5c1d4cde4cb9840d542963ee02c525640d821af680a1fefa1e639",
       "rail": "lightning",
-      "timestamp": 1794534663.0758889
+      "timestamp": 1794544322.673743
     },
     {
       "credit_path": true,
-      "elapsed": 20.734118757070974,
+      "elapsed": 21.929978511063382,
       "event": "exact_rail_decision_observed",
-      "observation_digest": "a10e146f21ab458f53813f49d224face5b7c183d7bbeb98f0f81c09888bc1e6d",
+      "observation_digest": "c39dc793bca95cd46bbcdbb3d53c2c9d4c206e3be7b9064d56afc457a0e6f72d",
       "rail": "lightning",
-      "timestamp": 1794534663.0765018
+      "timestamp": 1794544322.674123
     },
     {
       "credit_path": true,
-      "elapsed": 20.73463474889286,
+      "elapsed": 21.930312554119155,
       "event": "exact_rail_decision_observed",
-      "observation_digest": "25b7b582ddecdad2cbd5a56e5c3c7a64d60e087cff2419cbe57aeb53b294ddf7",
+      "observation_digest": "fe65d4a34292615c0664be8d10c7591a35dbb4c5b8206c3b219b3995610315d6",
       "rail": "onchain",
-      "timestamp": 1794534663.0770178
+      "timestamp": 1794544322.674457
     },
     {
       "credit_path": true,
-      "elapsed": 20.735080820973963,
+      "elapsed": 21.930640304926783,
       "event": "exact_rail_decision_observed",
-      "observation_digest": "08fa3a5f6491d51a994b2fd6aa1fc2e03f0b8de9a6a9115bdd4816f86f51749e",
+      "observation_digest": "15591fb18a94eab157aad31eec7a8b1a6e677d78c000db790f95bfef056e4235",
       "rail": "onchain",
-      "timestamp": 1794534663.077464
+      "timestamp": 1794544322.6747847
     },
     {
       "direction": "send",
-      "elapsed": 20.78506515896879,
+      "elapsed": 21.98110219510272,
       "event": "fault_requested",
       "fault": "transport_gate",
       "pattern": "SET correlator_kind=COALESCE",
-      "timestamp": 1794534663.1274483
+      "timestamp": 1794544322.7252467
     },
     {
       "case": "w4_default",
       "component": "engine",
-      "elapsed": 20.83740643109195,
+      "elapsed": 22.030002603074536,
       "event": "workflow_binary_started",
-      "executable": "<run-dir>/default-workflow-z24k0la1/target/debug/engine",
+      "executable": "<run-dir>/default-workflow-y9jt574b/target/debug/engine",
       "features": [],
-      "sha256": "d317ff14dd23fb1af887bf41faa4cb928fc4c79090ec930c00e23198ca03174e",
-      "timestamp": 1794534663.1797888
+      "sha256": "bd1358725649483529c80b85855f135b78e0b518ee3617b7996498eb3f3edab0",
+      "timestamp": 1794544322.7741466
     },
     {
       "direction": "send",
-      "elapsed": 21.19822459295392,
+      "elapsed": 22.39082007203251,
       "event": "fault_activated",
       "fault": "transport_gate",
-      "session": 2744716,
+      "session": 3487728,
       "statement_kind": "fixture statement",
-      "timestamp": 1794534663.5406077
+      "timestamp": 1794544323.1349645
     },
     {
       "direction": "commit_reply",
-      "elapsed": 21.19832862704061,
+      "elapsed": 22.390966644976288,
       "event": "fault_requested",
       "fault": "transport_gate",
       "pattern": "store COMMIT",
-      "timestamp": 1794534663.5407116
+      "timestamp": 1794544323.135111
     },
     {
       "activated": true,
       "direction": "send",
-      "elapsed": 21.198418844956905,
+      "elapsed": 22.39102322096005,
       "event": "fault_released",
       "fault": "transport_gate",
       "pattern": "SET correlator_kind=COALESCE",
-      "timestamp": 1794534663.540802
+      "timestamp": 1794544323.1351678
     },
     {
       "direction": "commit_reply",
-      "elapsed": 21.206885631894693,
+      "elapsed": 22.399543768027797,
       "event": "fault_activated",
       "fault": "transport_gate",
-      "session": 2744716,
+      "session": 3487728,
       "statement_kind": "COMMIT",
-      "timestamp": 1794534663.5492687
+      "timestamp": 1794544323.143688
     },
     {
-      "elapsed": 21.227413177024573,
+      "elapsed": 22.41911093192175,
       "event": "defect_ack_boundary_observed",
       "mutation_before_ack": false,
-      "operation": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-      "timestamp": 1794534663.5697963
+      "operation": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+      "timestamp": 1794544323.1632552
     },
     {
       "activated": true,
       "direction": "commit_reply",
-      "elapsed": 21.228090971009806,
+      "elapsed": 22.419824643060565,
       "event": "fault_released",
       "fault": "transport_gate",
       "pattern": "store COMMIT",
-      "timestamp": 1794534663.570474
+      "timestamp": 1794544323.163969
     },
     {
-      "elapsed": 21.42951156804338,
+      "elapsed": 22.681900491006672,
       "event": "step8_acknowledgement_observed",
       "markers_durable_before_ack": true,
       "mutation_before_ack": false,
-      "operation": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
+      "operation": "ba2bd779-5237-4850-baae-67b3e61e39b4",
       "orders": 1,
-      "timestamp": 1794534663.7718945,
+      "timestamp": 1794544323.426045,
       "whole_repeat_preserved_marker": true
     },
     {
       "component": "api",
-      "elapsed": 21.437848953995854,
+      "elapsed": 22.69046488008462,
       "event": "application_trace",
-      "path": "<run-dir>/default-workflow-z24k0la1/api-0.stdout",
-      "private_trace_events": 107,
+      "path": "<run-dir>/default-workflow-y9jt574b/api-0.stdout",
+      "private_trace_events": 108,
       "selection": "private full trace hash; consequential events retained by scenario",
-      "sha256": "44d950167733b09dd442c29812f000d8f9cf7b362b7591f83395e490bc59800d",
-      "timestamp": 1794534663.780232
+      "sha256": "1a71b457955e2638fd80e23c0ddee9b3353266c8c081150d77a10cb223d767d6",
+      "timestamp": 1794544323.4346092
     },
     {
       "component": "engine",
-      "elapsed": 21.438569237012416,
+      "elapsed": 22.691277225036174,
       "event": "application_trace",
-      "path": "<run-dir>/default-workflow-z24k0la1/engine-0.stdout",
-      "private_trace_events": 97,
+      "path": "<run-dir>/default-workflow-y9jt574b/engine-0.stdout",
+      "private_trace_events": 117,
       "selection": "private full trace hash; consequential events retained by scenario",
-      "sha256": "b6762a51545d36a0200eb63289e5dab212f6a5b57deb20ba1e56d6deddd5f841",
-      "timestamp": 1794534663.7809522
+      "sha256": "3106c3434130eb872e5c4844017b50d040484d9d190e06f3a4dbaf6c8a4cdf99",
+      "timestamp": 1794544323.4354217
     },
     {
-      "elapsed": 21.438821407034993,
+      "elapsed": 22.691570081049576,
       "event": "independent_simulator_evidence",
       "records": [
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
           "correlator": null,
-          "monotonic_ns": 1147311561792443,
+          "monotonic_ns": 1156971155652918,
           "path": "/offers",
           "resolution": false,
           "sequence": 1,
           "stage": "request_received",
-          "timestamp": 1794534663.472457
+          "timestamp": 1794544323.066317
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
           "correlator": null,
-          "monotonic_ns": 1147311568105965,
+          "monotonic_ns": 1156971162140324,
           "path": "/offers",
           "resolution": false,
           "sequence": 2,
           "stage": "read_only",
-          "timestamp": 1794534663.478771
+          "timestamp": 1794544323.072805
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-          "correlator": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-          "monotonic_ns": 1147311723957116,
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+          "correlator": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+          "monotonic_ns": 1156971313114676,
           "path": "/order",
           "resolution": false,
           "sequence": 3,
           "stage": "request_received",
-          "timestamp": 1794534663.6346219
+          "timestamp": 1794544323.2237797
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-          "correlator": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-          "monotonic_ns": 1147311732690440,
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+          "correlator": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+          "monotonic_ns": 1156971319311200,
           "path": "/order",
           "resolution": false,
           "sequence": 4,
           "stage": "accepted",
-          "timestamp": 1794534663.6433554
+          "timestamp": 1794544323.2299764
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-          "correlator": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-          "monotonic_ns": 1147311738700376,
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+          "correlator": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+          "monotonic_ns": 1156971325397528,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-4",
           "sequence": 5,
           "stage": "resource_created",
-          "timestamp": 1794534663.6493654,
+          "timestamp": 1794544323.2360625,
           "value": {
             "account": "sim-a",
             "channel": "orders",
-            "correlator": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
+            "correlator": "ba2bd779-5237-4850-baae-67b3e61e39b4",
             "external_id": "SIMULATOR-RESOURCE-4",
             "name": "worker-test",
             "present": true,
@@ -1655,290 +1672,290 @@
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-          "correlator": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-          "monotonic_ns": 1147311744797424,
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+          "correlator": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+          "monotonic_ns": 1156971331624149,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-4",
           "sequence": 6,
           "stage": "response_returned",
-          "timestamp": 1794534663.6554625
+          "timestamp": 1794544323.2422888
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-          "correlator": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-          "monotonic_ns": 1147311753835025,
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+          "correlator": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+          "monotonic_ns": 1156971351874707,
           "path": "/search",
           "resolution": false,
           "sequence": 7,
           "stage": "request_received",
-          "timestamp": 1794534663.6644995
+          "timestamp": 1794544323.2625399
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-          "correlator": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
-          "monotonic_ns": 1147311759788796,
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+          "correlator": "ba2bd779-5237-4850-baae-67b3e61e39b4",
+          "monotonic_ns": 1156971357933013,
           "path": "/search",
           "resolution": false,
           "sequence": 8,
           "stage": "read_only",
-          "timestamp": 1794534663.6704538
+          "timestamp": 1794544323.268598
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
           "correlator": null,
-          "monotonic_ns": 1147311766384855,
+          "monotonic_ns": 1156971376588538,
           "path": "/get",
           "resolution": false,
           "sequence": 9,
           "stage": "request_received",
-          "timestamp": 1794534663.6770499
+          "timestamp": 1794544323.2872536
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
           "correlator": null,
-          "monotonic_ns": 1147311771255647,
+          "monotonic_ns": 1156971385325338,
           "path": "/get",
           "resolution": false,
           "sequence": 10,
           "stage": "read_only",
-          "timestamp": 1794534663.6819205
+          "timestamp": 1794544323.2959902
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
           "correlator": null,
-          "monotonic_ns": 1147311777443915,
+          "monotonic_ns": 1156971394099157,
           "path": "/get",
           "resolution": false,
           "sequence": 11,
           "stage": "read_response_returned",
-          "timestamp": 1794534663.6881087
+          "timestamp": 1794544323.3047643
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
           "correlator": null,
-          "monotonic_ns": 1147311783824342,
+          "monotonic_ns": 1156971415459675,
           "path": "/constraints",
           "resolution": false,
           "sequence": 12,
           "stage": "request_received",
-          "timestamp": 1794534663.6944892
+          "timestamp": 1794544323.3261244
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
           "correlator": null,
-          "monotonic_ns": 1147311788623330,
+          "monotonic_ns": 1156971421611526,
           "path": "/constraints",
           "resolution": false,
           "sequence": 13,
           "stage": "read_only",
-          "timestamp": 1794534663.6992884
+          "timestamp": 1794544323.3322766
         },
         {
           "account": "sim-a",
-          "command": "ae1cee09-2d46-418b-b928-3a6c3611daa7",
+          "command": "ba2bd779-5237-4850-baae-67b3e61e39b4",
           "correlator": null,
-          "monotonic_ns": 1147311794644807,
+          "monotonic_ns": 1156971430341854,
           "path": "/constraints",
           "resolution": false,
           "sequence": 14,
           "stage": "read_response_returned",
-          "timestamp": 1794534663.7053096
+          "timestamp": 1794544323.3410068
         }
       ],
-      "sha256": "a6bce5f96f64b5f6f50bca0aff187deb904ea0df8ee3972c88e09b6b43d73c05",
+      "sha256": "404cd3b1c60370732baa1ee2db4b40f6cc370d9d25453a600828b0f7ba0199b8",
       "simulator_kind": "provider",
-      "timestamp": 1794534663.7812045
+      "timestamp": 1794544323.4357145
     },
     {
-      "elapsed": 21.438972478033975,
+      "elapsed": 22.691736842039973,
       "event": "independent_simulator_evidence",
       "records": [
         {
-          "monotonic_ns": 1147310641467937,
+          "monotonic_ns": 1156970279085457,
           "sequence": 1,
           "stage": "rail_observation",
-          "timestamp": 1794534662.552132,
+          "timestamp": 1794544322.1897497,
           "value": {
             "amount_sats": 60,
-            "destination": "<opaque-c57ce5b2e7db0877d123>",
-            "payment_hash": "<opaque-61e8cd26a04c05887a33>",
+            "destination": "<opaque-7b8572fafd0a1d0bf7de>",
+            "payment_hash": "<opaque-5ac2f94374a228a2951d>",
             "preimage_known": false,
             "rail": "lightning",
             "settled": false,
-            "settled_at": "2026-11-13T01:51:02Z"
+            "settled_at": "2026-11-13T04:32:02Z"
           }
         },
         {
-          "monotonic_ns": 1147310721841387,
+          "monotonic_ns": 1156970308121217,
           "sequence": 2,
           "stage": "rail_observation",
-          "timestamp": 1794534662.6325064,
+          "timestamp": 1794544322.2187858,
           "value": {
             "amount_sats": 60,
-            "destination": "<opaque-c57ce5b2e7db0877d123>",
-            "payment_hash": "<opaque-61e8cd26a04c05887a33>",
+            "destination": "<opaque-7b8572fafd0a1d0bf7de>",
+            "payment_hash": "<opaque-5ac2f94374a228a2951d>",
             "preimage_known": true,
             "rail": "lightning",
             "settled": true,
-            "settled_at": "2026-11-13T01:51:02Z"
+            "settled_at": "2026-11-13T04:32:02Z"
           }
         },
         {
-          "monotonic_ns": 1147310835102387,
+          "monotonic_ns": 1156970420452977,
           "sequence": 3,
           "stage": "rail_observation",
-          "timestamp": 1794534662.745767,
+          "timestamp": 1794544322.3311179,
           "value": {
             "amount_sats": 55,
             "confirmations": 1,
-            "destination": "<opaque-56b6cfdb7dcde24b1eb0>",
+            "destination": "<opaque-098c1637e30750be93c7>",
             "rail": "onchain",
-            "settled_at": "2026-11-13T01:51:02Z",
+            "settled_at": "2026-11-13T04:32:02Z",
             "txid": "ade2c9b2684e16a75ff3f02a8f84dc171ff0ed50b6c761a0735d28bad4d7c7f8",
             "vout": 0
           }
         },
         {
-          "monotonic_ns": 1147310973238609,
+          "monotonic_ns": 1156970558348914,
           "sequence": 4,
           "stage": "rail_observation",
-          "timestamp": 1794534662.8839033,
+          "timestamp": 1794544322.4690137,
           "value": {
             "amount_sats": 55,
             "confirmations": 2,
-            "destination": "<opaque-56b6cfdb7dcde24b1eb0>",
+            "destination": "<opaque-098c1637e30750be93c7>",
             "rail": "onchain",
-            "settled_at": "2026-11-13T01:51:02Z",
+            "settled_at": "2026-11-13T04:32:02Z",
             "txid": "ade2c9b2684e16a75ff3f02a8f84dc171ff0ed50b6c761a0735d28bad4d7c7f8",
             "vout": 0
           }
         },
         {
-          "monotonic_ns": 1147311089466821,
+          "monotonic_ns": 1156970687498752,
           "sequence": 5,
           "stage": "rail_observation",
-          "timestamp": 1794534663.0001318,
+          "timestamp": 1794544322.5981636,
           "value": {
             "amount_sats": 60,
-            "destination": "<opaque-c57ce5b2e7db0877d123>",
+            "destination": "<opaque-7b8572fafd0a1d0bf7de>",
             "event_id": "replay-0",
-            "payment_hash": "<opaque-61e8cd26a04c05887a33>",
+            "payment_hash": "<opaque-5ac2f94374a228a2951d>",
             "preimage_known": true,
             "rail": "lightning",
             "settled": true,
-            "settled_at": "2026-11-13T01:51:02Z"
+            "settled_at": "2026-11-13T04:32:02Z"
           }
         },
         {
-          "monotonic_ns": 1147311095673404,
+          "monotonic_ns": 1156970693623703,
           "sequence": 6,
           "stage": "rail_observation",
-          "timestamp": 1794534663.0063386,
+          "timestamp": 1794544322.6042888,
           "value": {
             "amount_sats": 60,
-            "destination": "<opaque-c57ce5b2e7db0877d123>",
+            "destination": "<opaque-7b8572fafd0a1d0bf7de>",
             "event_id": "replay-1",
-            "payment_hash": "<opaque-61e8cd26a04c05887a33>",
+            "payment_hash": "<opaque-5ac2f94374a228a2951d>",
             "preimage_known": true,
             "rail": "lightning",
             "settled": true,
-            "settled_at": "2026-11-13T01:51:02Z"
+            "settled_at": "2026-11-13T04:32:02Z"
           }
         },
         {
-          "monotonic_ns": 1147311101815526,
+          "monotonic_ns": 1156970699697838,
           "sequence": 7,
           "stage": "rail_observation",
-          "timestamp": 1794534663.0124805,
+          "timestamp": 1794544322.6103628,
           "value": {
             "amount_sats": 55,
             "confirmations": 2,
-            "destination": "<opaque-56b6cfdb7dcde24b1eb0>",
+            "destination": "<opaque-098c1637e30750be93c7>",
             "event_id": "replay-2",
             "rail": "onchain",
-            "settled_at": "2026-11-13T01:51:02Z",
+            "settled_at": "2026-11-13T04:32:02Z",
             "txid": "ade2c9b2684e16a75ff3f02a8f84dc171ff0ed50b6c761a0735d28bad4d7c7f8",
             "vout": 0
           }
         },
         {
-          "monotonic_ns": 1147311107784826,
+          "monotonic_ns": 1156970705831765,
           "sequence": 8,
           "stage": "rail_observation",
-          "timestamp": 1794534663.01845,
+          "timestamp": 1794544322.6164966,
           "value": {
             "amount_sats": 55,
             "confirmations": 2,
-            "destination": "<opaque-56b6cfdb7dcde24b1eb0>",
+            "destination": "<opaque-098c1637e30750be93c7>",
             "event_id": "replay-3",
             "rail": "onchain",
-            "settled_at": "2026-11-13T01:51:02Z",
+            "settled_at": "2026-11-13T04:32:02Z",
             "txid": "ade2c9b2684e16a75ff3f02a8f84dc171ff0ed50b6c761a0735d28bad4d7c7f8",
             "vout": 0
           }
         }
       ],
-      "sha256": "78cf4609502d7e1de78ec3cca9ff9a84c56d700c22b2589cb4dc1ea30e58163a",
+      "sha256": "48a77bf52daa0884f4440bf1047e1e588991d427670dd8a76ed04ecb8549e179",
       "simulator_kind": "rail",
-      "timestamp": 1794534663.7813559
+      "timestamp": 1794544323.4358814
     },
     {
       "count": 4,
-      "elapsed": 21.43903434392996,
+      "elapsed": 22.691787667106837,
       "event": "workflow_children_reaped",
-      "timestamp": 1794534663.7814174
+      "timestamp": 1794544323.4359322
     },
     {
       "cancel_requests": 0,
-      "elapsed": 21.440526335965842,
+      "elapsed": 22.836896772962064,
       "event": "proxy_cleanup",
-      "timestamp": 1794534663.7829094
+      "timestamp": 1794544323.5810409
     },
     {
-      "elapsed": 21.942052253056318,
+      "elapsed": 23.33888850104995,
       "event": "server_stopped",
       "exit_status": 0,
       "mode": "fast",
       "node": "primary",
-      "timestamp": 1794534664.2844355
+      "timestamp": 1794544324.0830328
     },
     {
-      "elapsed": 22.143616118002683,
+      "elapsed": 23.540481565054506,
       "event": "server_stopped",
       "exit_status": 0,
       "mode": "fast",
       "node": "standby",
-      "timestamp": 1794534664.4859993
+      "timestamp": 1794544324.284626
     },
     {
-      "elapsed": 22.175114346900955,
+      "elapsed": 23.575734917074442,
       "event": "cleanup_removed",
-      "path": "<run-dir>/default-workflow-z24k0la1/primary",
-      "timestamp": 1794534664.5174973
+      "path": "<run-dir>/default-workflow-y9jt574b/primary",
+      "timestamp": 1794544324.319879
     },
     {
-      "elapsed": 22.20178135903552,
+      "elapsed": 23.600831561954692,
       "event": "cleanup_removed",
-      "path": "<run-dir>/default-workflow-z24k0la1/standby",
-      "timestamp": 1794534664.5441644
+      "path": "<run-dir>/default-workflow-y9jt574b/standby",
+      "timestamp": 1794544324.344976
     },
     {
-      "elapsed": 22.323247788939625,
+      "elapsed": 23.72057733591646,
       "event": "cleanup_removed",
-      "path": "<run-dir>/default-workflow-z24k0la1/target",
-      "timestamp": 1794534664.6656308
+      "path": "<run-dir>/default-workflow-y9jt574b/target",
+      "timestamp": 1794544324.4647217
     },
     {
-      "elapsed": 22.32345635793172,
+      "elapsed": 23.720782509073615,
       "event": "allocation_released",
       "ports": [
         55500,
@@ -1952,25 +1969,25 @@
         55508,
         55509
       ],
-      "timestamp": 1794534664.6658397
+      "timestamp": 1794544324.464927
     },
     {
-      "elapsed": 22.323495941935107,
+      "elapsed": 23.7208216721192,
       "errors": [],
       "event": "cleanup_complete",
-      "raw_evidence": "<run-dir>/default-workflow-z24k0la1",
+      "raw_evidence": "<run-dir>/default-workflow-y9jt574b",
       "result": "pass",
-      "timestamp": 1794534664.665879
+      "timestamp": 1794544324.464966
     }
   ],
   "external_provider_rail_evidence": "simulator only; no real effects",
-  "implementation_commit": "02b7203343d860524457ed3953199e5464749fae",
+  "implementation_commit": "16c4f1123167a063f14bd4594add60c045080143",
   "limitations": [
     "local processes only; no separate-host durability or fencing proof",
     "no product recovery incidents; W6 simulator reconciliation only; no general meter or production alarms",
     "DB-10 full saturation: not run (W8)"
   ],
-  "raw_evidence": "<run-dir>/default-workflow-z24k0la1",
+  "raw_evidence": "<run-dir>/default-workflow-y9jt574b",
   "result": "pass",
   "scenarios": [
     {
@@ -1990,27 +2007,27 @@
     "AGENTS.md": "3d31f1fc55bac309e2fac72b2cbcc67137b3da0353d5e2f39d096bab0e612032",
     "Cargo.lock": "2591f28e7ee8bf70ad19077bf726aeeec58dadac28f53e5510a75841da01b94d",
     "Cargo.toml": "439237dfa99f243dbe8d31edbccca79f0b57afb414ba2b7490950c3b17b91dce",
-    "README.md": "08913b861543c6dfa7bdc249f14346c928518b9c3496b6b41a3ec42ca3f58f9b",
-    "docs/conformance-map.md": "3a7ef34dc81d151fd2208c1eb55c24ccaec26d944967582ec87daab440c19b6c",
-    "docs/decisions.md": "bf3ffdea241d60b7b98bc5b08a3ffb81a69ce10c9cb7c7bd32afc5585a4309fb",
-    "docs/scope.md": "0f4202a05ca8fdcda2a8bd17236c868103feb9d60f0c421736bddad6f3ee28d2",
+    "README.md": "1c91e77d294ee4d08a70cfeab472c4620987fec8ec2161646470b2589f50eac2",
+    "docs/conformance-map.md": "da57150438a990221b0f32c178b12517ca1637ddfbe707981ed3a8cad488471d",
+    "docs/decisions.md": "1ba0e680afa274e8ab24bc5e5eb29ab561f6b3dbf8ad98412fe4a081d6c27d55",
+    "docs/scope.md": "0457b036dedd6b62b8a5998a6b8a323a8122384813f234ac20383778338186f3",
     "flake.lock": "859b34962b11f1e85bdb97add8c34f37a74262cb689ff78a9501a0b7d067eb13",
     "flake.nix": "db3d0e22fd444ed2ecf666ad3b3de447334c265cadb5475eae4f84c762b0f2ee",
     "migrations/0001-core.sql": "857e69cfe049b230f3441f9b547e8ed3ee0fd65d6ec0b7f58893be097ecbba89",
     "migrations/0002-local-service.sql": "12895278c7c36936bd9435b390d6e555715c1f9aa4072060be51af790f2c394d",
-    "migrations/0003-reconciliation.sql": "61915672920c537bf6ae66e9cb8822d9c426c66a93a69bf962cf4efa859a03e4",
+    "migrations/0003-reconciliation.sql": "f8c3b0f7b6d37f706ff37ce2fef1968ef0d0cff39903d893a4e4861af3a9739f",
     "spec-lock.json": "7a65f0e88a21b9861dc7735a5a505f0be66098a996bfbfe28009266372561370",
     "src/api/funding.rs": "d23ce028d63d8038ba4bac399e099e252d453b3b181c7fe94aee4450acdad68f",
-    "src/api/mod.rs": "5779a61e02578363fda7e714030bbec61938f7011b85aca8d9f59045ab9c21fd",
-    "src/api/operator.rs": "34e8734f74bf46208ab791778ab1812b8027e56143e3f47e28843ebdded89b47",
+    "src/api/mod.rs": "0ac5e5e36751161fa84ebc0e80bb4772c9818e5a596cfda2337c7cc3fe7f2cb8",
+    "src/api/operator.rs": "f1d59df489125ef8b8b800a063c097a177ca6c46e09b6f3aceac9dc9c7170759",
     "src/auth.rs": "3b4b8a8337f41c5d12f2ae5a4b7365008b898d4dec3cfafa4a62149f369eb9ef",
     "src/bin/api.rs": "22e64e47901fdc6786202c25c164bdd7053cbfdb2b2649c3306f570dfadc7dc0",
     "src/bin/engine.rs": "09afd4eeac8c1d369ba1046ae9be335ed891d47c02bf5db30e52e9e82a7da0b7",
     "src/bin/migrate.rs": "86cf838f72854c7af2fa34cc28eb7a94634052e88594d84fc5724545fcad9c7f",
     "src/engine.rs": "f3e688d3871944aaecfe5856ed7524aa29264e9e23a47331edf3d0679270da32",
     "src/engine/deletion.rs": "4a83b9ea492949aebd4bb041f7080b2755a4c96a2293f69cc5851e86738a7d3a",
-    "src/engine/dispatch.rs": "4900440e8943cc5fd279536aecf20d6d1816514543cadb2aca011ca916855d98",
-    "src/engine/reconciliation.rs": "9cc4941725a01dbc9e26caf7aff2dcd81ab2fb48591ffe3e225fac9dbdc852c3",
+    "src/engine/dispatch.rs": "bf27d0083e4efcd523b12f83476bd3660bd81fd6872962ffe434311c3253efe4",
+    "src/engine/reconciliation.rs": "89eabd715ed7c564239774ac45b7c1aba77e7fa00b3dbe09f5cab166298249a6",
     "src/entry.rs": "0ae44900f726f81ace6a4f6c8b1cca5ed028e6ca85c7ba3a7cd0171c1c78e7a7",
     "src/http.rs": "5431cf1682b1feb02ce5e127e523a9cbcaee79bd22a9a1694c01b135e363667f",
     "src/ledger.rs": "ef8a0cf1bb7ca63fcb6aee54240694ad22f1426ce57bc8db06cf908b44c64af6",
@@ -2027,7 +2044,7 @@
     "src/store/migration.rs": "b9d309b77d06cc60582be6517846f36beabb5678cfcf3baea02acfe5506b4c30",
     "src/store/mod.rs": "27b21901a58ef087306b4d1311bbb4df19aacbb503028936268f0be476d20b02",
     "src/store/process.rs": "88604efc765fd9138e7f9bb674cf627cf30f98942c038e8b7eb962ae38f6c4ee",
-    "src/store/reconciliation.rs": "cdd930226bbbdb699681811db40c01e986f6445891bbfe4deca7846e191d388c",
+    "src/store/reconciliation.rs": "c545d209f27ba9a8ca0e9a14ffa8b6fb5bc33169e36e5491e48923770d84707a",
     "src/store/transport.rs": "9b364e704ab09744fa5aaa75373d5e3d01c625d3842defc565c0d1c37fa36e88",
     "src/wire.rs": "d653bcd39eac3057b1978e8b18675119a1a5f6654d9d06979d1928ba2ad92a12",
     "tests/entry_points.rs": "667993b20f87bd29525ba768c8e7791e4d2091cd5ec9ccd748fbc0d3bb70cc1a",
@@ -2042,7 +2059,7 @@
     "tests/postgres/provider_client.rs": "559418b43b5476e681a52c3e2eb0b1c99d5b2145734c7bacadc18c1b5da3c72f",
     "tests/postgres/proxy.py": "9b41ad8662e87cfd63634256cbe6b82b2019d14171ac7a49f5415bea71f97f64",
     "tests/postgres/scenarios.py": "07a9531c2d80b234d7df1bcd8f340c15d5e7bd68039d0928f9f4f342ed5def95",
-    "tests/postgres/simulator.py": "b3b95496dedc5412e6369a596855be38cba5c1e2f138d6b3818276a0d7118f0c",
+    "tests/postgres/simulator.py": "70e18291563f81d94786f4af4fd11a2f705434dfe2c2db43b233bba8b852628b",
     "tests/postgres/test_ports.py": "509878cf1dd9281e745f125d940e72992690f7472c0bb6cddb8814afe70ca3ce",
     "tests/postgres/test_trace.py": "135c6dbf6b412e7f5d7e895c2231b5eb4fdf0dc77b02663bab7c6ead4eca8af2",
     "tests/postgres/test_w5_inventory.py": "2776332cb52f9a3f76d70cff4cf6cedcbedbadb3f26a808b227bb7479b0c9a8a",
@@ -2052,7 +2069,7 @@
     "tests/postgres/w4_observation.py": "b1867bead9a477a013f32c0d3c22404f6f46d50e6de5d3b7448a53e7c0dedcf1",
     "tests/postgres/w4_preflight.py": "9b4f377a2419a412f67d416557f7594246966e42d4ec8a8d34566fe592ac4a49",
     "tests/postgres/w4_publication.py": "80015c4820dbc7b8d72c153a5a48d133e6a0e0057af305e9c1a5ce9cae9b4e75",
-    "tests/postgres/w4_read_deadline.py": "426d62b9f4398d333cf9c0521eae6263c4b74583665d99c7095a23290693f6c2",
+    "tests/postgres/w4_read_deadline.py": "99fe62b98f69320e9917e18bed1a6ee1a02a69636b84d4e009f7ad85585fe407",
     "tests/postgres/w4_regressions.py": "04681de406350231ad5c7794e2013f2c038200a9710141043dbc4b9058bc08ef",
     "tests/postgres/w4_retention.py": "238c0b9b52a40054bc5fbe0d85a5baf001f6001bf1f38e41d5c97d11cc2c24a2",
     "tests/postgres/w4_retention_scale.py": "83c0532ad67a65e82be94df7a0845488f9cd17a0fad386c7674c2b3137bb101d",
@@ -2062,21 +2079,22 @@
     "tests/postgres/w5_accounting.py": "7e391b59facd02dd4e691b044ab4dd7614e2f6d08fc539bb797d253a63e3f87e",
     "tests/postgres/w5_baseline.py": "69d90ebf96204d7545cbd7775d34ffa58aec598667f536ae94d39d10d33c8d92",
     "tests/postgres/w5_release_control.py": "adc2a25a3d3e7ef5e8f6cf03305706f04adb0371f99de56f2432ed65aedf6708",
-    "tests/postgres/w6.py": "e7b66a386e65649045007bd11fda53508d5f522d9e0e979e650fe7ae35d11b4d",
+    "tests/postgres/w6.py": "4bac5ad8d55a9b01959e633e92c29b796b1c1b409820047225ecd1a19b5124d9",
+    "tests/postgres/w6_continuation.py": "d0fc2b5c83ebdf8a7e0c648389916dd08efefc7be7e2efd52b0d7d0e0b0cb581",
     "tests/postgres/w6_edges.py": "69a19744d9d200791e1b636e3cf7603209ce5e179319008cf2e1e48226838fff",
     "tests/postgres/w6_exact.py": "28db3aeef367261cf99a0e7c81c139b68a4012e350702e4a0907bf11e268ba43",
     "tests/postgres/w6_gone_reply.py": "9b03a5c2627b2f2bceffebf7466dc7abf0ea9da249516f06f329d61697b6fe56",
-    "tests/postgres/w6_repairs.py": "a29739802c296ceec0016888e19bf9779c21d7294999721f3f5459d8b22011b0",
+    "tests/postgres/w6_repairs.py": "fe076cdc328a4bafb4cca2521967dea252a1fee46422903a38112177ecf7b715",
     "tests/postgres/workflow.py": "ea729d1b0eeeae5228ac7c558d64fbe9d38ee49e13d192251704a6820ba40eb1",
     "tests/support/pause.py": "12d95b008fb86fd73513bb513a4ecefea0598d0d0ea5a377b48664fefa4700e8",
     "tools/check.sh": "eb6fc0f8f3386de84a0abddba2585ec64617117f8bdc460a4e92f4bc20cd7200",
     "tools/postgres.sh": "7f2256c81544d8151d5820671bae2102781bf44ecb4f582fead975a93bc5dc4b"
   },
   "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-  "tested_source_sha256": "b56f68a858f13fbdfb37236963b557130e89ac184f64abde37dc4a59a0985b05",
+  "tested_source_sha256": "b4bbc5b114b1978a5fc36ff169326174d5270aa70fd063fef03162d36f54382d",
   "trace": {
-    "path": "<run-dir>/default-workflow-z24k0la1/events.jsonl",
-    "sha256": "734dfffa83a49b531caba51fc092efc85722f46f78b528dd2412bf004d4a1925"
+    "path": "<run-dir>/default-workflow-y9jt574b/events.jsonl",
+    "sha256": "f9c76f0520cbd34b31c2689c5c17759ef7e0d70a838eed2df85eb1b355b88dfb"
   },
   "versions": {
     "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",

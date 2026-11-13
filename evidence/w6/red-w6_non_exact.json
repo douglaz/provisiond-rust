@@ -117,10 +117,10 @@
       "command": [
         "initdb",
         "-D",
-        "<run-dir>/w6-to9ew_4j/primary",
+        "<run-dir>/w6-v4r5h782/primary",
         "-U",
         "administrator",
-        "--pwfile=<run-dir>/w6-to9ew_4j/init-password",
+        "--pwfile=<run-dir>/w6-v4r5h782/init-password",
         "--auth=scram-sha-256",
         "--no-locale",
         "--encoding=UTF8"
@@ -132,7 +132,7 @@
         "postgres",
         "--single",
         "-D",
-        "<run-dir>/w6-to9ew_4j/primary",
+        "<run-dir>/w6-v4r5h782/primary",
         "postgres"
       ],
       "exit_status": 0
@@ -141,7 +141,7 @@
       "command": [
         "postgres",
         "-D",
-        "<run-dir>/w6-to9ew_4j/primary"
+        "<run-dir>/w6-v4r5h782/primary"
       ],
       "exit_status": 0
     },
@@ -185,7 +185,7 @@
         "-d",
         "host=<loopback> port=55500 user=replicator dbname=postgres application_name=bootstrap_backup",
         "-D",
-        "<run-dir>/w6-to9ew_4j/standby",
+        "<run-dir>/w6-v4r5h782/standby",
         "-X",
         "stream",
         "--checkpoint=fast",
@@ -196,7 +196,7 @@
     {
       "command": [
         "pg_verifybackup",
-        "<run-dir>/w6-to9ew_4j/standby"
+        "<run-dir>/w6-v4r5h782/standby"
       ],
       "exit_status": 0
     },
@@ -204,7 +204,7 @@
       "command": [
         "postgres",
         "-D",
-        "<run-dir>/w6-to9ew_4j/standby"
+        "<run-dir>/w6-v4r5h782/standby"
       ],
       "exit_status": 0
     },
@@ -646,7 +646,24 @@
     },
     {
       "command": [
-        "<run-dir>/w6-to9ew_4j/target/debug/migrate"
+        "<run-dir>/w6-v4r5h782/target/debug/migrate"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "<opaque-12ca17b49af2289436f3>",
+        "-p",
+        "55500",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
       ],
       "exit_status": 0
     },
@@ -841,7 +858,7 @@
       "command": [
         "pg_ctl",
         "-D",
-        "<run-dir>/w6-to9ew_4j/primary",
+        "<run-dir>/w6-v4r5h782/primary",
         "stop",
         "-m",
         "fast",
@@ -855,7 +872,7 @@
       "command": [
         "pg_ctl",
         "-D",
-        "<run-dir>/w6-to9ew_4j/standby",
+        "<run-dir>/w6-v4r5h782/standby",
         "stop",
         "-m",
         "fast",
@@ -897,7 +914,7 @@
         "features": [
           "store-test-hooks"
         ],
-        "target_directory": "<run-dir>/w6-to9ew_4j/target"
+        "target_directory": "<run-dir>/w6-v4r5h782/target"
       },
       "schema_version": 3,
       "semantic_version": 3,
@@ -980,7 +997,16 @@
         "w6_r6",
         "w6_r8",
         "w6_r9",
-        "w6_r7"
+        "w6_c1",
+        "w6_c3_system",
+        "w6_c3_retry",
+        "w6_c4_search",
+        "w6_c4_get",
+        "w6_c4_constraints",
+        "w6_c5",
+        "w6_r7",
+        "w6_c2_failed",
+        "w6_c2_unresolved"
       ],
       "selected_case": "w6_conflicting"
     },
@@ -988,25 +1014,25 @@
     "workflow": {
       "builds": {
         "api": {
-          "executable": "<run-dir>/w6-to9ew_4j/target/debug/api",
+          "executable": "<run-dir>/w6-v4r5h782/target/debug/api",
           "features": [
             "store-test-hooks"
           ],
-          "sha256": "2f9efcaee326c47005215bf2c115751743d57b694fc57039745a1bdfcf1be055"
+          "sha256": "e5f1650dc9ea43d35e2a11b040f77250a2ca224bade0458d9c6a4bbf1633cfae"
         },
         "engine": {
-          "executable": "<run-dir>/w6-to9ew_4j/target/debug/engine",
+          "executable": "<run-dir>/w6-v4r5h782/target/debug/engine",
           "features": [
             "store-test-hooks"
           ],
-          "sha256": "2cfb12f030dea3e3ec8b08073fda6351da7b1d96bd16bbe9f0400dc8e4aadda8"
+          "sha256": "adb41182d321c03ccf4b9d53dcdb46a7380ca90aa32848e9ef9043e950110d41"
         },
         "migrate": {
-          "executable": "<run-dir>/w6-to9ew_4j/target/debug/migrate",
+          "executable": "<run-dir>/w6-v4r5h782/target/debug/migrate",
           "features": [
             "store-test-hooks"
           ],
-          "sha256": "703636d4aa859b69d366ba247188ffdf31431bd2fc06d900cdadfab03ba6f607"
+          "sha256": "cbb8d90c34929fe9cbfc4ecfb05753b16906bd75758ea1bd5d78eb7684bef6fd"
         }
       },
       "descriptor": {
@@ -1110,7 +1136,7 @@
         "haircut_bps": 0,
         "margin_bps": 1000,
         "minor_scale": 2,
-        "observed_at": "2026-11-13T02:01:16Z",
+        "observed_at": "2026-11-13T04:43:06Z",
         "rate_den": 1,
         "rate_num": 10,
         "source": "simulator-fixed-rational"
@@ -1120,7 +1146,7 @@
       ]
     }
   },
-  "configuration_sha256": "4bd20f30ff9884d2f18542e96a283f12d30d700a9eaf56f9fc968ce163d8d9d9",
+  "configuration_sha256": "f592523bdc53b37abe049bfdd71eb92036a75443188c6b26591b78492cf39b9e",
   "event_selection": {
     "basis": "consequential manifests; private full application trace hashes retained",
     "omitted_event_types": [
@@ -1131,7 +1157,7 @@
       "protocol_response",
       "transport_closed"
     ],
-    "original_count": 320,
+    "original_count": 317,
     "retained_count": 30
   },
   "events": [
@@ -1150,7 +1176,7 @@
             "features": [
               "store-test-hooks"
             ],
-            "target_directory": "<run-dir>/w6-to9ew_4j/target"
+            "target_directory": "<run-dir>/w6-v4r5h782/target"
           },
           "schema_version": 3,
           "semantic_version": 3,
@@ -1199,16 +1225,16 @@
         "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
         "wal_level": "replica"
       },
-      "configuration_sha256": "a2dae176340cf2219e46821643ba6f2275da8cd1912f2024aa46332c7ee8ce5d",
-      "elapsed": 0.0004121079109609127,
+      "configuration_sha256": "0cb875a84708810962a20fc598718e994c4a213cb41cc7c9a8daa96e89b38d68",
+      "elapsed": 0.0004454711452126503,
       "event": "invocation",
       "phase": "w6",
       "seed": 20261112,
       "specification": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-      "timestamp": 1794535256.760204
+      "timestamp": 1794544964.636101
     },
     {
-      "elapsed": 0.08159382804296911,
+      "elapsed": 0.09000484202988446,
       "event": "allocation_reserved",
       "ports": [
         55500,
@@ -1222,63 +1248,63 @@
         55508,
         55509
       ],
-      "timestamp": 1794535256.8413858
+      "timestamp": 1794544964.7256606
     },
     {
       "bootstrap_readiness_seconds": 60,
-      "elapsed": 1.1605196420568973,
+      "elapsed": 1.1942548640072346,
       "event": "server_started",
       "node": "primary",
-      "pid": 2794232,
+      "pid": 3551674,
       "port": 55500,
-      "readiness_elapsed_seconds": 0.06829620292410254,
-      "timestamp": 1794535257.9203117
+      "readiness_elapsed_seconds": 0.07211943599395454,
+      "timestamp": 1794544965.8299108
     },
     {
       "application_name": "bootstrap_backup",
       "command_bound_seconds": 180,
       "destination": "standby",
-      "elapsed": 1.1605825498700142,
+      "elapsed": 1.194303235039115,
       "event": "backup_requested",
-      "timestamp": 1794535257.9203746,
+      "timestamp": 1794544965.8299592,
       "wal_mode": "stream"
     },
     {
-      "elapsed": 1.8099528930615634,
+      "elapsed": 1.8346571209840477,
       "event": "backup_provenance_retained",
-      "path": "<run-dir>/w6-to9ew_4j/standby-backup-manifest.json",
-      "sha256": "c309cbe7404eddfdb6ac14906ffd7af98ad706f53f7f3467bbedc7a3a9f4632e",
-      "timestamp": 1794535258.5697446
+      "path": "<run-dir>/w6-v4r5h782/standby-backup-manifest.json",
+      "sha256": "070605e6f3f94319452db24d9cae06e099eb7cdc7947079b7be84c46fa24a3e0",
+      "timestamp": 1794544966.470313
     },
     {
       "destination": "standby",
-      "elapsed": 1.8101588268764317,
-      "elapsed_seconds": 0.6495758171658963,
+      "elapsed": 1.8348684250377119,
+      "elapsed_seconds": 0.6405641778837889,
       "event": "backup_complete",
-      "timestamp": 1794535258.569951,
+      "timestamp": 1794544966.4705243,
       "verified": true
     },
     {
       "bootstrap_readiness_seconds": 60,
-      "elapsed": 2.3254887820221484,
+      "elapsed": 2.3482837812043726,
       "event": "server_started",
       "node": "standby",
-      "pid": 2794271,
+      "pid": 3551699,
       "port": 55501,
-      "readiness_elapsed_seconds": 0.5042412590701133,
-      "timestamp": 1794535259.0852807
+      "readiness_elapsed_seconds": 0.5041135088540614,
+      "timestamp": 1794544966.98394
     },
     {
       "authenticated_role": "replicator",
-      "elapsed": 2.5019250218756497,
+      "elapsed": 2.5425108571071178,
       "event": "identity_catchup",
       "primary_checkpoint": "1|0/2000028",
       "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials",
       "sampled_primary_flush": "0/3003A90",
       "standby_checkpoint": "1|0/2000028",
-      "standby_system_identifier": "7707470240488559337",
-      "system_identifier": "7707470240488559337",
-      "timestamp": 1794535259.261717
+      "standby_system_identifier": "7707511935406055846",
+      "system_identifier": "7707511935406055846",
+      "timestamp": 1794544967.1781666
     },
     {
       "configuration": {
@@ -1298,61 +1324,61 @@
         "tcp_keepalives_interval": "1",
         "wal_level": "replica"
       },
-      "elapsed": 2.5109536768868566,
+      "elapsed": 2.55297285807319,
       "event": "effective_configuration_observed",
       "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f",
-      "timestamp": 1794535259.2707455
+      "timestamp": 1794544967.1886287
     },
     {
       "backup_name": "bootstrap_backup",
       "bootstrap_role": "initdb administrator; offline replication identity only",
       "designated_name": "provisiond_sync",
-      "elapsed": 2.5566720019560307,
+      "elapsed": 2.600311951013282,
       "event": "bootstrap_complete",
       "maintenance_mode_exception": false,
-      "timestamp": 1794535259.316464
+      "timestamp": 1794544967.2359676
     },
     {
       "case": "setup",
       "component": "api",
-      "elapsed": 20.29864876694046,
+      "elapsed": 22.291715756058693,
       "event": "workflow_binary_started",
-      "executable": "<run-dir>/w6-to9ew_4j/target/debug/api",
+      "executable": "<run-dir>/w6-v4r5h782/target/debug/api",
       "features": [
         "store-test-hooks"
       ],
-      "sha256": "2f9efcaee326c47005215bf2c115751743d57b694fc57039745a1bdfcf1be055",
-      "timestamp": 1794535277.0584404
+      "sha256": "e5f1650dc9ea43d35e2a11b040f77250a2ca224bade0458d9c6a4bbf1633cfae",
+      "timestamp": 1794544986.9273713
     },
     {
       "case": "w6_conflicting",
       "component": "engine",
-      "elapsed": 20.70913627394475,
+      "elapsed": 22.742024349048734,
       "event": "workflow_binary_started",
-      "executable": "<run-dir>/w6-to9ew_4j/target/debug/engine",
+      "executable": "<run-dir>/w6-v4r5h782/target/debug/engine",
       "features": [
         "store-test-hooks"
       ],
-      "sha256": "2cfb12f030dea3e3ec8b08073fda6351da7b1d96bd16bbe9f0400dc8e4aadda8",
-      "timestamp": 1794535277.468928
+      "sha256": "adb41182d321c03ccf4b9d53dcdb46a7380ca90aa32848e9ef9043e950110d41",
+      "timestamp": 1794544987.3776793
     },
     {
       "accepted_count": 1,
-      "elapsed": 21.152999583864585,
+      "elapsed": 23.246874566189945,
       "event": "w6_lost_reply_activated",
-      "operation": "39862a91-f87e-4f88-9962-39a67cb6f770",
+      "operation": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
       "purchase": "SIMULATOR-RESOURCE-5",
       "reply_delivered": false,
       "snapshot": {
         "commitment": {
           "closed_at": null,
-          "id": "f27a7b54-8f00-46b7-a67a-ec9959a08e17",
+          "id": "74ea7e90-670c-4b5e-b476-f902badf9f9c",
           "machine_id": null,
-          "opened_at": "2026-11-13T02:01:17.387144+00:00",
-          "operation_id": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "opened_at": "2026-11-13T04:43:07.293596+00:00",
+          "operation_id": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "reserved_sats": 43,
           "state": "open",
-          "tenant_id": "80c2bd2f-c136-4327-b72c-3e91e5655747",
+          "tenant_id": "698f238c-b023-4d10-a8fe-3832cf8df4ac",
           "version": 0
         },
         "exclusions": [],
@@ -1360,15 +1386,15 @@
         "machines": [],
         "meter_totals": [],
         "operation": {
-          "about_to_order_at": "2026-11-13T02:01:17.834482+00:00",
+          "about_to_order_at": "2026-11-13T04:43:07.752676+00:00",
           "admitted_sats": 43,
-          "available_at": "2026-11-13T02:01:17.387144+00:00",
+          "available_at": "2026-11-13T04:43:07.293596+00:00",
           "claim_number": 1,
-          "commitment_id": "f27a7b54-8f00-46b7-a67a-ec9959a08e17",
-          "correlation_id": "e4243385-9ef1-45a3-9147-9251bc33ade8",
+          "commitment_id": "74ea7e90-670c-4b5e-b476-f902badf9f9c",
+          "correlation_id": "46a4d58b-5a88-43f1-b4b7-6179ec52cebc",
           "correlator_kind": "operation_uuid",
-          "correlator_value": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "created_at": "2026-11-13T02:01:17.387144+00:00",
+          "correlator_value": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "created_at": "2026-11-13T04:43:07.293596+00:00",
           "episode_id": null,
           "error": {
             "details": {
@@ -1379,16 +1405,16 @@
             "message": "simulator response unavailable",
             "retryable": false
           },
-          "id": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "id": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "idempotency_key": "reconcile-conflict-wrong",
           "kind": "create",
           "machine_id": null,
-          "mutation_wait_ended_at": "2026-11-13T02:01:17.883154+00:00",
+          "mutation_wait_ended_at": "2026-11-13T04:43:07.797936+00:00",
           "provider_account": "sim-a",
           "request_summary": {
             "correlator": {
               "kind": "operation_uuid",
-              "value": "39862a91-f87e-4f88-9962-39a67cb6f770"
+              "value": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8"
             },
             "first_unit": {
               "currency": "USD",
@@ -1396,7 +1422,7 @@
               "native_minor": 1,
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T02:01:16Z",
+              "rate_observed_at": "2026-11-13T04:43:06Z",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "sats": 11,
@@ -1481,7 +1507,7 @@
                   "haircut_bps": 0,
                   "margin_bps": 1000,
                   "minor_scale": 2,
-                  "observed_at": "2026-11-13T02:01:16Z",
+                  "observed_at": "2026-11-13T04:43:06Z",
                   "rate_den": 1,
                   "rate_num": 10,
                   "source": "simulator-fixed-rational"
@@ -1504,7 +1530,7 @@
               "native_minor": 2,
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T02:01:16Z",
+              "rate_observed_at": "2026-11-13T04:43:06Z",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "sats": 20
@@ -1521,91 +1547,91 @@
           "revision": 4,
           "status": "needs_reconciliation",
           "system_reason": null,
-          "tenant_id": "80c2bd2f-c136-4327-b72c-3e91e5655747",
-          "updated_at": "2026-11-13T02:01:17.883154+00:00",
+          "tenant_id": "698f238c-b023-4d10-a8fe-3832cf8df4ac",
+          "updated_at": "2026-11-13T04:43:07.797935+00:00",
           "write_started_at": null,
           "yielded_at": null
         }
       },
-      "timestamp": 1794535277.9127915
+      "timestamp": 1794544987.8825305
     },
     {
       "case": "w6_conflicting",
       "component": "engine",
-      "elapsed": 21.207126568071544,
+      "elapsed": 23.30338796810247,
       "event": "workflow_binary_started",
-      "executable": "<run-dir>/w6-to9ew_4j/target/debug/engine",
+      "executable": "<run-dir>/w6-v4r5h782/target/debug/engine",
       "features": [
         "store-test-hooks"
       ],
-      "sha256": "2cfb12f030dea3e3ec8b08073fda6351da7b1d96bd16bbe9f0400dc8e4aadda8",
-      "timestamp": 1794535277.966918
+      "sha256": "adb41182d321c03ccf4b9d53dcdb46a7380ca90aa32848e9ef9043e950110d41",
+      "timestamp": 1794544987.9390433
     },
     {
       "attached": true,
-      "elapsed": 22.85352828889154,
+      "elapsed": 24.900973451090977,
       "event": "w6_exact_observed",
-      "operation": "39862a91-f87e-4f88-9962-39a67cb6f770",
+      "operation": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
       "provider": [
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147925857154424,
+          "monotonic_ns": 1157635775688572,
           "path": "/offers",
           "resolution": false,
           "sequence": 2,
           "stage": "request_received",
-          "timestamp": 1794535277.7678192
+          "timestamp": 1794544987.6863534
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147925865995309,
+          "monotonic_ns": 1157635784819641,
           "path": "/offers",
           "resolution": false,
           "sequence": 3,
           "stage": "read_only",
-          "timestamp": 1794535277.7766602
+          "timestamp": 1794544987.6954846
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147925937855098,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157635856806660,
           "path": "/order",
           "resolution": false,
           "sequence": 4,
           "stage": "request_received",
-          "timestamp": 1794535277.84852
+          "timestamp": 1794544987.7674713
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147925946793514,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157635862967910,
           "path": "/order",
           "resolution": false,
           "sequence": 5,
           "stage": "accepted",
-          "timestamp": 1794535277.857458
+          "timestamp": 1794544987.7736328
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147925955519104,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157635869076902,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-5",
           "sequence": 6,
           "stage": "resource_created",
-          "timestamp": 1794535277.866184,
+          "timestamp": 1794544987.779742,
           "value": {
             "account": "sim-a",
             "channel": "orders",
-            "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
+            "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
             "external_id": "SIMULATOR-RESOURCE-5",
             "name": "worker-test",
             "present": true,
@@ -1616,44 +1642,44 @@
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147925961745984,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157635877933790,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-5",
           "sequence": 7,
           "stage": "reply_dropped",
-          "timestamp": 1794535277.8724108
+          "timestamp": 1794544987.7885988
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147927417885195,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157637384815860,
           "path": "/search",
           "resolution": true,
           "sequence": 8,
           "stage": "request_received",
-          "timestamp": 1794535279.32855
+          "timestamp": 1794544989.2954805
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147927426669915,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157637393750982,
           "path": "/search",
           "resolution": true,
           "sequence": 9,
           "stage": "read_only",
-          "timestamp": 1794535279.3373349
+          "timestamp": 1794544989.3044157
         },
         {
           "account": "sim-a",
           "authoritative": true,
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147927432759810,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157637399879522,
           "path": "/search",
           "resolution": true,
           "resources": [
@@ -1672,182 +1698,182 @@
           "search": "wrong",
           "sequence": 10,
           "stage": "resolution_evidence_returned",
-          "timestamp": 1794535279.3434248
+          "timestamp": 1794544989.3105445
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147927451899327,
+          "monotonic_ns": 1157637415400337,
           "path": "/get",
           "resolution": true,
           "sequence": 11,
           "stage": "request_received",
-          "timestamp": 1794535279.3625638
+          "timestamp": 1794544989.326065
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147927458098416,
+          "monotonic_ns": 1157637421558772,
           "path": "/get",
           "resolution": true,
           "sequence": 12,
           "stage": "read_only",
-          "timestamp": 1794535279.3687634
+          "timestamp": 1794544989.3322234
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147927466837230,
+          "monotonic_ns": 1157637427829556,
           "path": "/get",
           "resolution": true,
           "sequence": 13,
           "stage": "read_response_returned",
-          "timestamp": 1794535279.3775022
+          "timestamp": 1794544989.3384945
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147927481972882,
+          "monotonic_ns": 1157637447765384,
           "path": "/constraints",
           "resolution": true,
           "sequence": 14,
           "stage": "request_received",
-          "timestamp": 1794535279.3926375
+          "timestamp": 1794544989.3584301
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147927486604107,
+          "monotonic_ns": 1157637454096111,
           "path": "/constraints",
           "resolution": true,
           "sequence": 15,
           "stage": "read_only",
-          "timestamp": 1794535279.3972692
+          "timestamp": 1794544989.364761
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147927492706485,
+          "monotonic_ns": 1157637463206170,
           "path": "/constraints",
           "resolution": true,
           "sequence": 16,
           "stage": "read_response_returned",
-          "timestamp": 1794535279.4033716
+          "timestamp": 1794544989.373871
         }
       ],
       "search": "wrong",
       "status": "succeeded",
-      "timestamp": 1794535279.61332
+      "timestamp": 1794544989.5366292
     },
     {
       "component": "api",
-      "elapsed": 22.86468662507832,
+      "elapsed": 24.91408785805106,
       "event": "application_trace",
-      "path": "<run-dir>/w6-to9ew_4j/api-0.stdout",
-      "private_trace_events": 54,
+      "path": "<run-dir>/w6-v4r5h782/api-0.stdout",
+      "private_trace_events": 56,
       "selection": "private full trace hash; consequential events retained by scenario",
-      "sha256": "63d64e0b9d45f060f15ea2a60f7c357ea7da490fa57d677ba2dc7383c3b497a9",
-      "timestamp": 1794535279.6244786
+      "sha256": "f12bbdcd8d2ba73a2de665019ae989a2f797f010b2171a67d62f8b164e4c32fe",
+      "timestamp": 1794544989.549744
     },
     {
       "component": "engine",
-      "elapsed": 22.865195844089612,
+      "elapsed": 24.914816125994548,
       "event": "application_trace",
-      "path": "<run-dir>/w6-to9ew_4j/engine-0.stdout",
-      "private_trace_events": 69,
+      "path": "<run-dir>/w6-v4r5h782/engine-0.stdout",
+      "private_trace_events": 84,
       "selection": "private full trace hash; consequential events retained by scenario",
-      "sha256": "326813b7d5bf0ef9531b98da025cf9374fc1c14214335d8b391f29b8bd5286f7",
-      "timestamp": 1794535279.6249878
+      "sha256": "657f3fc96cfd68b0b8652e5f6b5fae8e58c533f6da9cac412c07373ffe999faf",
+      "timestamp": 1794544989.550472
     },
     {
       "component": "engine",
-      "elapsed": 22.867304334882647,
+      "elapsed": 24.91730492701754,
       "event": "application_trace",
-      "path": "<run-dir>/w6-to9ew_4j/engine-1.stdout",
-      "private_trace_events": 502,
+      "path": "<run-dir>/w6-v4r5h782/engine-1.stdout",
+      "private_trace_events": 476,
       "selection": "private full trace hash; consequential events retained by scenario",
-      "sha256": "6cb6af0c51c1dbd69f1f844484858cff685d8d13bcf045e53fdc08689093803f",
-      "timestamp": 1794535279.6270964
+      "sha256": "5fd701f7e4217961c090a5eea21b1770082ce8398090d477849c13e0edcaad56",
+      "timestamp": 1794544989.5529609
     },
     {
-      "elapsed": 22.867771957069635,
+      "elapsed": 24.917792797088623,
       "event": "independent_simulator_evidence",
       "records": [
         {
-          "monotonic_ns": 1147925502648109,
+          "monotonic_ns": 1157635410209389,
           "sequence": 1,
           "stage": "evidence_control_activated",
-          "timestamp": 1794535277.4133124,
+          "timestamp": 1794544987.3208737,
           "value": {
-            "operation": "39862a91-f87e-4f88-9962-39a67cb6f770",
+            "operation": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
             "search": "wrong"
           }
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147925857154424,
+          "monotonic_ns": 1157635775688572,
           "path": "/offers",
           "resolution": false,
           "sequence": 2,
           "stage": "request_received",
-          "timestamp": 1794535277.7678192
+          "timestamp": 1794544987.6863534
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147925865995309,
+          "monotonic_ns": 1157635784819641,
           "path": "/offers",
           "resolution": false,
           "sequence": 3,
           "stage": "read_only",
-          "timestamp": 1794535277.7766602
+          "timestamp": 1794544987.6954846
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147925937855098,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157635856806660,
           "path": "/order",
           "resolution": false,
           "sequence": 4,
           "stage": "request_received",
-          "timestamp": 1794535277.84852
+          "timestamp": 1794544987.7674713
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147925946793514,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157635862967910,
           "path": "/order",
           "resolution": false,
           "sequence": 5,
           "stage": "accepted",
-          "timestamp": 1794535277.857458
+          "timestamp": 1794544987.7736328
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147925955519104,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157635869076902,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-5",
           "sequence": 6,
           "stage": "resource_created",
-          "timestamp": 1794535277.866184,
+          "timestamp": 1794544987.779742,
           "value": {
             "account": "sim-a",
             "channel": "orders",
-            "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
+            "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
             "external_id": "SIMULATOR-RESOURCE-5",
             "name": "worker-test",
             "present": true,
@@ -1858,44 +1884,44 @@
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147925961745984,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157635877933790,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-5",
           "sequence": 7,
           "stage": "reply_dropped",
-          "timestamp": 1794535277.8724108
+          "timestamp": 1794544987.7885988
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147927417885195,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157637384815860,
           "path": "/search",
           "resolution": true,
           "sequence": 8,
           "stage": "request_received",
-          "timestamp": 1794535279.32855
+          "timestamp": 1794544989.2954805
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147927426669915,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157637393750982,
           "path": "/search",
           "resolution": true,
           "sequence": 9,
           "stage": "read_only",
-          "timestamp": 1794535279.3373349
+          "timestamp": 1794544989.3044157
         },
         {
           "account": "sim-a",
           "authoritative": true,
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "correlator": "39862a91-f87e-4f88-9962-39a67cb6f770",
-          "monotonic_ns": 1147927432759810,
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "correlator": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
+          "monotonic_ns": 1157637399879522,
           "path": "/search",
           "resolution": true,
           "resources": [
@@ -1914,180 +1940,180 @@
           "search": "wrong",
           "sequence": 10,
           "stage": "resolution_evidence_returned",
-          "timestamp": 1794535279.3434248
+          "timestamp": 1794544989.3105445
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147927451899327,
+          "monotonic_ns": 1157637415400337,
           "path": "/get",
           "resolution": true,
           "sequence": 11,
           "stage": "request_received",
-          "timestamp": 1794535279.3625638
+          "timestamp": 1794544989.326065
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147927458098416,
+          "monotonic_ns": 1157637421558772,
           "path": "/get",
           "resolution": true,
           "sequence": 12,
           "stage": "read_only",
-          "timestamp": 1794535279.3687634
+          "timestamp": 1794544989.3322234
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147927466837230,
+          "monotonic_ns": 1157637427829556,
           "path": "/get",
           "resolution": true,
           "sequence": 13,
           "stage": "read_response_returned",
-          "timestamp": 1794535279.3775022
+          "timestamp": 1794544989.3384945
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147927481972882,
+          "monotonic_ns": 1157637447765384,
           "path": "/constraints",
           "resolution": true,
           "sequence": 14,
           "stage": "request_received",
-          "timestamp": 1794535279.3926375
+          "timestamp": 1794544989.3584301
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147927486604107,
+          "monotonic_ns": 1157637454096111,
           "path": "/constraints",
           "resolution": true,
           "sequence": 15,
           "stage": "read_only",
-          "timestamp": 1794535279.3972692
+          "timestamp": 1794544989.364761
         },
         {
           "account": "sim-a",
-          "command": "39862a91-f87e-4f88-9962-39a67cb6f770",
+          "command": "bfd34ee6-f5b1-49f5-8565-1e4e710060d8",
           "correlator": null,
-          "monotonic_ns": 1147927492706485,
+          "monotonic_ns": 1157637463206170,
           "path": "/constraints",
           "resolution": true,
           "sequence": 16,
           "stage": "read_response_returned",
-          "timestamp": 1794535279.4033716
+          "timestamp": 1794544989.373871
         },
         {
           "account": "sim-a",
           "command": null,
           "correlator": null,
-          "monotonic_ns": 1147927558584761,
+          "monotonic_ns": 1157637538053804,
           "path": "/enumerate",
           "resolution": true,
           "sequence": 17,
           "stage": "request_received",
-          "timestamp": 1794535279.4692495
+          "timestamp": 1794544989.4487188
         },
         {
           "account": "sim-b",
           "command": null,
           "correlator": null,
-          "monotonic_ns": 1147927602477122,
+          "monotonic_ns": 1157637587396122,
           "path": "/enumerate",
           "resolution": true,
           "sequence": 18,
           "stage": "request_received",
-          "timestamp": 1794535279.5131419
+          "timestamp": 1794544989.4980607
         }
       ],
-      "sha256": "768ea16bf41ff3f3ee5c61a16a427965cda15a243b0e60434a231c192d85ff73",
+      "sha256": "85408d20790880656455279f83114d445119d464e16450a25315f31a53d53500",
       "simulator_kind": "provider",
-      "timestamp": 1794535279.627564
+      "timestamp": 1794544989.5534487
     },
     {
-      "elapsed": 22.867881532059982,
+      "elapsed": 24.917928911047056,
       "event": "independent_simulator_evidence",
       "records": [
         {
-          "monotonic_ns": 1147925410145290,
+          "monotonic_ns": 1157635265031415,
           "sequence": 1,
           "stage": "rail_observation",
-          "timestamp": 1794535277.32081,
+          "timestamp": 1794544987.1756961,
           "value": {
             "amount_sats": 115,
-            "destination": "<opaque-23667ad8b91fec48763a>",
-            "payment_hash": "<opaque-f227a9dc8c9d020663e6>",
+            "destination": "<opaque-4254bf445dfec123e241>",
+            "payment_hash": "<opaque-79d89b7b4a8af821b6c0>",
             "preimage_known": true,
             "rail": "lightning",
             "settled": true,
-            "settled_at": "2026-11-13T02:01:17Z"
+            "settled_at": "2026-11-13T04:43:07Z"
           }
         }
       ],
-      "sha256": "b049083073ce31b5bc8abeacf0d46843319ae6cd4fc197bf95997b24e316ef8c",
+      "sha256": "3faec04ff9eea9208a03edefbc08aaba5fc012b90053448d415f5e7c7cc30a10",
       "simulator_kind": "rail",
-      "timestamp": 1794535279.6276736
+      "timestamp": 1794544989.5535848
     },
     {
       "count": 5,
-      "elapsed": 22.867921075085178,
+      "elapsed": 24.917962063103914,
       "event": "workflow_children_reaped",
-      "timestamp": 1794535279.6277132
+      "timestamp": 1794544989.553618
     },
     {
-      "elapsed": 22.868001285009086,
+      "elapsed": 24.91804818320088,
       "event": "failure",
       "message": "exact-correlator/no-attachment",
-      "timestamp": 1794535279.6277933,
+      "timestamp": 1794544989.5537043,
       "type": "AssertionError"
     },
     {
       "cancel_requests": 0,
-      "elapsed": 22.899318207986653,
+      "elapsed": 24.982448033057153,
       "event": "proxy_cleanup",
-      "timestamp": 1794535279.6591096
+      "timestamp": 1794544989.6181035
     },
     {
-      "elapsed": 23.401162487920374,
+      "elapsed": 25.584395988145843,
       "event": "server_stopped",
       "exit_status": 0,
       "mode": "fast",
       "node": "primary",
-      "timestamp": 1794535280.1609545
+      "timestamp": 1794544990.220052
     },
     {
-      "elapsed": 23.60263415798545,
+      "elapsed": 25.786117097130045,
       "event": "server_stopped",
       "exit_status": 0,
       "mode": "fast",
       "node": "standby",
-      "timestamp": 1794535280.362426
+      "timestamp": 1794544990.421773
     },
     {
-      "elapsed": 23.632162445923313,
+      "elapsed": 25.817304289201275,
       "event": "cleanup_removed",
-      "path": "<run-dir>/w6-to9ew_4j/primary",
-      "timestamp": 1794535280.391954
+      "path": "<run-dir>/w6-v4r5h782/primary",
+      "timestamp": 1794544990.45296
     },
     {
-      "elapsed": 23.65874865790829,
+      "elapsed": 25.84359249402769,
       "event": "cleanup_removed",
-      "path": "<run-dir>/w6-to9ew_4j/standby",
-      "timestamp": 1794535280.4185402
+      "path": "<run-dir>/w6-v4r5h782/standby",
+      "timestamp": 1794544990.479248
     },
     {
-      "elapsed": 23.78441302990541,
+      "elapsed": 25.973103830125183,
       "event": "cleanup_removed",
-      "path": "<run-dir>/w6-to9ew_4j/target",
-      "timestamp": 1794535280.5442047
+      "path": "<run-dir>/w6-v4r5h782/target",
+      "timestamp": 1794544990.6087594
     },
     {
-      "elapsed": 23.784664870006964,
+      "elapsed": 25.973315505078062,
       "event": "allocation_released",
       "ports": [
         55500,
@@ -2101,19 +2127,19 @@
         55508,
         55509
       ],
-      "timestamp": 1794535280.5444567
+      "timestamp": 1794544990.6089714
     },
     {
-      "elapsed": 23.784731213003397,
+      "elapsed": 25.973357292125,
       "errors": [],
       "event": "cleanup_complete",
-      "raw_evidence": "<run-dir>/w6-to9ew_4j",
+      "raw_evidence": "<run-dir>/w6-v4r5h782",
       "result": "pass",
-      "timestamp": 1794535280.5445232
+      "timestamp": 1794544990.6090133
     }
   ],
   "external_provider_rail_evidence": "independent durable W6 simulator evidence; no real effects",
-  "implementation_commit": "02b7203343d860524457ed3953199e5464749fae",
+  "implementation_commit": "16c4f1123167a063f14bd4594add60c045080143",
   "intended_assertion": "exact-correlator/no-attachment",
   "limitations": [
     "local processes only; no separate-host durability or fencing proof",
@@ -2121,7 +2147,7 @@
     "DB-10 full saturation: not run (W8)"
   ],
   "negative_command_exit_status": 1,
-  "raw_evidence": "<run-dir>/w6-to9ew_4j",
+  "raw_evidence": "<run-dir>/w6-v4r5h782",
   "result": "expected negative demonstration",
   "scenarios": [
     {
@@ -2138,27 +2164,27 @@
     "AGENTS.md": "3d31f1fc55bac309e2fac72b2cbcc67137b3da0353d5e2f39d096bab0e612032",
     "Cargo.lock": "2591f28e7ee8bf70ad19077bf726aeeec58dadac28f53e5510a75841da01b94d",
     "Cargo.toml": "439237dfa99f243dbe8d31edbccca79f0b57afb414ba2b7490950c3b17b91dce",
-    "README.md": "08913b861543c6dfa7bdc249f14346c928518b9c3496b6b41a3ec42ca3f58f9b",
-    "docs/conformance-map.md": "3a7ef34dc81d151fd2208c1eb55c24ccaec26d944967582ec87daab440c19b6c",
-    "docs/decisions.md": "bf3ffdea241d60b7b98bc5b08a3ffb81a69ce10c9cb7c7bd32afc5585a4309fb",
-    "docs/scope.md": "0f4202a05ca8fdcda2a8bd17236c868103feb9d60f0c421736bddad6f3ee28d2",
+    "README.md": "1c91e77d294ee4d08a70cfeab472c4620987fec8ec2161646470b2589f50eac2",
+    "docs/conformance-map.md": "da57150438a990221b0f32c178b12517ca1637ddfbe707981ed3a8cad488471d",
+    "docs/decisions.md": "1ba0e680afa274e8ab24bc5e5eb29ab561f6b3dbf8ad98412fe4a081d6c27d55",
+    "docs/scope.md": "0457b036dedd6b62b8a5998a6b8a323a8122384813f234ac20383778338186f3",
     "flake.lock": "859b34962b11f1e85bdb97add8c34f37a74262cb689ff78a9501a0b7d067eb13",
     "flake.nix": "db3d0e22fd444ed2ecf666ad3b3de447334c265cadb5475eae4f84c762b0f2ee",
     "migrations/0001-core.sql": "857e69cfe049b230f3441f9b547e8ed3ee0fd65d6ec0b7f58893be097ecbba89",
     "migrations/0002-local-service.sql": "12895278c7c36936bd9435b390d6e555715c1f9aa4072060be51af790f2c394d",
-    "migrations/0003-reconciliation.sql": "61915672920c537bf6ae66e9cb8822d9c426c66a93a69bf962cf4efa859a03e4",
+    "migrations/0003-reconciliation.sql": "f8c3b0f7b6d37f706ff37ce2fef1968ef0d0cff39903d893a4e4861af3a9739f",
     "spec-lock.json": "7a65f0e88a21b9861dc7735a5a505f0be66098a996bfbfe28009266372561370",
     "src/api/funding.rs": "d23ce028d63d8038ba4bac399e099e252d453b3b181c7fe94aee4450acdad68f",
-    "src/api/mod.rs": "5779a61e02578363fda7e714030bbec61938f7011b85aca8d9f59045ab9c21fd",
-    "src/api/operator.rs": "34e8734f74bf46208ab791778ab1812b8027e56143e3f47e28843ebdded89b47",
+    "src/api/mod.rs": "0ac5e5e36751161fa84ebc0e80bb4772c9818e5a596cfda2337c7cc3fe7f2cb8",
+    "src/api/operator.rs": "f1d59df489125ef8b8b800a063c097a177ca6c46e09b6f3aceac9dc9c7170759",
     "src/auth.rs": "3b4b8a8337f41c5d12f2ae5a4b7365008b898d4dec3cfafa4a62149f369eb9ef",
     "src/bin/api.rs": "22e64e47901fdc6786202c25c164bdd7053cbfdb2b2649c3306f570dfadc7dc0",
     "src/bin/engine.rs": "09afd4eeac8c1d369ba1046ae9be335ed891d47c02bf5db30e52e9e82a7da0b7",
     "src/bin/migrate.rs": "86cf838f72854c7af2fa34cc28eb7a94634052e88594d84fc5724545fcad9c7f",
     "src/engine.rs": "f3e688d3871944aaecfe5856ed7524aa29264e9e23a47331edf3d0679270da32",
     "src/engine/deletion.rs": "4a83b9ea492949aebd4bb041f7080b2755a4c96a2293f69cc5851e86738a7d3a",
-    "src/engine/dispatch.rs": "4900440e8943cc5fd279536aecf20d6d1816514543cadb2aca011ca916855d98",
-    "src/engine/reconciliation.rs": "9cc4941725a01dbc9e26caf7aff2dcd81ab2fb48591ffe3e225fac9dbdc852c3",
+    "src/engine/dispatch.rs": "bf27d0083e4efcd523b12f83476bd3660bd81fd6872962ffe434311c3253efe4",
+    "src/engine/reconciliation.rs": "89eabd715ed7c564239774ac45b7c1aba77e7fa00b3dbe09f5cab166298249a6",
     "src/entry.rs": "0ae44900f726f81ace6a4f6c8b1cca5ed028e6ca85c7ba3a7cd0171c1c78e7a7",
     "src/http.rs": "5431cf1682b1feb02ce5e127e523a9cbcaee79bd22a9a1694c01b135e363667f",
     "src/ledger.rs": "ef8a0cf1bb7ca63fcb6aee54240694ad22f1426ce57bc8db06cf908b44c64af6",
@@ -2175,7 +2201,7 @@
     "src/store/migration.rs": "b9d309b77d06cc60582be6517846f36beabb5678cfcf3baea02acfe5506b4c30",
     "src/store/mod.rs": "27b21901a58ef087306b4d1311bbb4df19aacbb503028936268f0be476d20b02",
     "src/store/process.rs": "88604efc765fd9138e7f9bb674cf627cf30f98942c038e8b7eb962ae38f6c4ee",
-    "src/store/reconciliation.rs": "cdd930226bbbdb699681811db40c01e986f6445891bbfe4deca7846e191d388c",
+    "src/store/reconciliation.rs": "c545d209f27ba9a8ca0e9a14ffa8b6fb5bc33169e36e5491e48923770d84707a",
     "src/store/transport.rs": "9b364e704ab09744fa5aaa75373d5e3d01c625d3842defc565c0d1c37fa36e88",
     "src/wire.rs": "d653bcd39eac3057b1978e8b18675119a1a5f6654d9d06979d1928ba2ad92a12",
     "tests/entry_points.rs": "667993b20f87bd29525ba768c8e7791e4d2091cd5ec9ccd748fbc0d3bb70cc1a",
@@ -2190,7 +2216,7 @@
     "tests/postgres/provider_client.rs": "559418b43b5476e681a52c3e2eb0b1c99d5b2145734c7bacadc18c1b5da3c72f",
     "tests/postgres/proxy.py": "9b41ad8662e87cfd63634256cbe6b82b2019d14171ac7a49f5415bea71f97f64",
     "tests/postgres/scenarios.py": "07a9531c2d80b234d7df1bcd8f340c15d5e7bd68039d0928f9f4f342ed5def95",
-    "tests/postgres/simulator.py": "b3b95496dedc5412e6369a596855be38cba5c1e2f138d6b3818276a0d7118f0c",
+    "tests/postgres/simulator.py": "70e18291563f81d94786f4af4fd11a2f705434dfe2c2db43b233bba8b852628b",
     "tests/postgres/test_ports.py": "509878cf1dd9281e745f125d940e72992690f7472c0bb6cddb8814afe70ca3ce",
     "tests/postgres/test_trace.py": "135c6dbf6b412e7f5d7e895c2231b5eb4fdf0dc77b02663bab7c6ead4eca8af2",
     "tests/postgres/test_w5_inventory.py": "2776332cb52f9a3f76d70cff4cf6cedcbedbadb3f26a808b227bb7479b0c9a8a",
@@ -2200,7 +2226,7 @@
     "tests/postgres/w4_observation.py": "b1867bead9a477a013f32c0d3c22404f6f46d50e6de5d3b7448a53e7c0dedcf1",
     "tests/postgres/w4_preflight.py": "9b4f377a2419a412f67d416557f7594246966e42d4ec8a8d34566fe592ac4a49",
     "tests/postgres/w4_publication.py": "80015c4820dbc7b8d72c153a5a48d133e6a0e0057af305e9c1a5ce9cae9b4e75",
-    "tests/postgres/w4_read_deadline.py": "426d62b9f4398d333cf9c0521eae6263c4b74583665d99c7095a23290693f6c2",
+    "tests/postgres/w4_read_deadline.py": "99fe62b98f69320e9917e18bed1a6ee1a02a69636b84d4e009f7ad85585fe407",
     "tests/postgres/w4_regressions.py": "04681de406350231ad5c7794e2013f2c038200a9710141043dbc4b9058bc08ef",
     "tests/postgres/w4_retention.py": "238c0b9b52a40054bc5fbe0d85a5baf001f6001bf1f38e41d5c97d11cc2c24a2",
     "tests/postgres/w4_retention_scale.py": "83c0532ad67a65e82be94df7a0845488f9cd17a0fad386c7674c2b3137bb101d",
@@ -2210,21 +2236,22 @@
     "tests/postgres/w5_accounting.py": "7e391b59facd02dd4e691b044ab4dd7614e2f6d08fc539bb797d253a63e3f87e",
     "tests/postgres/w5_baseline.py": "69d90ebf96204d7545cbd7775d34ffa58aec598667f536ae94d39d10d33c8d92",
     "tests/postgres/w5_release_control.py": "adc2a25a3d3e7ef5e8f6cf03305706f04adb0371f99de56f2432ed65aedf6708",
-    "tests/postgres/w6.py": "e7b66a386e65649045007bd11fda53508d5f522d9e0e979e650fe7ae35d11b4d",
+    "tests/postgres/w6.py": "4bac5ad8d55a9b01959e633e92c29b796b1c1b409820047225ecd1a19b5124d9",
+    "tests/postgres/w6_continuation.py": "d0fc2b5c83ebdf8a7e0c648389916dd08efefc7be7e2efd52b0d7d0e0b0cb581",
     "tests/postgres/w6_edges.py": "69a19744d9d200791e1b636e3cf7603209ce5e179319008cf2e1e48226838fff",
     "tests/postgres/w6_exact.py": "28db3aeef367261cf99a0e7c81c139b68a4012e350702e4a0907bf11e268ba43",
     "tests/postgres/w6_gone_reply.py": "9b03a5c2627b2f2bceffebf7466dc7abf0ea9da249516f06f329d61697b6fe56",
-    "tests/postgres/w6_repairs.py": "a29739802c296ceec0016888e19bf9779c21d7294999721f3f5459d8b22011b0",
+    "tests/postgres/w6_repairs.py": "fe076cdc328a4bafb4cca2521967dea252a1fee46422903a38112177ecf7b715",
     "tests/postgres/workflow.py": "ea729d1b0eeeae5228ac7c558d64fbe9d38ee49e13d192251704a6820ba40eb1",
     "tests/support/pause.py": "12d95b008fb86fd73513bb513a4ecefea0598d0d0ea5a377b48664fefa4700e8",
     "tools/check.sh": "eb6fc0f8f3386de84a0abddba2585ec64617117f8bdc460a4e92f4bc20cd7200",
     "tools/postgres.sh": "7f2256c81544d8151d5820671bae2102781bf44ecb4f582fead975a93bc5dc4b"
   },
   "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-  "tested_source_sha256": "b56f68a858f13fbdfb37236963b557130e89ac184f64abde37dc4a59a0985b05",
+  "tested_source_sha256": "b4bbc5b114b1978a5fc36ff169326174d5270aa70fd063fef03162d36f54382d",
   "trace": {
-    "path": "<run-dir>/w6-to9ew_4j/events.jsonl",
-    "sha256": "b94058ef8c8bbd98bc3bb63c0e7194893b5dfa198845e202e9ba4da87e8ec864"
+    "path": "<run-dir>/w6-v4r5h782/events.jsonl",
+    "sha256": "710cc4aaa7a8ddaea2d6bccd54322e5a2fb0836547872e38db9e0025acc869c7"
   },
   "versions": {
     "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",
