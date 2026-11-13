@@ -101,8 +101,12 @@ def retained_state(w):
 
 def retained_replay(w):
     """API-7/10/11/12/38, WIR-3/35, STO-14/25/33/35, DOM-21."""
-    from w6 import lost,operator,one_purchase
+    from w6 import lost,operator,one_purchase,eligible
     t,_,op,hold=lost(w,'retained-operator',search='incomplete')
+    # Prior canonical scenarios can legitimately widen this account's observed
+    # visibility. Use the existing disclosed per-operation age control before
+    # requiring a real automatic attempt; never shorten its runtime window.
+    eligible(w,op)
     w.start_engine();hold.unlink()
     eventually(lambda:any(e.get('event')=='resolution_search' and e.get('operation')==op for e in events(w.engine)))
     w.stop_engine()
