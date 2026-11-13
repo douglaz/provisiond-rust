@@ -4,13 +4,14 @@ use super::{CommitOutcome, Store};
 use anyhow::{Context, Result, ensure};
 use serde_json::json;
 
-pub const SCHEMA_VERSION: i64 = 3;
-pub const SEMANTIC_VERSION: i64 = 3;
+pub const SCHEMA_VERSION: i64 = 4;
+pub const SEMANTIC_VERSION: i64 = 4;
 pub(crate) const MIGRATION_LOCK: i64 = 0x5052_4f56_4d49_4752;
 pub(crate) const STARTUP_LOCK: i64 = 0x5052_4f56_5354_4152;
 const CORE: &str = include_str!("../../migrations/0001-core.sql");
 const SERVICE: &str = include_str!("../../migrations/0002-local-service.sql");
 const RECONCILIATION: &str = include_str!("../../migrations/0003-reconciliation.sql");
+const RECOVERY: &str = include_str!("../../migrations/0004-recovery.sql");
 
 /// OVR-19: migrator inputs, not settled production defaults.
 pub struct MigrationOptions {
@@ -45,7 +46,7 @@ impl Store {
                 // STO-12: one complete migration program and its history row per
                 // acknowledged transaction, including on a fresh database.
                 let version=history.len() as i64+1;
-                tx.batch(match version {1=>CORE,2=>SERVICE,3=>RECONCILIATION,_=>unreachable!()}).await?;
+                tx.batch(match version {1=>CORE,2=>SERVICE,3=>RECONCILIATION,4=>RECOVERY,_=>unreachable!()}).await?;
                 if super::test_defect("migration_failure") {tx.batch("SELECT 1/0 /* interrupted migration fixture */").await?;}
                 tx.rows("INSERT INTO provisiond.schema_migrations(version,semantics) VALUES($1,$1) RETURNING version",&[&version]).await?;
                 anyhow::Ok(Some(version))
@@ -98,7 +99,7 @@ impl Store {
             "missing/uninitialized schema"
         );
         let version=session.scalar("SELECT COALESCE(json_agg(json_build_array(version,semantics) ORDER BY version)::text,'[]') FROM provisiond.schema_migrations").await?;
-        let expected = json!([[1, 1], [2, 2], [SCHEMA_VERSION, SEMANTIC_VERSION]]);
+        let expected = json!((1..=SCHEMA_VERSION).map(|v| [v, v]).collect::<Vec<_>>());
         ensure!(
             serde_json::from_str::<serde_json::Value>(&version)? == expected,
             "unsupported schema/semantic version: {version}; supports {expected}"

@@ -40,6 +40,7 @@ mod tests {
 }
 
 pub mod pricing;
+pub mod recovery;
 
 mod auth;
 mod http;

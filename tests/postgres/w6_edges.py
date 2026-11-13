@@ -194,7 +194,7 @@ def default_hooks(w):
         effect=h.root/'provider/hold-before-effect';effect.touch();paths.append(effect)
         w.provider_control(mode='normal');p=w.start_engine()
         eventually(lambda:any(e['stage']=='effect_held' for e in w.external()['events'] if e.get('command')==op))
-        w.stop_engine();h.sql(f"INSERT INTO provisiond.recovery_incidents(id,closed_at) VALUES('{uuid.uuid4()}',clock_timestamp())")
+        w.stop_engine();h.sql(f"INSERT INTO provisiond.recovery_incidents(legacy,id,closed_at) VALUES(true,'{uuid.uuid4()}',clock_timestamp())")
         p=w.start_engine()
         assert events(p,'restart_pass_complete')[-1]['running_found']==1
         assert w.status(op)=='needs_reconciliation'
