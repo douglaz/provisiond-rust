@@ -511,6 +511,14 @@ from w6_repairs import REPAIRS
 CASES.insert(0,'w6_r1')
 CASES.extend(name for name in REPAIRS if name!='w6_r1')
 SCENARIOS.update(REPAIRS)
+from w6_continuation import CONTINUATION
+# The schema-2 fixtures replace only this invocation's schema while stopped.
+# Normal cases run first; each final migration case owns its independent reset.
+CASES.remove('w6_r7')
+CASES.extend(name for name in CONTINUATION if not name.startswith('w6_c2_'))
+CASES.append('w6_r7')
+CASES.extend(name for name in CONTINUATION if name.startswith('w6_c2_'))
+SCENARIOS.update(CONTINUATION)
 
 def w6(h,case=None,defect=None):
     global eventually,http

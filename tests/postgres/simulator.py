@@ -213,6 +213,9 @@ def main():
                 record('read_only',**identity)
                 if body.get('resolution') and proof:
                     search=proof.get('search','normal')
+                    if search=='failed':
+                        record('resolution_search_failed',**identity)
+                        self.reply({'error':{'kind':'network','message':'controlled search failure','retryable':True,'details':{}}});return
                     with lock:found=[r for r in state['orders'].values() if r['account']==body['account'] and r['channel']==body['channel'] and r['correlator']==body['correlator']]
                     if search=='empty':found=[]
                     if search=='wrong':found=[dict(r,correlator='unrelated') for r in found]
