@@ -117,10 +117,10 @@
       "command": [
         "initdb",
         "-D",
-        "<run-dir>/w5-09dj991e/primary",
+        "<run-dir>/w5-yit4axwp/primary",
         "-U",
         "administrator",
-        "--pwfile=<run-dir>/w5-09dj991e/init-password",
+        "--pwfile=<run-dir>/w5-yit4axwp/init-password",
         "--auth=scram-sha-256",
         "--no-locale",
         "--encoding=UTF8"
@@ -132,7 +132,7 @@
         "postgres",
         "--single",
         "-D",
-        "<run-dir>/w5-09dj991e/primary",
+        "<run-dir>/w5-yit4axwp/primary",
         "postgres"
       ],
       "exit_status": 0
@@ -141,7 +141,7 @@
       "command": [
         "postgres",
         "-D",
-        "<run-dir>/w5-09dj991e/primary"
+        "<run-dir>/w5-yit4axwp/primary"
       ],
       "exit_status": 0
     },
@@ -185,7 +185,7 @@
         "-d",
         "host=<address> port=55500 user=replicator dbname=postgres application_name=bootstrap_backup",
         "-D",
-        "<run-dir>/w5-09dj991e/standby",
+        "<run-dir>/w5-yit4axwp/standby",
         "-X",
         "stream",
         "--checkpoint=fast",
@@ -196,7 +196,7 @@
     {
       "command": [
         "pg_verifybackup",
-        "<run-dir>/w5-09dj991e/standby"
+        "<run-dir>/w5-yit4axwp/standby"
       ],
       "exit_status": 0
     },
@@ -204,26 +204,9 @@
       "command": [
         "postgres",
         "-D",
-        "<run-dir>/w5-09dj991e/standby"
+        "<run-dir>/w5-yit4axwp/standby"
       ],
       "exit_status": 0
-    },
-    {
-      "command": [
-        "psql",
-        "-XAt",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "-h",
-        "<address>",
-        "-p",
-        "55501",
-        "-U",
-        "administrator",
-        "-d",
-        "postgres"
-      ],
-      "exit_status": 2
     },
     {
       "command": [
@@ -663,7 +646,7 @@
     },
     {
       "command": [
-        "<run-dir>/w5-09dj991e/target/debug/migrate"
+        "<run-dir>/w5-yit4axwp/target/debug/migrate"
       ],
       "exit_status": 0
     },
@@ -949,6 +932,23 @@
         "<address>",
         "-p",
         "55501",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "<address>",
+        "-p",
+        "55500",
         "-U",
         "administrator",
         "-d",
@@ -1113,7 +1113,7 @@
       "command": [
         "pg_ctl",
         "-D",
-        "<run-dir>/w5-09dj991e/primary",
+        "<run-dir>/w5-yit4axwp/primary",
         "stop",
         "-m",
         "fast",
@@ -1127,7 +1127,7 @@
       "command": [
         "pg_ctl",
         "-D",
-        "<run-dir>/w5-09dj991e/standby",
+        "<run-dir>/w5-yit4axwp/standby",
         "stop",
         "-m",
         "fast",
@@ -1169,7 +1169,7 @@
         "features": [
           "store-test-hooks"
         ],
-        "target_directory": "<run-dir>/w5-09dj991e/target"
+        "target_directory": "<run-dir>/w5-yit4axwp/target"
       },
       "schema_version": 3,
       "semantic_version": 3,
@@ -1255,25 +1255,25 @@
     "workflow": {
       "builds": {
         "api": {
-          "executable": "<run-dir>/w5-09dj991e/target/debug/api",
+          "executable": "<run-dir>/w5-yit4axwp/target/debug/api",
           "features": [
             "store-test-hooks"
           ],
-          "sha256": "eb8ad410a6eb47b1749cd130010196bde3a9b16be0dcd4c2e761d6185e59466b"
+          "sha256": "dfb14844edaee56968ba5334c734ed41ede2aa2ac6c656674452f3f3a05c6357"
         },
         "engine": {
-          "executable": "<run-dir>/w5-09dj991e/target/debug/engine",
+          "executable": "<run-dir>/w5-yit4axwp/target/debug/engine",
           "features": [
             "store-test-hooks"
           ],
-          "sha256": "03dcee1da227ee978a98a010bf2ab10039f63e6e67d55c4cc6fb187f33386769"
+          "sha256": "96f444751a0b670a8cfe350e59256bd6d762d23cff75adcb44920a05322deefd"
         },
         "migrate": {
-          "executable": "<run-dir>/w5-09dj991e/target/debug/migrate",
+          "executable": "<run-dir>/w5-yit4axwp/target/debug/migrate",
           "features": [
             "store-test-hooks"
           ],
-          "sha256": "925b4f22da6fdaa0ba57e153546baa9ecae947a4d54d8462c58122a6075b0534"
+          "sha256": "b8cfa5f89aeb42c7faa9e7082c963393d660db166fc824ad8d869419e27408bb"
         }
       },
       "descriptor": {
@@ -1377,7 +1377,7 @@
         "haircut_bps": 0,
         "margin_bps": 1000,
         "minor_scale": 2,
-        "observed_at": "2026-11-13T09:37:15Z",
+        "observed_at": "2026-11-13T11:03:43Z",
         "rate_den": 1,
         "rate_num": 10,
         "source": "simulator-fixed-rational"
@@ -1387,7 +1387,7 @@
       ]
     }
   },
-  "configuration_sha256": "620ecafca50a89c335bc94b34d8077724ea5d35187c29869653b6e8162c3d02d",
+  "configuration_sha256": "8af890e52128a0c5266c27bc25ae580487d22f453bb0f6a4140f6c4ed2c04c1b",
   "event_selection": {
     "basis": "consequential manifests; private full trace hashes retained",
     "omitted_event_types": [
@@ -1417,7 +1417,7 @@
             "features": [
               "store-test-hooks"
             ],
-            "target_directory": "<run-dir>/w5-09dj991e/target"
+            "target_directory": "<run-dir>/w5-yit4axwp/target"
           },
           "schema_version": 3,
           "semantic_version": 3,
@@ -1466,16 +1466,16 @@
         "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
         "wal_level": "replica"
       },
-      "configuration_sha256": "e5e16190813c0811ddf6b5c8b4c185283d9079935ba76cd1a78be66a6628bc89",
-      "elapsed": 0.0003716240171343088,
+      "configuration_sha256": "609689ec288c2d274e016efaa5f489afeb22b0b890f6ac9a977bb7695ec70c23",
+      "elapsed": 0.0004228579346090555,
       "event": "invocation",
       "phase": "w5",
       "seed": 20261112,
       "specification": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-      "timestamp": 1794562615.006359
+      "timestamp": 1794567803.5240257
     },
     {
-      "elapsed": 0.08721538702957332,
+      "elapsed": 0.08470767783001065,
       "event": "allocation_reserved",
       "ports": [
         55500,
@@ -1489,63 +1489,63 @@
         55508,
         55509
       ],
-      "timestamp": 1794562615.0932028
+      "timestamp": 1794567803.6083102
     },
     {
       "bootstrap_readiness_seconds": 60,
-      "elapsed": 1.2308845620136708,
+      "elapsed": 1.1652084779925644,
       "event": "server_started",
       "node": "primary",
-      "pid": 872697,
+      "pid": 1500676,
       "port": 55500,
-      "readiness_elapsed_seconds": 0.07035004789941013,
-      "timestamp": 1794562616.2368724
+      "readiness_elapsed_seconds": 0.0667719729244709,
+      "timestamp": 1794567804.6888113
     },
     {
       "application_name": "bootstrap_backup",
       "command_bound_seconds": 180,
       "destination": "standby",
-      "elapsed": 1.230939154047519,
+      "elapsed": 1.165276784915477,
       "event": "backup_requested",
-      "timestamp": 1794562616.236927,
+      "timestamp": 1794567804.68888,
       "wal_mode": "stream"
     },
     {
-      "elapsed": 1.923233793117106,
+      "elapsed": 1.8060384429991245,
       "event": "backup_provenance_retained",
-      "path": "<run-dir>/w5-09dj991e/standby-backup-manifest.json",
-      "sha256": "236b05ae6fa07e4e91fbe159ff291d5f6c18356b0d08e695bfdebeaf6b9eb49c",
-      "timestamp": 1794562616.9292214
+      "path": "<run-dir>/w5-yit4axwp/standby-backup-manifest.json",
+      "sha256": "570cad724fbd9ba3b6b2303424f8ae8400985307f7616ce6a39433a93528ce06",
+      "timestamp": 1794567805.3296416
     },
     {
       "destination": "standby",
-      "elapsed": 1.9233996719121933,
-      "elapsed_seconds": 0.6924606279935688,
+      "elapsed": 1.8062489049043506,
+      "elapsed_seconds": 0.6409718689974397,
       "event": "backup_complete",
-      "timestamp": 1794562616.9293876,
+      "timestamp": 1794567805.3298519,
       "verified": true
     },
     {
       "bootstrap_readiness_seconds": 60,
-      "elapsed": 2.4900050449650735,
+      "elapsed": 2.3176587549969554,
       "event": "server_started",
       "node": "standby",
-      "pid": 872792,
+      "pid": 1500724,
       "port": 55501,
-      "readiness_elapsed_seconds": 0.5574470551218837,
-      "timestamp": 1794562617.495993
+      "readiness_elapsed_seconds": 0.5019357819110155,
+      "timestamp": 1794567805.8412619
     },
     {
       "authenticated_role": "replicator",
-      "elapsed": 2.67953545297496,
+      "elapsed": 2.497688944917172,
       "event": "identity_catchup",
       "primary_checkpoint": "1|0/2000028",
       "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials",
       "sampled_primary_flush": "0/3003A90",
       "standby_checkpoint": "1|0/2000028",
-      "standby_system_identifier": "7707587743250972851",
-      "system_identifier": "7707587743250972851",
-      "timestamp": 1794562617.6855233
+      "standby_system_identifier": "7707610027647522278",
+      "system_identifier": "7707610027647522278",
+      "timestamp": 1794567806.0212917
     },
     {
       "configuration": {
@@ -1565,335 +1565,335 @@
         "tcp_keepalives_interval": "1",
         "wal_level": "replica"
       },
-      "elapsed": 2.689592906041071,
+      "elapsed": 2.5073659799527377,
       "event": "effective_configuration_observed",
       "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f",
-      "timestamp": 1794562617.6955807
+      "timestamp": 1794567806.030969
     },
     {
       "backup_name": "bootstrap_backup",
       "bootstrap_role": "initdb administrator; offline replication identity only",
       "designated_name": "provisiond_sync",
-      "elapsed": 2.7372154560871422,
+      "elapsed": 2.5528184669092298,
       "event": "bootstrap_complete",
       "maintenance_mode_exception": false,
-      "timestamp": 1794562617.7432032
+      "timestamp": 1794567806.0764213
     },
     {
       "case": "setup",
       "component": "api",
-      "elapsed": 21.30756240710616,
+      "elapsed": 20.15200004191138,
       "event": "workflow_binary_started",
-      "executable": "<run-dir>/w5-09dj991e/target/debug/api",
+      "executable": "<run-dir>/w5-yit4axwp/target/debug/api",
       "features": [
         "store-test-hooks"
       ],
-      "sha256": "eb8ad410a6eb47b1749cd130010196bde3a9b16be0dcd4c2e761d6185e59466b",
-      "timestamp": 1794562636.3135495
+      "sha256": "dfb14844edaee56968ba5334c734ed41ede2aa2ac6c656674452f3f3a05c6357",
+      "timestamp": 1794567823.6756024
     },
     {
       "boundary": "provider reads and retained evidence before next store unit",
-      "elapsed": 21.408559231087565,
+      "elapsed": 20.253138599917293,
       "event": "historical_resolution_barrier_requested",
       "scenario": "w5_accounting_failure_run",
-      "timestamp": 1794562636.414547
+      "timestamp": 1794567823.7767413
     },
     {
       "authenticated_role": "replicator",
-      "elapsed": 21.77270657895133,
+      "elapsed": 20.623042705934495,
       "event": "identity_catchup",
       "primary_checkpoint": "1|0/2000028",
       "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials",
-      "sampled_primary_flush": "0/31ABC68",
+      "sampled_primary_flush": "0/31AC200",
       "standby_checkpoint": "1|0/2000028",
-      "standby_system_identifier": "7707587743250972851",
-      "system_identifier": "7707587743250972851",
-      "timestamp": 1794562636.7786942
+      "standby_system_identifier": "7707610027647522278",
+      "system_identifier": "7707610027647522278",
+      "timestamp": 1794567824.1466458
     },
     {
       "component": "engine-observer-failure",
       "designated": [
         {
           "address": "<redacted-12ca17b49af22894>",
-          "flush": "0/31ABC68",
+          "flush": "0/31AC200",
           "name": "provisiond_sync",
-          "pid": 872859,
+          "pid": 1500756,
           "role": "replicator",
           "state": "streaming",
           "sync_state": "sync"
         }
       ],
-      "elapsed": 21.801007620058954,
+      "elapsed": 20.64946881495416,
       "event": "w5_healthy_before_fault",
-      "target": "0/31ABC68",
-      "timestamp": 1794562636.8069952
+      "target": "0/31AC200",
+      "timestamp": 1794567824.1730716
     },
     {
       "direction": "send",
-      "elapsed": 21.80110771697946,
+      "elapsed": 20.649553852854297,
       "event": "fault_requested",
       "fault": "transport_gate",
       "pattern": "SET status=$3,result=",
-      "timestamp": 1794562636.8070955
+      "timestamp": 1794567824.173157
     },
     {
       "case": "w5_accounting_failure_run",
       "component": "engine",
-      "elapsed": 21.855665989918634,
+      "elapsed": 20.702041097916663,
       "event": "workflow_binary_started",
-      "executable": "<run-dir>/w5-09dj991e/target/debug/engine",
+      "executable": "<run-dir>/w5-yit4axwp/target/debug/engine",
       "features": [
         "store-test-hooks"
       ],
-      "sha256": "03dcee1da227ee978a98a010bf2ab10039f63e6e67d55c4cc6fb187f33386769",
-      "timestamp": 1794562636.8616533
+      "sha256": "96f444751a0b670a8cfe350e59256bd6d762d23cff75adcb44920a05322deefd",
+      "timestamp": 1794567824.2256436
     },
     {
       "direction": "send",
-      "elapsed": 22.345183039084077,
+      "elapsed": 21.201993571827188,
       "event": "fault_activated",
       "fault": "transport_gate",
-      "session": 876727,
+      "session": 1503306,
       "statement_kind": "fixture statement",
-      "timestamp": 1794562637.3511708
+      "timestamp": 1794567824.7255967
     },
     {
       "direction": "commit_reply",
-      "elapsed": 22.39700548001565,
+      "elapsed": 21.253424427006394,
       "event": "fault_requested",
       "fault": "transport_gate",
       "pattern": "store COMMIT",
-      "timestamp": 1794562637.4029932
+      "timestamp": 1794567824.7770274
     },
     {
       "direction": "send",
-      "elapsed": 22.397122618043795,
+      "elapsed": 21.253521288046613,
       "event": "fault_requested",
       "fault": "transport_gate",
       "pattern": "store COMMIT",
-      "timestamp": 1794562637.4031105
+      "timestamp": 1794567824.7771244
     },
     {
       "activated": true,
       "direction": "send",
-      "elapsed": 22.397170668002218,
+      "elapsed": 21.253552906913683,
       "event": "fault_released",
       "fault": "transport_gate",
       "pattern": "SET status=$3,result=",
-      "timestamp": 1794562637.4031584
+      "timestamp": 1794567824.777156
     },
     {
       "direction": "send",
-      "elapsed": 22.420591589063406,
+      "elapsed": 21.273934532888234,
       "event": "fault_activated",
       "fault": "transport_gate",
-      "session": 876727,
+      "session": 1503306,
       "statement_kind": "COMMIT",
-      "timestamp": 1794562637.4265795
+      "timestamp": 1794567824.7975376
     },
     {
-      "elapsed": 22.42976421304047,
+      "elapsed": 21.283004116034135,
       "event": "fault_requested",
       "fault": "standby_receiver_pause",
-      "pid": 872858,
-      "timestamp": 1794562637.435752
+      "pid": 1500755,
+      "timestamp": 1794567824.806607
     },
     {
-      "elapsed": 22.429856705013663,
+      "elapsed": 21.28311759699136,
       "event": "fault_activated",
       "fault": "standby_receiver_pause",
-      "pid": 872858,
-      "timestamp": 1794562637.4358447
+      "pid": 1500755,
+      "timestamp": 1794567824.8067207
     },
     {
       "activated": true,
       "direction": "send",
-      "elapsed": 22.429886461002752,
+      "elapsed": 21.283155428012833,
       "event": "fault_released",
       "fault": "transport_gate",
       "pattern": "store COMMIT",
-      "timestamp": 1794562637.4358742
+      "timestamp": 1794567824.8067586
     },
     {
-      "elapsed": 22.543887684121728,
+      "elapsed": 21.3981661030557,
       "event": "w5_observer_failure_prerequisite",
       "matching_samples": [],
-      "observer_session": 876709,
-      "operation": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
+      "observer_session": 1503299,
+      "operation": "2004ed46-bf17-4220-98db-237f1d7a5408",
       "owner": 18,
       "settlement": {
-        "backend_start": "2026-11-13 09:37:17.148648+00",
-        "pid": 876727,
+        "backend_start": "2026-11-13 11:03:44.449768+00",
+        "pid": 1503306,
         "query": "COMMIT /* store COMMIT */",
         "state": "active",
         "wait_event": "SyncRep",
         "wait_event_type": "IPC"
       },
-      "timestamp": 1794562637.5498753
+      "timestamp": 1794567824.9217691
     },
     {
-      "elapsed": 22.55364582897164,
+      "elapsed": 21.406609036959708,
       "event": "server_error_forwarded",
-      "session": 876709,
+      "session": 1503299,
       "severity": "FATAL",
       "sqlstate": "57P01",
-      "timestamp": 1794562637.5596337
+      "timestamp": 1794567824.9302118
     },
     {
       "closure": {
         "after": {
           "exempt_us": 0,
-          "first_received_us": 442592,
-          "last_sent_us": 541389
+          "first_received_us": 442253,
+          "last_sent_us": 541832
         },
-        "backend_start": "2026-11-13 09:37:17.148648+00",
+        "backend_start": "2026-11-13 11:03:44.449768+00",
         "before": {
           "exempt_us": 0,
-          "first_received_us": 442592,
-          "last_sent_us": 541389
+          "first_received_us": 442253,
+          "last_sent_us": 541832
         },
         "event": "test_observer_run_closed",
-        "failed_us": 560811,
+        "failed_us": 561563,
         "owner": 18,
         "reason": "observer connection closed",
-        "session": 876727
+        "session": 1503306
       },
-      "elapsed": 22.606442315969616,
+      "elapsed": 21.45960893901065,
       "established_run": true,
       "event": "w5_observer_run_closure_observed",
-      "observer_session": 876709,
-      "operation": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
+      "observer_session": 1503299,
+      "operation": "2004ed46-bf17-4220-98db-237f1d7a5408",
       "owner": 18,
       "real_syncrep": true,
       "run_still_open": true,
-      "timestamp": 1794562637.61243
+      "timestamp": 1794567824.983212
     },
     {
-      "elapsed": 22.606610109098256,
+      "elapsed": 21.45977457705885,
       "event": "fault_released",
       "fault": "standby_receiver_pause",
-      "pid": 872858,
-      "timestamp": 1794562637.612598
+      "pid": 1500755,
+      "timestamp": 1794567824.9833777
     },
     {
       "direction": "commit_reply",
-      "elapsed": 22.61007695295848,
+      "elapsed": 21.478006054880098,
       "event": "fault_activated",
       "fault": "transport_gate",
-      "session": 876727,
+      "session": 1503306,
       "statement_kind": "COMMIT",
-      "timestamp": 1794562637.6160648
+      "timestamp": 1794567825.0016088
     },
     {
       "authenticated_role": "replicator",
-      "elapsed": 22.668942026095465,
+      "elapsed": 21.58004082296975,
       "event": "identity_catchup",
       "primary_checkpoint": "1|0/2000028",
       "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials",
-      "sampled_primary_flush": "0/31AF280",
+      "sampled_primary_flush": "0/31AF800",
       "standby_checkpoint": "1|0/2000028",
-      "standby_system_identifier": "7707587743250972851",
-      "system_identifier": "7707587743250972851",
-      "timestamp": 1794562637.6749299
+      "standby_system_identifier": "7707610027647522278",
+      "system_identifier": "7707610027647522278",
+      "timestamp": 1794567825.103644
     },
     {
       "activated": true,
       "direction": "commit_reply",
-      "elapsed": 22.669021014124155,
+      "elapsed": 21.580092740012333,
       "event": "fault_released",
       "fault": "transport_gate",
       "pattern": "store COMMIT",
-      "timestamp": 1794562637.6750088
+      "timestamp": 1794567825.1036959
     },
     {
-      "elapsed": 22.67119338409975,
+      "elapsed": 21.58171151787974,
       "event": "historical_resolution_barrier_released",
       "scenario": "w5_accounting_failure_run",
-      "timestamp": 1794562637.6771812
+      "timestamp": 1794567825.1053145
     },
     {
       "component": "api",
-      "elapsed": 22.681023043114692,
+      "elapsed": 21.591671630972996,
       "event": "application_trace",
-      "path": "<run-dir>/w5-09dj991e/api-0.stdout",
+      "path": "<run-dir>/w5-yit4axwp/api-0.stdout",
       "private_trace_events": 44,
       "selection": "private full trace hash; consequential events retained by scenario",
-      "sha256": "a60d6bb2ce1a5bebdac5117807903852b12394b3f74c4f743925626489af31da",
-      "timestamp": 1794562637.6870105
+      "sha256": "ced5c4c595b90effe8754761710bd861ecccd2f829ff965f5b510255d7de87d0",
+      "timestamp": 1794567825.1152747
     },
     {
       "component": "engine",
-      "elapsed": 22.681850655935705,
+      "elapsed": 21.59248576988466,
       "event": "application_trace",
-      "path": "<run-dir>/w5-09dj991e/engine-0.stdout",
+      "path": "<run-dir>/w5-yit4axwp/engine-0.stdout",
       "private_trace_events": 105,
       "selection": "private full trace hash; consequential events retained by scenario",
-      "sha256": "55ad62d733c8cafb27dba003050bba58ad1b35f5e7da4049184eb01d07d02912",
-      "timestamp": 1794562637.6878386
+      "sha256": "93918a9d87139c24c468bfac85407ef42c6404eb315b688b9bc1f981d38294f5",
+      "timestamp": 1794567825.1160889
     },
     {
-      "elapsed": 22.682108466979116,
+      "elapsed": 21.592784377047792,
       "event": "independent_simulator_evidence",
       "records": [
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
           "correlator": null,
-          "monotonic_ns": 1175285281595038,
+          "monotonic_ns": 1180472656561337,
           "path": "/offers",
           "resolution": false,
           "sequence": 1,
           "stage": "request_received",
-          "timestamp": 1794562637.1922593
+          "timestamp": 1794567824.567226
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
           "correlator": null,
-          "monotonic_ns": 1175285287870289,
+          "monotonic_ns": 1180472662856035,
           "path": "/offers",
           "resolution": false,
           "sequence": 2,
           "stage": "read_only",
-          "timestamp": 1794562637.1985352
+          "timestamp": 1794567824.5735207
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
-          "correlator": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
-          "monotonic_ns": 1175285317324921,
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
+          "correlator": "2004ed46-bf17-4220-98db-237f1d7a5408",
+          "monotonic_ns": 1180472693773649,
           "path": "/order",
           "resolution": false,
           "sequence": 3,
           "stage": "request_received",
-          "timestamp": 1794562637.2279894
+          "timestamp": 1794567824.6044383
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
-          "correlator": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
-          "monotonic_ns": 1175285323438421,
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
+          "correlator": "2004ed46-bf17-4220-98db-237f1d7a5408",
+          "monotonic_ns": 1180472699785930,
           "path": "/order",
           "resolution": false,
           "sequence": 4,
           "stage": "accepted",
-          "timestamp": 1794562637.234103
+          "timestamp": 1794567824.6104507
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
-          "correlator": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
-          "monotonic_ns": 1175285329686451,
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
+          "correlator": "2004ed46-bf17-4220-98db-237f1d7a5408",
+          "monotonic_ns": 1180472708291150,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-4",
           "sequence": 5,
           "stage": "resource_created",
-          "timestamp": 1794562637.240351,
+          "timestamp": 1794567824.6189559,
           "value": {
             "account": "sim-a",
             "channel": "orders",
-            "correlator": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
+            "correlator": "2004ed46-bf17-4220-98db-237f1d7a5408",
             "external_id": "SIMULATOR-RESOURCE-4",
             "name": "worker-test",
             "present": true,
@@ -1904,188 +1904,188 @@
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
-          "correlator": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
-          "monotonic_ns": 1175285336046871,
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
+          "correlator": "2004ed46-bf17-4220-98db-237f1d7a5408",
+          "monotonic_ns": 1180472714465744,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-4",
           "sequence": 6,
           "stage": "response_returned",
-          "timestamp": 1794562637.2467113
+          "timestamp": 1794567824.6251302
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
-          "correlator": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
-          "monotonic_ns": 1175285356176816,
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
+          "correlator": "2004ed46-bf17-4220-98db-237f1d7a5408",
+          "monotonic_ns": 1180472734015980,
           "path": "/search",
           "resolution": false,
           "sequence": 7,
           "stage": "request_received",
-          "timestamp": 1794562637.2668417
+          "timestamp": 1794567824.6446807
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
-          "correlator": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
-          "monotonic_ns": 1175285362466054,
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
+          "correlator": "2004ed46-bf17-4220-98db-237f1d7a5408",
+          "monotonic_ns": 1180472740165517,
           "path": "/search",
           "resolution": false,
           "sequence": 8,
           "stage": "read_only",
-          "timestamp": 1794562637.2731307
+          "timestamp": 1794567824.6508303
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
           "correlator": null,
-          "monotonic_ns": 1175285378817504,
+          "monotonic_ns": 1180472757746001,
           "path": "/get",
           "resolution": false,
           "sequence": 9,
           "stage": "request_received",
-          "timestamp": 1794562637.2894824
+          "timestamp": 1794567824.6684108
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
           "correlator": null,
-          "monotonic_ns": 1175285387770849,
+          "monotonic_ns": 1180472766391893,
           "path": "/get",
           "resolution": false,
           "sequence": 10,
           "stage": "read_only",
-          "timestamp": 1794562637.2984352
+          "timestamp": 1794567824.6770566
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
           "correlator": null,
-          "monotonic_ns": 1175285396626952,
+          "monotonic_ns": 1180472772634834,
           "path": "/get",
           "resolution": false,
           "sequence": 11,
           "stage": "read_response_returned",
-          "timestamp": 1794562637.3072917
+          "timestamp": 1794567824.6832998
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
           "correlator": null,
-          "monotonic_ns": 1175285416453431,
+          "monotonic_ns": 1180472792076919,
           "path": "/constraints",
           "resolution": false,
           "sequence": 12,
           "stage": "request_received",
-          "timestamp": 1794562637.3271184
+          "timestamp": 1794567824.7027419
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
           "correlator": null,
-          "monotonic_ns": 1175285422666096,
+          "monotonic_ns": 1180472798125849,
           "path": "/constraints",
           "resolution": false,
           "sequence": 13,
           "stage": "read_only",
-          "timestamp": 1794562637.3333304
+          "timestamp": 1794567824.7087908
         },
         {
           "account": "sim-a",
-          "command": "bf42471c-2f8b-48a9-bc40-f197e2d70e32",
+          "command": "2004ed46-bf17-4220-98db-237f1d7a5408",
           "correlator": null,
-          "monotonic_ns": 1175285431711092,
+          "monotonic_ns": 1180472806750972,
           "path": "/constraints",
           "resolution": false,
           "sequence": 14,
           "stage": "read_response_returned",
-          "timestamp": 1794562637.342376
+          "timestamp": 1794567824.7174156
         }
       ],
-      "sha256": "bd656fe37b22aab7529ff031ab6c2062779e8c2b62f65ae40e492faa4a6a9d12",
+      "sha256": "f20bc2dee439d53f821c82c72be7b966961a2f79426812242245047c9ec8c3ff",
       "simulator_kind": "provider",
-      "timestamp": 1794562637.6880963
+      "timestamp": 1794567825.1163874
     },
     {
-      "elapsed": 22.682237928034738,
+      "elapsed": 21.592897086869925,
       "event": "independent_simulator_evidence",
       "records": [
         {
-          "monotonic_ns": 1175284659942842,
+          "monotonic_ns": 1180472027438724,
           "sequence": 1,
           "stage": "rail_observation",
-          "timestamp": 1794562636.5706077,
+          "timestamp": 1794567823.9381034,
           "value": {
             "amount_sats": 115,
-            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/b266dfa3-c7fa-45d5-85f7-1c74a1610c4d/EXPIRES/1794566236",
-            "payment_hash": "36377c8f45e35a6a05f62554eece879a7e8f2f0a38e2c91bd3f60c192896abd6",
+            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/29add03c-4e0d-432f-b5a0-00eeae2c3625/EXPIRES/1794571423",
+            "payment_hash": "de7f2f13af1bc3eb47dc9b416a177337003c0ae4ab4ab9fa257b37263ce9b40f",
             "preimage_known": true,
             "rail": "lightning",
             "settled": true,
-            "settled_at": "2026-11-13T09:37:16Z"
+            "settled_at": "2026-11-13T11:03:43Z"
           }
         }
       ],
-      "sha256": "06e6dfcfba459180d0597aea7a5ae5535f0906319d5b88bdc5bd1686afe9375d",
+      "sha256": "7a11d30df8a8c810582ce29ce79d930b1856de1e01f317e0d1ffb017538a2373",
       "simulator_kind": "rail",
-      "timestamp": 1794562637.6882257
+      "timestamp": 1794567825.1165001
     },
     {
       "count": 4,
-      "elapsed": 22.68227846408263,
+      "elapsed": 21.592928835889325,
       "event": "workflow_children_reaped",
-      "timestamp": 1794562637.6882663
+      "timestamp": 1794567825.1165318
     },
     {
-      "elapsed": 22.682326934067532,
+      "elapsed": 21.59298066305928,
       "event": "failure",
       "message": "OPS-49 observer failure must close an established SyncRep sample run",
-      "timestamp": 1794562637.688315,
+      "timestamp": 1794567825.1165836,
       "type": "AssertionError"
     },
     {
       "cancel_requests": 0,
-      "elapsed": 22.767062827013433,
+      "elapsed": 21.614956291858107,
       "event": "proxy_cleanup",
-      "timestamp": 1794562637.7730503
+      "timestamp": 1794567825.1385586
     },
     {
-      "elapsed": 23.36908797500655,
+      "elapsed": 22.116906960960478,
       "event": "server_stopped",
       "exit_status": 0,
       "mode": "fast",
       "node": "primary",
-      "timestamp": 1794562638.3750756
+      "timestamp": 1794567825.6405098
     },
     {
-      "elapsed": 23.570617027115077,
+      "elapsed": 22.31839360203594,
       "event": "server_stopped",
       "exit_status": 0,
       "mode": "fast",
       "node": "standby",
-      "timestamp": 1794562638.5766044
+      "timestamp": 1794567825.8419962
     },
     {
-      "elapsed": 23.60548004391603,
+      "elapsed": 22.3494370598346,
       "event": "cleanup_removed",
-      "path": "<run-dir>/w5-09dj991e/primary",
-      "timestamp": 1794562638.6114676
+      "path": "<run-dir>/w5-yit4axwp/primary",
+      "timestamp": 1794567825.8730397
     },
     {
-      "elapsed": 23.63154125912115,
+      "elapsed": 22.3737153429538,
       "event": "cleanup_removed",
-      "path": "<run-dir>/w5-09dj991e/standby",
-      "timestamp": 1794562638.637529
+      "path": "<run-dir>/w5-yit4axwp/standby",
+      "timestamp": 1794567825.8973181
     },
     {
-      "elapsed": 23.75858647399582,
+      "elapsed": 22.495583505835384,
       "event": "cleanup_removed",
-      "path": "<run-dir>/w5-09dj991e/target",
-      "timestamp": 1794562638.764574
+      "path": "<run-dir>/w5-yit4axwp/target",
+      "timestamp": 1794567826.0191865
     },
     {
-      "elapsed": 23.75879018404521,
+      "elapsed": 22.495768911903724,
       "event": "allocation_released",
       "ports": [
         55500,
@@ -2099,19 +2099,19 @@
         55508,
         55509
       ],
-      "timestamp": 1794562638.7647777
+      "timestamp": 1794567826.0193717
     },
     {
-      "elapsed": 23.758830059086904,
+      "elapsed": 22.495806250954047,
       "errors": [],
       "event": "cleanup_complete",
-      "raw_evidence": "<run-dir>/w5-09dj991e",
+      "raw_evidence": "<run-dir>/w5-yit4axwp",
       "result": "pass",
-      "timestamp": 1794562638.764818
+      "timestamp": 1794567826.0194094
     }
   ],
   "external_provider_rail_evidence": "not applicable: no external effects",
-  "implementation_commit": "a063df0c33f94e1228fb9e393bef93e966fd18cf",
+  "implementation_commit": "813c7130ab1c9f2b3ec752004b1847333a443441",
   "intended_assertion": "OPS-49 observer failure must close an established SyncRep sample run",
   "limitations": [
     "local processes only; no separate-host durability or fencing proof",
@@ -2119,7 +2119,7 @@
     "DB-10 full saturation: not run (W8)"
   ],
   "negative_command_exit_status": 1,
-  "raw_evidence": "<run-dir>/w5-09dj991e",
+  "raw_evidence": "<run-dir>/w5-yit4axwp",
   "result": "expected negative demonstration",
   "scenarios": [
     {
@@ -2136,19 +2136,19 @@
     "AGENTS.md": "3d31f1fc55bac309e2fac72b2cbcc67137b3da0353d5e2f39d096bab0e612032",
     "Cargo.lock": "2591f28e7ee8bf70ad19077bf726aeeec58dadac28f53e5510a75841da01b94d",
     "Cargo.toml": "439237dfa99f243dbe8d31edbccca79f0b57afb414ba2b7490950c3b17b91dce",
-    "README.md": "6526007675be02ab41fd9278657248cbaad03b206b624146ec36d2b685bbeec0",
-    "docs/conformance-map.md": "80536bc1f15f7ea17340d249d352b54bbc6298f1abdebccc778dd2c052989f78",
-    "docs/decisions.md": "81d478c5262e74c978f4502c7c675796417fb62a11ceaf3f35e5c6c624afc8dc",
-    "docs/scope.md": "1cbc83dc9438f5959f174270ebbc376bb6b498fca2f680a95c7e9659b393c000",
+    "README.md": "d88146ae5ad7f1e1a77ea13c222263ceca96483d65e30c30e48220ae4dbdc537",
+    "docs/conformance-map.md": "8211f763bc3cf5667863e0735eae04a6bc98789bd93a2c214c0e47996fe6c4ce",
+    "docs/decisions.md": "27bd39f0564f83b61a61655e65ca5c45035283fd33f4dcc4717d1d1d4d59ef13",
+    "docs/scope.md": "b8c5282a4d4b0b8d857a2996ac10e0c8bc84040e3fa13e786d8b06f9bb5fb3cd",
     "flake.lock": "859b34962b11f1e85bdb97add8c34f37a74262cb689ff78a9501a0b7d067eb13",
     "flake.nix": "db3d0e22fd444ed2ecf666ad3b3de447334c265cadb5475eae4f84c762b0f2ee",
     "migrations/0001-core.sql": "857e69cfe049b230f3441f9b547e8ed3ee0fd65d6ec0b7f58893be097ecbba89",
     "migrations/0002-local-service.sql": "12895278c7c36936bd9435b390d6e555715c1f9aa4072060be51af790f2c394d",
-    "migrations/0003-reconciliation.sql": "1c18aebec905922439d6e061e3cdaf6e22d3a1ef63777b92c5053ddfe4d7bb23",
+    "migrations/0003-reconciliation.sql": "1c2a2ad0105f8923b5e122e6e5f9cd63af055efb3892fd51173f1d14eaa5434f",
     "spec-lock.json": "7a65f0e88a21b9861dc7735a5a505f0be66098a996bfbfe28009266372561370",
     "src/api/funding.rs": "d23ce028d63d8038ba4bac399e099e252d453b3b181c7fe94aee4450acdad68f",
-    "src/api/mod.rs": "e0200412736bfa1a768feceff056b449b86015ee72c5e14331b630bc10169f7b",
-    "src/api/operator.rs": "f4c08e75f1b753569428af53219839f48f3e1f6310cb61e469fdd2c83843d65a",
+    "src/api/mod.rs": "df4b4d9b4012171b6bae4dfa597533b9e0c3bd606a6e85e04e1c9891c074ac3e",
+    "src/api/operator.rs": "ae5ffc3d1958a1426486feac0a4a3528b3d6c5397b864738bbc96f250b40da2f",
     "src/auth.rs": "3b4b8a8337f41c5d12f2ae5a4b7365008b898d4dec3cfafa4a62149f369eb9ef",
     "src/bin/api.rs": "22e64e47901fdc6786202c25c164bdd7053cbfdb2b2649c3306f570dfadc7dc0",
     "src/bin/engine.rs": "09afd4eeac8c1d369ba1046ae9be335ed891d47c02bf5db30e52e9e82a7da0b7",
@@ -2208,25 +2208,26 @@
     "tests/postgres/w5_accounting.py": "7e391b59facd02dd4e691b044ab4dd7614e2f6d08fc539bb797d253a63e3f87e",
     "tests/postgres/w5_baseline.py": "69d90ebf96204d7545cbd7775d34ffa58aec598667f536ae94d39d10d33c8d92",
     "tests/postgres/w5_release_control.py": "adc2a25a3d3e7ef5e8f6cf03305706f04adb0371f99de56f2432ed65aedf6708",
-    "tests/postgres/w6.py": "711ec4bb2620216d455241e1da37f1c7cdb3449c2d04fc6bdff535fb1904edb6",
+    "tests/postgres/w6.py": "5faf6dd8fe4c536179e41ba29d13434a61343733eda6fbc5fed856d6dd4bac8d",
     "tests/postgres/w6_blocking.py": "02801d1a23b7464d548bd7b4b59d50912b0e8245052c46beab7eeda27baf9264",
-    "tests/postgres/w6_blocking_baseline.py": "e2de970d54f298264481bf7474c823f80b64b44e61e077972a3eccef7625efa1",
+    "tests/postgres/w6_blocking_baseline.py": "605807fa46a72f1f4bae6cca82d611143772b5aacda08e5e954754d18b24c576",
     "tests/postgres/w6_continuation.py": "d0fc2b5c83ebdf8a7e0c648389916dd08efefc7be7e2efd52b0d7d0e0b0cb581",
     "tests/postgres/w6_edges.py": "69eb9317a539b803588de190e83757a5e6b159d41e2399fbba9cdb7f64643c8d",
     "tests/postgres/w6_exact.py": "28db3aeef367261cf99a0e7c81c139b68a4012e350702e4a0907bf11e268ba43",
-    "tests/postgres/w6_final_repairs.py": "7ebc8e15eb06e1381e4e025c53b9135a934019a07f29cdf7c88985cf5653cebb",
+    "tests/postgres/w6_final_repairs.py": "bfde23e92d5c8d485b1989199a5f1d3b78b2ad2eeec2f4d20a923d3ee7552ba9",
     "tests/postgres/w6_gone_reply.py": "9b03a5c2627b2f2bceffebf7466dc7abf0ea9da249516f06f329d61697b6fe56",
     "tests/postgres/w6_repairs.py": "fe076cdc328a4bafb4cca2521967dea252a1fee46422903a38112177ecf7b715",
+    "tests/postgres/w6_retired_targets.py": "f69ce84eefce0dbf92a9eeee9a38a739cd32a0ebfb0c413a6cf54745fdc02b9a",
     "tests/postgres/workflow.py": "646e8992b21336f5837b277196a089b9787d1b938de3d83343387ef7c6534888",
     "tests/support/pause.py": "12d95b008fb86fd73513bb513a4ecefea0598d0d0ea5a377b48664fefa4700e8",
     "tools/check.sh": "eb6fc0f8f3386de84a0abddba2585ec64617117f8bdc460a4e92f4bc20cd7200",
     "tools/postgres.sh": "7f2256c81544d8151d5820671bae2102781bf44ecb4f582fead975a93bc5dc4b"
   },
   "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-  "tested_source_sha256": "d956735369015aebb5b94eb4387e3dce485cbdd88400d8cbcc32026951394823",
+  "tested_source_sha256": "2d60f27575deeb213b801b4c85a3bb83d71d15e7c134bd86b817d441ed320ba0",
   "trace": {
-    "path": "<run-dir>/w5-09dj991e/events.jsonl",
-    "sha256": "7fc6aa69facb409fd96e03a020917b85384e029030e3e291d6bc26302ed14a6f"
+    "path": "<run-dir>/w5-yit4axwp/events.jsonl",
+    "sha256": "0c7442242bf93d47115f0453559748a5332dabe8470c270f2247e93765988462"
   },
   "versions": {
     "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",

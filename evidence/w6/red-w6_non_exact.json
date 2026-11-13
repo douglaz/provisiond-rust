@@ -117,10 +117,10 @@
       "command": [
         "initdb",
         "-D",
-        "<run-dir>/w6-nyhux1f2/primary",
+        "<run-dir>/w6-8wc4e3mx/primary",
         "-U",
         "administrator",
-        "--pwfile=<run-dir>/w6-nyhux1f2/init-password",
+        "--pwfile=<run-dir>/w6-8wc4e3mx/init-password",
         "--auth=scram-sha-256",
         "--no-locale",
         "--encoding=UTF8"
@@ -132,7 +132,7 @@
         "postgres",
         "--single",
         "-D",
-        "<run-dir>/w6-nyhux1f2/primary",
+        "<run-dir>/w6-8wc4e3mx/primary",
         "postgres"
       ],
       "exit_status": 0
@@ -141,7 +141,7 @@
       "command": [
         "postgres",
         "-D",
-        "<run-dir>/w6-nyhux1f2/primary"
+        "<run-dir>/w6-8wc4e3mx/primary"
       ],
       "exit_status": 0
     },
@@ -185,7 +185,7 @@
         "-d",
         "host=<address> port=55500 user=replicator dbname=postgres application_name=bootstrap_backup",
         "-D",
-        "<run-dir>/w6-nyhux1f2/standby",
+        "<run-dir>/w6-8wc4e3mx/standby",
         "-X",
         "stream",
         "--checkpoint=fast",
@@ -196,7 +196,7 @@
     {
       "command": [
         "pg_verifybackup",
-        "<run-dir>/w6-nyhux1f2/standby"
+        "<run-dir>/w6-8wc4e3mx/standby"
       ],
       "exit_status": 0
     },
@@ -204,9 +204,43 @@
       "command": [
         "postgres",
         "-D",
-        "<run-dir>/w6-nyhux1f2/standby"
+        "<run-dir>/w6-8wc4e3mx/standby"
       ],
       "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "<address>",
+        "-p",
+        "55501",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "<address>",
+        "-p",
+        "55501",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 2
     },
     {
       "command": [
@@ -663,7 +697,7 @@
     },
     {
       "command": [
-        "<run-dir>/w6-nyhux1f2/target/debug/migrate"
+        "<run-dir>/w6-8wc4e3mx/target/debug/migrate"
       ],
       "exit_status": 0
     },
@@ -858,7 +892,7 @@
       "command": [
         "pg_ctl",
         "-D",
-        "<run-dir>/w6-nyhux1f2/primary",
+        "<run-dir>/w6-8wc4e3mx/primary",
         "stop",
         "-m",
         "fast",
@@ -872,7 +906,7 @@
       "command": [
         "pg_ctl",
         "-D",
-        "<run-dir>/w6-nyhux1f2/standby",
+        "<run-dir>/w6-8wc4e3mx/standby",
         "stop",
         "-m",
         "fast",
@@ -914,7 +948,7 @@
         "features": [
           "store-test-hooks"
         ],
-        "target_directory": "<run-dir>/w6-nyhux1f2/target"
+        "target_directory": "<run-dir>/w6-8wc4e3mx/target"
       },
       "schema_version": 3,
       "semantic_version": 3,
@@ -1007,6 +1041,8 @@
         "w6_f1_null",
         "w6_f1_current",
         "w6_f2",
+        "w6_g1_create",
+        "w6_g1_delete",
         "w6_e2_offers",
         "w6_e2_keys",
         "w6_e2_order",
@@ -1024,25 +1060,25 @@
     "workflow": {
       "builds": {
         "api": {
-          "executable": "<run-dir>/w6-nyhux1f2/target/debug/api",
+          "executable": "<run-dir>/w6-8wc4e3mx/target/debug/api",
           "features": [
             "store-test-hooks"
           ],
-          "sha256": "eb8ad410a6eb47b1749cd130010196bde3a9b16be0dcd4c2e761d6185e59466b"
+          "sha256": "dfb14844edaee56968ba5334c734ed41ede2aa2ac6c656674452f3f3a05c6357"
         },
         "engine": {
-          "executable": "<run-dir>/w6-nyhux1f2/target/debug/engine",
+          "executable": "<run-dir>/w6-8wc4e3mx/target/debug/engine",
           "features": [
             "store-test-hooks"
           ],
-          "sha256": "03dcee1da227ee978a98a010bf2ab10039f63e6e67d55c4cc6fb187f33386769"
+          "sha256": "96f444751a0b670a8cfe350e59256bd6d762d23cff75adcb44920a05322deefd"
         },
         "migrate": {
-          "executable": "<run-dir>/w6-nyhux1f2/target/debug/migrate",
+          "executable": "<run-dir>/w6-8wc4e3mx/target/debug/migrate",
           "features": [
             "store-test-hooks"
           ],
-          "sha256": "925b4f22da6fdaa0ba57e153546baa9ecae947a4d54d8462c58122a6075b0534"
+          "sha256": "b8cfa5f89aeb42c7faa9e7082c963393d660db166fc824ad8d869419e27408bb"
         }
       },
       "descriptor": {
@@ -1146,7 +1182,7 @@
         "haircut_bps": 0,
         "margin_bps": 1000,
         "minor_scale": 2,
-        "observed_at": "2026-11-13T09:36:04Z",
+        "observed_at": "2026-11-13T11:02:32Z",
         "rate_den": 1,
         "rate_num": 10,
         "source": "simulator-fixed-rational"
@@ -1156,7 +1192,7 @@
       ]
     }
   },
-  "configuration_sha256": "62e7fef58da50fb5db3d515ebe07b978b72de032d13052a2b47946a911d759c0",
+  "configuration_sha256": "cd9ec418a65b0336a17ea2014c2c9ffaf741df11b08304d6ec6f291479bb3ba6",
   "event_selection": {
     "basis": "consequential manifests; private full trace hashes retained",
     "omitted_event_types": [
@@ -1167,7 +1203,7 @@
       "protocol_response",
       "transport_closed"
     ],
-    "original_count": 316,
+    "original_count": 318,
     "retained_count": 30
   },
   "events": [
@@ -1186,7 +1222,7 @@
             "features": [
               "store-test-hooks"
             ],
-            "target_directory": "<run-dir>/w6-nyhux1f2/target"
+            "target_directory": "<run-dir>/w6-8wc4e3mx/target"
           },
           "schema_version": 3,
           "semantic_version": 3,
@@ -1235,16 +1271,16 @@
         "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
         "wal_level": "replica"
       },
-      "configuration_sha256": "620235299274e2a7105102d4c4388ffb0f547ecf8aa7d63428d10dc7afb6c5b1",
-      "elapsed": 0.000388073967769742,
+      "configuration_sha256": "5dd944cac7dd1a2fec9467bb1d59fee39e71428922066ffc52bf0ea9b2c2a08a",
+      "elapsed": 0.00036901794373989105,
       "event": "invocation",
       "phase": "w6",
       "seed": 20261112,
       "specification": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-      "timestamp": 1794562543.0787394
+      "timestamp": 1794567730.8744154
     },
     {
-      "elapsed": 0.08673103293403983,
+      "elapsed": 0.08548882603645325,
       "event": "allocation_reserved",
       "ports": [
         55500,
@@ -1258,63 +1294,63 @@
         55508,
         55509
       ],
-      "timestamp": 1794562543.1650825
+      "timestamp": 1794567730.9595351
     },
     {
       "bootstrap_readiness_seconds": 60,
-      "elapsed": 1.194346632109955,
+      "elapsed": 1.2315244991332293,
       "event": "server_started",
       "node": "primary",
-      "pid": 860559,
+      "pid": 1489445,
       "port": 55500,
-      "readiness_elapsed_seconds": 0.06882335105910897,
-      "timestamp": 1794562544.2726982
+      "readiness_elapsed_seconds": 0.0678479690104723,
+      "timestamp": 1794567732.1055708
     },
     {
       "application_name": "bootstrap_backup",
       "command_bound_seconds": 180,
       "destination": "standby",
-      "elapsed": 1.1943921570200473,
+      "elapsed": 1.2315896300133318,
       "event": "backup_requested",
-      "timestamp": 1794562544.272744,
+      "timestamp": 1794567732.1056361,
       "wal_mode": "stream"
     },
     {
-      "elapsed": 1.8641677061095834,
+      "elapsed": 1.9163614800199866,
       "event": "backup_provenance_retained",
-      "path": "<run-dir>/w6-nyhux1f2/standby-backup-manifest.json",
-      "sha256": "ecec92f64bebdad103419dd9d7065cc94b8f486c43e4d078d1e47b2e9fa1166a",
-      "timestamp": 1794562544.9425192
+      "path": "<run-dir>/w6-8wc4e3mx/standby-backup-manifest.json",
+      "sha256": "ae48680c2915a79b8720ea7869d6ca752a1f75b7156e269f0b82911680e32bf3",
+      "timestamp": 1794567732.7904077
     },
     {
       "destination": "standby",
-      "elapsed": 1.8643342971336097,
-      "elapsed_seconds": 0.6699419890064746,
+      "elapsed": 1.9165559529792517,
+      "elapsed_seconds": 0.684966032160446,
       "event": "backup_complete",
-      "timestamp": 1794562544.9426858,
+      "timestamp": 1794567732.7906024,
       "verified": true
     },
     {
       "bootstrap_readiness_seconds": 60,
-      "elapsed": 2.4293522890657187,
+      "elapsed": 2.596921866061166,
       "event": "server_started",
       "node": "standby",
-      "pid": 860662,
+      "pid": 1489472,
       "port": 55501,
-      "readiness_elapsed_seconds": 0.5558571410365403,
-      "timestamp": 1794562545.5077038
+      "readiness_elapsed_seconds": 0.6714691228698939,
+      "timestamp": 1794567733.4709682
     },
     {
       "authenticated_role": "replicator",
-      "elapsed": 2.616120306076482,
+      "elapsed": 2.7793066089507192,
       "event": "identity_catchup",
       "primary_checkpoint": "1|0/2000028",
       "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials",
       "sampled_primary_flush": "0/3003A90",
       "standby_checkpoint": "1|0/2000028",
-      "standby_system_identifier": "7707587434308006191",
-      "system_identifier": "7707587434308006191",
-      "timestamp": 1794562545.6944718
+      "standby_system_identifier": "7707609715776637443",
+      "system_identifier": "7707609715776637443",
+      "timestamp": 1794567733.653353
     },
     {
       "configuration": {
@@ -1334,61 +1370,61 @@
         "tcp_keepalives_interval": "1",
         "wal_level": "replica"
       },
-      "elapsed": 2.6256968630477786,
+      "elapsed": 2.7893579930532724,
       "event": "effective_configuration_observed",
       "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f",
-      "timestamp": 1794562545.7040484
+      "timestamp": 1794567733.6634042
     },
     {
       "backup_name": "bootstrap_backup",
       "bootstrap_role": "initdb administrator; offline replication identity only",
       "designated_name": "provisiond_sync",
-      "elapsed": 2.6734660360962152,
+      "elapsed": 2.836788929067552,
       "event": "bootstrap_complete",
       "maintenance_mode_exception": false,
-      "timestamp": 1794562545.7518175
+      "timestamp": 1794567733.7108352
     },
     {
       "case": "setup",
       "component": "api",
-      "elapsed": 21.477565594017506,
+      "elapsed": 21.93682306492701,
       "event": "workflow_binary_started",
-      "executable": "<run-dir>/w6-nyhux1f2/target/debug/api",
+      "executable": "<run-dir>/w6-8wc4e3mx/target/debug/api",
       "features": [
         "store-test-hooks"
       ],
-      "sha256": "eb8ad410a6eb47b1749cd130010196bde3a9b16be0dcd4c2e761d6185e59466b",
-      "timestamp": 1794562564.5559168
+      "sha256": "dfb14844edaee56968ba5334c734ed41ede2aa2ac6c656674452f3f3a05c6357",
+      "timestamp": 1794567752.810869
     },
     {
       "case": "w6_conflicting",
       "component": "engine",
-      "elapsed": 21.876876801019534,
+      "elapsed": 22.364523669006303,
       "event": "workflow_binary_started",
-      "executable": "<run-dir>/w6-nyhux1f2/target/debug/engine",
+      "executable": "<run-dir>/w6-8wc4e3mx/target/debug/engine",
       "features": [
         "store-test-hooks"
       ],
-      "sha256": "03dcee1da227ee978a98a010bf2ab10039f63e6e67d55c4cc6fb187f33386769",
-      "timestamp": 1794562564.9552276
+      "sha256": "96f444751a0b670a8cfe350e59256bd6d762d23cff75adcb44920a05322deefd",
+      "timestamp": 1794567753.2385695
     },
     {
       "accepted_count": 1,
-      "elapsed": 22.320085301063955,
+      "elapsed": 22.807133686030284,
       "event": "w6_lost_reply_activated",
-      "operation": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+      "operation": "7fff52bb-5100-480f-a037-b09e69e311d7",
       "purchase": "SIMULATOR-RESOURCE-5",
       "reply_delivered": false,
       "snapshot": {
         "commitment": {
           "closed_at": null,
-          "id": "4991121d-f4aa-48c6-8b3b-3fba3c8e4a0e",
+          "id": "c00674c8-685f-401b-aed4-da702db50f3f",
           "machine_id": null,
-          "opened_at": "2026-11-13T09:36:04.868594+00:00",
-          "operation_id": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "opened_at": "2026-11-13T11:02:33.145819+00:00",
+          "operation_id": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "reserved_sats": 43,
           "state": "open",
-          "tenant_id": "1616f24c-1da5-4e85-b751-f381d5fd965d",
+          "tenant_id": "217d961c-88dd-49d5-b5c7-5b6ddd5bd78d",
           "version": 0
         },
         "exclusions": [],
@@ -1396,15 +1432,15 @@
         "machines": [],
         "meter_totals": [],
         "operation": {
-          "about_to_order_at": "2026-11-13T09:36:05.296946+00:00",
+          "about_to_order_at": "2026-11-13T11:02:33.592538+00:00",
           "admitted_sats": 43,
-          "available_at": "2026-11-13T09:36:04.868594+00:00",
+          "available_at": "2026-11-13T11:02:33.145819+00:00",
           "claim_number": 1,
-          "commitment_id": "4991121d-f4aa-48c6-8b3b-3fba3c8e4a0e",
-          "correlation_id": "63a32396-3085-4a52-8c46-eb846e6ece92",
+          "commitment_id": "c00674c8-685f-401b-aed4-da702db50f3f",
+          "correlation_id": "4f5a2a8f-1c9a-42e0-86ad-59fbf8499cb6",
           "correlator_kind": "operation_uuid",
-          "correlator_value": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "created_at": "2026-11-13T09:36:04.868594+00:00",
+          "correlator_value": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "created_at": "2026-11-13T11:02:33.145819+00:00",
           "episode_id": null,
           "error": {
             "details": {
@@ -1415,16 +1451,16 @@
             "message": "simulator response unavailable",
             "retryable": false
           },
-          "id": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "id": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "idempotency_key": "reconcile-conflict-wrong",
           "kind": "create",
           "machine_id": null,
-          "mutation_wait_ended_at": "2026-11-13T09:36:05.353447+00:00",
+          "mutation_wait_ended_at": "2026-11-13T11:02:33.642139+00:00",
           "provider_account": "sim-a",
           "request_summary": {
             "correlator": {
               "kind": "operation_uuid",
-              "value": "c43881c5-9477-4959-9bea-c85eadcf04e3"
+              "value": "7fff52bb-5100-480f-a037-b09e69e311d7"
             },
             "first_unit": {
               "currency": "USD",
@@ -1432,7 +1468,7 @@
               "native_minor": 1,
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:36:04Z",
+              "rate_observed_at": "2026-11-13T11:02:32Z",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "sats": 11,
@@ -1517,7 +1553,7 @@
                   "haircut_bps": 0,
                   "margin_bps": 1000,
                   "minor_scale": 2,
-                  "observed_at": "2026-11-13T09:36:04Z",
+                  "observed_at": "2026-11-13T11:02:32Z",
                   "rate_den": 1,
                   "rate_num": 10,
                   "source": "simulator-fixed-rational"
@@ -1540,7 +1576,7 @@
               "native_minor": 2,
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:36:04Z",
+              "rate_observed_at": "2026-11-13T11:02:32Z",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "sats": 20
@@ -1557,91 +1593,91 @@
           "revision": 4,
           "status": "needs_reconciliation",
           "system_reason": null,
-          "tenant_id": "1616f24c-1da5-4e85-b751-f381d5fd965d",
-          "updated_at": "2026-11-13T09:36:05.353447+00:00",
+          "tenant_id": "217d961c-88dd-49d5-b5c7-5b6ddd5bd78d",
+          "updated_at": "2026-11-13T11:02:33.642139+00:00",
           "write_started_at": null,
           "yielded_at": null
         }
       },
-      "timestamp": 1794562565.3984368
+      "timestamp": 1794567753.6811802
     },
     {
       "case": "w6_conflicting",
       "component": "engine",
-      "elapsed": 22.37454996793531,
+      "elapsed": 22.865458728047088,
       "event": "workflow_binary_started",
-      "executable": "<run-dir>/w6-nyhux1f2/target/debug/engine",
+      "executable": "<run-dir>/w6-8wc4e3mx/target/debug/engine",
       "features": [
         "store-test-hooks"
       ],
-      "sha256": "03dcee1da227ee978a98a010bf2ab10039f63e6e67d55c4cc6fb187f33386769",
-      "timestamp": 1794562565.452901
+      "sha256": "96f444751a0b670a8cfe350e59256bd6d762d23cff75adcb44920a05322deefd",
+      "timestamp": 1794567753.7395043
     },
     {
       "attached": true,
-      "elapsed": 23.970397029072046,
+      "elapsed": 24.511394256958738,
       "event": "w6_exact_observed",
-      "operation": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+      "operation": "7fff52bb-5100-480f-a037-b09e69e311d7",
       "provider": [
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175213370131276,
+          "monotonic_ns": 1180401668252398,
           "path": "/offers",
           "resolution": false,
           "sequence": 2,
           "stage": "request_received",
-          "timestamp": 1794562565.280796
+          "timestamp": 1794567753.5789168
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175213376628952,
+          "monotonic_ns": 1180401675258281,
           "path": "/offers",
           "resolution": false,
           "sequence": 3,
           "stage": "read_only",
-          "timestamp": 1794562565.2872937
+          "timestamp": 1794567753.585923
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175213409141547,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180401703485488,
           "path": "/order",
           "resolution": false,
           "sequence": 4,
           "stage": "request_received",
-          "timestamp": 1794562565.319806
+          "timestamp": 1794567753.6141503
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175213415461612,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180401709722028,
           "path": "/order",
           "resolution": false,
           "sequence": 5,
           "stage": "accepted",
-          "timestamp": 1794562565.3261263
+          "timestamp": 1794567753.620387
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175213424438240,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180401716090904,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-5",
           "sequence": 6,
           "stage": "resource_created",
-          "timestamp": 1794562565.3351033,
+          "timestamp": 1794567753.626756,
           "value": {
             "account": "sim-a",
             "channel": "orders",
-            "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+            "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
             "external_id": "SIMULATOR-RESOURCE-5",
             "name": "worker-test",
             "present": true,
@@ -1652,44 +1688,44 @@
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175213433618858,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180401722243277,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-5",
           "sequence": 7,
           "stage": "reply_dropped",
-          "timestamp": 1794562565.3442833
+          "timestamp": 1794567753.6329083
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175214895773619,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180403198247496,
           "path": "/search",
           "resolution": true,
           "sequence": 8,
           "stage": "request_received",
-          "timestamp": 1794562566.8064387
+          "timestamp": 1794567755.1089125
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175214903772805,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180403204526605,
           "path": "/search",
           "resolution": true,
           "sequence": 9,
           "stage": "read_only",
-          "timestamp": 1794562566.8144376
+          "timestamp": 1794567755.1151915
         },
         {
           "account": "sim-a",
           "authoritative": true,
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175214909971163,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180403210565076,
           "path": "/search",
           "resolution": true,
           "resources": [
@@ -1708,182 +1744,182 @@
           "search": "wrong",
           "sequence": 10,
           "stage": "resolution_evidence_returned",
-          "timestamp": 1794562566.8206363
+          "timestamp": 1794567755.12123
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175214929367059,
+          "monotonic_ns": 1180403229118673,
           "path": "/get",
           "resolution": true,
           "sequence": 11,
           "stage": "request_received",
-          "timestamp": 1794562566.8400319
+          "timestamp": 1794567755.1397834
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175214938337567,
+          "monotonic_ns": 1180403236282793,
           "path": "/get",
           "resolution": true,
           "sequence": 12,
           "stage": "read_only",
-          "timestamp": 1794562566.8490021
+          "timestamp": 1794567755.1469479
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175214947299287,
+          "monotonic_ns": 1180403242528168,
           "path": "/get",
           "resolution": true,
           "sequence": 13,
           "stage": "read_response_returned",
-          "timestamp": 1794562566.8579643
+          "timestamp": 1794567755.1531932
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175214967590523,
+          "monotonic_ns": 1180403262311880,
           "path": "/constraints",
           "resolution": true,
           "sequence": 14,
           "stage": "request_received",
-          "timestamp": 1794562566.8782554
+          "timestamp": 1794567755.1729767
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175214973910447,
+          "monotonic_ns": 1180403271233647,
           "path": "/constraints",
           "resolution": true,
           "sequence": 15,
           "stage": "read_only",
-          "timestamp": 1794562566.8845751
+          "timestamp": 1794567755.1818984
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175214983110642,
+          "monotonic_ns": 1180403280126550,
           "path": "/constraints",
           "resolution": true,
           "sequence": 16,
           "stage": "read_response_returned",
-          "timestamp": 1794562566.8937757
+          "timestamp": 1794567755.1907914
         }
       ],
       "search": "wrong",
       "status": "succeeded",
-      "timestamp": 1794562567.0487485
+      "timestamp": 1794567755.3854408
     },
     {
       "component": "api",
-      "elapsed": 23.982189929112792,
+      "elapsed": 24.521417286945507,
       "event": "application_trace",
-      "path": "<run-dir>/w6-nyhux1f2/api-0.stdout",
+      "path": "<run-dir>/w6-8wc4e3mx/api-0.stdout",
       "private_trace_events": 54,
       "selection": "private full trace hash; consequential events retained by scenario",
-      "sha256": "e465435f305228ce48c5f5c0d9cbebaa331c1814407d19a8b9c8a964613d7641",
-      "timestamp": 1794562567.0605414
+      "sha256": "3893618f0463141f46e94770cc9ad4194dca452445d51f256bb3f8abcca5d8e9",
+      "timestamp": 1794567755.3954637
     },
     {
       "component": "engine",
-      "elapsed": 23.98271218314767,
+      "elapsed": 24.522191640920937,
       "event": "application_trace",
-      "path": "<run-dir>/w6-nyhux1f2/engine-0.stdout",
-      "private_trace_events": 79,
+      "path": "<run-dir>/w6-8wc4e3mx/engine-0.stdout",
+      "private_trace_events": 77,
       "selection": "private full trace hash; consequential events retained by scenario",
-      "sha256": "f24ffb6d60472a719d6092a56bb3df9d2c3fb36bd3dac38a52fe566e0f4fb732",
-      "timestamp": 1794562567.0610638
+      "sha256": "2857d9fa492aaa01c9fd3f236fca75f793923a2ca4c9466d18c8c0e7823a3189",
+      "timestamp": 1794567755.3962379
     },
     {
       "component": "engine",
-      "elapsed": 23.98514152201824,
+      "elapsed": 24.52495129709132,
       "event": "application_trace",
-      "path": "<run-dir>/w6-nyhux1f2/engine-1.stdout",
-      "private_trace_events": 476,
+      "path": "<run-dir>/w6-8wc4e3mx/engine-1.stdout",
+      "private_trace_events": 486,
       "selection": "private full trace hash; consequential events retained by scenario",
-      "sha256": "3b25e9bd485c20c3cb066d7068dd65077c7e6b74cb5ba6d0881e81c53b5ec492",
-      "timestamp": 1794562567.063493
+      "sha256": "18438166cd2602f0e65c606f72ffd7722a5f58a366b7720eaadc436daf5e295d",
+      "timestamp": 1794567755.3989978
     },
     {
-      "elapsed": 23.985555564053357,
+      "elapsed": 24.525475214002654,
       "event": "independent_simulator_evidence",
       "records": [
         {
-          "monotonic_ns": 1175212983460319,
+          "monotonic_ns": 1180401264060650,
           "sequence": 1,
           "stage": "evidence_control_activated",
-          "timestamp": 1794562564.8941247,
+          "timestamp": 1794567753.1747248,
           "value": {
-            "operation": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+            "operation": "7fff52bb-5100-480f-a037-b09e69e311d7",
             "search": "wrong"
           }
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175213370131276,
+          "monotonic_ns": 1180401668252398,
           "path": "/offers",
           "resolution": false,
           "sequence": 2,
           "stage": "request_received",
-          "timestamp": 1794562565.280796
+          "timestamp": 1794567753.5789168
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175213376628952,
+          "monotonic_ns": 1180401675258281,
           "path": "/offers",
           "resolution": false,
           "sequence": 3,
           "stage": "read_only",
-          "timestamp": 1794562565.2872937
+          "timestamp": 1794567753.585923
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175213409141547,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180401703485488,
           "path": "/order",
           "resolution": false,
           "sequence": 4,
           "stage": "request_received",
-          "timestamp": 1794562565.319806
+          "timestamp": 1794567753.6141503
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175213415461612,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180401709722028,
           "path": "/order",
           "resolution": false,
           "sequence": 5,
           "stage": "accepted",
-          "timestamp": 1794562565.3261263
+          "timestamp": 1794567753.620387
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175213424438240,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180401716090904,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-5",
           "sequence": 6,
           "stage": "resource_created",
-          "timestamp": 1794562565.3351033,
+          "timestamp": 1794567753.626756,
           "value": {
             "account": "sim-a",
             "channel": "orders",
-            "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+            "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
             "external_id": "SIMULATOR-RESOURCE-5",
             "name": "worker-test",
             "present": true,
@@ -1894,44 +1930,44 @@
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175213433618858,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180401722243277,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-5",
           "sequence": 7,
           "stage": "reply_dropped",
-          "timestamp": 1794562565.3442833
+          "timestamp": 1794567753.6329083
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175214895773619,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180403198247496,
           "path": "/search",
           "resolution": true,
           "sequence": 8,
           "stage": "request_received",
-          "timestamp": 1794562566.8064387
+          "timestamp": 1794567755.1089125
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175214903772805,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180403204526605,
           "path": "/search",
           "resolution": true,
           "sequence": 9,
           "stage": "read_only",
-          "timestamp": 1794562566.8144376
+          "timestamp": 1794567755.1151915
         },
         {
           "account": "sim-a",
           "authoritative": true,
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "correlator": "c43881c5-9477-4959-9bea-c85eadcf04e3",
-          "monotonic_ns": 1175214909971163,
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "correlator": "7fff52bb-5100-480f-a037-b09e69e311d7",
+          "monotonic_ns": 1180403210565076,
           "path": "/search",
           "resolution": true,
           "resources": [
@@ -1950,180 +1986,180 @@
           "search": "wrong",
           "sequence": 10,
           "stage": "resolution_evidence_returned",
-          "timestamp": 1794562566.8206363
+          "timestamp": 1794567755.12123
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175214929367059,
+          "monotonic_ns": 1180403229118673,
           "path": "/get",
           "resolution": true,
           "sequence": 11,
           "stage": "request_received",
-          "timestamp": 1794562566.8400319
+          "timestamp": 1794567755.1397834
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175214938337567,
+          "monotonic_ns": 1180403236282793,
           "path": "/get",
           "resolution": true,
           "sequence": 12,
           "stage": "read_only",
-          "timestamp": 1794562566.8490021
+          "timestamp": 1794567755.1469479
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175214947299287,
+          "monotonic_ns": 1180403242528168,
           "path": "/get",
           "resolution": true,
           "sequence": 13,
           "stage": "read_response_returned",
-          "timestamp": 1794562566.8579643
+          "timestamp": 1794567755.1531932
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175214967590523,
+          "monotonic_ns": 1180403262311880,
           "path": "/constraints",
           "resolution": true,
           "sequence": 14,
           "stage": "request_received",
-          "timestamp": 1794562566.8782554
+          "timestamp": 1794567755.1729767
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175214973910447,
+          "monotonic_ns": 1180403271233647,
           "path": "/constraints",
           "resolution": true,
           "sequence": 15,
           "stage": "read_only",
-          "timestamp": 1794562566.8845751
+          "timestamp": 1794567755.1818984
         },
         {
           "account": "sim-a",
-          "command": "c43881c5-9477-4959-9bea-c85eadcf04e3",
+          "command": "7fff52bb-5100-480f-a037-b09e69e311d7",
           "correlator": null,
-          "monotonic_ns": 1175214983110642,
+          "monotonic_ns": 1180403280126550,
           "path": "/constraints",
           "resolution": true,
           "sequence": 16,
           "stage": "read_response_returned",
-          "timestamp": 1794562566.8937757
+          "timestamp": 1794567755.1907914
         },
         {
           "account": "sim-a",
           "command": null,
           "correlator": null,
-          "monotonic_ns": 1175215052084355,
+          "monotonic_ns": 1180403353181900,
           "path": "/enumerate",
           "resolution": true,
           "sequence": 17,
           "stage": "request_received",
-          "timestamp": 1794562566.9627492
+          "timestamp": 1794567755.2638466
         },
         {
           "account": "sim-b",
           "command": null,
           "correlator": null,
-          "monotonic_ns": 1175215101723745,
+          "monotonic_ns": 1180403403438316,
           "path": "/enumerate",
           "resolution": true,
           "sequence": 18,
           "stage": "request_received",
-          "timestamp": 1794562567.0123887
+          "timestamp": 1794567755.3141034
         }
       ],
-      "sha256": "3839c73eaaf3416a58183d2e9c2986de15bfdb502b0379fa71894fa15d7cde58",
+      "sha256": "8d1d107347550cfd64f5645e5ae78596bb1953e18ec7be8e67090eb1523662a4",
       "simulator_kind": "provider",
-      "timestamp": 1794562567.0639071
+      "timestamp": 1794567755.3995216
     },
     {
-      "elapsed": 23.985666742082685,
+      "elapsed": 24.525603464106098,
       "event": "independent_simulator_evidence",
       "records": [
         {
-          "monotonic_ns": 1175212890898273,
+          "monotonic_ns": 1180401167880719,
           "sequence": 1,
           "stage": "rail_observation",
-          "timestamp": 1794562564.801563,
+          "timestamp": 1794567753.0785456,
           "value": {
             "amount_sats": 115,
-            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/1167d2e5-dc82-4cc1-9463-d3634ba004db/EXPIRES/1794566164",
-            "payment_hash": "1417c92be1c56af64084d7409bdfda8d491076140579d788daa2d40ca1ec05d3",
+            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/6df1ed81-4747-4277-b847-a73e03d21fa0/EXPIRES/1794571353",
+            "payment_hash": "41009a4569ceb6a5e6f1ed51db70fb95ada35c3a84e47b698b29c0b37c9174d2",
             "preimage_known": true,
             "rail": "lightning",
             "settled": true,
-            "settled_at": "2026-11-13T09:36:04Z"
+            "settled_at": "2026-11-13T11:02:33Z"
           }
         }
       ],
-      "sha256": "de1190a716604f034eeefe2b2594dad7ed32de71234316e3664a6ba2ff76ad91",
+      "sha256": "7f4fd3a7b8939ebe42f6822250e1ddd3ff618bc4a231cdaee08eb31a1834312d",
       "simulator_kind": "rail",
-      "timestamp": 1794562567.0640185
+      "timestamp": 1794567755.3996499
     },
     {
       "count": 5,
-      "elapsed": 23.985696006100625,
+      "elapsed": 24.525657474063337,
       "event": "workflow_children_reaped",
-      "timestamp": 1794562567.0640476
+      "timestamp": 1794567755.3997037
     },
     {
-      "elapsed": 23.985760126030073,
+      "elapsed": 24.525760245975107,
       "event": "failure",
       "message": "exact-correlator/no-attachment",
-      "timestamp": 1794562567.064112,
+      "timestamp": 1794567755.3998067,
       "type": "AssertionError"
     },
     {
       "cancel_requests": 0,
-      "elapsed": 24.055672388058156,
+      "elapsed": 24.54905270994641,
       "event": "proxy_cleanup",
-      "timestamp": 1794562567.1340237
+      "timestamp": 1794567755.4230986
     },
     {
-      "elapsed": 24.55747505603358,
+      "elapsed": 25.051030774135143,
       "event": "server_stopped",
       "exit_status": 0,
       "mode": "fast",
       "node": "primary",
-      "timestamp": 1794562567.6358266
+      "timestamp": 1794567755.925077
     },
     {
-      "elapsed": 24.759001593105495,
+      "elapsed": 25.252487040124834,
       "event": "server_stopped",
       "exit_status": 0,
       "mode": "fast",
       "node": "standby",
-      "timestamp": 1794562567.8373532
+      "timestamp": 1794567756.1265333
     },
     {
-      "elapsed": 24.78784647793509,
+      "elapsed": 25.281695366138592,
       "event": "cleanup_removed",
-      "path": "<run-dir>/w6-nyhux1f2/primary",
-      "timestamp": 1794562567.8661978
+      "path": "<run-dir>/w6-8wc4e3mx/primary",
+      "timestamp": 1794567756.1557415
     },
     {
-      "elapsed": 24.81457344512455,
+      "elapsed": 25.30580526497215,
       "event": "cleanup_removed",
-      "path": "<run-dir>/w6-nyhux1f2/standby",
-      "timestamp": 1794562567.8929248
+      "path": "<run-dir>/w6-8wc4e3mx/standby",
+      "timestamp": 1794567756.1798515
     },
     {
-      "elapsed": 24.939658736111596,
+      "elapsed": 25.43075882201083,
       "event": "cleanup_removed",
-      "path": "<run-dir>/w6-nyhux1f2/target",
-      "timestamp": 1794562568.01801
+      "path": "<run-dir>/w6-8wc4e3mx/target",
+      "timestamp": 1794567756.3048048
     },
     {
-      "elapsed": 24.9398500721436,
+      "elapsed": 25.430945079075173,
       "event": "allocation_released",
       "ports": [
         55500,
@@ -2137,19 +2173,19 @@
         55508,
         55509
       ],
-      "timestamp": 1794562568.0182016
+      "timestamp": 1794567756.3049915
     },
     {
-      "elapsed": 24.939888654043898,
+      "elapsed": 25.430982959922403,
       "errors": [],
       "event": "cleanup_complete",
-      "raw_evidence": "<run-dir>/w6-nyhux1f2",
+      "raw_evidence": "<run-dir>/w6-8wc4e3mx",
       "result": "pass",
-      "timestamp": 1794562568.0182402
+      "timestamp": 1794567756.3050294
     }
   ],
   "external_provider_rail_evidence": "independent durable W6 simulator evidence; no real effects",
-  "implementation_commit": "a063df0c33f94e1228fb9e393bef93e966fd18cf",
+  "implementation_commit": "813c7130ab1c9f2b3ec752004b1847333a443441",
   "intended_assertion": "exact-correlator/no-attachment",
   "limitations": [
     "local processes only; no separate-host durability or fencing proof",
@@ -2157,7 +2193,7 @@
     "DB-10 full saturation: not run (W8)"
   ],
   "negative_command_exit_status": 1,
-  "raw_evidence": "<run-dir>/w6-nyhux1f2",
+  "raw_evidence": "<run-dir>/w6-8wc4e3mx",
   "result": "expected negative demonstration",
   "scenarios": [
     {
@@ -2174,19 +2210,19 @@
     "AGENTS.md": "3d31f1fc55bac309e2fac72b2cbcc67137b3da0353d5e2f39d096bab0e612032",
     "Cargo.lock": "2591f28e7ee8bf70ad19077bf726aeeec58dadac28f53e5510a75841da01b94d",
     "Cargo.toml": "439237dfa99f243dbe8d31edbccca79f0b57afb414ba2b7490950c3b17b91dce",
-    "README.md": "6526007675be02ab41fd9278657248cbaad03b206b624146ec36d2b685bbeec0",
-    "docs/conformance-map.md": "80536bc1f15f7ea17340d249d352b54bbc6298f1abdebccc778dd2c052989f78",
-    "docs/decisions.md": "81d478c5262e74c978f4502c7c675796417fb62a11ceaf3f35e5c6c624afc8dc",
-    "docs/scope.md": "1cbc83dc9438f5959f174270ebbc376bb6b498fca2f680a95c7e9659b393c000",
+    "README.md": "d88146ae5ad7f1e1a77ea13c222263ceca96483d65e30c30e48220ae4dbdc537",
+    "docs/conformance-map.md": "8211f763bc3cf5667863e0735eae04a6bc98789bd93a2c214c0e47996fe6c4ce",
+    "docs/decisions.md": "27bd39f0564f83b61a61655e65ca5c45035283fd33f4dcc4717d1d1d4d59ef13",
+    "docs/scope.md": "b8c5282a4d4b0b8d857a2996ac10e0c8bc84040e3fa13e786d8b06f9bb5fb3cd",
     "flake.lock": "859b34962b11f1e85bdb97add8c34f37a74262cb689ff78a9501a0b7d067eb13",
     "flake.nix": "db3d0e22fd444ed2ecf666ad3b3de447334c265cadb5475eae4f84c762b0f2ee",
     "migrations/0001-core.sql": "857e69cfe049b230f3441f9b547e8ed3ee0fd65d6ec0b7f58893be097ecbba89",
     "migrations/0002-local-service.sql": "12895278c7c36936bd9435b390d6e555715c1f9aa4072060be51af790f2c394d",
-    "migrations/0003-reconciliation.sql": "1c18aebec905922439d6e061e3cdaf6e22d3a1ef63777b92c5053ddfe4d7bb23",
+    "migrations/0003-reconciliation.sql": "1c2a2ad0105f8923b5e122e6e5f9cd63af055efb3892fd51173f1d14eaa5434f",
     "spec-lock.json": "7a65f0e88a21b9861dc7735a5a505f0be66098a996bfbfe28009266372561370",
     "src/api/funding.rs": "d23ce028d63d8038ba4bac399e099e252d453b3b181c7fe94aee4450acdad68f",
-    "src/api/mod.rs": "e0200412736bfa1a768feceff056b449b86015ee72c5e14331b630bc10169f7b",
-    "src/api/operator.rs": "f4c08e75f1b753569428af53219839f48f3e1f6310cb61e469fdd2c83843d65a",
+    "src/api/mod.rs": "df4b4d9b4012171b6bae4dfa597533b9e0c3bd606a6e85e04e1c9891c074ac3e",
+    "src/api/operator.rs": "ae5ffc3d1958a1426486feac0a4a3528b3d6c5397b864738bbc96f250b40da2f",
     "src/auth.rs": "3b4b8a8337f41c5d12f2ae5a4b7365008b898d4dec3cfafa4a62149f369eb9ef",
     "src/bin/api.rs": "22e64e47901fdc6786202c25c164bdd7053cbfdb2b2649c3306f570dfadc7dc0",
     "src/bin/engine.rs": "09afd4eeac8c1d369ba1046ae9be335ed891d47c02bf5db30e52e9e82a7da0b7",
@@ -2246,25 +2282,26 @@
     "tests/postgres/w5_accounting.py": "7e391b59facd02dd4e691b044ab4dd7614e2f6d08fc539bb797d253a63e3f87e",
     "tests/postgres/w5_baseline.py": "69d90ebf96204d7545cbd7775d34ffa58aec598667f536ae94d39d10d33c8d92",
     "tests/postgres/w5_release_control.py": "adc2a25a3d3e7ef5e8f6cf03305706f04adb0371f99de56f2432ed65aedf6708",
-    "tests/postgres/w6.py": "711ec4bb2620216d455241e1da37f1c7cdb3449c2d04fc6bdff535fb1904edb6",
+    "tests/postgres/w6.py": "5faf6dd8fe4c536179e41ba29d13434a61343733eda6fbc5fed856d6dd4bac8d",
     "tests/postgres/w6_blocking.py": "02801d1a23b7464d548bd7b4b59d50912b0e8245052c46beab7eeda27baf9264",
-    "tests/postgres/w6_blocking_baseline.py": "e2de970d54f298264481bf7474c823f80b64b44e61e077972a3eccef7625efa1",
+    "tests/postgres/w6_blocking_baseline.py": "605807fa46a72f1f4bae6cca82d611143772b5aacda08e5e954754d18b24c576",
     "tests/postgres/w6_continuation.py": "d0fc2b5c83ebdf8a7e0c648389916dd08efefc7be7e2efd52b0d7d0e0b0cb581",
     "tests/postgres/w6_edges.py": "69eb9317a539b803588de190e83757a5e6b159d41e2399fbba9cdb7f64643c8d",
     "tests/postgres/w6_exact.py": "28db3aeef367261cf99a0e7c81c139b68a4012e350702e4a0907bf11e268ba43",
-    "tests/postgres/w6_final_repairs.py": "7ebc8e15eb06e1381e4e025c53b9135a934019a07f29cdf7c88985cf5653cebb",
+    "tests/postgres/w6_final_repairs.py": "bfde23e92d5c8d485b1989199a5f1d3b78b2ad2eeec2f4d20a923d3ee7552ba9",
     "tests/postgres/w6_gone_reply.py": "9b03a5c2627b2f2bceffebf7466dc7abf0ea9da249516f06f329d61697b6fe56",
     "tests/postgres/w6_repairs.py": "fe076cdc328a4bafb4cca2521967dea252a1fee46422903a38112177ecf7b715",
+    "tests/postgres/w6_retired_targets.py": "f69ce84eefce0dbf92a9eeee9a38a739cd32a0ebfb0c413a6cf54745fdc02b9a",
     "tests/postgres/workflow.py": "646e8992b21336f5837b277196a089b9787d1b938de3d83343387ef7c6534888",
     "tests/support/pause.py": "12d95b008fb86fd73513bb513a4ecefea0598d0d0ea5a377b48664fefa4700e8",
     "tools/check.sh": "eb6fc0f8f3386de84a0abddba2585ec64617117f8bdc460a4e92f4bc20cd7200",
     "tools/postgres.sh": "7f2256c81544d8151d5820671bae2102781bf44ecb4f582fead975a93bc5dc4b"
   },
   "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-  "tested_source_sha256": "d956735369015aebb5b94eb4387e3dce485cbdd88400d8cbcc32026951394823",
+  "tested_source_sha256": "2d60f27575deeb213b801b4c85a3bb83d71d15e7c134bd86b817d441ed320ba0",
   "trace": {
-    "path": "<run-dir>/w6-nyhux1f2/events.jsonl",
-    "sha256": "e5e9c4b5e0eac67ab75ea1913d3440bd24f09ea078226b1124607d479c53918f"
+    "path": "<run-dir>/w6-8wc4e3mx/events.jsonl",
+    "sha256": "58958727f810574dee8f2a5874db96a6430da9719db8339e81b3c968d31e3021"
   },
   "versions": {
     "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",

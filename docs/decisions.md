@@ -1707,6 +1707,31 @@ operator receipt with another resolving receipt still live continues to replay w
 D-32/D-33's finite horizon, D-37/D-38 and D-41–D-48 remain unchanged. No rate model,
 incident, unsupported verb, provider, production policy or previously deferred repair is added.
 
+### D-57. Retain strict validation metadata independently of receipt scope
+
+**Demonstrated 2026-11-13.** Operational source `813c7130ab1c9f2b3ec752004b1847333a443441`;
+PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9, with locked
+dependencies in [validation](../evidence/w6/validation.json). Retirement copies actual `kind` and
+nullable `machine_id` beside the permanent tenant/id/time/horizon metadata in its existing atomic
+bounded transaction. API-7/11 target authorization and WIR-35 validation therefore do not borrow
+an operator receipt or infer kind from the submitted decision. The retired mutability barrier
+remains before ceilings, resolution and receipt writes. No payload or previous result is invented.
+The unpublished offline schema-3 release first ships this final content; the supported schema-2
+upgrade and earlier migration meanings remain unchanged.
+
+`nix develop --command bash tools/check.sh`, nine Python units, the complete
+`nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <private-evidence>/all.json`,
+the three original retention scale shapes, retained reads and ordinary retention each exit 0.
+All eleven phases, 52 W6 groups and 39 recognized controls are present. The command
+`nix develop --command python3 tests/postgres/w6_blocking_baseline.py --retained-targets --evidence <private-evidence>/manifest.json`
+exits 0 recognizing two exact child exits 1 on unchanged `ab014865`; both normally completed
+customer targets have no operator receipt, return 409 while live, and incorrectly return 404 after
+actual retirement on that baseline. The same drivers stay 409 on the final source, retain strict
+validation/privacy/isolation and refuse fresh keys with full state and provider history unchanged.
+[Regression proof](../evidence/w6/retained-target-regressions.json) binds protected hashes,
+identical fixtures, activation, actual outcomes and cleanup. Existing F1/F2 and earlier reds remain
+separate. D-32/D-33, D-37/D-38 and D-41–D-48 are unchanged; all deferred work remains deferred.
+
 ## Open
 
 

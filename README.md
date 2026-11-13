@@ -312,7 +312,7 @@ cost and opening-rate provenance; actual clamps retain their exact satoshi remai
 Retirement carries the grouped maximum receipt horizon into the atomic delete/identity insert.
 The canonical `w6_e1` activates a due backlog; the three `w4_retention_scale` shapes and default
 `w4_retention_reads` remain separate supplemental checks. The [W6 report](evidence/w6/report.md)
-records 50 groups, protected baseline reds and final validation. Minimal retired identities remain
+records 52 groups, protected baseline reds and final validation. Minimal retired identities remain
 permanent; eventual retired-history read scaling remains deferred.
 
 
@@ -321,4 +321,7 @@ that prices elapsed usage. An opening without a current rate stays null after ra
 Operator resolve receipts remain reachable after physical operation retirement: an identical
 expired replay returns `410 gone` with the retained horizon; a valid changed fingerprint returns
 `409 idempotency_mismatch`. Retained identities authorize receipt decisions only, never a new
-resolution. See the [opening-rate and retention regressions](evidence/w6/opening-retention-regressions.json).
+resolution. The actual operation kind and machine identity survive retirement independently of
+prior operator receipts, so normally completed customer creates and deletes retain cross-target
+key conflicts and strict per-kind validation. See the [opening-rate and retention regressions](evidence/w6/opening-retention-regressions.json)
+and [retained-target regressions](evidence/w6/retained-target-regressions.json).

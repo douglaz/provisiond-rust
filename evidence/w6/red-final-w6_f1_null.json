@@ -116,10 +116,10 @@
         "command": [
           "initdb",
           "-D",
-          "<run-dir>/w6-h8b0p6ib/primary",
+          "<run-dir>/w6-njkew8yz/primary",
           "-U",
           "administrator",
-          "--pwfile=<run-dir>/w6-h8b0p6ib/init-password",
+          "--pwfile=<run-dir>/w6-njkew8yz/init-password",
           "--auth=scram-sha-256",
           "--no-locale",
           "--encoding=UTF8"
@@ -131,7 +131,7 @@
           "postgres",
           "--single",
           "-D",
-          "<run-dir>/w6-h8b0p6ib/primary",
+          "<run-dir>/w6-njkew8yz/primary",
           "postgres"
         ],
         "exit_status": 0
@@ -140,7 +140,7 @@
         "command": [
           "postgres",
           "-D",
-          "<run-dir>/w6-h8b0p6ib/primary"
+          "<run-dir>/w6-njkew8yz/primary"
         ],
         "exit_status": 0
       },
@@ -184,7 +184,7 @@
           "-d",
           "host=<address> port=55500 user=replicator dbname=postgres application_name=bootstrap_backup",
           "-D",
-          "<run-dir>/w6-h8b0p6ib/standby",
+          "<run-dir>/w6-njkew8yz/standby",
           "-X",
           "stream",
           "--checkpoint=fast",
@@ -195,7 +195,7 @@
       {
         "command": [
           "pg_verifybackup",
-          "<run-dir>/w6-h8b0p6ib/standby"
+          "<run-dir>/w6-njkew8yz/standby"
         ],
         "exit_status": 0
       },
@@ -203,60 +203,9 @@
         "command": [
           "postgres",
           "-D",
-          "<run-dir>/w6-h8b0p6ib/standby"
+          "<run-dir>/w6-njkew8yz/standby"
         ],
         "exit_status": 0
-      },
-      {
-        "command": [
-          "psql",
-          "-XAt",
-          "-v",
-          "ON_ERROR_STOP=1",
-          "-h",
-          "<address>",
-          "-p",
-          "55501",
-          "-U",
-          "administrator",
-          "-d",
-          "postgres"
-        ],
-        "exit_status": 2
-      },
-      {
-        "command": [
-          "psql",
-          "-XAt",
-          "-v",
-          "ON_ERROR_STOP=1",
-          "-h",
-          "<address>",
-          "-p",
-          "55501",
-          "-U",
-          "administrator",
-          "-d",
-          "postgres"
-        ],
-        "exit_status": 2
-      },
-      {
-        "command": [
-          "psql",
-          "-XAt",
-          "-v",
-          "ON_ERROR_STOP=1",
-          "-h",
-          "<address>",
-          "-p",
-          "55501",
-          "-U",
-          "administrator",
-          "-d",
-          "postgres"
-        ],
-        "exit_status": 2
       },
       {
         "command": [
@@ -696,7 +645,24 @@
       },
       {
         "command": [
-          "<run-dir>/w6-h8b0p6ib/target/debug/migrate"
+          "<run-dir>/w6-njkew8yz/target/debug/migrate"
+        ],
+        "exit_status": 0
+      },
+      {
+        "command": [
+          "psql",
+          "-XAt",
+          "-v",
+          "ON_ERROR_STOP=1",
+          "-h",
+          "<address>",
+          "-p",
+          "55500",
+          "-U",
+          "administrator",
+          "-d",
+          "postgres"
         ],
         "exit_status": 0
       },
@@ -1095,7 +1061,7 @@
         "command": [
           "pg_ctl",
           "-D",
-          "<run-dir>/w6-h8b0p6ib/primary",
+          "<run-dir>/w6-njkew8yz/primary",
           "stop",
           "-m",
           "fast",
@@ -1109,7 +1075,7 @@
         "command": [
           "pg_ctl",
           "-D",
-          "<run-dir>/w6-h8b0p6ib/standby",
+          "<run-dir>/w6-njkew8yz/standby",
           "stop",
           "-m",
           "fast",
@@ -1151,7 +1117,7 @@
           "features": [
             "store-test-hooks"
           ],
-          "target_directory": "<run-dir>/w6-h8b0p6ib/target"
+          "target_directory": "<run-dir>/w6-njkew8yz/target"
         },
         "schema_version": 3,
         "semantic_version": 3,
@@ -1244,6 +1210,8 @@
           "w6_f1_null",
           "w6_f1_current",
           "w6_f2",
+          "w6_g1_create",
+          "w6_g1_delete",
           "w6_e2_offers",
           "w6_e2_keys",
           "w6_e2_order",
@@ -1261,25 +1229,25 @@
       "workflow": {
         "builds": {
           "api": {
-            "executable": "<run-dir>/w6-h8b0p6ib/target/debug/api",
+            "executable": "<run-dir>/w6-njkew8yz/target/debug/api",
             "features": [
               "store-test-hooks"
             ],
-            "sha256": "a01c286cb75e04986b16da7e918213a77a16812da61ae5dba3454a7aa5a09861"
+            "sha256": "3881e2382214a72bd53cad5d21da6ed7e4183fa581bd293a9ef11fd045ba8c02"
           },
           "engine": {
-            "executable": "<run-dir>/w6-h8b0p6ib/target/debug/engine",
+            "executable": "<run-dir>/w6-njkew8yz/target/debug/engine",
             "features": [
               "store-test-hooks"
             ],
-            "sha256": "5cf7dfeded04a7b7b68288e71298c363e945573b4ffebfc0ffe7bbca95307eea"
+            "sha256": "719c8a002073354dcf516f625ad6d2714e62a92f3945c83915516376a5f10b0c"
           },
           "migrate": {
-            "executable": "<run-dir>/w6-h8b0p6ib/target/debug/migrate",
+            "executable": "<run-dir>/w6-njkew8yz/target/debug/migrate",
             "features": [
               "store-test-hooks"
             ],
-            "sha256": "c41741602052f7cdbc6600e802831437cf7e6e9d48f270c7d6246a546d689d32"
+            "sha256": "4e289ae48373ec805662907990a306288663340e8607c4ddf3ba2df85cad731b"
           }
         },
         "descriptor": {
@@ -1383,7 +1351,7 @@
           "haircut_bps": 0,
           "margin_bps": 1000,
           "minor_scale": 2,
-          "observed_at": "2026-11-13T09:08:36Z",
+          "observed_at": "2026-11-13T10:34:28Z",
           "rate_den": 1,
           "rate_num": 10,
           "source": "simulator-fixed-rational"
@@ -1393,7 +1361,7 @@
         ]
       }
     },
-    "configuration_sha256": "637ad44be0fa5ab665426d3d9086336f77316855a0023dc63e186306bacf4e0f",
+    "configuration_sha256": "cd5c69d2364a6922acbc3495a7630e66275c80a7180a58fb2c88587764cc46e2",
     "event_selection": {
       "basis": "consequential manifests; private full trace hashes retained",
       "omitted_event_types": [
@@ -1404,7 +1372,7 @@
         "protocol_response",
         "transport_closed"
       ],
-      "original_count": 179,
+      "original_count": 183,
       "retained_count": 36
     },
     "events": [
@@ -1423,7 +1391,7 @@
               "features": [
                 "store-test-hooks"
               ],
-              "target_directory": "<run-dir>/w6-h8b0p6ib/target"
+              "target_directory": "<run-dir>/w6-njkew8yz/target"
             },
             "schema_version": 3,
             "semantic_version": 3,
@@ -1472,16 +1440,16 @@
           "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
           "wal_level": "replica"
         },
-        "configuration_sha256": "4979eddb1d5ace2eb2a9756521768e25b9ff3d3d7d5f2404fe39510807adbf5a",
-        "elapsed": 0.0004415130242705345,
+        "configuration_sha256": "a721103becaa27312806c38aa4311df76640a3519230c9872d6c5450c31bc9c0",
+        "elapsed": 0.0003858800046145916,
         "event": "invocation",
         "phase": "w6",
         "seed": 20261112,
         "specification": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-        "timestamp": 1794560894.1615264
+        "timestamp": 1794566048.363136
       },
       {
-        "elapsed": 0.09401808003894985,
+        "elapsed": 0.08834916003979743,
         "event": "allocation_reserved",
         "ports": [
           55500,
@@ -1495,63 +1463,63 @@
           55508,
           55509
         ],
-        "timestamp": 1794560894.2551029
+        "timestamp": 1794566048.4510994
       },
       {
         "bootstrap_readiness_seconds": 60,
-        "elapsed": 1.3772002689074725,
+        "elapsed": 1.1684454909991473,
         "event": "server_started",
         "node": "primary",
-        "pid": 675560,
+        "pid": 1252902,
         "port": 55500,
-        "readiness_elapsed_seconds": 0.0687144179828465,
-        "timestamp": 1794560895.5382855
+        "readiness_elapsed_seconds": 0.06998698110692203,
+        "timestamp": 1794566049.5311959
       },
       {
         "application_name": "bootstrap_backup",
         "command_bound_seconds": 180,
         "destination": "standby",
-        "elapsed": 1.37725816690363,
+        "elapsed": 1.168502408079803,
         "event": "backup_requested",
-        "timestamp": 1794560895.5383434,
+        "timestamp": 1794566049.5312526,
         "wal_mode": "stream"
       },
       {
-        "elapsed": 2.0453974190168083,
+        "elapsed": 1.8663039430975914,
         "event": "backup_provenance_retained",
-        "path": "<run-dir>/w6-h8b0p6ib/standby-backup-manifest.json",
-        "sha256": "90faa08c9b111b8617fde33deb34d9ba40ead48fbbd6ec2457a6b41da9cd3e07",
-        "timestamp": 1794560896.2064824
+        "path": "<run-dir>/w6-njkew8yz/standby-backup-manifest.json",
+        "sha256": "3fccc4d152b23d8a49c57bb4514092ca29810ff46f4c161fdab3f699ce2285f0",
+        "timestamp": 1794566050.2290542
       },
       {
         "destination": "standby",
-        "elapsed": 2.045669806888327,
-        "elapsed_seconds": 0.668411510065198,
+        "elapsed": 1.8664881871081889,
+        "elapsed_seconds": 0.6979856190737337,
         "event": "backup_complete",
-        "timestamp": 1794560896.2067552,
+        "timestamp": 1794566050.2292385,
         "verified": true
       },
       {
         "bootstrap_readiness_seconds": 60,
-        "elapsed": 2.7240507460664958,
+        "elapsed": 2.3763539269566536,
         "event": "server_started",
         "node": "standby",
-        "pid": 675595,
+        "pid": 1252963,
         "port": 55501,
-        "readiness_elapsed_seconds": 0.6690443400293589,
-        "timestamp": 1794560896.8851361
+        "readiness_elapsed_seconds": 0.5001627779565752,
+        "timestamp": 1794566050.739104
       },
       {
         "authenticated_role": "replicator",
-        "elapsed": 2.9174398279283196,
+        "elapsed": 2.569366598967463,
         "event": "identity_catchup",
         "primary_checkpoint": "1|0/2000028",
         "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials",
         "sampled_primary_flush": "0/3003A90",
         "standby_checkpoint": "1|0/2000028",
-        "standby_system_identifier": "7707580352310111951",
-        "system_identifier": "7707580352310111951",
-        "timestamp": 1794560897.0785248
+        "standby_system_identifier": "7707602489337445914",
+        "system_identifier": "7707602489337445914",
+        "timestamp": 1794566050.9321167
       },
       {
         "configuration": {
@@ -1571,106 +1539,106 @@
           "tcp_keepalives_interval": "1",
           "wal_level": "replica"
         },
-        "elapsed": 2.926921498030424,
+        "elapsed": 2.578372821910307,
         "event": "effective_configuration_observed",
         "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f",
-        "timestamp": 1794560897.0880067
+        "timestamp": 1794566050.941123
       },
       {
         "backup_name": "bootstrap_backup",
         "bootstrap_role": "initdb administrator; offline replication identity only",
         "designated_name": "provisiond_sync",
-        "elapsed": 2.9729793588630855,
+        "elapsed": 2.625774360029027,
         "event": "bootstrap_complete",
         "maintenance_mode_exception": false,
-        "timestamp": 1794560897.1340644
+        "timestamp": 1794566050.9885244
       },
       {
         "case": "setup",
         "component": "api",
-        "elapsed": 23.162705620983616,
+        "elapsed": 20.180152104934677,
         "event": "workflow_binary_started",
-        "executable": "<run-dir>/w6-h8b0p6ib/target/debug/api",
+        "executable": "<run-dir>/w6-njkew8yz/target/debug/api",
         "features": [
           "store-test-hooks"
         ],
-        "sha256": "a01c286cb75e04986b16da7e918213a77a16812da61ae5dba3454a7aa5a09861",
-        "timestamp": 1794560917.3237903
+        "sha256": "3881e2382214a72bd53cad5d21da6ed7e4183fa581bd293a9ef11fd045ba8c02",
+        "timestamp": 1794566068.542902
       },
       {
         "case": "w6_f1_null",
         "component": "engine",
-        "elapsed": 23.63454299001023,
+        "elapsed": 20.69419702910818,
         "event": "workflow_binary_started",
-        "executable": "<run-dir>/w6-h8b0p6ib/target/debug/engine",
+        "executable": "<run-dir>/w6-njkew8yz/target/debug/engine",
         "features": [
           "store-test-hooks"
         ],
-        "sha256": "5cf7dfeded04a7b7b68288e71298c363e945573b4ffebfc0ffe7bbca95307eea",
-        "timestamp": 1794560917.7956278
+        "sha256": "719c8a002073354dcf516f625ad6d2714e62a92f3945c83915516376a5f10b0c",
+        "timestamp": 1794566069.0569465
       },
       {
         "direction": "send",
-        "elapsed": 24.291299066040665,
+        "elapsed": 21.41184086492285,
         "event": "fault_requested",
         "fault": "transport_gate",
         "pattern": "SET state='deleted',state_observed_at=",
-        "timestamp": 1794560918.4523842
+        "timestamp": 1794566069.774591
       },
       {
         "case": "w6_f1_null",
         "component": "engine",
-        "elapsed": 24.342238700017333,
+        "elapsed": 21.464159179944545,
         "event": "workflow_binary_started",
-        "executable": "<run-dir>/w6-h8b0p6ib/target/debug/engine",
+        "executable": "<run-dir>/w6-njkew8yz/target/debug/engine",
         "features": [
           "store-test-hooks"
         ],
-        "sha256": "5cf7dfeded04a7b7b68288e71298c363e945573b4ffebfc0ffe7bbca95307eea",
-        "timestamp": 1794560918.5033233
+        "sha256": "719c8a002073354dcf516f625ad6d2714e62a92f3945c83915516376a5f10b0c",
+        "timestamp": 1794566069.8269088
       },
       {
         "direction": "send",
-        "elapsed": 24.745638217078522,
+        "elapsed": 21.88456438900903,
         "event": "fault_activated",
         "fault": "transport_gate",
-        "session": 678742,
+        "session": 1255611,
         "statement_kind": "fixture statement",
-        "timestamp": 1794560918.9067233
+        "timestamp": 1794566070.2473147
       },
       {
         "direction": "commit_reply",
-        "elapsed": 24.74573926604353,
+        "elapsed": 21.884667902020738,
         "event": "fault_requested",
         "fault": "transport_gate",
         "pattern": "store COMMIT",
-        "timestamp": 1794560918.9068244
+        "timestamp": 1794566070.2474182
       },
       {
         "activated": true,
         "direction": "send",
-        "elapsed": 24.7458430188708,
+        "elapsed": 21.884777375962585,
         "event": "fault_released",
         "fault": "transport_gate",
         "pattern": "SET state='deleted',state_observed_at=",
-        "timestamp": 1794560918.906928
+        "timestamp": 1794566070.2475276
       },
       {
-        "elapsed": 24.746177492896095,
+        "elapsed": 21.885085650952533,
         "event": "w6_exit_stop_input",
-        "machine": "20c33d3d-93bf-423f-b88c-627cf81cae00",
-        "observed_at": "2026-11-13T09:08:38.887503629+00:00",
-        "session": 678742,
-        "timestamp": 1794560918.9072628
+        "machine": "1d90d404-ccfd-4869-a06c-55039aab133b",
+        "observed_at": "2026-11-13T10:34:30.227447376+00:00",
+        "session": 1255611,
+        "timestamp": 1794566070.2478359
       },
       {
         "direction": "commit_reply",
-        "elapsed": 24.759278731886297,
+        "elapsed": 21.89843138610013,
         "event": "fault_activated",
         "fault": "transport_gate",
-        "session": 678742,
+        "session": 1255611,
         "statement_kind": "COMMIT",
-        "timestamp": 1794560918.9203634
+        "timestamp": 1794566070.2611816
       },
       {
         "assertion": "F1 LDG-66 clamp opened with no rate must retain null opening rate",
@@ -1678,13 +1646,13 @@
           "commitments": [
             {
               "closed_at": null,
-              "id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
-              "opened_at": "2026-11-13T09:08:37.717192+00:00",
-              "operation_id": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
+              "opened_at": "2026-11-13T10:34:28.980436+00:00",
+              "operation_id": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "reserved_sats": 12,
               "state": "open",
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7",
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a",
               "version": 2
             }
           ],
@@ -1695,69 +1663,69 @@
               "amount_sats": -20,
               "balance_after": 95,
               "billing_period": null,
-              "commitment_id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "created_at": "2026-11-13T09:08:38.293975+00:00",
+              "commitment_id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "created_at": "2026-11-13T10:34:29.577255+00:00",
               "deposit_id": null,
               "haircut_bps": 0,
-              "id": "05da1509-7d61-4c1a-8bcc-6955019bcb85",
-              "idempotency_key": "setup_fee_debit:c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "id": "e585e685-614f-4235-b83a-2aebf453f361",
+              "idempotency_key": "setup_fee_debit:f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "increment_end": null,
               "kind": "setup_fee_debit",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "native_currency": "USD",
               "native_minor": 2,
-              "operation_id": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "operation_id": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:08:36+00:00",
+              "rate_observed_at": "2026-11-13T10:34:28+00:00",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "seq": 2,
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7"
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a"
             },
             {
               "amount_sats": -11,
               "balance_after": 84,
               "billing_period": null,
-              "commitment_id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "created_at": "2026-11-13T09:08:38.293975+00:00",
+              "commitment_id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "created_at": "2026-11-13T10:34:29.577255+00:00",
               "deposit_id": null,
               "haircut_bps": 0,
-              "id": "5094b360-2225-4f6a-9e28-6a9e76d8631f",
-              "idempotency_key": "first_unit_debit:c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "id": "1d9571cf-7151-4cf1-b027-2b837b9cfb59",
+              "idempotency_key": "first_unit_debit:f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "increment_end": null,
               "kind": "first_unit_debit",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "native_currency": "USD",
               "native_minor": 1,
-              "operation_id": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "operation_id": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:08:36+00:00",
+              "rate_observed_at": "2026-11-13T10:34:28+00:00",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "seq": 3,
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7"
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a"
             }
           ],
           "machine": {
             "billing_unit_seconds": 3600,
             "correlator_kind": "operation_uuid",
-            "correlator_value": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "created_at": "2026-11-13T09:08:38.293975+00:00",
+            "correlator_value": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "created_at": "2026-11-13T10:34:29.577255+00:00",
             "customer_rate_den": 3600,
             "customer_rate_num": 11,
             "declared_cancellation_bound": "2026-11-13T00:00:00+00:00",
             "destroy_committed": null,
             "earliest_cancellation_date": "2026-11-13T00:00:00+00:00",
             "external_id": "SIMULATOR-RESOURCE-4",
-            "first_unit_debit_id": "5094b360-2225-4f6a-9e28-6a9e76d8631f",
-            "id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+            "first_unit_debit_id": "1d9571cf-7151-4cf1-b027-2b837b9cfb59",
+            "id": "1d90d404-ccfd-4869-a06c-55039aab133b",
             "install_strategies": [],
             "kind": "virtual",
             "metadata": {},
             "meter_quarantined": false,
-            "meter_seed_at": "2026-11-13T10:08:38.293975+00:00",
+            "meter_seed_at": "2026-11-13T11:34:29.577255+00:00",
             "meter_stopped_at": null,
             "name": "worker-test",
             "native_terms": {
@@ -1837,7 +1805,7 @@
                 "haircut_bps": 0,
                 "margin_bps": 1000,
                 "minor_scale": 2,
-                "observed_at": "2026-11-13T09:08:36Z",
+                "observed_at": "2026-11-13T10:34:28Z",
                 "rate_den": 1,
                 "rate_num": 10,
                 "source": "simulator-fixed-rational"
@@ -1849,44 +1817,44 @@
             "provider_account": "sim-a",
             "public_ips": [],
             "region": "test",
-            "runway_until": "2026-11-13T11:08:38.293975+00:00",
+            "runway_until": "2026-11-13T12:34:29.577255+00:00",
             "state": "running",
-            "state_observed_at": "2026-11-13T09:08:38.25889+00:00",
-            "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7",
-            "updated_at": "2026-11-13T09:08:38.293975+00:00"
+            "state_observed_at": "2026-11-13T10:34:29.538119+00:00",
+            "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a",
+            "updated_at": "2026-11-13T10:34:29.577255+00:00"
           },
           "meter": [
             {
               "billing_period": "2026-11",
               "credit_den": 1,
               "credit_num": 0,
-              "high_water_mark": "2026-11-13T07:08:38.374313+00:00",
-              "subject_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "high_water_mark": "2026-11-13T08:34:29.695123+00:00",
+              "subject_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "subject_kind": "machine"
             }
           ],
           "operation": {
             "about_to_order_at": null,
             "admitted_sats": null,
-            "available_at": "2026-11-13T09:08:38.425773+00:00",
+            "available_at": "2026-11-13T10:34:29.749077+00:00",
             "claim_number": 0,
             "commitment_id": null,
-            "correlation_id": "3026b903-4a9d-472e-8d5c-4525ca116e03",
+            "correlation_id": "852987ff-c153-4d89-9870-a91fc4981c05",
             "correlator_kind": null,
             "correlator_value": null,
-            "created_at": "2026-11-13T09:08:38.425773+00:00",
+            "created_at": "2026-11-13T10:34:29.749077+00:00",
             "episode_id": null,
             "error": null,
-            "id": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "id": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "idempotency_key": "opening-rate-delete-False",
             "kind": "delete",
-            "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+            "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
             "mutation_wait_ended_at": null,
             "provider_account": "sim-a",
             "request_summary": {
               "external_id": "SIMULATOR-RESOURCE-4",
               "kind": "delete",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "provider_account": "sim-a"
             },
             "requested_by": "caller",
@@ -1900,16 +1868,16 @@
             "revision": 1,
             "status": "queued",
             "system_reason": null,
-            "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7",
-            "updated_at": "2026-11-13T09:08:38.425773+00:00",
+            "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a",
+            "updated_at": "2026-11-13T10:34:29.749077+00:00",
             "write_started_at": null,
             "yielded_at": null
           }
         },
-        "boundary": "2026-11-13 09:08:38.405326+00",
+        "boundary": "2026-11-13 10:34:29.727775+00",
         "commit_reply_held": true,
         "computed_sats": 23,
-        "created": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+        "created": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
         "current_available": false,
         "current_condition": {
           "available": false,
@@ -1918,7 +1886,7 @@
             "haircut_bps": 0,
             "margin_bps": 1000,
             "minor_scale": 2,
-            "observed_at": "2026-11-13T09:08:36Z",
+            "observed_at": "2026-11-13T10:34:28Z",
             "rate_den": 1,
             "rate_num": 20,
             "source": "simulator-fixed-rational"
@@ -1929,27 +1897,27 @@
           "haircut_bps": 0,
           "margin_bps": 1000,
           "minor_scale": 2,
-          "observed_at": "2026-11-13T09:08:36Z",
+          "observed_at": "2026-11-13T10:34:28Z",
           "rate_den": 1,
           "rate_num": 20,
           "source": "simulator-fixed-rational"
         },
-        "elapsed": 24.801513033919036,
-        "elapsed_microseconds": 7200031013,
+        "elapsed": 21.93723381892778,
+        "elapsed_microseconds": 7200032652,
         "event": "w6_opening_rate",
         "historical_rate": {
           "currency": "USD",
           "haircut_bps": 0,
           "margin_bps": 1000,
           "minor_scale": 2,
-          "observed_at": "2026-11-13T09:08:36Z",
+          "observed_at": "2026-11-13T10:34:28Z",
           "rate_den": 1,
           "rate_num": 10,
           "source": "simulator-fixed-rational"
         },
         "history": [
           {
-            "accepted_at": "2026-11-13T06:08:38.389702+00:00",
+            "accepted_at": "2026-11-13T07:34:29.710573+00:00",
             "available": true,
             "currency": "USD",
             "sequence": 1,
@@ -1958,14 +1926,14 @@
               "haircut_bps": 0,
               "margin_bps": 1000,
               "minor_scale": 2,
-              "observed_at": "2026-11-13T09:08:36Z",
+              "observed_at": "2026-11-13T10:34:28Z",
               "rate_den": 1,
               "rate_num": 10,
               "source": "simulator-fixed-rational"
             }
           },
           {
-            "accepted_at": "2026-11-13T09:08:38.405326+00:00",
+            "accepted_at": "2026-11-13T10:34:29.727775+00:00",
             "available": false,
             "currency": "USD",
             "sequence": 2,
@@ -1974,79 +1942,98 @@
               "haircut_bps": 0,
               "margin_bps": 1000,
               "minor_scale": 2,
-              "observed_at": "2026-11-13T09:08:36Z",
+              "observed_at": "2026-11-13T10:34:28Z",
               "rate_den": 1,
               "rate_num": 20,
               "source": "simulator-fixed-rational"
             }
           }
         ],
-        "machine": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+        "machine": "1d90d404-ccfd-4869-a06c-55039aab133b",
         "native_minor": 3,
-        "operation": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+        "operation": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
         "provider": [
           {
             "account": "sim-a",
-            "command": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "command": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "correlator": null,
-            "monotonic_ns": 1173566949645302,
+            "monotonic_ns": 1178718284788398,
             "path": "/delete",
             "resolution": false,
             "sequence": 15,
             "stage": "request_received",
-            "timestamp": 1794560918.8603103
+            "timestamp": 1794566070.1954534
           },
           {
             "account": "sim-a",
-            "command": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "command": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "correlator": null,
-            "monotonic_ns": 1173566953885729,
+            "monotonic_ns": 1178718292077941,
             "path": "/delete",
             "resolution": false,
             "sequence": 16,
             "stage": "delete_accepted",
-            "timestamp": 1794560918.8645506
+            "timestamp": 1794566070.2027428
           },
           {
             "account": "sim-a",
-            "command": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "command": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "correlator": null,
-            "monotonic_ns": 1173566959952882,
+            "monotonic_ns": 1178718298223350,
             "path": "/delete",
             "resolution": false,
             "resource": "SIMULATOR-RESOURCE-4",
             "sequence": 17,
             "stage": "resource_deleted",
-            "timestamp": 1794560918.8706179
+            "timestamp": 1794566070.208888
           },
           {
             "account": "sim-a",
-            "command": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "command": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "correlator": null,
             "gone": true,
-            "monotonic_ns": 1173566968636314,
+            "monotonic_ns": 1178718307321013,
             "path": "/delete",
             "resolution": false,
             "sequence": 18,
             "stage": "delete_response_returned",
-            "timestamp": 1794560918.879301
+            "timestamp": 1794566070.2179859
           }
         ],
         "state": {
           "commitments": [
             {
-              "closed_at": "2026-11-13T09:08:38.908503+00:00",
-              "id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
-              "opened_at": "2026-11-13T09:08:37.717192+00:00",
-              "operation_id": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "closed_at": "2026-11-13T10:34:30.249026+00:00",
+              "id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
+              "opened_at": "2026-11-13T10:34:28.980436+00:00",
+              "operation_id": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "reserved_sats": 0,
               "state": "closed",
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7",
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a",
               "version": 4
             }
           ],
           "deficiencies": [
+            {
+              "absorbed_from": "2026-11-13T10:34:29.727775+00:00",
+              "absorbed_seconds": 1,
+              "absorbed_until": "2026-11-13T10:34:30.227447+00:00",
+              "cause": "rate_outage",
+              "clamped_sats": null,
+              "currency": "USD",
+              "id": "5f328848-dfe7-484c-b64a-2e6ccb609c48",
+              "idempotency_key": "rate_outage:1d90d404-ccfd-4869-a06c-55039aab133b:2026-11-13T10:34:29.727775+00:00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
+              "native_minor": 1,
+              "opened_at": "2026-11-13T10:34:30.227774+00:00",
+              "operation_id": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
+              "provider_account": "sim-a",
+              "rate_den": null,
+              "rate_num": null,
+              "subject_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
+              "subject_kind": "machine"
+            },
             {
               "absorbed_from": null,
               "absorbed_seconds": 0,
@@ -2054,35 +2041,16 @@
               "cause": "clamp_overflow",
               "clamped_sats": 11,
               "currency": "USD",
-              "id": "3ccde89b-7fbd-419d-ad25-764cef7682b0",
-              "idempotency_key": "usage:machine:20c33d3d-93bf-423f-b88c-627cf81cae00:2026-11:2026-11-13T09:08:38.405326Z",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "id": "d8be7019-843e-4923-8408-03e4b9ea07f3",
+              "idempotency_key": "usage:machine:1d90d404-ccfd-4869-a06c-55039aab133b:2026-11:2026-11-13T10:34:29.727775Z",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "native_minor": 2,
-              "opened_at": "2026-11-13T09:08:38.887783+00:00",
-              "operation_id": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+              "opened_at": "2026-11-13T10:34:30.227774+00:00",
+              "operation_id": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
               "provider_account": "sim-a",
               "rate_den": 1,
               "rate_num": 10,
-              "subject_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
-              "subject_kind": "machine"
-            },
-            {
-              "absorbed_from": "2026-11-13T09:08:38.405326+00:00",
-              "absorbed_seconds": 1,
-              "absorbed_until": "2026-11-13T09:08:38.887504+00:00",
-              "cause": "rate_outage",
-              "clamped_sats": null,
-              "currency": "USD",
-              "id": "ecd95df0-29b6-41ef-98b7-c5f1861dddca",
-              "idempotency_key": "rate_outage:20c33d3d-93bf-423f-b88c-627cf81cae00:2026-11-13T09:08:38.405326+00:00",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
-              "native_minor": 1,
-              "opened_at": "2026-11-13T09:08:38.887783+00:00",
-              "operation_id": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
-              "provider_account": "sim-a",
-              "rate_den": null,
-              "rate_num": null,
-              "subject_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "subject_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "subject_kind": "machine"
             }
           ],
@@ -2092,94 +2060,94 @@
               "amount_sats": -20,
               "balance_after": 95,
               "billing_period": null,
-              "commitment_id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "created_at": "2026-11-13T09:08:38.293975+00:00",
+              "commitment_id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "created_at": "2026-11-13T10:34:29.577255+00:00",
               "deposit_id": null,
               "haircut_bps": 0,
-              "id": "05da1509-7d61-4c1a-8bcc-6955019bcb85",
-              "idempotency_key": "setup_fee_debit:c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "id": "e585e685-614f-4235-b83a-2aebf453f361",
+              "idempotency_key": "setup_fee_debit:f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "increment_end": null,
               "kind": "setup_fee_debit",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "native_currency": "USD",
               "native_minor": 2,
-              "operation_id": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "operation_id": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:08:36+00:00",
+              "rate_observed_at": "2026-11-13T10:34:28+00:00",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "seq": 2,
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7"
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a"
             },
             {
               "amount_sats": -11,
               "balance_after": 84,
               "billing_period": null,
-              "commitment_id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "created_at": "2026-11-13T09:08:38.293975+00:00",
+              "commitment_id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "created_at": "2026-11-13T10:34:29.577255+00:00",
               "deposit_id": null,
               "haircut_bps": 0,
-              "id": "5094b360-2225-4f6a-9e28-6a9e76d8631f",
-              "idempotency_key": "first_unit_debit:c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "id": "1d9571cf-7151-4cf1-b027-2b837b9cfb59",
+              "idempotency_key": "first_unit_debit:f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "increment_end": null,
               "kind": "first_unit_debit",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "native_currency": "USD",
               "native_minor": 1,
-              "operation_id": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "operation_id": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:08:36+00:00",
+              "rate_observed_at": "2026-11-13T10:34:28+00:00",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "seq": 3,
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7"
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a"
             },
             {
               "amount_sats": -12,
               "balance_after": 72,
               "billing_period": "2026-11",
-              "commitment_id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "created_at": "2026-11-13T09:08:38.887783+00:00",
+              "commitment_id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "created_at": "2026-11-13T10:34:30.227774+00:00",
               "deposit_id": null,
               "haircut_bps": 0,
-              "id": "b296ebe7-5f52-411a-9a97-b3a75154e904",
-              "idempotency_key": "usage:machine:20c33d3d-93bf-423f-b88c-627cf81cae00:2026-11:2026-11-13T09:08:38.405326Z",
-              "increment_end": "2026-11-13T09:08:38.405326+00:00",
+              "id": "31aaf394-36a1-44c7-a19a-4f920be87424",
+              "idempotency_key": "usage:machine:1d90d404-ccfd-4869-a06c-55039aab133b:2026-11:2026-11-13T10:34:29.727775Z",
+              "increment_end": "2026-11-13T10:34:29.727775+00:00",
               "kind": "usage_debit",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "native_currency": "USD",
               "native_minor": 1,
               "operation_id": null,
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:08:36+00:00",
+              "rate_observed_at": "2026-11-13T10:34:28+00:00",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-credit-v1",
               "seq": 4,
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7"
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a"
             }
           ],
           "machine": {
             "billing_unit_seconds": 3600,
             "correlator_kind": "operation_uuid",
-            "correlator_value": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "created_at": "2026-11-13T09:08:38.293975+00:00",
+            "correlator_value": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "created_at": "2026-11-13T10:34:29.577255+00:00",
             "customer_rate_den": 3600,
             "customer_rate_num": 11,
             "declared_cancellation_bound": "2026-11-13T00:00:00+00:00",
             "destroy_committed": null,
             "earliest_cancellation_date": "2026-11-13T00:00:00+00:00",
             "external_id": "SIMULATOR-RESOURCE-4",
-            "first_unit_debit_id": "5094b360-2225-4f6a-9e28-6a9e76d8631f",
-            "id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+            "first_unit_debit_id": "1d9571cf-7151-4cf1-b027-2b837b9cfb59",
+            "id": "1d90d404-ccfd-4869-a06c-55039aab133b",
             "install_strategies": [],
             "kind": "virtual",
             "metadata": {},
             "meter_quarantined": false,
-            "meter_seed_at": "2026-11-13T10:08:38.293975+00:00",
-            "meter_stopped_at": "2026-11-13T09:08:38.887504+00:00",
+            "meter_seed_at": "2026-11-13T11:34:29.577255+00:00",
+            "meter_stopped_at": "2026-11-13T10:34:30.227447+00:00",
             "name": "worker-test",
             "native_terms": {
               "channel": "orders",
@@ -2258,7 +2226,7 @@
                 "haircut_bps": 0,
                 "margin_bps": 1000,
                 "minor_scale": 2,
-                "observed_at": "2026-11-13T09:08:36Z",
+                "observed_at": "2026-11-13T10:34:28Z",
                 "rate_den": 1,
                 "rate_num": 10,
                 "source": "simulator-fixed-rational"
@@ -2270,47 +2238,47 @@
             "provider_account": "sim-a",
             "public_ips": [],
             "region": "test",
-            "runway_until": "2026-11-13T11:08:38.293975+00:00",
+            "runway_until": "2026-11-13T12:34:29.577255+00:00",
             "state": "deleted",
-            "state_observed_at": "2026-11-13T09:08:38.887504+00:00",
-            "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7",
-            "updated_at": "2026-11-13T09:08:38.907388+00:00"
+            "state_observed_at": "2026-11-13T10:34:30.227447+00:00",
+            "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a",
+            "updated_at": "2026-11-13T10:34:30.247958+00:00"
           },
           "meter": [
             {
               "billing_period": "2026-11",
-              "credit_den": 3600000000,
-              "credit_num": 3599658857,
-              "high_water_mark": "2026-11-13T09:08:38.887504+00:00",
-              "subject_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "credit_den": 100000000,
+              "credit_num": 99990023,
+              "high_water_mark": "2026-11-13T10:34:30.227447+00:00",
+              "subject_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "subject_kind": "machine"
             }
           ],
           "operation": {
             "about_to_order_at": null,
             "admitted_sats": null,
-            "available_at": "2026-11-13T09:08:38.425773+00:00",
+            "available_at": "2026-11-13T10:34:29.749077+00:00",
             "claim_number": 1,
             "commitment_id": null,
-            "correlation_id": "3026b903-4a9d-472e-8d5c-4525ca116e03",
+            "correlation_id": "852987ff-c153-4d89-9870-a91fc4981c05",
             "correlator_kind": null,
             "correlator_value": null,
-            "created_at": "2026-11-13T09:08:38.425773+00:00",
+            "created_at": "2026-11-13T10:34:29.749077+00:00",
             "episode_id": null,
             "error": null,
-            "id": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "id": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "idempotency_key": "opening-rate-delete-False",
             "kind": "delete",
-            "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+            "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
             "mutation_wait_ended_at": null,
             "provider_account": "sim-a",
             "request_summary": {
               "external_id": "SIMULATOR-RESOURCE-4",
               "kind": "delete",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "provider_account": "sim-a",
               "rescue_exited_cleanly": null,
-              "write_started_at": "2026-11-13T09:08:38.839163+00:00"
+              "write_started_at": "2026-11-13T10:34:30.173945+00:00"
             },
             "requested_by": "caller",
             "rescue_exited_cleanly": null,
@@ -2325,125 +2293,125 @@
             "revision": 4,
             "status": "succeeded",
             "system_reason": null,
-            "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7",
-            "updated_at": "2026-11-13T09:08:38.889911+00:00",
-            "write_started_at": "2026-11-13T09:08:38.839163+00:00",
+            "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a",
+            "updated_at": "2026-11-13T10:34:30.230027+00:00",
+            "write_started_at": "2026-11-13T10:34:30.173945+00:00",
             "yielded_at": null
           }
         },
         "stop_input": {
-          "elapsed": 24.746177492896095,
+          "elapsed": 21.885085650952533,
           "event": "w6_exit_stop_input",
-          "machine": "20c33d3d-93bf-423f-b88c-627cf81cae00",
-          "observed_at": "2026-11-13T09:08:38.887503629+00:00",
-          "session": 678742,
-          "timestamp": 1794560918.9072628
+          "machine": "1d90d404-ccfd-4869-a06c-55039aab133b",
+          "observed_at": "2026-11-13T10:34:30.227447376+00:00",
+          "session": 1255611,
+          "timestamp": 1794566070.2478359
         },
-        "tail_microseconds": 482177,
-        "timestamp": 1794560918.962598
+        "tail_microseconds": 499672,
+        "timestamp": 1794566070.2999842
       },
       {
         "activated": true,
         "direction": "commit_reply",
-        "elapsed": 24.80179826496169,
+        "elapsed": 21.93756486591883,
         "event": "fault_released",
         "fault": "transport_gate",
         "pattern": "store COMMIT",
-        "timestamp": 1794560918.9628835
+        "timestamp": 1794566070.3003151
       },
       {
         "component": "api",
-        "elapsed": 24.8309908490628,
+        "elapsed": 21.965107874944806,
         "event": "application_trace",
-        "path": "<run-dir>/w6-h8b0p6ib/api-0.stdout",
-        "private_trace_events": 52,
+        "path": "<run-dir>/w6-njkew8yz/api-0.stdout",
+        "private_trace_events": 54,
         "selection": "private full trace hash; consequential events retained by scenario",
-        "sha256": "11595bfbf8343f86863152c2ba009815d17dddcd241a6a46ddc6b69d3669bd45",
-        "timestamp": 1794560918.992076
+        "sha256": "7f7f86a0aa5d91ae17863f63be39366cc27f8fe335ab599d6f9c299537587882",
+        "timestamp": 1794566070.327858
       },
       {
         "component": "engine",
-        "elapsed": 24.83203267189674,
+        "elapsed": 21.965884462930262,
         "event": "application_trace",
-        "path": "<run-dir>/w6-h8b0p6ib/engine-0.stdout",
-        "private_trace_events": 121,
+        "path": "<run-dir>/w6-njkew8yz/engine-0.stdout",
+        "private_trace_events": 134,
         "selection": "private full trace hash; consequential events retained by scenario",
-        "sha256": "a88891dc8a5b035f4a8243474148e91e8b387b09936e5e15f772daa4460e9cea",
-        "timestamp": 1794560918.993118
+        "sha256": "c02d72eb68edc5078131c2966d99dced5a4e7060234206a50dcf29d45c11e13c",
+        "timestamp": 1794566070.328635
       },
       {
         "component": "engine",
-        "elapsed": 24.832895240047947,
+        "elapsed": 21.966525267111138,
         "event": "application_trace",
-        "path": "<run-dir>/w6-h8b0p6ib/engine-1.stdout",
-        "private_trace_events": 85,
+        "path": "<run-dir>/w6-njkew8yz/engine-1.stdout",
+        "private_trace_events": 84,
         "selection": "private full trace hash; consequential events retained by scenario",
-        "sha256": "c996e45c8ce073a370ca29035d0a462a0df53f8ff9635098c7aacf7ad8c13ad6",
-        "timestamp": 1794560918.9939804
+        "sha256": "58bf6425498408ff820916528a8006d545138ca6b235e0c271e2ea16e27c50a7",
+        "timestamp": 1794566070.3292756
       },
       {
-        "elapsed": 24.83317335904576,
+        "elapsed": 21.96675428398885,
         "event": "independent_simulator_evidence",
         "records": [
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
             "correlator": null,
-            "monotonic_ns": 1173566227132994,
+            "monotonic_ns": 1178717493502025,
             "path": "/offers",
             "resolution": false,
             "sequence": 1,
             "stage": "request_received",
-            "timestamp": 1794560918.1377966
+            "timestamp": 1794566069.4041662
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
             "correlator": null,
-            "monotonic_ns": 1173566233426078,
+            "monotonic_ns": 1178717500105238,
             "path": "/offers",
             "resolution": false,
             "sequence": 2,
             "stage": "read_only",
-            "timestamp": 1794560918.144091
+            "timestamp": 1794566069.41077
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "correlator": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "monotonic_ns": 1173566262422176,
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "correlator": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "monotonic_ns": 1178717531996374,
             "path": "/order",
             "resolution": false,
             "sequence": 3,
             "stage": "request_received",
-            "timestamp": 1794560918.1730866
+            "timestamp": 1794566069.4426613
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "correlator": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "monotonic_ns": 1173566268571271,
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "correlator": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "monotonic_ns": 1178717538259142,
             "path": "/order",
             "resolution": false,
             "sequence": 4,
             "stage": "accepted",
-            "timestamp": 1794560918.1792364
+            "timestamp": 1794566069.4489238
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "correlator": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "monotonic_ns": 1173566274548497,
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "correlator": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "monotonic_ns": 1178717547318113,
             "path": "/order",
             "resolution": false,
             "resource": "SIMULATOR-RESOURCE-4",
             "sequence": 5,
             "stage": "resource_created",
-            "timestamp": 1794560918.1852133,
+            "timestamp": 1794566069.4579828,
             "value": {
               "account": "sim-a",
               "channel": "orders",
-              "correlator": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "correlator": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "external_id": "SIMULATOR-RESOURCE-4",
               "name": "worker-test",
               "present": true,
@@ -2454,234 +2422,234 @@
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "correlator": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "monotonic_ns": 1173566283440197,
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "correlator": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "monotonic_ns": 1178717556536412,
             "path": "/order",
             "resolution": false,
             "resource": "SIMULATOR-RESOURCE-4",
             "sequence": 6,
             "stage": "response_returned",
-            "timestamp": 1794560918.1941051
+            "timestamp": 1794566069.4672012
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "correlator": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "monotonic_ns": 1173566303241720,
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "correlator": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "monotonic_ns": 1178717576693118,
             "path": "/search",
             "resolution": false,
             "sequence": 7,
             "stage": "request_received",
-            "timestamp": 1794560918.2139068
+            "timestamp": 1794566069.4873579
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "correlator": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "monotonic_ns": 1173566309400834,
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "correlator": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "monotonic_ns": 1178717582984930,
             "path": "/search",
             "resolution": false,
             "sequence": 8,
             "stage": "read_only",
-            "timestamp": 1794560918.2200658
+            "timestamp": 1794566069.4936497
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
             "correlator": null,
-            "monotonic_ns": 1173566327205504,
+            "monotonic_ns": 1178717602759963,
             "path": "/get",
             "resolution": false,
             "sequence": 9,
             "stage": "request_received",
-            "timestamp": 1794560918.2378705
+            "timestamp": 1794566069.5134246
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
             "correlator": null,
-            "monotonic_ns": 1173566335875851,
+            "monotonic_ns": 1178717611905406,
             "path": "/get",
             "resolution": false,
             "sequence": 10,
             "stage": "read_only",
-            "timestamp": 1794560918.2465408
+            "timestamp": 1794566069.5225701
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
             "correlator": null,
-            "monotonic_ns": 1173566341961829,
+            "monotonic_ns": 1178717621073762,
             "path": "/get",
             "resolution": false,
             "sequence": 11,
             "stage": "read_response_returned",
-            "timestamp": 1794560918.2526267
+            "timestamp": 1794566069.5317383
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
             "correlator": null,
-            "monotonic_ns": 1173566361940812,
+            "monotonic_ns": 1178717641595357,
             "path": "/constraints",
             "resolution": false,
             "sequence": 12,
             "stage": "request_received",
-            "timestamp": 1794560918.2726054
+            "timestamp": 1794566069.5522602
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
             "correlator": null,
-            "monotonic_ns": 1173566368031730,
+            "monotonic_ns": 1178717648043651,
             "path": "/constraints",
             "resolution": false,
             "sequence": 13,
             "stage": "read_only",
-            "timestamp": 1794560918.2786963
+            "timestamp": 1794566069.5587084
           },
           {
             "account": "sim-a",
-            "command": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+            "command": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
             "correlator": null,
-            "monotonic_ns": 1173566376698150,
+            "monotonic_ns": 1178717657190798,
             "path": "/constraints",
             "resolution": false,
             "sequence": 14,
             "stage": "read_response_returned",
-            "timestamp": 1794560918.287363
+            "timestamp": 1794566069.5678558
           },
           {
             "account": "sim-a",
-            "command": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "command": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "correlator": null,
-            "monotonic_ns": 1173566949645302,
+            "monotonic_ns": 1178718284788398,
             "path": "/delete",
             "resolution": false,
             "sequence": 15,
             "stage": "request_received",
-            "timestamp": 1794560918.8603103
+            "timestamp": 1794566070.1954534
           },
           {
             "account": "sim-a",
-            "command": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "command": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "correlator": null,
-            "monotonic_ns": 1173566953885729,
+            "monotonic_ns": 1178718292077941,
             "path": "/delete",
             "resolution": false,
             "sequence": 16,
             "stage": "delete_accepted",
-            "timestamp": 1794560918.8645506
+            "timestamp": 1794566070.2027428
           },
           {
             "account": "sim-a",
-            "command": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "command": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "correlator": null,
-            "monotonic_ns": 1173566959952882,
+            "monotonic_ns": 1178718298223350,
             "path": "/delete",
             "resolution": false,
             "resource": "SIMULATOR-RESOURCE-4",
             "sequence": 17,
             "stage": "resource_deleted",
-            "timestamp": 1794560918.8706179
+            "timestamp": 1794566070.208888
           },
           {
             "account": "sim-a",
-            "command": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "command": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "correlator": null,
             "gone": true,
-            "monotonic_ns": 1173566968636314,
+            "monotonic_ns": 1178718307321013,
             "path": "/delete",
             "resolution": false,
             "sequence": 18,
             "stage": "delete_response_returned",
-            "timestamp": 1794560918.879301
+            "timestamp": 1794566070.2179859
           }
         ],
-        "sha256": "c62c3f4a82bf623333418a1b1e3fcdb7ba90ba2f303e2940d57b6286f298fb7c",
+        "sha256": "6805a571d8c1402a6b6a8d3f79898fbd7020bde52eae7b2c441ed115f9c9fc03",
         "simulator_kind": "provider",
-        "timestamp": 1794560918.9942584
+        "timestamp": 1794566070.3295045
       },
       {
-        "elapsed": 24.833324200008065,
+        "elapsed": 21.96689876401797,
         "event": "independent_simulator_evidence",
         "records": [
           {
-            "monotonic_ns": 1173565686734373,
+            "monotonic_ns": 1178716899854109,
             "sequence": 1,
             "stage": "rail_observation",
-            "timestamp": 1794560917.5973992,
+            "timestamp": 1794566068.810519,
             "value": {
               "amount_sats": 115,
-              "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/6561b44f-5b59-469b-8b3d-8372ff2b8418/EXPIRES/1794564517",
-              "payment_hash": "61785db55f2573c1cac594d1115e43c9dc4c2da4d434ea36d88820b2406ea66e",
+              "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/f2403009-65dd-4787-8739-29c880957d10/EXPIRES/1794569668",
+              "payment_hash": "d12b38c4e1793d3550baa4585a6cca66a01008d68808deb030a075be4710e99f",
               "preimage_known": true,
               "rail": "lightning",
               "settled": true,
-              "settled_at": "2026-11-13T09:08:37Z"
+              "settled_at": "2026-11-13T10:34:28Z"
             }
           }
         ],
-        "sha256": "07e1f1efa6ee2760699cdf128d684948daa63b6b1b68d0966df70ba5ab889155",
+        "sha256": "2212a74898ca9d2398fddc03048f8d4fe277605274ef6dceb5cca314d6da286d",
         "simulator_kind": "rail",
-        "timestamp": 1794560918.9944096
+        "timestamp": 1794566070.3296492
       },
       {
         "count": 5,
-        "elapsed": 24.83336366387084,
+        "elapsed": 21.966943827923387,
         "event": "workflow_children_reaped",
-        "timestamp": 1794560918.994449
+        "timestamp": 1794566070.3296943
       },
       {
-        "elapsed": 24.83341372688301,
+        "elapsed": 21.966986587969586,
         "event": "failure",
         "message": "F1 LDG-66 clamp opened with no rate must retain null opening rate",
-        "timestamp": 1794560918.994499,
+        "timestamp": 1794566070.329737,
         "type": "AssertionError"
       },
       {
         "cancel_requests": 0,
-        "elapsed": 25.02904290589504,
+        "elapsed": 22.16383507102728,
         "event": "proxy_cleanup",
-        "timestamp": 1794560919.1901278
+        "timestamp": 1794566070.526585
       },
       {
-        "elapsed": 25.73136777197942,
+        "elapsed": 22.665913552045822,
         "event": "server_stopped",
         "exit_status": 0,
         "mode": "fast",
         "node": "primary",
-        "timestamp": 1794560919.892453
+        "timestamp": 1794566071.0286639
       },
       {
-        "elapsed": 25.93297053896822,
+        "elapsed": 22.967651108046994,
         "event": "server_stopped",
         "exit_status": 0,
         "mode": "fast",
         "node": "standby",
-        "timestamp": 1794560920.0940557
+        "timestamp": 1794566071.3304012
       },
       {
-        "elapsed": 25.961586257908493,
+        "elapsed": 22.995370815042406,
         "event": "cleanup_removed",
-        "path": "<run-dir>/w6-h8b0p6ib/primary",
-        "timestamp": 1794560920.1226711
+        "path": "<run-dir>/w6-njkew8yz/primary",
+        "timestamp": 1794566071.358121
       },
       {
-        "elapsed": 25.987793975975364,
+        "elapsed": 23.021753329085186,
         "event": "cleanup_removed",
-        "path": "<run-dir>/w6-h8b0p6ib/standby",
-        "timestamp": 1794560920.1488788
+        "path": "<run-dir>/w6-njkew8yz/standby",
+        "timestamp": 1794566071.3845034
       },
       {
-        "elapsed": 26.109456944046542,
+        "elapsed": 23.138483060058206,
         "event": "cleanup_removed",
-        "path": "<run-dir>/w6-h8b0p6ib/target",
-        "timestamp": 1794560920.270542
+        "path": "<run-dir>/w6-njkew8yz/target",
+        "timestamp": 1794566071.501233
       },
       {
-        "elapsed": 26.10966593399644,
+        "elapsed": 23.138678895076737,
         "event": "allocation_released",
         "ports": [
           55500,
@@ -2695,15 +2663,15 @@
           55508,
           55509
         ],
-        "timestamp": 1794560920.270751
+        "timestamp": 1794566071.5014293
       },
       {
-        "elapsed": 26.109709704993293,
+        "elapsed": 23.138717446941882,
         "errors": [],
         "event": "cleanup_complete",
-        "raw_evidence": "<run-dir>/w6-h8b0p6ib",
+        "raw_evidence": "<run-dir>/w6-njkew8yz",
         "result": "pass",
-        "timestamp": 1794560920.270795
+        "timestamp": 1794566071.501468
       }
     ],
     "external_provider_rail_evidence": "independent durable W6 simulator evidence; no real effects",
@@ -2713,7 +2681,7 @@
       "no product recovery incidents; W6 simulator reconciliation only; no general meter or production alarms",
       "DB-10 full saturation: not run (W8)"
     ],
-    "raw_evidence": "<run-dir>/w6-h8b0p6ib",
+    "raw_evidence": "<run-dir>/w6-njkew8yz",
     "result": "fail",
     "scenarios": [
       {
@@ -2802,25 +2770,26 @@
       "tests/postgres/w5_accounting.py": "7e391b59facd02dd4e691b044ab4dd7614e2f6d08fc539bb797d253a63e3f87e",
       "tests/postgres/w5_baseline.py": "69d90ebf96204d7545cbd7775d34ffa58aec598667f536ae94d39d10d33c8d92",
       "tests/postgres/w5_release_control.py": "adc2a25a3d3e7ef5e8f6cf03305706f04adb0371f99de56f2432ed65aedf6708",
-      "tests/postgres/w6.py": "711ec4bb2620216d455241e1da37f1c7cdb3449c2d04fc6bdff535fb1904edb6",
+      "tests/postgres/w6.py": "5faf6dd8fe4c536179e41ba29d13434a61343733eda6fbc5fed856d6dd4bac8d",
       "tests/postgres/w6_blocking.py": "02801d1a23b7464d548bd7b4b59d50912b0e8245052c46beab7eeda27baf9264",
-      "tests/postgres/w6_blocking_baseline.py": "e2de970d54f298264481bf7474c823f80b64b44e61e077972a3eccef7625efa1",
+      "tests/postgres/w6_blocking_baseline.py": "605807fa46a72f1f4bae6cca82d611143772b5aacda08e5e954754d18b24c576",
       "tests/postgres/w6_continuation.py": "d0fc2b5c83ebdf8a7e0c648389916dd08efefc7be7e2efd52b0d7d0e0b0cb581",
       "tests/postgres/w6_edges.py": "69eb9317a539b803588de190e83757a5e6b159d41e2399fbba9cdb7f64643c8d",
       "tests/postgres/w6_exact.py": "28db3aeef367261cf99a0e7c81c139b68a4012e350702e4a0907bf11e268ba43",
-      "tests/postgres/w6_final_repairs.py": "7ebc8e15eb06e1381e4e025c53b9135a934019a07f29cdf7c88985cf5653cebb",
+      "tests/postgres/w6_final_repairs.py": "bfde23e92d5c8d485b1989199a5f1d3b78b2ad2eeec2f4d20a923d3ee7552ba9",
       "tests/postgres/w6_gone_reply.py": "9b03a5c2627b2f2bceffebf7466dc7abf0ea9da249516f06f329d61697b6fe56",
       "tests/postgres/w6_repairs.py": "fe076cdc328a4bafb4cca2521967dea252a1fee46422903a38112177ecf7b715",
+      "tests/postgres/w6_retired_targets.py": "f69ce84eefce0dbf92a9eeee9a38a739cd32a0ebfb0c413a6cf54745fdc02b9a",
       "tests/postgres/workflow.py": "646e8992b21336f5837b277196a089b9787d1b938de3d83343387ef7c6534888",
       "tests/support/pause.py": "12d95b008fb86fd73513bb513a4ecefea0598d0d0ea5a377b48664fefa4700e8",
       "tools/check.sh": "eb6fc0f8f3386de84a0abddba2585ec64617117f8bdc460a4e92f4bc20cd7200",
       "tools/postgres.sh": "7f2256c81544d8151d5820671bae2102781bf44ecb4f582fead975a93bc5dc4b"
     },
     "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-    "tested_source_sha256": "46bf8fe967ceaf7ceabdfe5614a9693bc43add0b6a63d70ced7cbce109582d87",
+    "tested_source_sha256": "71c3284a619cf3b2b002ed00407e8024321b10be9b443d86b43ee8390f6c6247",
     "trace": {
-      "path": "<run-dir>/w6-h8b0p6ib/events.jsonl",
-      "sha256": "819250fd25d4b7d7681f38a013e46d33999c78106f879e5a307760142cc8670a"
+      "path": "<run-dir>/w6-njkew8yz/events.jsonl",
+      "sha256": "b16ac4edf1ad22dae8af3dacda19ff7b879d86076b4a0ee08a4ba003eee5b47b"
     },
     "versions": {
       "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",
@@ -2960,13 +2929,13 @@
           "commitments": [
             {
               "closed_at": null,
-              "id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
-              "opened_at": "2026-11-13T09:08:37.717192+00:00",
-              "operation_id": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
+              "opened_at": "2026-11-13T10:34:28.980436+00:00",
+              "operation_id": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "reserved_sats": 12,
               "state": "open",
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7",
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a",
               "version": 2
             }
           ],
@@ -2977,69 +2946,69 @@
               "amount_sats": -20,
               "balance_after": 95,
               "billing_period": null,
-              "commitment_id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "created_at": "2026-11-13T09:08:38.293975+00:00",
+              "commitment_id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "created_at": "2026-11-13T10:34:29.577255+00:00",
               "deposit_id": null,
               "haircut_bps": 0,
-              "id": "05da1509-7d61-4c1a-8bcc-6955019bcb85",
-              "idempotency_key": "setup_fee_debit:c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "id": "e585e685-614f-4235-b83a-2aebf453f361",
+              "idempotency_key": "setup_fee_debit:f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "increment_end": null,
               "kind": "setup_fee_debit",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "native_currency": "USD",
               "native_minor": 2,
-              "operation_id": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "operation_id": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:08:36+00:00",
+              "rate_observed_at": "2026-11-13T10:34:28+00:00",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "seq": 2,
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7"
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a"
             },
             {
               "amount_sats": -11,
               "balance_after": 84,
               "billing_period": null,
-              "commitment_id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "created_at": "2026-11-13T09:08:38.293975+00:00",
+              "commitment_id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "created_at": "2026-11-13T10:34:29.577255+00:00",
               "deposit_id": null,
               "haircut_bps": 0,
-              "id": "5094b360-2225-4f6a-9e28-6a9e76d8631f",
-              "idempotency_key": "first_unit_debit:c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "id": "1d9571cf-7151-4cf1-b027-2b837b9cfb59",
+              "idempotency_key": "first_unit_debit:f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "increment_end": null,
               "kind": "first_unit_debit",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "native_currency": "USD",
               "native_minor": 1,
-              "operation_id": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "operation_id": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:08:36+00:00",
+              "rate_observed_at": "2026-11-13T10:34:28+00:00",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "seq": 3,
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7"
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a"
             }
           ],
           "machine": {
             "billing_unit_seconds": 3600,
             "correlator_kind": "operation_uuid",
-            "correlator_value": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "created_at": "2026-11-13T09:08:38.293975+00:00",
+            "correlator_value": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "created_at": "2026-11-13T10:34:29.577255+00:00",
             "customer_rate_den": 3600,
             "customer_rate_num": 11,
             "declared_cancellation_bound": "2026-11-13T00:00:00+00:00",
             "destroy_committed": null,
             "earliest_cancellation_date": "2026-11-13T00:00:00+00:00",
             "external_id": "SIMULATOR-RESOURCE-4",
-            "first_unit_debit_id": "5094b360-2225-4f6a-9e28-6a9e76d8631f",
-            "id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+            "first_unit_debit_id": "1d9571cf-7151-4cf1-b027-2b837b9cfb59",
+            "id": "1d90d404-ccfd-4869-a06c-55039aab133b",
             "install_strategies": [],
             "kind": "virtual",
             "metadata": {},
             "meter_quarantined": false,
-            "meter_seed_at": "2026-11-13T10:08:38.293975+00:00",
+            "meter_seed_at": "2026-11-13T11:34:29.577255+00:00",
             "meter_stopped_at": null,
             "name": "worker-test",
             "native_terms": {
@@ -3119,7 +3088,7 @@
                 "haircut_bps": 0,
                 "margin_bps": 1000,
                 "minor_scale": 2,
-                "observed_at": "2026-11-13T09:08:36Z",
+                "observed_at": "2026-11-13T10:34:28Z",
                 "rate_den": 1,
                 "rate_num": 10,
                 "source": "simulator-fixed-rational"
@@ -3131,44 +3100,44 @@
             "provider_account": "sim-a",
             "public_ips": [],
             "region": "test",
-            "runway_until": "2026-11-13T11:08:38.293975+00:00",
+            "runway_until": "2026-11-13T12:34:29.577255+00:00",
             "state": "running",
-            "state_observed_at": "2026-11-13T09:08:38.25889+00:00",
-            "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7",
-            "updated_at": "2026-11-13T09:08:38.293975+00:00"
+            "state_observed_at": "2026-11-13T10:34:29.538119+00:00",
+            "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a",
+            "updated_at": "2026-11-13T10:34:29.577255+00:00"
           },
           "meter": [
             {
               "billing_period": "2026-11",
               "credit_den": 1,
               "credit_num": 0,
-              "high_water_mark": "2026-11-13T07:08:38.374313+00:00",
-              "subject_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "high_water_mark": "2026-11-13T08:34:29.695123+00:00",
+              "subject_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "subject_kind": "machine"
             }
           ],
           "operation": {
             "about_to_order_at": null,
             "admitted_sats": null,
-            "available_at": "2026-11-13T09:08:38.425773+00:00",
+            "available_at": "2026-11-13T10:34:29.749077+00:00",
             "claim_number": 0,
             "commitment_id": null,
-            "correlation_id": "3026b903-4a9d-472e-8d5c-4525ca116e03",
+            "correlation_id": "852987ff-c153-4d89-9870-a91fc4981c05",
             "correlator_kind": null,
             "correlator_value": null,
-            "created_at": "2026-11-13T09:08:38.425773+00:00",
+            "created_at": "2026-11-13T10:34:29.749077+00:00",
             "episode_id": null,
             "error": null,
-            "id": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "id": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "idempotency_key": "opening-rate-delete-False",
             "kind": "delete",
-            "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+            "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
             "mutation_wait_ended_at": null,
             "provider_account": "sim-a",
             "request_summary": {
               "external_id": "SIMULATOR-RESOURCE-4",
               "kind": "delete",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "provider_account": "sim-a"
             },
             "requested_by": "caller",
@@ -3182,16 +3151,16 @@
             "revision": 1,
             "status": "queued",
             "system_reason": null,
-            "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7",
-            "updated_at": "2026-11-13T09:08:38.425773+00:00",
+            "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a",
+            "updated_at": "2026-11-13T10:34:29.749077+00:00",
             "write_started_at": null,
             "yielded_at": null
           }
         },
-        "boundary": "2026-11-13 09:08:38.405326+00",
+        "boundary": "2026-11-13 10:34:29.727775+00",
         "commit_reply_held": true,
         "computed_sats": 23,
-        "created": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+        "created": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
         "current_available": false,
         "current_condition": {
           "available": false,
@@ -3200,7 +3169,7 @@
             "haircut_bps": 0,
             "margin_bps": 1000,
             "minor_scale": 2,
-            "observed_at": "2026-11-13T09:08:36Z",
+            "observed_at": "2026-11-13T10:34:28Z",
             "rate_den": 1,
             "rate_num": 20,
             "source": "simulator-fixed-rational"
@@ -3211,27 +3180,27 @@
           "haircut_bps": 0,
           "margin_bps": 1000,
           "minor_scale": 2,
-          "observed_at": "2026-11-13T09:08:36Z",
+          "observed_at": "2026-11-13T10:34:28Z",
           "rate_den": 1,
           "rate_num": 20,
           "source": "simulator-fixed-rational"
         },
-        "elapsed": 24.801513033919036,
-        "elapsed_microseconds": 7200031013,
+        "elapsed": 21.93723381892778,
+        "elapsed_microseconds": 7200032652,
         "event": "w6_opening_rate",
         "historical_rate": {
           "currency": "USD",
           "haircut_bps": 0,
           "margin_bps": 1000,
           "minor_scale": 2,
-          "observed_at": "2026-11-13T09:08:36Z",
+          "observed_at": "2026-11-13T10:34:28Z",
           "rate_den": 1,
           "rate_num": 10,
           "source": "simulator-fixed-rational"
         },
         "history": [
           {
-            "accepted_at": "2026-11-13T06:08:38.389702+00:00",
+            "accepted_at": "2026-11-13T07:34:29.710573+00:00",
             "available": true,
             "currency": "USD",
             "sequence": 1,
@@ -3240,14 +3209,14 @@
               "haircut_bps": 0,
               "margin_bps": 1000,
               "minor_scale": 2,
-              "observed_at": "2026-11-13T09:08:36Z",
+              "observed_at": "2026-11-13T10:34:28Z",
               "rate_den": 1,
               "rate_num": 10,
               "source": "simulator-fixed-rational"
             }
           },
           {
-            "accepted_at": "2026-11-13T09:08:38.405326+00:00",
+            "accepted_at": "2026-11-13T10:34:29.727775+00:00",
             "available": false,
             "currency": "USD",
             "sequence": 2,
@@ -3256,79 +3225,98 @@
               "haircut_bps": 0,
               "margin_bps": 1000,
               "minor_scale": 2,
-              "observed_at": "2026-11-13T09:08:36Z",
+              "observed_at": "2026-11-13T10:34:28Z",
               "rate_den": 1,
               "rate_num": 20,
               "source": "simulator-fixed-rational"
             }
           }
         ],
-        "machine": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+        "machine": "1d90d404-ccfd-4869-a06c-55039aab133b",
         "native_minor": 3,
-        "operation": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+        "operation": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
         "provider": [
           {
             "account": "sim-a",
-            "command": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "command": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "correlator": null,
-            "monotonic_ns": 1173566949645302,
+            "monotonic_ns": 1178718284788398,
             "path": "/delete",
             "resolution": false,
             "sequence": 15,
             "stage": "request_received",
-            "timestamp": 1794560918.8603103
+            "timestamp": 1794566070.1954534
           },
           {
             "account": "sim-a",
-            "command": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "command": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "correlator": null,
-            "monotonic_ns": 1173566953885729,
+            "monotonic_ns": 1178718292077941,
             "path": "/delete",
             "resolution": false,
             "sequence": 16,
             "stage": "delete_accepted",
-            "timestamp": 1794560918.8645506
+            "timestamp": 1794566070.2027428
           },
           {
             "account": "sim-a",
-            "command": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "command": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "correlator": null,
-            "monotonic_ns": 1173566959952882,
+            "monotonic_ns": 1178718298223350,
             "path": "/delete",
             "resolution": false,
             "resource": "SIMULATOR-RESOURCE-4",
             "sequence": 17,
             "stage": "resource_deleted",
-            "timestamp": 1794560918.8706179
+            "timestamp": 1794566070.208888
           },
           {
             "account": "sim-a",
-            "command": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "command": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "correlator": null,
             "gone": true,
-            "monotonic_ns": 1173566968636314,
+            "monotonic_ns": 1178718307321013,
             "path": "/delete",
             "resolution": false,
             "sequence": 18,
             "stage": "delete_response_returned",
-            "timestamp": 1794560918.879301
+            "timestamp": 1794566070.2179859
           }
         ],
         "state": {
           "commitments": [
             {
-              "closed_at": "2026-11-13T09:08:38.908503+00:00",
-              "id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
-              "opened_at": "2026-11-13T09:08:37.717192+00:00",
-              "operation_id": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "closed_at": "2026-11-13T10:34:30.249026+00:00",
+              "id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
+              "opened_at": "2026-11-13T10:34:28.980436+00:00",
+              "operation_id": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "reserved_sats": 0,
               "state": "closed",
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7",
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a",
               "version": 4
             }
           ],
           "deficiencies": [
+            {
+              "absorbed_from": "2026-11-13T10:34:29.727775+00:00",
+              "absorbed_seconds": 1,
+              "absorbed_until": "2026-11-13T10:34:30.227447+00:00",
+              "cause": "rate_outage",
+              "clamped_sats": null,
+              "currency": "USD",
+              "id": "5f328848-dfe7-484c-b64a-2e6ccb609c48",
+              "idempotency_key": "rate_outage:1d90d404-ccfd-4869-a06c-55039aab133b:2026-11-13T10:34:29.727775+00:00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
+              "native_minor": 1,
+              "opened_at": "2026-11-13T10:34:30.227774+00:00",
+              "operation_id": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
+              "provider_account": "sim-a",
+              "rate_den": null,
+              "rate_num": null,
+              "subject_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
+              "subject_kind": "machine"
+            },
             {
               "absorbed_from": null,
               "absorbed_seconds": 0,
@@ -3336,35 +3324,16 @@
               "cause": "clamp_overflow",
               "clamped_sats": 11,
               "currency": "USD",
-              "id": "3ccde89b-7fbd-419d-ad25-764cef7682b0",
-              "idempotency_key": "usage:machine:20c33d3d-93bf-423f-b88c-627cf81cae00:2026-11:2026-11-13T09:08:38.405326Z",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "id": "d8be7019-843e-4923-8408-03e4b9ea07f3",
+              "idempotency_key": "usage:machine:1d90d404-ccfd-4869-a06c-55039aab133b:2026-11:2026-11-13T10:34:29.727775Z",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "native_minor": 2,
-              "opened_at": "2026-11-13T09:08:38.887783+00:00",
-              "operation_id": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+              "opened_at": "2026-11-13T10:34:30.227774+00:00",
+              "operation_id": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
               "provider_account": "sim-a",
               "rate_den": 1,
               "rate_num": 10,
-              "subject_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
-              "subject_kind": "machine"
-            },
-            {
-              "absorbed_from": "2026-11-13T09:08:38.405326+00:00",
-              "absorbed_seconds": 1,
-              "absorbed_until": "2026-11-13T09:08:38.887504+00:00",
-              "cause": "rate_outage",
-              "clamped_sats": null,
-              "currency": "USD",
-              "id": "ecd95df0-29b6-41ef-98b7-c5f1861dddca",
-              "idempotency_key": "rate_outage:20c33d3d-93bf-423f-b88c-627cf81cae00:2026-11-13T09:08:38.405326+00:00",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
-              "native_minor": 1,
-              "opened_at": "2026-11-13T09:08:38.887783+00:00",
-              "operation_id": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
-              "provider_account": "sim-a",
-              "rate_den": null,
-              "rate_num": null,
-              "subject_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "subject_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "subject_kind": "machine"
             }
           ],
@@ -3374,94 +3343,94 @@
               "amount_sats": -20,
               "balance_after": 95,
               "billing_period": null,
-              "commitment_id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "created_at": "2026-11-13T09:08:38.293975+00:00",
+              "commitment_id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "created_at": "2026-11-13T10:34:29.577255+00:00",
               "deposit_id": null,
               "haircut_bps": 0,
-              "id": "05da1509-7d61-4c1a-8bcc-6955019bcb85",
-              "idempotency_key": "setup_fee_debit:c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "id": "e585e685-614f-4235-b83a-2aebf453f361",
+              "idempotency_key": "setup_fee_debit:f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "increment_end": null,
               "kind": "setup_fee_debit",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "native_currency": "USD",
               "native_minor": 2,
-              "operation_id": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "operation_id": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:08:36+00:00",
+              "rate_observed_at": "2026-11-13T10:34:28+00:00",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "seq": 2,
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7"
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a"
             },
             {
               "amount_sats": -11,
               "balance_after": 84,
               "billing_period": null,
-              "commitment_id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "created_at": "2026-11-13T09:08:38.293975+00:00",
+              "commitment_id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "created_at": "2026-11-13T10:34:29.577255+00:00",
               "deposit_id": null,
               "haircut_bps": 0,
-              "id": "5094b360-2225-4f6a-9e28-6a9e76d8631f",
-              "idempotency_key": "first_unit_debit:c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "id": "1d9571cf-7151-4cf1-b027-2b837b9cfb59",
+              "idempotency_key": "first_unit_debit:f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "increment_end": null,
               "kind": "first_unit_debit",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "native_currency": "USD",
               "native_minor": 1,
-              "operation_id": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
+              "operation_id": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:08:36+00:00",
+              "rate_observed_at": "2026-11-13T10:34:28+00:00",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "seq": 3,
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7"
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a"
             },
             {
               "amount_sats": -12,
               "balance_after": 72,
               "billing_period": "2026-11",
-              "commitment_id": "2d3b11c8-bf57-4609-a1b3-211578017daf",
-              "created_at": "2026-11-13T09:08:38.887783+00:00",
+              "commitment_id": "d6c39660-336b-4614-b1a9-979212347c13",
+              "created_at": "2026-11-13T10:34:30.227774+00:00",
               "deposit_id": null,
               "haircut_bps": 0,
-              "id": "b296ebe7-5f52-411a-9a97-b3a75154e904",
-              "idempotency_key": "usage:machine:20c33d3d-93bf-423f-b88c-627cf81cae00:2026-11:2026-11-13T09:08:38.405326Z",
-              "increment_end": "2026-11-13T09:08:38.405326+00:00",
+              "id": "31aaf394-36a1-44c7-a19a-4f920be87424",
+              "idempotency_key": "usage:machine:1d90d404-ccfd-4869-a06c-55039aab133b:2026-11:2026-11-13T10:34:29.727775Z",
+              "increment_end": "2026-11-13T10:34:29.727775+00:00",
               "kind": "usage_debit",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "native_currency": "USD",
               "native_minor": 1,
               "operation_id": null,
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:08:36+00:00",
+              "rate_observed_at": "2026-11-13T10:34:28+00:00",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-credit-v1",
               "seq": 4,
-              "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7"
+              "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a"
             }
           ],
           "machine": {
             "billing_unit_seconds": 3600,
             "correlator_kind": "operation_uuid",
-            "correlator_value": "c50a86d0-85c7-44fd-a091-5f4dbf0a464b",
-            "created_at": "2026-11-13T09:08:38.293975+00:00",
+            "correlator_value": "f8f351ea-37f4-4ad6-a342-0df1af05d53b",
+            "created_at": "2026-11-13T10:34:29.577255+00:00",
             "customer_rate_den": 3600,
             "customer_rate_num": 11,
             "declared_cancellation_bound": "2026-11-13T00:00:00+00:00",
             "destroy_committed": null,
             "earliest_cancellation_date": "2026-11-13T00:00:00+00:00",
             "external_id": "SIMULATOR-RESOURCE-4",
-            "first_unit_debit_id": "5094b360-2225-4f6a-9e28-6a9e76d8631f",
-            "id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+            "first_unit_debit_id": "1d9571cf-7151-4cf1-b027-2b837b9cfb59",
+            "id": "1d90d404-ccfd-4869-a06c-55039aab133b",
             "install_strategies": [],
             "kind": "virtual",
             "metadata": {},
             "meter_quarantined": false,
-            "meter_seed_at": "2026-11-13T10:08:38.293975+00:00",
-            "meter_stopped_at": "2026-11-13T09:08:38.887504+00:00",
+            "meter_seed_at": "2026-11-13T11:34:29.577255+00:00",
+            "meter_stopped_at": "2026-11-13T10:34:30.227447+00:00",
             "name": "worker-test",
             "native_terms": {
               "channel": "orders",
@@ -3540,7 +3509,7 @@
                 "haircut_bps": 0,
                 "margin_bps": 1000,
                 "minor_scale": 2,
-                "observed_at": "2026-11-13T09:08:36Z",
+                "observed_at": "2026-11-13T10:34:28Z",
                 "rate_den": 1,
                 "rate_num": 10,
                 "source": "simulator-fixed-rational"
@@ -3552,47 +3521,47 @@
             "provider_account": "sim-a",
             "public_ips": [],
             "region": "test",
-            "runway_until": "2026-11-13T11:08:38.293975+00:00",
+            "runway_until": "2026-11-13T12:34:29.577255+00:00",
             "state": "deleted",
-            "state_observed_at": "2026-11-13T09:08:38.887504+00:00",
-            "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7",
-            "updated_at": "2026-11-13T09:08:38.907388+00:00"
+            "state_observed_at": "2026-11-13T10:34:30.227447+00:00",
+            "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a",
+            "updated_at": "2026-11-13T10:34:30.247958+00:00"
           },
           "meter": [
             {
               "billing_period": "2026-11",
-              "credit_den": 3600000000,
-              "credit_num": 3599658857,
-              "high_water_mark": "2026-11-13T09:08:38.887504+00:00",
-              "subject_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "credit_den": 100000000,
+              "credit_num": 99990023,
+              "high_water_mark": "2026-11-13T10:34:30.227447+00:00",
+              "subject_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "subject_kind": "machine"
             }
           ],
           "operation": {
             "about_to_order_at": null,
             "admitted_sats": null,
-            "available_at": "2026-11-13T09:08:38.425773+00:00",
+            "available_at": "2026-11-13T10:34:29.749077+00:00",
             "claim_number": 1,
             "commitment_id": null,
-            "correlation_id": "3026b903-4a9d-472e-8d5c-4525ca116e03",
+            "correlation_id": "852987ff-c153-4d89-9870-a91fc4981c05",
             "correlator_kind": null,
             "correlator_value": null,
-            "created_at": "2026-11-13T09:08:38.425773+00:00",
+            "created_at": "2026-11-13T10:34:29.749077+00:00",
             "episode_id": null,
             "error": null,
-            "id": "19bea540-9622-44a5-9a7b-7fe8eae228cf",
+            "id": "90a0c397-50ff-42e3-b938-3c3bdbb23905",
             "idempotency_key": "opening-rate-delete-False",
             "kind": "delete",
-            "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+            "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
             "mutation_wait_ended_at": null,
             "provider_account": "sim-a",
             "request_summary": {
               "external_id": "SIMULATOR-RESOURCE-4",
               "kind": "delete",
-              "machine_id": "20c33d3d-93bf-423f-b88c-627cf81cae00",
+              "machine_id": "1d90d404-ccfd-4869-a06c-55039aab133b",
               "provider_account": "sim-a",
               "rescue_exited_cleanly": null,
-              "write_started_at": "2026-11-13T09:08:38.839163+00:00"
+              "write_started_at": "2026-11-13T10:34:30.173945+00:00"
             },
             "requested_by": "caller",
             "rescue_exited_cleanly": null,
@@ -3607,22 +3576,22 @@
             "revision": 4,
             "status": "succeeded",
             "system_reason": null,
-            "tenant_id": "99dd16d2-0bf3-4944-854d-0188a7623df7",
-            "updated_at": "2026-11-13T09:08:38.889911+00:00",
-            "write_started_at": "2026-11-13T09:08:38.839163+00:00",
+            "tenant_id": "7a4dc8e5-49fe-4888-b354-7ea5e9377f4a",
+            "updated_at": "2026-11-13T10:34:30.230027+00:00",
+            "write_started_at": "2026-11-13T10:34:30.173945+00:00",
             "yielded_at": null
           }
         },
         "stop_input": {
-          "elapsed": 24.746177492896095,
+          "elapsed": 21.885085650952533,
           "event": "w6_exit_stop_input",
-          "machine": "20c33d3d-93bf-423f-b88c-627cf81cae00",
-          "observed_at": "2026-11-13T09:08:38.887503629+00:00",
-          "session": 678742,
-          "timestamp": 1794560918.9072628
+          "machine": "1d90d404-ccfd-4869-a06c-55039aab133b",
+          "observed_at": "2026-11-13T10:34:30.227447376+00:00",
+          "session": 1255611,
+          "timestamp": 1794566070.2478359
         },
-        "tail_microseconds": 482177,
-        "timestamp": 1794560918.962598
+        "tail_microseconds": 499672,
+        "timestamp": 1794566070.2999842
       }
     ],
     "case": "w6_f1_null",
@@ -3636,13 +3605,13 @@
       "--seed",
       "20261112",
       "--evidence",
-      "<private-evidence>/baseline-committed-final/blocking-baseline-siwwc83y/w6_f1_null.json"
+      "<private-evidence>/blocking-baseline-azfd1oru/w6_f1_null.json"
     ],
     "exit_status": 1,
     "intended_assertion": "F1 LDG-66 clamp opened with no rate must retain null opening rate",
-    "raw_manifest": "<private-evidence>/baseline-committed-final/blocking-baseline-siwwc83y/w6_f1_null.json",
+    "raw_manifest": "<private-evidence>/blocking-baseline-azfd1oru/w6_f1_null.json",
     "result": "expected negative demonstration",
-    "stderr_sha256": "26e41d17ac7acee5beca9691f4f4569344f9d768866ef4881a74247e013831be",
-    "stdout_sha256": "1e37d9dd8b8ae2d9f34e2c07bc0c32075a18a701b016834968c8b0baad7cf9ac"
+    "stderr_sha256": "2a8fb47677a44c3c28d4b5b2affb72817772f269f04fee9d302cd3929f0d37d2",
+    "stdout_sha256": "c7e76ed602db53ded857fabb957de7ee0b23f86f2696a5463482425388243621"
   }
 }

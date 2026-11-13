@@ -6,7 +6,7 @@ The final operational commit, complete source inventory, exact dependency/tool v
 
 The canonical fast gate and all-phase PostgreSQL command exited 0. Nine Python harness unit tests also passed with exit 0. The canonical command is `nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <private-evidence>/all.json`; the gate is `nix develop --command bash tools/check.sh`. See validation for full command/status and output-hash proof. Later documentation/evidence publication preserves every tested operational hash.
 
-Recorded 2026-11-13: this final bundle covers 50 W6 groups: the original 22, nine earlier repair groups, nine continuation groups, seven retention/credential/field groups and three opening-rate/retired-replay groups. All 39 sensitivity controls remain. W7–W11 and the accepted scope choices remain outside this implementation.
+Recorded 2026-11-13: this final bundle covers 52 W6 groups: the original 22, nine earlier repair groups, nine continuation groups, seven retention/credential/field groups, three opening-rate/retired-replay groups and two retained-target authorization groups. All 39 sensitivity controls remain. W7–W11 and the accepted scope choices remain outside this implementation.
 
 ## Activated scenarios and established facts
 
@@ -64,6 +64,9 @@ Every row below is `pass` in [final-w6.json](final-w6.json). It inherits the man
 | `w6_f1_null` | A genuine create and caller delete close a two-hour historical 10/1 interval during a current outage. The customer debit stays 12 sats, the clamp 11 sats/native 2 and opening fields null; exact rational credit/mark and outage fields are checked. Rate return before a landed COMMIT reply is lost, actual whole-store retry, successor and caller replay preserve every row and one delete. | LDG-4/31/38/66/72; STO-37; selected CNF-160 |
 | `w6_f1_current` | The same historical exit keeps its 10/1 ledger conversion and exact arithmetic while the new deficiency records current 20/1. The subsequent small piece uses its actual new rate and exact carried credit. Lost receipt, return to 10/1, retry/restart/replay preserve the original opening evidence without another provider mutation. | LDG-4/31/38/66/72; STO-37; selected CNF-160 |
 | `w6_f2` | Real unresolved purchases and authenticated operator decisions establish principal-scoped permanent receipts. Identical/mismatched unexpired replays precede disclosed expiry and actual housekeeping deletion. Retired matching replay returns 410 with the retained horizon; changed valid bodies return 409. Effective-tenant/wrong-tenant/unknown-id privacy, principal collision isolation, strict validation, canonical equivalence, maximum receipt horizon, audit outcomes and unchanged full effect/receipt/ceiling snapshots are checked. | API-7/10/11/12/38; WIR-3/35; STO-14/25/33/35; DOM-21; selected CNF-21/158 |
+| `w6_g1_create` | A genuine operator receipt belongs to a different target. A normal customer create succeeds with exactly one tenant receipt and zero operator receipts. The same valid request conflicts 409 before and after real housekeeping retirement; actual kind/tenant/machine/horizon, strict body validation, global/effective-tenant reach, wrong-tenant/unknown privacy, principal isolation and fresh-key refusal remain correct. Full business/meter/allowance and independent provider state remain unchanged. | API-7/10/11/12/38; WIR-3/34/35; STO-14/25/33/35; selected CNF-21–24/158 |
+| `w6_g1_delete` | A normal customer delete succeeds without an operator decision. Its real retirement preserves delete kind and machine identity independently of receipt scope. Cross-target mismatch stays 409, create-shaped bodies stay invalid_request, applied/not_applied retain their strict validation, and fresh/other-principal keys remain refused without effects. One independent purchase and one deletion remain. | API-7/10/11; WIR-35; STO-14/25/33; selected CNF-22/23/158 |
+
 
 The earlier core phase additionally exercises ENG-04 stale-claim refusal, ENG-06 whole-settlement repeats, ENG-08 rejection of provider/rail/rescue entry while a component owns a transaction, and the existing generation/stop guards. W5 retains all interruption assertions: explicit provider/evidence barriers isolate its historical unresolved/snapshot boundaries from W6 periodic updates. The original failed-checkout assertion, observer faults and narrow timing bounds remain intact. Retention ignores only explicitly tagged background evidence-read events while retaining every purchase/effect and the whole independent resource state.
 
@@ -112,7 +115,7 @@ The survived step-8/pre-step-9 worker-position classification arm remains in W5 
 [New regression proof](continuation-regressions.json) records nine intended exit-1 assertions on
 unchanged `5061fe34e127c68de68e8312dbca6f875f6dc790`, with 37 runtime/migration/dependency
 hashes protected before and after. Only fixtures overlay the isolated export. Each arm records its
-independent activation and cleanup; the corresponding green is in the final 50-group inventory.
+independent activation and cleanup; the corresponding green is in the final 52-group inventory.
 Search/get baseline faults occur first in ordinary verification and then wrongly repeat in periodic
 resolution; the constraint baseline leaves credential health unchanged. Neither is misattributed to
 a prior lost reply or a periodic call that won the activation race.
@@ -150,7 +153,7 @@ the listeners stop, all 20k selected rows remain and no partial retired identity
 fixed canonical driver observes 990 retirements, retained horizons and later API/job liveness.
 The [supplemental matrix](retention-bounds.json) separately runs all three original exact scale
 shapes. No-work and mixed probes and retirement plans each scan receipts once. Mixed retirement
-execution is 213.550 ms at 20k/200k, 151.099 ms at 20k/1M and 217.715 ms at 50k/1M, under the
+execution is 57.549 ms at 20k/200k, 147.504 ms at 20k/1M and 228.566 ms at 50k/1M, under the
 unchanged 1000 ms statement bound. Each real API removes the exact 991 returned IDs: 990 expired
 receipted rows and one old receiptless row. Other-scope live aliases, unsettled statuses, recent
 receiptless settlement and financial/receipt history survive; rolled-back measurement writes leave
@@ -201,8 +204,9 @@ produces an observed whole-transaction retry after rates return, then ordinary s
 caller replay preserve the full committed state. The unchanged-current-rate exit also remains green.
 This covers caller deletion's reached accounting during an outage, not excluded OPS-41 steps 4–5.
 
-Permanent retired identity authorizes scope; the permanent resolution response supplies the kind
-for the same strict validation. Fingerprint mismatch precedes the canonical all-receipt cutoff,
+Permanent retired identity authorizes scope and supplies the actual operation kind and nullable
+machine identity for strict validation, independently of prior receipt scope.
+Fingerprint mismatch precedes the canonical all-receipt cutoff,
 so physical deletion does not change 410 into 404 or mask 409. A fresh key cannot mutate a retired
 resource. Both real principals, actual effective-tenant scope, wrong tenant/unknown id, canonical
 equivalence and an expired operator receipt protected by a live customer receipt are exercised.
@@ -215,7 +219,7 @@ it does not claim a separately held pre-deletion logical-boundary experiment for
 
 The final committed-source gate, eleven-phase suite, nine Python units, three retention scale
 shapes, default retained reads and ordinary retention each exit 0 as recorded in
-[validation](validation.json). All 50 W6 groups and 39 exact-assertion negative controls are present.
+[validation](validation.json). All 52 W6 groups and 39 exact-assertion negative controls are present.
 The first private F2 fixture precheck expected the wrong reason for a key already used on another
 target; it failed and was corrected to idempotency_mismatch before the protected behavioral reds.
 Its unsuccessful raw record remains private and is not an earned regression or acceptance result.
@@ -243,6 +247,34 @@ credential rejection/in-flight outcomes were not run. E2 activates each rejectio
 ordinary successors use three. Its no-later-call observations cover the recorded 2.3/1.2-second
 windows and actual other-account progress, not every future schedule. Additional latch/concurrency
 activation remains optional deferred coverage; none is claimed here.
+
+## Retained targets without prior operator decisions
+
+[Two protected regressions](retained-target-regressions.json) use unchanged
+`ab014865b46f1f0c15c5ead33a85f24fdbaa3c81` runtime, migrations and dependencies.
+The recognizing parent exits 0; both children exit 1 at their exact post-retirement
+cross-target mismatch assertions, observing 404 instead of the required 409 after a live 409.
+Each target has exactly one tenant receipt and zero operator receipts. GET already reports 410;
+actual retirement, unchanged full database/provider state and cleanup are established. Protected
+hashes agree before/after, final fixture overlays match the green drivers and exports are removed.
+These reds are distinct from the three F reds and every older protected-source artifact.
+
+Retirement now copies the real operation kind and nullable machine identity from DELETE RETURNING
+into the same atomic identity insert. No payload, prior result or synthetic receipt is retained.
+Authorization no longer depends on a previous operator decision. Strict per-kind validation and
+the actual principal/key fingerprint check precede the unchanged retired mutability barrier.
+A fresh key cannot consume allowance, resolve, write a receipt or move money. Tenant privacy and
+principal isolation remain before fingerprint information; operator audit metadata is truthful.
+Schema 3 is still the unpublished offline release with its final content; discarded intermediate
+schema-3 prototypes are not an upgrade line. Due selection, all-scope horizons and bounds are unchanged.
+
+The complete committed-source suite repeats both green drivers and every original group.
+The gate, nine Python units, three scale shapes, retained reads, ordinary retention and complete
+eleven-phase suite each exit 0. Two early private fixture attempts failed on an evidence-event
+argument collision and an accidental customer setup-key collision; neither is accepted as a red.
+Local evidence-export prechecks also stopped on an asserted replacement count and then a summary
+shape mismatch; corrected export audited the unchanged successful raw executions with exit 0.
+No application assertion or runtime bound changed during evidence preparation.
 
 ## Source and publication audit
 

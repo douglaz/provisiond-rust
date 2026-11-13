@@ -75,3 +75,22 @@ A	tests/postgres/w6_final_repairs.py
 ```
 
 The final source inventory binds the committed operational bytes. Later documentation and evidence changes preserve those bytes.
+
+
+Retained-target authorization continues `ab014865` with this ordinary commit:
+
+```text
+813c713 Authorize retired resolution targets independently of receipt scope
+```
+
+```text
+M	migrations/0003-reconciliation.sql
+M	src/api/mod.rs
+M	src/api/operator.rs
+M	tests/postgres/w6.py
+M	tests/postgres/w6_blocking_baseline.py
+M	tests/postgres/w6_final_repairs.py
+A	tests/postgres/w6_retired_targets.py
+```
+
+All 87 operational hashes are bound to that tested commit. The following documentation/evidence commit preserves them.

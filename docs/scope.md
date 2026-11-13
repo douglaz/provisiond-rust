@@ -350,7 +350,7 @@ checks and six affected controls; it makes no new nine-phase or production-confo
 ## W6 reconciliation and termination subset
 
 The [W6 report](../evidence/w6/report.md) and [final aggregate](../evidence/w6/final-all.json)
-record 50 W6 groups, all prior phases and 39 recognized controls. Two review-base regressions,
+record 52 W6 groups, all prior phases and 39 recognized controls. Two review-base regressions,
 two early lifetime regressions, nine regressions against `9454e45` and nine against `5061fe3`
 retain their actual distinct source identities.
 Automatic create resolution uses exact correlators on every channel, direct identity/account
@@ -405,8 +405,9 @@ its final migration content and supports the scoped schema-2 upgrade. Discarded 
 test schemas are not a supported production upgrade line.
 
 Receiptless settled attempts use the same configured age fallback for logical expiry and actual
-housekeeping retirement. Retirement atomically retains only identity, tenant, creation time and the
-actual horizon, while the episode outlives the deleted operation. Keyed operations still use their
+housekeeping retirement. Retirement atomically retains minimal identity, tenant, actual operation
+kind, nullable machine identity, creation time and the actual horizon, while the episode outlives the
+deleted operation. Keyed operations still use their
 maximum stored receipt horizon; unresolved operations remain readable. No request body or synthetic
 receipt is retained to make a retired attempt discoverable.
 
@@ -430,6 +431,9 @@ with historical debit/native arithmetic, exact credit/mark, lost settlement rece
 repeat, ordinary successor and caller replay preserved. Null opening fields are never backfilled.
 Operator resolution replays survive actual housekeeping retirement, retaining fingerprint-first
 conflicts, the all-scope maximum horizon, effective-tenant privacy and structured refusal events.
-Permanent receipts supply the retired kind for strict validation; no operation is resurrected and
+The retired identity supplies the actual kind and machine for strict validation and truthful
+audit events independently of any prior operator receipt. The two additional real-service arms
+cover normally completed customer creates and deletes with only tenant receipts: cross-target
+key mismatches stay 409 after actual retirement, wrong-kind bodies stay invalid_request, and
 a fresh key cannot mutate a retired identity. General rate construction and OPS-41 no-rate
 decision steps remain outside this reached caller-delete path.

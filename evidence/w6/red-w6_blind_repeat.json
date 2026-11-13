@@ -117,10 +117,10 @@
       "command": [
         "initdb",
         "-D",
-        "<run-dir>/w6-d2r7u4cy/primary",
+        "<run-dir>/w6-glfk83hu/primary",
         "-U",
         "administrator",
-        "--pwfile=<run-dir>/w6-d2r7u4cy/init-password",
+        "--pwfile=<run-dir>/w6-glfk83hu/init-password",
         "--auth=scram-sha-256",
         "--no-locale",
         "--encoding=UTF8"
@@ -132,7 +132,7 @@
         "postgres",
         "--single",
         "-D",
-        "<run-dir>/w6-d2r7u4cy/primary",
+        "<run-dir>/w6-glfk83hu/primary",
         "postgres"
       ],
       "exit_status": 0
@@ -141,7 +141,7 @@
       "command": [
         "postgres",
         "-D",
-        "<run-dir>/w6-d2r7u4cy/primary"
+        "<run-dir>/w6-glfk83hu/primary"
       ],
       "exit_status": 0
     },
@@ -185,7 +185,7 @@
         "-d",
         "host=<address> port=55500 user=replicator dbname=postgres application_name=bootstrap_backup",
         "-D",
-        "<run-dir>/w6-d2r7u4cy/standby",
+        "<run-dir>/w6-glfk83hu/standby",
         "-X",
         "stream",
         "--checkpoint=fast",
@@ -196,7 +196,7 @@
     {
       "command": [
         "pg_verifybackup",
-        "<run-dir>/w6-d2r7u4cy/standby"
+        "<run-dir>/w6-glfk83hu/standby"
       ],
       "exit_status": 0
     },
@@ -204,7 +204,7 @@
       "command": [
         "postgres",
         "-D",
-        "<run-dir>/w6-d2r7u4cy/standby"
+        "<run-dir>/w6-glfk83hu/standby"
       ],
       "exit_status": 0
     },
@@ -646,7 +646,41 @@
     },
     {
       "command": [
-        "<run-dir>/w6-d2r7u4cy/target/debug/migrate"
+        "<run-dir>/w6-glfk83hu/target/debug/migrate"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "<address>",
+        "-p",
+        "55500",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
+      ],
+      "exit_status": 0
+    },
+    {
+      "command": [
+        "psql",
+        "-XAt",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "<address>",
+        "-p",
+        "55500",
+        "-U",
+        "administrator",
+        "-d",
+        "postgres"
       ],
       "exit_status": 0
     },
@@ -841,7 +875,7 @@
       "command": [
         "pg_ctl",
         "-D",
-        "<run-dir>/w6-d2r7u4cy/primary",
+        "<run-dir>/w6-glfk83hu/primary",
         "stop",
         "-m",
         "fast",
@@ -855,7 +889,7 @@
       "command": [
         "pg_ctl",
         "-D",
-        "<run-dir>/w6-d2r7u4cy/standby",
+        "<run-dir>/w6-glfk83hu/standby",
         "stop",
         "-m",
         "fast",
@@ -897,7 +931,7 @@
         "features": [
           "store-test-hooks"
         ],
-        "target_directory": "<run-dir>/w6-d2r7u4cy/target"
+        "target_directory": "<run-dir>/w6-glfk83hu/target"
       },
       "schema_version": 3,
       "semantic_version": 3,
@@ -990,6 +1024,8 @@
         "w6_f1_null",
         "w6_f1_current",
         "w6_f2",
+        "w6_g1_create",
+        "w6_g1_delete",
         "w6_e2_offers",
         "w6_e2_keys",
         "w6_e2_order",
@@ -1007,25 +1043,25 @@
     "workflow": {
       "builds": {
         "api": {
-          "executable": "<run-dir>/w6-d2r7u4cy/target/debug/api",
+          "executable": "<run-dir>/w6-glfk83hu/target/debug/api",
           "features": [
             "store-test-hooks"
           ],
-          "sha256": "eb8ad410a6eb47b1749cd130010196bde3a9b16be0dcd4c2e761d6185e59466b"
+          "sha256": "dfb14844edaee56968ba5334c734ed41ede2aa2ac6c656674452f3f3a05c6357"
         },
         "engine": {
-          "executable": "<run-dir>/w6-d2r7u4cy/target/debug/engine",
+          "executable": "<run-dir>/w6-glfk83hu/target/debug/engine",
           "features": [
             "store-test-hooks"
           ],
-          "sha256": "03dcee1da227ee978a98a010bf2ab10039f63e6e67d55c4cc6fb187f33386769"
+          "sha256": "96f444751a0b670a8cfe350e59256bd6d762d23cff75adcb44920a05322deefd"
         },
         "migrate": {
-          "executable": "<run-dir>/w6-d2r7u4cy/target/debug/migrate",
+          "executable": "<run-dir>/w6-glfk83hu/target/debug/migrate",
           "features": [
             "store-test-hooks"
           ],
-          "sha256": "925b4f22da6fdaa0ba57e153546baa9ecae947a4d54d8462c58122a6075b0534"
+          "sha256": "b8cfa5f89aeb42c7faa9e7082c963393d660db166fc824ad8d869419e27408bb"
         }
       },
       "descriptor": {
@@ -1129,7 +1165,7 @@
         "haircut_bps": 0,
         "margin_bps": 1000,
         "minor_scale": 2,
-        "observed_at": "2026-11-13T09:35:40Z",
+        "observed_at": "2026-11-13T11:02:08Z",
         "rate_den": 1,
         "rate_num": 10,
         "source": "simulator-fixed-rational"
@@ -1139,7 +1175,7 @@
       ]
     }
   },
-  "configuration_sha256": "5c50985367897b002d910916e4a64c270b905ff98894254a89e3d26d9641fb92",
+  "configuration_sha256": "85473c8e1838d6f5f0b239f9e1f95e70f72a38f8b26d5a99d9464d56ee76dbf1",
   "event_selection": {
     "basis": "consequential manifests; private full trace hashes retained",
     "omitted_event_types": [
@@ -1169,7 +1205,7 @@
             "features": [
               "store-test-hooks"
             ],
-            "target_directory": "<run-dir>/w6-d2r7u4cy/target"
+            "target_directory": "<run-dir>/w6-glfk83hu/target"
           },
           "schema_version": 3,
           "semantic_version": 3,
@@ -1218,16 +1254,16 @@
         "synchronous_standby_names": "FIRST 1 (provisiond_sync)",
         "wal_level": "replica"
       },
-      "configuration_sha256": "9e34f6c852980683029a30c5868730e9d53d9f01e96861816b38a71aad4ddf23",
-      "elapsed": 0.00034199818037450314,
+      "configuration_sha256": "0dc48bbf72c38315e466a8966afc0787298b0f3fcd822c8f19d12fb0ed2071b8",
+      "elapsed": 0.00030336598865687847,
       "event": "invocation",
       "phase": "w6",
       "seed": 20261112,
       "specification": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-      "timestamp": 1794562519.7059052
+      "timestamp": 1794567707.9715514
     },
     {
-      "elapsed": 0.08157510915771127,
+      "elapsed": 0.08556057885289192,
       "event": "allocation_reserved",
       "ports": [
         55500,
@@ -1241,63 +1277,63 @@
         55508,
         55509
       ],
-      "timestamp": 1794562519.7871385
+      "timestamp": 1794567708.0568087
     },
     {
       "bootstrap_readiness_seconds": 60,
-      "elapsed": 1.1912253021728247,
+      "elapsed": 1.2282945979386568,
       "event": "server_started",
       "node": "primary",
-      "pid": 856846,
+      "pid": 1486525,
       "port": 55500,
-      "readiness_elapsed_seconds": 0.07012728322297335,
-      "timestamp": 1794562520.8967888
+      "readiness_elapsed_seconds": 0.06952367397025228,
+      "timestamp": 1794567709.1995428
     },
     {
       "application_name": "bootstrap_backup",
       "command_bound_seconds": 180,
       "destination": "standby",
-      "elapsed": 1.1912747041787952,
+      "elapsed": 1.228350852848962,
       "event": "backup_requested",
-      "timestamp": 1794562520.8968382,
+      "timestamp": 1794567709.199599,
       "wal_mode": "stream"
     },
     {
-      "elapsed": 2.016098444117233,
+      "elapsed": 1.869181124959141,
       "event": "backup_provenance_retained",
-      "path": "<run-dir>/w6-d2r7u4cy/standby-backup-manifest.json",
-      "sha256": "86975af4b9efbde4cc04fb1b3b4070bc3962e4a917e1a893b4046d4b5dbbed19",
-      "timestamp": 1794562521.721662
+      "path": "<run-dir>/w6-glfk83hu/standby-backup-manifest.json",
+      "sha256": "4c47351be08ac69fe35cc3ead2b382655da096112a57666351e57529ff023079",
+      "timestamp": 1794567709.8404293
     },
     {
       "destination": "standby",
-      "elapsed": 2.0163969511631876,
-      "elapsed_seconds": 0.8251218358054757,
+      "elapsed": 1.8693632138893008,
+      "elapsed_seconds": 0.641012110048905,
       "event": "backup_complete",
-      "timestamp": 1794562521.7219605,
+      "timestamp": 1794567709.8406117,
       "verified": true
     },
     {
       "bootstrap_readiness_seconds": 60,
-      "elapsed": 2.5284971601795405,
+      "elapsed": 2.3810500749386847,
       "event": "server_started",
       "node": "standby",
-      "pid": 856892,
+      "pid": 1486570,
       "port": 55501,
-      "readiness_elapsed_seconds": 0.5028932420536876,
-      "timestamp": 1794562522.2340605
+      "readiness_elapsed_seconds": 0.5012291599996388,
+      "timestamp": 1794567710.3522985
     },
     {
       "authenticated_role": "replicator",
-      "elapsed": 2.7257397391367704,
+      "elapsed": 2.5644416050054133,
       "event": "identity_catchup",
       "primary_checkpoint": "1|0/2000028",
       "provenance": "verified pg_basebackup from this primary; exclusive run-owned data and credentials",
       "sampled_primary_flush": "0/3003A90",
       "standby_checkpoint": "1|0/2000028",
-      "standby_system_identifier": "7707587333765632757",
-      "system_identifier": "7707587333765632757",
-      "timestamp": 1794562522.431303
+      "standby_system_identifier": "7707609617359228549",
+      "system_identifier": "7707609617359228549",
+      "timestamp": 1794567710.5356748
     },
     {
       "configuration": {
@@ -1317,61 +1353,61 @@
         "tcp_keepalives_interval": "1",
         "wal_level": "replica"
       },
-      "elapsed": 2.7380029861815274,
+      "elapsed": 2.573551391949877,
       "event": "effective_configuration_observed",
       "sha256": "fcc64daa88970a66727783b40f22a4a35c8cdfa41ecb5b65b50706a9ace3542f",
-      "timestamp": 1794562522.4435663
+      "timestamp": 1794567710.5447996
     },
     {
       "backup_name": "bootstrap_backup",
       "bootstrap_role": "initdb administrator; offline replication identity only",
       "designated_name": "provisiond_sync",
-      "elapsed": 2.7846089501399547,
+      "elapsed": 2.6202826448716223,
       "event": "bootstrap_complete",
       "maintenance_mode_exception": false,
-      "timestamp": 1794562522.4901724
+      "timestamp": 1794567710.5915308
     },
     {
       "case": "setup",
       "component": "api",
-      "elapsed": 21.024888241197914,
+      "elapsed": 20.434124702820554,
       "event": "workflow_binary_started",
-      "executable": "<run-dir>/w6-d2r7u4cy/target/debug/api",
+      "executable": "<run-dir>/w6-glfk83hu/target/debug/api",
       "features": [
         "store-test-hooks"
       ],
-      "sha256": "eb8ad410a6eb47b1749cd130010196bde3a9b16be0dcd4c2e761d6185e59466b",
-      "timestamp": 1794562540.7304509
+      "sha256": "dfb14844edaee56968ba5334c734ed41ede2aa2ac6c656674452f3f3a05c6357",
+      "timestamp": 1794567728.4053724
     },
     {
       "case": "w6_positive",
       "component": "engine",
-      "elapsed": 21.48075302108191,
+      "elapsed": 20.909122806973755,
       "event": "workflow_binary_started",
-      "executable": "<run-dir>/w6-d2r7u4cy/target/debug/engine",
+      "executable": "<run-dir>/w6-glfk83hu/target/debug/engine",
       "features": [
         "store-test-hooks"
       ],
-      "sha256": "03dcee1da227ee978a98a010bf2ab10039f63e6e67d55c4cc6fb187f33386769",
-      "timestamp": 1794562541.1863158
+      "sha256": "96f444751a0b670a8cfe350e59256bd6d762d23cff75adcb44920a05322deefd",
+      "timestamp": 1794567728.8803706
     },
     {
       "accepted_count": 2,
-      "elapsed": 21.98506787302904,
+      "elapsed": 21.533065815921873,
       "event": "w6_lost_reply_activated",
-      "operation": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
+      "operation": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
       "purchase": "SIMULATOR-RESOURCE-9",
       "reply_delivered": false,
       "snapshot": {
         "commitment": {
           "closed_at": null,
-          "id": "f730f219-3d6c-4c6d-997b-b9fe3c8c7eb6",
+          "id": "b163fdcd-b079-4bc8-8801-75a214450082",
           "machine_id": null,
-          "opened_at": "2026-11-13T09:35:41.100815+00:00",
-          "operation_id": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
+          "opened_at": "2026-11-13T11:02:08.782621+00:00",
+          "operation_id": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
           "reserved_sats": 43,
           "state": "open",
-          "tenant_id": "0a065d3f-3da7-402e-9f96-97ac8b1fbb64",
+          "tenant_id": "cabe5808-afa1-45e8-a3a1-8092f0427171",
           "version": 0
         },
         "exclusions": [],
@@ -1379,15 +1415,15 @@
         "machines": [],
         "meter_totals": [],
         "operation": {
-          "about_to_order_at": "2026-11-13T09:35:41.537715+00:00",
+          "about_to_order_at": "2026-11-13T11:02:09.356767+00:00",
           "admitted_sats": 43,
-          "available_at": "2026-11-13T09:35:41.100815+00:00",
+          "available_at": "2026-11-13T11:02:08.782621+00:00",
           "claim_number": 1,
-          "commitment_id": "f730f219-3d6c-4c6d-997b-b9fe3c8c7eb6",
-          "correlation_id": "f222bde1-87f2-4201-86ac-77610c6dc1ef",
+          "commitment_id": "b163fdcd-b079-4bc8-8801-75a214450082",
+          "correlation_id": "5c352942-c25a-40b1-9cf4-a3d017f65f67",
           "correlator_kind": "operation_uuid",
-          "correlator_value": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "created_at": "2026-11-13T09:35:41.100815+00:00",
+          "correlator_value": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "created_at": "2026-11-13T11:02:08.782621+00:00",
           "episode_id": null,
           "error": {
             "details": {
@@ -1398,16 +1434,16 @@
             "message": "simulator response unavailable",
             "retryable": false
           },
-          "id": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
+          "id": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
           "idempotency_key": "reconcile-positive",
           "kind": "create",
           "machine_id": null,
-          "mutation_wait_ended_at": "2026-11-13T09:35:41.623666+00:00",
+          "mutation_wait_ended_at": "2026-11-13T11:02:09.452297+00:00",
           "provider_account": "sim-a",
           "request_summary": {
             "correlator": {
               "kind": "operation_uuid",
-              "value": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4"
+              "value": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e"
             },
             "first_unit": {
               "currency": "USD",
@@ -1415,7 +1451,7 @@
               "native_minor": 1,
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:35:40Z",
+              "rate_observed_at": "2026-11-13T11:02:08Z",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "sats": 11,
@@ -1500,7 +1536,7 @@
                   "haircut_bps": 0,
                   "margin_bps": 1000,
                   "minor_scale": 2,
-                  "observed_at": "2026-11-13T09:35:40Z",
+                  "observed_at": "2026-11-13T11:02:08Z",
                   "rate_den": 1,
                   "rate_num": 10,
                   "source": "simulator-fixed-rational"
@@ -1523,7 +1559,7 @@
               "native_minor": 2,
               "rate_den": 1,
               "rate_num": 10,
-              "rate_observed_at": "2026-11-13T09:35:40Z",
+              "rate_observed_at": "2026-11-13T11:02:08Z",
               "rate_source": "simulator-fixed-rational",
               "rounding_rule_version": "ceil-v1",
               "sats": 20
@@ -1540,107 +1576,107 @@
           "revision": 4,
           "status": "needs_reconciliation",
           "system_reason": null,
-          "tenant_id": "0a065d3f-3da7-402e-9f96-97ac8b1fbb64",
-          "updated_at": "2026-11-13T09:35:41.623666+00:00",
+          "tenant_id": "cabe5808-afa1-45e8-a3a1-8092f0427171",
+          "updated_at": "2026-11-13T11:02:09.452297+00:00",
           "write_started_at": null,
           "yielded_at": null
         }
       },
-      "timestamp": 1794562541.6906314
+      "timestamp": 1794567729.504314
     },
     {
       "component": "api",
-      "elapsed": 21.995029468089342,
+      "elapsed": 21.545270394999534,
       "event": "application_trace",
-      "path": "<run-dir>/w6-d2r7u4cy/api-0.stdout",
-      "private_trace_events": 40,
+      "path": "<run-dir>/w6-glfk83hu/api-0.stdout",
+      "private_trace_events": 41,
       "selection": "private full trace hash; consequential events retained by scenario",
-      "sha256": "340a64ef56e8f25eb3f98de89f1a16694e17243e201362d50a8622214b1dd828",
-      "timestamp": 1794562541.700593
+      "sha256": "a3c985328bccc1524c4fa46c3799de7084c536866497502a79bff3255acfcc8c",
+      "timestamp": 1794567729.5165186
     },
     {
       "component": "engine",
-      "elapsed": 21.99564348300919,
+      "elapsed": 21.545935013797134,
       "event": "application_trace",
-      "path": "<run-dir>/w6-d2r7u4cy/engine-0.stdout",
+      "path": "<run-dir>/w6-glfk83hu/engine-0.stdout",
       "private_trace_events": 99,
       "selection": "private full trace hash; consequential events retained by scenario",
-      "sha256": "54e2953af6091005e0a27bc7d6c50d7edf52c2f3d6c8e66cf4d68ef7969eb987",
-      "timestamp": 1794562541.701207
+      "sha256": "d6198f013735d4d2a3607a01f7b3045ad178989e9a689fdfb93fe708301d95e4",
+      "timestamp": 1794567729.5171833
     },
     {
-      "elapsed": 21.995872881030664,
+      "elapsed": 21.546180272009224,
       "event": "independent_simulator_evidence",
       "records": [
         {
-          "monotonic_ns": 1175189215608326,
+          "monotonic_ns": 1180376898183272,
           "sequence": 1,
           "stage": "evidence_control_activated",
-          "timestamp": 1794562541.1262727,
+          "timestamp": 1794567728.8088472,
           "value": {
-            "operation": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
+            "operation": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
             "search": "normal"
           }
         },
         {
           "account": "sim-a",
-          "command": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
+          "command": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
           "correlator": null,
-          "monotonic_ns": 1175189611074643,
+          "monotonic_ns": 1180377327495072,
           "path": "/offers",
           "resolution": false,
           "sequence": 2,
           "stage": "request_received",
-          "timestamp": 1794562541.521739
+          "timestamp": 1794567729.2381597
         },
         {
           "account": "sim-a",
-          "command": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
+          "command": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
           "correlator": null,
-          "monotonic_ns": 1175189617405368,
+          "monotonic_ns": 1180377430394044,
           "path": "/offers",
           "resolution": false,
           "sequence": 3,
           "stage": "read_only",
-          "timestamp": 1794562541.5280702
+          "timestamp": 1794567729.3410587
         },
         {
           "account": "sim-a",
-          "command": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "correlator": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "monotonic_ns": 1175189649346978,
+          "command": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "correlator": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "monotonic_ns": 1180377473389209,
           "path": "/order",
           "resolution": false,
           "sequence": 4,
           "stage": "request_received",
-          "timestamp": 1794562541.5600119
+          "timestamp": 1794567729.384054
         },
         {
           "account": "sim-a",
-          "command": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "correlator": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "monotonic_ns": 1175189658199465,
+          "command": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "correlator": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "monotonic_ns": 1180377483674238,
           "path": "/order",
           "resolution": false,
           "sequence": 5,
           "stage": "accepted",
-          "timestamp": 1794562541.568864
+          "timestamp": 1794567729.394339
         },
         {
           "account": "sim-a",
-          "command": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "correlator": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "monotonic_ns": 1175189667130889,
+          "command": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "correlator": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "monotonic_ns": 1180377490472545,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-5",
           "sequence": 6,
           "stage": "resource_created",
-          "timestamp": 1794562541.5777953,
+          "timestamp": 1794567729.4011374,
           "value": {
             "account": "sim-a",
             "channel": "orders",
-            "correlator": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
+            "correlator": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
             "external_id": "SIMULATOR-RESOURCE-5",
             "name": "worker-test",
             "present": true,
@@ -1651,53 +1687,53 @@
         },
         {
           "account": "sim-a",
-          "command": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "correlator": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "monotonic_ns": 1175189673203562,
+          "command": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "correlator": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "monotonic_ns": 1180377497174032,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-5",
           "sequence": 7,
           "stage": "reply_dropped",
-          "timestamp": 1794562541.5838683
+          "timestamp": 1794567729.407839
         },
         {
           "account": "sim-a",
-          "command": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "correlator": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "monotonic_ns": 1175189682390883,
+          "command": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "correlator": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "monotonic_ns": 1180377509030231,
           "path": "/order",
           "resolution": false,
           "sequence": 8,
           "stage": "request_received",
-          "timestamp": 1794562541.593056
+          "timestamp": 1794567729.4196951
         },
         {
           "account": "sim-a",
-          "command": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "correlator": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "monotonic_ns": 1175189687201824,
+          "command": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "correlator": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "monotonic_ns": 1180377515945285,
           "path": "/order",
           "resolution": false,
           "sequence": 9,
           "stage": "accepted",
-          "timestamp": 1794562541.5978665
+          "timestamp": 1794567729.4266102
         },
         {
           "account": "sim-a",
-          "command": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "correlator": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "monotonic_ns": 1175189696006472,
+          "command": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "correlator": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "monotonic_ns": 1180377525429852,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-9",
           "sequence": 10,
           "stage": "resource_created",
-          "timestamp": 1794562541.606671,
+          "timestamp": 1794567729.4360948,
           "value": {
             "account": "sim-a",
             "channel": "orders",
-            "correlator": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
+            "correlator": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
             "external_id": "SIMULATOR-RESOURCE-9",
             "name": "worker-test",
             "present": true,
@@ -1708,100 +1744,100 @@
         },
         {
           "account": "sim-a",
-          "command": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "correlator": "9b0167fd-2d3e-4d24-a64e-53e6a4f92cd4",
-          "monotonic_ns": 1175189703543335,
+          "command": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "correlator": "88cbe5d7-1e90-4884-bed7-ab82f5bbd13e",
+          "monotonic_ns": 1180377531224017,
           "path": "/order",
           "resolution": false,
           "resource": "SIMULATOR-RESOURCE-9",
           "sequence": 11,
           "stage": "reply_dropped",
-          "timestamp": 1794562541.614208
+          "timestamp": 1794567729.4418888
         }
       ],
-      "sha256": "a74671d3d287bf6ce03e122f09fe2b706f55940ee1d4ed922b3ff02c9aff1699",
+      "sha256": "2a88f80927f94ac4321ee7d29276203efe5086b23776766e4637b89df98b67e3",
       "simulator_kind": "provider",
-      "timestamp": 1794562541.7014365
+      "timestamp": 1794567729.5174284
     },
     {
-      "elapsed": 21.995985300047323,
+      "elapsed": 21.546312287915498,
       "event": "independent_simulator_evidence",
       "records": [
         {
-          "monotonic_ns": 1175189071457955,
+          "monotonic_ns": 1180376743298430,
           "sequence": 1,
           "stage": "rail_observation",
-          "timestamp": 1794562540.9821227,
+          "timestamp": 1794567728.653963,
           "value": {
             "amount_sats": 115,
-            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/67569c02-365b-460d-9c4b-975a21737f1e/EXPIRES/1794566140",
-            "payment_hash": "f8ab60c57c66ff1470e702f4363295f092727b30c212ae0b9ff36c33edc94b80",
+            "destination": "TEST/SIMULATOR/NONPAYABLE/LIGHTNING/cbf7e060-c318-4bf6-8f4b-6bb549771895/EXPIRES/1794571328",
+            "payment_hash": "139d967d5034024120135b43119d97a223abb79321d153f9ba012ac96ccb807a",
             "preimage_known": true,
             "rail": "lightning",
             "settled": true,
-            "settled_at": "2026-11-13T09:35:40Z"
+            "settled_at": "2026-11-13T11:02:08Z"
           }
         }
       ],
-      "sha256": "1eb1711c8da52e23d564592ef7dd7fcf7e5564f1108a950049a3b6436406694f",
+      "sha256": "f2285d591137d170687ca7ff533d383118ed5a7f0a6d41912ab3555ab4b8ec7d",
       "simulator_kind": "rail",
-      "timestamp": 1794562541.7015488
+      "timestamp": 1794567729.5175605
     },
     {
       "count": 4,
-      "elapsed": 21.996017510071397,
+      "elapsed": 21.54635738185607,
       "event": "workflow_children_reaped",
-      "timestamp": 1794562541.701581
+      "timestamp": 1794567729.5176055
     },
     {
-      "elapsed": 21.996058106189594,
+      "elapsed": 21.546421671984717,
       "event": "failure",
       "message": "one purchase/no repeated order",
-      "timestamp": 1794562541.7016215,
+      "timestamp": 1794567729.51767,
       "type": "AssertionError"
     },
     {
       "cancel_requests": 0,
-      "elapsed": 22.171354844002053,
+      "elapsed": 21.620520076947287,
       "event": "proxy_cleanup",
-      "timestamp": 1794562541.876918
+      "timestamp": 1794567729.591768
     },
     {
-      "elapsed": 22.77332693315111,
+      "elapsed": 22.322852422948927,
       "event": "server_stopped",
       "exit_status": 0,
       "mode": "fast",
       "node": "primary",
-      "timestamp": 1794562542.4788902
+      "timestamp": 1794567730.2941008
     },
     {
-      "elapsed": 23.07494747103192,
+      "elapsed": 22.62470566481352,
       "event": "server_stopped",
       "exit_status": 0,
       "mode": "fast",
       "node": "standby",
-      "timestamp": 1794562542.780511
+      "timestamp": 1794567730.595954
     },
     {
-      "elapsed": 23.105370068224147,
+      "elapsed": 22.6537347168196,
       "event": "cleanup_removed",
-      "path": "<run-dir>/w6-d2r7u4cy/primary",
-      "timestamp": 1794562542.8109334
+      "path": "<run-dir>/w6-glfk83hu/primary",
+      "timestamp": 1794567730.6249828
     },
     {
-      "elapsed": 23.13086495711468,
+      "elapsed": 22.68046039296314,
       "event": "cleanup_removed",
-      "path": "<run-dir>/w6-d2r7u4cy/standby",
-      "timestamp": 1794562542.8364284
+      "path": "<run-dir>/w6-glfk83hu/standby",
+      "timestamp": 1794567730.6517084
     },
     {
-      "elapsed": 23.260012713028118,
+      "elapsed": 22.810027814935893,
       "event": "cleanup_removed",
-      "path": "<run-dir>/w6-d2r7u4cy/target",
-      "timestamp": 1794562542.9655757
+      "path": "<run-dir>/w6-glfk83hu/target",
+      "timestamp": 1794567730.781276
     },
     {
-      "elapsed": 23.260211383225396,
+      "elapsed": 22.810226644854993,
       "event": "allocation_released",
       "ports": [
         55500,
@@ -1815,19 +1851,19 @@
         55508,
         55509
       ],
-      "timestamp": 1794562542.9657748
+      "timestamp": 1794567730.7814748
     },
     {
-      "elapsed": 23.260250627063215,
+      "elapsed": 22.81027226988226,
       "errors": [],
       "event": "cleanup_complete",
-      "raw_evidence": "<run-dir>/w6-d2r7u4cy",
+      "raw_evidence": "<run-dir>/w6-glfk83hu",
       "result": "pass",
-      "timestamp": 1794562542.9658144
+      "timestamp": 1794567730.7815206
     }
   ],
   "external_provider_rail_evidence": "independent durable W6 simulator evidence; no real effects",
-  "implementation_commit": "a063df0c33f94e1228fb9e393bef93e966fd18cf",
+  "implementation_commit": "813c7130ab1c9f2b3ec752004b1847333a443441",
   "intended_assertion": "one purchase/no repeated order",
   "limitations": [
     "local processes only; no separate-host durability or fencing proof",
@@ -1835,7 +1871,7 @@
     "DB-10 full saturation: not run (W8)"
   ],
   "negative_command_exit_status": 1,
-  "raw_evidence": "<run-dir>/w6-d2r7u4cy",
+  "raw_evidence": "<run-dir>/w6-glfk83hu",
   "result": "expected negative demonstration",
   "scenarios": [
     {
@@ -1852,19 +1888,19 @@
     "AGENTS.md": "3d31f1fc55bac309e2fac72b2cbcc67137b3da0353d5e2f39d096bab0e612032",
     "Cargo.lock": "2591f28e7ee8bf70ad19077bf726aeeec58dadac28f53e5510a75841da01b94d",
     "Cargo.toml": "439237dfa99f243dbe8d31edbccca79f0b57afb414ba2b7490950c3b17b91dce",
-    "README.md": "6526007675be02ab41fd9278657248cbaad03b206b624146ec36d2b685bbeec0",
-    "docs/conformance-map.md": "80536bc1f15f7ea17340d249d352b54bbc6298f1abdebccc778dd2c052989f78",
-    "docs/decisions.md": "81d478c5262e74c978f4502c7c675796417fb62a11ceaf3f35e5c6c624afc8dc",
-    "docs/scope.md": "1cbc83dc9438f5959f174270ebbc376bb6b498fca2f680a95c7e9659b393c000",
+    "README.md": "d88146ae5ad7f1e1a77ea13c222263ceca96483d65e30c30e48220ae4dbdc537",
+    "docs/conformance-map.md": "8211f763bc3cf5667863e0735eae04a6bc98789bd93a2c214c0e47996fe6c4ce",
+    "docs/decisions.md": "27bd39f0564f83b61a61655e65ca5c45035283fd33f4dcc4717d1d1d4d59ef13",
+    "docs/scope.md": "b8c5282a4d4b0b8d857a2996ac10e0c8bc84040e3fa13e786d8b06f9bb5fb3cd",
     "flake.lock": "859b34962b11f1e85bdb97add8c34f37a74262cb689ff78a9501a0b7d067eb13",
     "flake.nix": "db3d0e22fd444ed2ecf666ad3b3de447334c265cadb5475eae4f84c762b0f2ee",
     "migrations/0001-core.sql": "857e69cfe049b230f3441f9b547e8ed3ee0fd65d6ec0b7f58893be097ecbba89",
     "migrations/0002-local-service.sql": "12895278c7c36936bd9435b390d6e555715c1f9aa4072060be51af790f2c394d",
-    "migrations/0003-reconciliation.sql": "1c18aebec905922439d6e061e3cdaf6e22d3a1ef63777b92c5053ddfe4d7bb23",
+    "migrations/0003-reconciliation.sql": "1c2a2ad0105f8923b5e122e6e5f9cd63af055efb3892fd51173f1d14eaa5434f",
     "spec-lock.json": "7a65f0e88a21b9861dc7735a5a505f0be66098a996bfbfe28009266372561370",
     "src/api/funding.rs": "d23ce028d63d8038ba4bac399e099e252d453b3b181c7fe94aee4450acdad68f",
-    "src/api/mod.rs": "e0200412736bfa1a768feceff056b449b86015ee72c5e14331b630bc10169f7b",
-    "src/api/operator.rs": "f4c08e75f1b753569428af53219839f48f3e1f6310cb61e469fdd2c83843d65a",
+    "src/api/mod.rs": "df4b4d9b4012171b6bae4dfa597533b9e0c3bd606a6e85e04e1c9891c074ac3e",
+    "src/api/operator.rs": "ae5ffc3d1958a1426486feac0a4a3528b3d6c5397b864738bbc96f250b40da2f",
     "src/auth.rs": "3b4b8a8337f41c5d12f2ae5a4b7365008b898d4dec3cfafa4a62149f369eb9ef",
     "src/bin/api.rs": "22e64e47901fdc6786202c25c164bdd7053cbfdb2b2649c3306f570dfadc7dc0",
     "src/bin/engine.rs": "09afd4eeac8c1d369ba1046ae9be335ed891d47c02bf5db30e52e9e82a7da0b7",
@@ -1924,25 +1960,26 @@
     "tests/postgres/w5_accounting.py": "7e391b59facd02dd4e691b044ab4dd7614e2f6d08fc539bb797d253a63e3f87e",
     "tests/postgres/w5_baseline.py": "69d90ebf96204d7545cbd7775d34ffa58aec598667f536ae94d39d10d33c8d92",
     "tests/postgres/w5_release_control.py": "adc2a25a3d3e7ef5e8f6cf03305706f04adb0371f99de56f2432ed65aedf6708",
-    "tests/postgres/w6.py": "711ec4bb2620216d455241e1da37f1c7cdb3449c2d04fc6bdff535fb1904edb6",
+    "tests/postgres/w6.py": "5faf6dd8fe4c536179e41ba29d13434a61343733eda6fbc5fed856d6dd4bac8d",
     "tests/postgres/w6_blocking.py": "02801d1a23b7464d548bd7b4b59d50912b0e8245052c46beab7eeda27baf9264",
-    "tests/postgres/w6_blocking_baseline.py": "e2de970d54f298264481bf7474c823f80b64b44e61e077972a3eccef7625efa1",
+    "tests/postgres/w6_blocking_baseline.py": "605807fa46a72f1f4bae6cca82d611143772b5aacda08e5e954754d18b24c576",
     "tests/postgres/w6_continuation.py": "d0fc2b5c83ebdf8a7e0c648389916dd08efefc7be7e2efd52b0d7d0e0b0cb581",
     "tests/postgres/w6_edges.py": "69eb9317a539b803588de190e83757a5e6b159d41e2399fbba9cdb7f64643c8d",
     "tests/postgres/w6_exact.py": "28db3aeef367261cf99a0e7c81c139b68a4012e350702e4a0907bf11e268ba43",
-    "tests/postgres/w6_final_repairs.py": "7ebc8e15eb06e1381e4e025c53b9135a934019a07f29cdf7c88985cf5653cebb",
+    "tests/postgres/w6_final_repairs.py": "bfde23e92d5c8d485b1989199a5f1d3b78b2ad2eeec2f4d20a923d3ee7552ba9",
     "tests/postgres/w6_gone_reply.py": "9b03a5c2627b2f2bceffebf7466dc7abf0ea9da249516f06f329d61697b6fe56",
     "tests/postgres/w6_repairs.py": "fe076cdc328a4bafb4cca2521967dea252a1fee46422903a38112177ecf7b715",
+    "tests/postgres/w6_retired_targets.py": "f69ce84eefce0dbf92a9eeee9a38a739cd32a0ebfb0c413a6cf54745fdc02b9a",
     "tests/postgres/workflow.py": "646e8992b21336f5837b277196a089b9787d1b938de3d83343387ef7c6534888",
     "tests/support/pause.py": "12d95b008fb86fd73513bb513a4ecefea0598d0d0ea5a377b48664fefa4700e8",
     "tools/check.sh": "eb6fc0f8f3386de84a0abddba2585ec64617117f8bdc460a4e92f4bc20cd7200",
     "tools/postgres.sh": "7f2256c81544d8151d5820671bae2102781bf44ecb4f582fead975a93bc5dc4b"
   },
   "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
-  "tested_source_sha256": "d956735369015aebb5b94eb4387e3dce485cbdd88400d8cbcc32026951394823",
+  "tested_source_sha256": "2d60f27575deeb213b801b4c85a3bb83d71d15e7c134bd86b817d441ed320ba0",
   "trace": {
-    "path": "<run-dir>/w6-d2r7u4cy/events.jsonl",
-    "sha256": "5a4896fcf4ce17637e0084593164d768bc806b43678f318595a92d64ab8b103e"
+    "path": "<run-dir>/w6-glfk83hu/events.jsonl",
+    "sha256": "399d00298adabfb7c071533a3ce0263b967c2c19ff912071c2307626fff740ce"
   },
   "versions": {
     "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",
