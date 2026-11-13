@@ -8,6 +8,7 @@ fn unconfigured_entries_refuse_and_exit_nonzero() {
         ("api", env!("CARGO_BIN_EXE_api")),
         ("engine", env!("CARGO_BIN_EXE_engine")),
         ("migrate", env!("CARGO_BIN_EXE_migrate")),
+        ("recovery", env!("CARGO_BIN_EXE_recovery")),
     ] {
         let output = Command::new(path)
             .env_remove("PROVISIOND_PROFILE")

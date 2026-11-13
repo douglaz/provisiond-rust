@@ -191,7 +191,7 @@ def startup(w):
         first=w.start_engine();eventually(lambda:any(e['event']=='dispatch_step_held' and e['operation']==op for e in events(first)))
         w.h.event('w6_interrupted_worker',operation=op,marked=marked,claim=1)
         w.stop_engine();hold.unlink()
-        w.h.sql(f"INSERT INTO provisiond.recovery_incidents(id,closed_at) VALUES('{uuid.uuid4()}',clock_timestamp())")
+        w.h.sql(f"INSERT INTO provisiond.recovery_incidents(legacy,id,closed_at) VALUES(true,'{uuid.uuid4()}',clock_timestamp())")
         barrier=w.h.root/'provider/hold-reconciliation';barrier.touch(exist_ok=True)
         second=w.start_engine()
         found=events(second,'restart_pass_complete')[-1]['running_found']
