@@ -279,16 +279,16 @@ impl Engine {
             )
             .into());
         }
-        let offers = provider_io(
-            e,
-            d.client.call(
+        let offers = self
+            .credential_read(
                 component,
+                d,
                 descriptor,
                 "/offers",
                 &json!({"account":account,"operation":c.id}),
-            ),
-        )
-        .await?;
+                Some(e),
+            )
+            .await??;
         self.order_step(c, component, e, 5).await?;
         let current = offers
             .as_array()
@@ -343,23 +343,6 @@ impl Engine {
         component.trace(json!({"event":"dispatch_license_acknowledged","operation":c.id,"claim_number":c.number}));
         self.order_step(c, component, e, 9).await?;
         // OPS-21: same arbitration as the W3 executor; position changes at invocation.
-        let permit = {
-            let workers = self.workers.lock().expect("workers");
-            let w = workers.get(&c.id).context("worker")?;
-            if e.stopped.load(Ordering::Acquire) {
-                return Err(ExecutionStopped.into());
-            }
-            ensure!(
-                w.claim.number == c.number
-                    && w.execution
-                        .as_ref()
-                        .is_some_and(|x| std::ptr::eq(x.as_ref(), e)),
-                "execution replaced"
-            );
-            let permit = component.external(crate::store::ExternalKind::Provider)?;
-            e.dispatched.store(true, Ordering::Release);
-            permit
-        };
         let forwarded: serde_json::Map<String, Value> = [
             "offer",
             "hostname",
@@ -376,43 +359,44 @@ impl Engine {
         let command = json!({"account":account,"operation":c.id,"correlator":c.id,"channel":descriptor["channel"],"request":forwarded});
         // PRV-9 temporary-key mode is a real branch; it is separately exercised.
         let owned_key = if descriptor["temporary_keys"] == true {
-            provider_io(e, d.client.call_entered(descriptor, "/keys", &command)).await?["owned"]
+            self.credential_mutation(c, component, d, "/keys", &command, e)
+                .await?["owned"]
                 == true
         } else {
             false
         };
-        let reply =
-            match provider_io(e, d.client.call_entered(descriptor, "/order", &command)).await {
-                Ok(reply) => reply,
-                Err(error) => {
-                    // OPS-12/49 sensitivity control: deliberately repeat an
-                    // uncertain mutation only in an isolated fixture build.
-                    #[cfg(feature = "store-test-hooks")]
-                    if crate::store::test_defect("w5_blind_retry")
-                        || crate::store::test_defect("w6_blind_repeat")
-                    {
-                        component.trace(json!({"event":"defect_provider_retry","operation":c.id}));
-                        let _ = d.client.call_entered(descriptor, "/order", &command).await;
-                    }
-                    if owned_key
-                        && error.downcast_ref::<Error>().is_some_and(|error| {
-                            error.0["details"]["accepted"] == false
-                                && !matches!(
-                                    error.0["kind"].as_str(),
-                                    Some("network" | "timeout" | "internal")
-                                )
-                        })
-                    {
-                        let _ = provider_io(
-                            e,
-                            d.client.call_entered(descriptor, "/keys/delete", &command),
-                        )
-                        .await;
-                    }
-                    return Err(error);
+        let reply = match self
+            .credential_mutation(c, component, d, "/order", &command, e)
+            .await
+        {
+            Ok(reply) => reply,
+            Err(error) => {
+                // OPS-12/49 sensitivity control: deliberately repeat an
+                // uncertain mutation only in an isolated fixture build.
+                #[cfg(feature = "store-test-hooks")]
+                if crate::store::test_defect("w5_blind_retry")
+                    || crate::store::test_defect("w6_blind_repeat")
+                {
+                    component.trace(json!({"event":"defect_provider_retry","operation":c.id}));
+                    let _permit = component.external(crate::store::ExternalKind::Provider)?;
+                    let _ = d.client.call_entered(descriptor, "/order", &command).await;
                 }
-            };
-        drop(permit);
+                if owned_key
+                    && error.downcast_ref::<Error>().is_some_and(|error| {
+                        error.0["details"]["accepted"] == false
+                            && !matches!(
+                                error.0["kind"].as_str(),
+                                Some("network" | "timeout" | "internal")
+                            )
+                    })
+                {
+                    let _ = self
+                        .credential_mutation(c, component, d, "/keys/delete", &command, e)
+                        .await;
+                }
+                return Err(error);
+            }
+        };
         ensure!(reply["accepted"] == true, "order acceptance absent");
         // OPS-13/PRV-5: accepted reply and later reads are surviving evidence,
         // including when malformed data would otherwise become an untyped error

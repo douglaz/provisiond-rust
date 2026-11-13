@@ -150,7 +150,7 @@ def main():
             fault=state.get('authentication_fault')
             if fault and body.get('account')==fault['account'] and self.path==fault['path'] and ('operation' not in fault or operation==fault['operation']):
                 record('authentication_rejected',**identity)
-                self.reply({'error':{'kind':'authentication','message':'controlled credential rejection','retryable':False,'details':{}}});return
+                self.reply({'error':{'kind':'authentication','message':'controlled credential rejection','retryable':False,'details':{'accepted':False,'status':401}}});return
             if self.path=='/enumerate':
                 with lock:rows=[r for r in state['resources'].values() if r['account']==body['account']]
                 offset=int(body.get('cursor') or 0);page=rows[offset:offset+2]
@@ -187,7 +187,7 @@ def main():
                 if mode=='secret_error':
                     self.reply({'error':{'kind':'authentication','message':'TEST_ONLY_SECRET_MARKER','retryable':False,'details':{'accepted':False,'api_key':'TEST_ONLY_SECRET_MARKER','nested':[{'password':'TEST_ONLY_SECRET_MARKER'}]}}});return
                 if mode=='reject_order':
-                    self.reply({'error':{'kind':'authentication','message':'controlled order rejection','retryable':False,'details':{'accepted':False}}});return
+                    self.reply({'error':{'kind':'provider','message':'controlled order rejection','retryable':False,'details':{'accepted':False,'status':400}}});return
                 accepted=record('accepted',**identity)
                 # OPS-47/50: independent remote effect can outlive its caller.
                 effect=args.root/'hold-before-effect'
@@ -285,7 +285,7 @@ def main():
                 decision=proof.get('delete',mode)
                 if decision=='reject':
                     record('delete_rejected',**identity)
-                    self.reply({'error':{'kind':'authentication','message':'controlled delete rejection','retryable':False,'details':{'accepted':False}}});return
+                    self.reply({'error':{'kind':'provider','message':'controlled delete rejection','retryable':False,'details':{'accepted':False,'status':400}}});return
                 if decision=='unknown':
                     record('delete_reply_dropped',accepted=None,**identity);self.close_connection=True;self.connection.shutdown(2);self.connection.close();return
                 accepted=record('delete_accepted',**identity)

@@ -97,34 +97,17 @@ impl Engine {
             json!({"event":"delete_marker_acknowledged","operation":c.id,"claim_number":c.number}),
         );
         self.order_step(c, component, e, 103).await?;
-        let permit = {
-            let workers = self.workers.lock().expect("workers");
-            let w = workers.get(&c.id).context("delete worker")?;
-            if e.stopped.load(Ordering::Acquire) {
-                return Err(ExecutionStopped.into());
-            }
-            ensure!(
-                w.claim.number == c.number
-                    && w.execution
-                        .as_ref()
-                        .is_some_and(|x| std::ptr::eq(x.as_ref(), e)),
-                "delete execution replaced"
-            );
-            let permit = component.external(crate::store::ExternalKind::Provider)?;
-            e.dispatched.store(true, Ordering::Release);
-            permit
-        };
-        let result = super::dispatch::provider_io(
-            e,
-            d.client.call_entered(
-                descriptor,
+        let result = self
+            .credential_mutation(
+                c,
+                component,
+                d,
                 "/delete",
                 &json!({"account":account,"operation":c.id,"external_id":data["external_id"]}),
-            ),
-        )
-        .await?;
+                e,
+            )
+            .await?;
         let observed_at = chrono::Utc::now();
-        drop(permit);
         if result["gone"] == true {
             return Ok(Some(Outcome::DeleteGone { observed_at }));
         }

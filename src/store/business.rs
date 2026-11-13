@@ -542,7 +542,7 @@ impl Transaction {
                 } else {
                     "clamp_overflow"
                 };
-                self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,absorbed_seconds,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) SELECT $1,$2::text::uuid,'machine',$2::text::uuid,0,$3::text::uuid,$8,$4,$5,$6,(r.value->>'rate_num')::bigint,(r.value->>'rate_den')::bigint,$7 FROM (VALUES(1)) AS one(n) LEFT JOIN provisiond.rates r ON r.currency=$5 AND r.available ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&machine,&c.id,&(native-customer_native),&charge["currency"].as_str(),&(requested-debit),&key,&cause]).await?;
+                self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,absorbed_seconds,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) SELECT $1,$2::text::uuid,'machine',$2::text::uuid,0,$3::text::uuid,$8,$4,$5,$6,(r.value->>'rate_num')::bigint,(r.value->>'rate_den')::bigint,$7 FROM (VALUES(1)) AS one(n) LEFT JOIN provisiond.rates r ON r.currency=$5 AND r.available ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&machine,&c.id,&(native-customer_native),&charge["currency"].as_str(),&(!released).then_some(requested-debit),&key,&cause]).await?;
             }
         }
         self.rows("DELETE FROM provisiond.resource_exclusions WHERE operation_id=$1::text::uuid RETURNING operation_id",&[&c.id]).await?;

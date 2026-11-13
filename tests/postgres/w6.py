@@ -101,6 +101,7 @@ def empty(w):
         causes={d['cause'] for d in final['deficiencies']}
         assert causes==({'unrecoverable_setup_fee'} if fee else set())|({'unrecoverable_first_unit'} if unit else set())
         assert all(d['subject_kind']=='operation' and d['absorbed_seconds']==0 for d in final['deficiencies'])
+        deficiency_fields(w,op,final)
         checkpoint(w,op,'matched direct absence with independently evidenced charged obligations',setup_fee_charged=fee,first_unit_charged=unit,deficiencies=final['deficiencies'])
         one_purchase(w,op)
 
@@ -246,6 +247,7 @@ def human(w):
         assert len(orders(w,op))==before
         if verb=='observed':assert state['machines'][0]['earliest_cancellation_date'] is None
         if verb=='abandoned':assert w.h.sql(f"SELECT count(*) FROM provisiond.operator_deficiencies WHERE operation_id='{op}'")=='2'
+        if verb=='abandoned':deficiency_fields(w,op,operation_state(w,op))
         checkpoint(w,op,'authenticated synchronous '+verb,operator_reply=first)
         if verb=='absent':
             # Real terminal prefix, explicit fixture retention age, then actual
@@ -366,6 +368,7 @@ def late(w):
         assert sum(c['state']=='open' for c in state['commitments'])==(arm in ('covered','unsearchable'))
         assert sum(d['cause']=='late_attach_cleanup' for d in state['deficiencies'])==(arm not in ('covered','unsearchable'))
         if arm=='no_rate':assert all(d['rate_num'] is None for d in state['deficiencies'])
+        deficiency_fields(w,op,state)
         cut.unlink()
         if arm=='no_rate':
             p=w.engine;eventually(lambda:p.poll() is not None)
@@ -479,7 +482,18 @@ def exit_accounting(w):
     final=operation_state(w,delete)
     usage=[e for e in final['ledger'] if e['kind']=='usage_debit']
     assert usage and sum(-e['amount_sats'] for e in usage)==12,'elapsed exit must debit remaining authority before release'
-    assert any(d['cause']=='clamp_overflow' and d['clamped_sats']>=10 for d in final['deficiencies'])
+    # LDG-31/STO-37: independent exact fixture arithmetic, not a reversed ceil.
+    from datetime import datetime
+    from fractions import Fraction
+    import math
+    elapsed=datetime.fromisoformat(final['machine']['meter_stopped_at'])-datetime.fromisoformat(before['meter'][0]['high_water_mark'])
+    micros=(elapsed.days*86400+elapsed.seconds)*1000000+elapsed.microseconds
+    computed=math.ceil(Fraction(11*micros,3600*1000000))
+    clamps=[d for d in final['deficiencies'] if d['cause']=='clamp_overflow']
+    assert len(clamps)==1 and clamps[0]['clamped_sats']==computed-12>0
+    assert sum(e['native_minor'] for e in usage)+clamps[0]['native_minor']==math.ceil(Fraction(micros,3600*1000000))
+    w.h.event('w6_exact_clamp',operation=delete,computed_sats=computed,customer_debit=12,
+        clamped_sats=clamps[0]['clamped_sats'],elapsed_microseconds=micros,native_remainder=clamps[0]['native_minor'])
     assert all(c['state']=='closed' and c['reserved_sats']==0 for c in final['commitments'])
     assert final['meter'][0]['high_water_mark']==final['machine']['meter_stopped_at']
     w.h.event('w6_causal_trace',scenario=w.case,operation=delete,boundary='elapsed two-hour exit, clamp, empty authority and atomic close',before=before,snapshot=final,provider=external(w,delete),clock='explicit fixture high-water/rate acceptance timestamps; real reply observation')
@@ -519,6 +533,9 @@ CASES.extend(name for name in CONTINUATION if not name.startswith('w6_c2_'))
 CASES.append('w6_r7')
 CASES.extend(name for name in CONTINUATION if name.startswith('w6_c2_'))
 SCENARIOS.update(CONTINUATION)
+from w6_blocking import BLOCKING,deficiency_fields
+CASES[CASES.index('w6_r7'):CASES.index('w6_r7')]=list(BLOCKING)
+SCENARIOS.update(BLOCKING)
 
 def w6(h,case=None,defect=None):
     global eventually,http

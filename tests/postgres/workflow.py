@@ -944,6 +944,8 @@ def token_limits_and_expiry(w):
 
 
 def error_redaction(w):
+    from w6_continuation import dedicated_account,restore_accounts
+    saved=dedicated_account(w,'sim-secret-error')
     t=w.enrol();w.fund(t,'error-redaction');w.provider_control(mode='secret_error')
     op=w.request('POST','/v1/machines',w.create_body(t),t,'redacted-provider-error',status=202)['id']
     w.start_engine();w.wait_status(op,'failed');w.stop_engine()
@@ -952,6 +954,8 @@ def error_redaction(w):
     leaked='TEST_ONLY_SECRET_MARKER' in stored or 'TEST_ONLY_SECRET_MARKER' in rendered
     w.h.event('provider_error_redaction_observed',operation=op,controlled_marker_leaked=leaked)
     assert not leaked,'provider error secrets must be redacted before persistence'
+    assert w.h.sql("SELECT status FROM provisiond.provider_account_status WHERE provider_account='sim-secret-error'")== 'credentials_rejected'
+    restore_accounts(w,saved)
     w.provider_control(mode='normal')
     w.h.results.append(dict(test='W4-provider-error-redaction',result='pass'))
 

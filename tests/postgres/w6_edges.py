@@ -121,6 +121,8 @@ def meter_edges(w):
     state=operation_state(w,op)
     outages=[d for d in state['deficiencies'] if d['cause']=='rate_outage']
     assert len(outages)==1 and outages[0]['absorbed_seconds']==60
+    from w6_blocking import deficiency_fields
+    deficiency_fields(w,op,state)
     assert outages[0]['rate_num'] is None and outages[0]['rate_den'] is None and outages[0]['native_minor']>0
     assert len(state['meter'])==2
     assert all(0<=int(m['credit_num'])<int(m['credit_den']) for m in state['meter'])
@@ -139,7 +141,7 @@ def meter_edges(w):
     assert int(w.h.sql('SELECT provisiond.audit_machine_meters()'))>=1
     # Existing open outage evidence may close at exit, while quarantine keeps
     # every meter row and ledger entry untouched and opens no new deficiency.
-    w.h.sql(f"INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,operation_id,cause,native_minor,currency,clamped_sats,idempotency_key,absorbed_from) SELECT provider_account,id,'machine',id,gen_random_uuid(),'rate_outage',0,'USD',0,'quarantined-open-outage',clock_timestamp()-interval '30 seconds' FROM provisiond.machines WHERE id='{machine}'")
+    w.h.sql(f"INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,operation_id,cause,native_minor,currency,clamped_sats,idempotency_key,absorbed_from) SELECT provider_account,id,'machine',id,gen_random_uuid(),'rate_outage',0,'USD',NULL,'quarantined-open-outage',clock_timestamp()-interval '30 seconds' FROM provisiond.machines WHERE id='{machine}'")
     op=deletion(w,t,machine,'quarantine-delete-key');before=operation_state(w,op)
     w.start_engine();w.wait_status(op,'succeeded');w.stop_engine();after=operation_state(w,op)
     assert before['meter']==after['meter'] and before['ledger']==after['ledger']
@@ -148,6 +150,7 @@ def meter_edges(w):
     outage=after['deficiencies'][0]
     assert outage['absorbed_until']==after['machine']['meter_stopped_at'] and outage['absorbed_seconds']>=30
     assert outage['native_minor']>0 and outage['rate_num'] is None and outage['rate_den'] is None
+    deficiency_fields(w,op,after)
     assert w.h.sql(f"SELECT count(*) FROM provisiond.meter_alerts WHERE machine_id='{machine}'")=='1'
     w.h.event('w6_causal_trace',scenario=w.case,operation=op,boundary='explicit range audit quarantines; deletion records stop with unchanged meter evidence',before=before,snapshot=after)
 

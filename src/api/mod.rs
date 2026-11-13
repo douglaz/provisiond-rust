@@ -37,7 +37,7 @@ fn operation_history(operations: &str, receipts: &str, retention_seconds: i64) -
 // including other scopes, rather than scanning live receipts per operation.
 // Receipt presence is distinct from expiry; receiptless rows keep the strict age
 // fallback. Both statements evaluate this relation afresh at statement time.
-const SETTLED_RETENTION: &str = "(WITH candidates AS MATERIALIZED (SELECT id,updated_at FROM provisiond.operations WHERE status IN ('succeeded','failed')) SELECT c.id FROM candidates c LEFT JOIN (SELECT r.resource_id,max(r.expires_at) AS expires_at FROM provisiond.idempotency_records r JOIN candidates c ON c.id=r.resource_id WHERE r.resource_kind='operation' GROUP BY r.resource_id) r ON r.resource_id=c.id WHERE (r.resource_id IS NOT NULL AND r.expires_at<=statement_timestamp()) OR (r.resource_id IS NULL AND c.updated_at<statement_timestamp()-$1::bigint*interval '1 second'))";
+const SETTLED_RETENTION: &str = "(WITH candidates AS MATERIALIZED (SELECT id,updated_at FROM provisiond.operations WHERE status IN ('succeeded','failed')) SELECT c.id,COALESCE(r.expires_at,c.updated_at+$1::bigint*interval '1 second') AS retained_until FROM candidates c LEFT JOIN (SELECT r.resource_id,max(r.expires_at) AS expires_at FROM provisiond.idempotency_records r JOIN candidates c ON c.id=r.resource_id WHERE r.resource_kind='operation' GROUP BY r.resource_id) r ON r.resource_id=c.id WHERE (r.resource_id IS NOT NULL AND r.expires_at<=statement_timestamp()) OR (r.resource_id IS NULL AND c.updated_at<statement_timestamp()-$1::bigint*interval '1 second'))";
 
 fn operation_result(v: &Value) -> Result<Value> {
     if !v["body"].is_null() && v["expired"] != true {
@@ -1443,7 +1443,7 @@ async fn housekeeping(store: Arc<Store>, p: Parameters) -> Result<()> {
         // WIR-27/51: the deleted set and its actual horizons share one
         // statement snapshot; a newly due row cannot lose its identity.
         let purge = format!(
-            "WITH removed AS (DELETE FROM provisiond.operations o WHERE o.id IN (SELECT id FROM {SETTLED_RETENTION} due) RETURNING o.id,o.tenant_id,o.created_at,o.updated_at) INSERT INTO provisiond.retired_operations(id,tenant_id,created_at,retained_until) SELECT o.id,o.tenant_id,o.created_at,COALESCE((SELECT max(expires_at) FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=o.id),o.updated_at+$1::bigint*interval '1 second') FROM removed o RETURNING id"
+            "WITH due AS MATERIALIZED (SELECT id,retained_until FROM {SETTLED_RETENTION} eligible), removed AS (DELETE FROM provisiond.operations o USING due WHERE o.id=due.id RETURNING o.id,o.tenant_id,o.created_at) INSERT INTO provisiond.retired_operations(id,tenant_id,created_at,retained_until) SELECT o.id,o.tenant_id,o.created_at,due.retained_until FROM removed o JOIN due ON due.id=o.id RETURNING id"
         );
         tx.rows(&purge, &[&p.n("retention_seconds")]).await?;
         ensure!(

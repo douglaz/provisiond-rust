@@ -28,18 +28,8 @@ impl Engine {
         body: &Value,
         execution: Option<&Execution>,
     ) -> Result<std::result::Result<Value, crate::wire::Error>> {
-        let account = body["account"]
-            .as_str()
-            .context("evidence account")?
-            .to_owned();
-        let query_account = account.clone();
-        let healthy = self.transaction(component, move |tx| {
-            let account = query_account.clone();
-            Box::pin(async move {
-                Ok(tx.rows("SELECT status='healthy' FROM provisiond.provider_account_status WHERE provider_account=$1", &[&account]).await?.first().is_some_and(|row| row.get::<_,bool>(0)))
-            })
-        }).await?;
-        if !healthy {
+        let account = body["account"].as_str().context("provider account")?;
+        if !self.credential_healthy(component, account).await? {
             return Ok(Err(crate::wire::Error::conflict("state")));
         }
         let result = if let Some(execution) = execution {
@@ -50,10 +40,90 @@ impl Engine {
         } else {
             d.client.call(component, descriptor, path, body).await
         };
+        self.credential_result(component, account, path, result)
+            .await
+    }
+    /// PRV-41/OPS-12: store checks and rejection records surround one external
+    /// permit. Neither a store retry nor a stop ever repeats provider I/O.
+    pub(super) async fn credential_mutation(
+        &self,
+        c: &Claim,
+        component: &Component,
+        d: &Dispatcher,
+        path: &str,
+        body: &Value,
+        execution: &Execution,
+    ) -> Result<Value> {
+        let account = body["account"].as_str().context("provider account")?;
+        let descriptor = d.catalog.get(account).context("provider descriptor")?;
+        if !self.credential_healthy(component, account).await? {
+            return Err(crate::wire::Error::conflict("state").into());
+        }
+        let permit = {
+            let workers = self.workers.lock().expect("workers");
+            let w = workers.get(&c.id).context("mutation worker")?;
+            if execution.stopped.load(Ordering::Acquire) {
+                return Err(ExecutionStopped.into());
+            }
+            ensure!(
+                w.claim.number == c.number
+                    && w.execution
+                        .as_ref()
+                        .is_some_and(|x| std::ptr::eq(x.as_ref(), execution)),
+                "mutation execution replaced"
+            );
+            let permit = component.external(crate::store::ExternalKind::Provider)?;
+            execution.dispatched.store(true, Ordering::Release);
+            permit
+        };
+        let result = provider_io(execution, async {
+            Ok(d.client.call_entered(descriptor, path, body).await)
+        })
+        .await;
+        drop(permit);
+        Ok(self
+            .credential_result(component, account, path, result?)
+            .await??)
+    }
+    async fn credential_healthy(&self, component: &Component, account: &str) -> Result<bool> {
+        if self
+            .rejected_credentials
+            .lock()
+            .expect("credential state")
+            .contains(account)
+        {
+            return Ok(false);
+        }
+        let query_account = account.to_owned();
+        let healthy = self.transaction(component, move |tx| {
+            let account = query_account.clone();
+            Box::pin(async move {
+                Ok(tx.rows("SELECT status='healthy' FROM provisiond.provider_account_status WHERE provider_account=$1", &[&account]).await?.first().is_some_and(|row| row.get::<_,bool>(0)))
+            })
+        }).await?;
+        Ok(healthy
+            && !self
+                .rejected_credentials
+                .lock()
+                .expect("credential state")
+                .contains(account))
+    }
+    async fn credential_result(
+        &self,
+        component: &Component,
+        account: &str,
+        path: &str,
+        result: std::result::Result<Value, crate::wire::Error>,
+    ) -> Result<std::result::Result<Value, crate::wire::Error>> {
+        let account = account.to_owned();
         if result
             .as_ref()
             .is_err_and(|error| error.0["kind"] == "authentication")
         {
+            self.rejected_credentials
+                .lock()
+                .expect("credential state")
+                .insert(account.clone());
             component.trace(json!({"event":"provider_credentials_rejected","provider_account":account,"path":path,"scheduled_retry":false}));
             self.transaction(component, move |tx| {
                 let account = account.clone();

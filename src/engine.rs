@@ -77,6 +77,9 @@ pub struct Engine {
     database: EngineDatabase,
     process: Arc<crate::store::Process>,
     workers: Mutex<BTreeMap<String, Worker>>,
+    // PRV-41: stop new calls as soon as rejection is observed, including while
+    // its durable status transaction is retrying. Restart reads durable health.
+    rejected_credentials: Mutex<std::collections::BTreeSet<String>>,
     // OPS-21: active observation belongs to a claim, independently of the
     // current operation-id worker. Entries end with their terminal result.
     records: Mutex<BTreeMap<(String, i64), Arc<Record>>>,
@@ -105,6 +108,7 @@ impl Engine {
             database,
             process,
             workers: Mutex::new(BTreeMap::new()),
+            rejected_credentials: Mutex::new(std::collections::BTreeSet::new()),
             records: Mutex::new(BTreeMap::new()),
             worker_slots,
             lock_observation: tokio::sync::Mutex::new(()),

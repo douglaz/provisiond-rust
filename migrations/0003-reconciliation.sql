@@ -89,6 +89,12 @@ GRANT SELECT ON provisiond.pending_order_obligations TO app;
 ALTER TABLE provisiond.operator_deficiencies DROP CONSTRAINT operator_deficiencies_subject_kind_check;
 ALTER TABLE provisiond.operator_deficiencies ADD CHECK(subject_kind IN ('machine','operation'));
 ALTER TABLE provisiond.operator_deficiencies ALTER COLUMN machine_id DROP NOT NULL;
+-- STO-37/LDG-31: only an actual satoshi clamp has a satoshi remainder.
+-- Earlier releases produced clamp_overflow only; preserve their exact values.
+ALTER TABLE provisiond.operator_deficiencies ALTER COLUMN clamped_sats DROP NOT NULL;
+ALTER TABLE provisiond.operator_deficiencies ADD CHECK
+ ((cause='clamp_overflow' AND clamped_sats IS NOT NULL) OR
+  (cause<>'clamp_overflow' AND clamped_sats IS NULL));
 CREATE VIEW provisiond.episode_views AS SELECT e.id,m.tenant_id,e.opened_at,e.state,
  jsonb_build_object('id',e.id,'machine_id',e.machine_id,'key',e.key,'reasons',e.reasons,
  'state',e.state,'opened_at',provisiond.wire_time(e.opened_at),'current_operation_id',e.current_operation_id,

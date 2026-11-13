@@ -393,6 +393,8 @@ impl Transaction {
         window: Option<(DateTime<Utc>, DateTime<Utc>)>,
     ) -> Result<()> {
         let (native, clamped, rate) = valuation;
+        // STO-37: a no-rate native cost has no satoshi-origin clamp.
+        let clamped = (cause == "clamp_overflow").then_some(clamped);
         let rate_num = rate.and_then(|v| v["rate_num"].as_i64());
         let rate_den = rate.and_then(|v| v["rate_den"].as_i64());
         let from = window.map(|v| v.0);
