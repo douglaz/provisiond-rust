@@ -1,6 +1,7 @@
 {
   "all_phase_count": 11,
   "baseline_regressions": 2,
+  "blocking_baseline": "ac83e172dae1d3c0cc7934c9633a403cfca0a679",
   "cleanup": "every final phase and recognized control records pass",
   "commands": [
     {
@@ -12,32 +13,20 @@
         "bash",
         "tools/check.sh"
       ],
-      "elapsed_seconds": 1.2159569321665913,
+      "elapsed_seconds": 27.825664576143026,
+      "environment": {
+        "CARGO_TARGET_DIR": "<private-evidence>/final/gate/target",
+        "PROVISIOND_HARNESS_PORT_BASE": "55500",
+        "PROVISIOND_HARNESS_ROOT": "<private-evidence>/final/gate",
+        "PROVISIOND_HARNESS_UNIT": "<isolated-unit>",
+        "TMPDIR": "<private-evidence>/tmp"
+      },
       "exit_status": 0,
-      "implementation_commit": "16c4f1123167a063f14bd4594add60c045080143",
-      "name": "fast gate",
-      "stderr_sha256": "47de7d9fc7b85cbcc33fd9ebf2bfd4acb6597dc9b4f85164d85031c2bc582d25",
-      "stdout_sha256": "52bd440413bf60b434ed2188d7a58b641c1493db95111faf5fe09e014cc2cf96"
-    },
-    {
-      "capture": "whole stdout/stderr separately; status saved before stream inspection",
-      "command": [
-        "nix",
-        "develop",
-        "--command",
-        "bash",
-        "tools/postgres.sh",
-        "--seed",
-        "20261112",
-        "--evidence",
-        "<private-evidence>/all.json"
-      ],
-      "elapsed_seconds": 2066.7503723208793,
-      "exit_status": 0,
-      "implementation_commit": "16c4f1123167a063f14bd4594add60c045080143",
-      "name": "canonical all phases",
-      "stderr_sha256": "110cca9a538a84e899bc4c820064604434c9dd872a93fdb85f45ed38340ecaa1",
-      "stdout_sha256": "a8c3a02a3b4457e52bebcc95b99262a039082ad4eb5352c74ff1063f88b02366"
+      "implementation_commit": "cb355b1124e584f49b337639a397846033e720b6",
+      "name": "gate",
+      "owned_build_removed": true,
+      "stderr_sha256": "fe87c92f21f17bbc83705178334d1e7417eae73ae8c6ea5c1f4b760599ff3266",
+      "stdout_sha256": "05e51ee48c26578f734437d112694848ac40d01cde3b8bc96509e51df072eab0"
     },
     {
       "capture": "whole stdout/stderr separately; status saved before stream inspection",
@@ -54,21 +43,208 @@
         "-p",
         "test_*.py"
       ],
-      "elapsed_seconds": 0.7151702530682087,
+      "elapsed_seconds": 0.7289732359349728,
+      "environment": {
+        "PROVISIOND_HARNESS_PORT_BASE": "55500",
+        "PROVISIOND_HARNESS_ROOT": "<private-evidence>/final/units",
+        "PROVISIOND_HARNESS_UNIT": "<isolated-unit>",
+        "TMPDIR": "<private-evidence>/tmp"
+      },
       "exit_status": 0,
-      "implementation_commit": "16c4f1123167a063f14bd4594add60c045080143",
-      "name": "Python harness units",
+      "implementation_commit": "cb355b1124e584f49b337639a397846033e720b6",
+      "name": "units",
       "stderr_sha256": "ca18ffc8e8fdc6b71e49e9b4fd64e04661daa3243fb767d57a64ce80ea2d7b63",
       "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "capture": "whole stdout/stderr separately; status saved before stream inspection",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "workflow",
+        "--case",
+        "w4_retention_scale",
+        "--seed",
+        "20261112",
+        "--evidence",
+        "<private-evidence>/final/scale-20000-200000/manifest.json"
+      ],
+      "elapsed_seconds": 42.55280384700745,
+      "environment": {
+        "PROVISIOND_HARNESS_PORT_BASE": "55500",
+        "PROVISIOND_HARNESS_ROOT": "<private-evidence>/final/scale-20000-200000",
+        "PROVISIOND_HARNESS_UNIT": "<isolated-unit>",
+        "PROVISIOND_TEST_RETENTION_SCALE": "20000:200000",
+        "TMPDIR": "<private-evidence>/tmp"
+      },
+      "exit_status": 0,
+      "implementation_commit": "cb355b1124e584f49b337639a397846033e720b6",
+      "name": "scale-20000-200000",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "a7e2b6f679d29954d3cbcc988be4fbadbb5433fe066be42f90b4cafbfe4f68c4"
+    },
+    {
+      "capture": "whole stdout/stderr separately; status saved before stream inspection",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "workflow",
+        "--case",
+        "w4_retention_scale",
+        "--seed",
+        "20261112",
+        "--evidence",
+        "<private-evidence>/final/scale-20000-1000000/manifest.json"
+      ],
+      "elapsed_seconds": 53.25277481111698,
+      "environment": {
+        "PROVISIOND_HARNESS_PORT_BASE": "55500",
+        "PROVISIOND_HARNESS_ROOT": "<private-evidence>/final/scale-20000-1000000",
+        "PROVISIOND_HARNESS_UNIT": "<isolated-unit>",
+        "PROVISIOND_TEST_RETENTION_SCALE": "20000:1000000",
+        "TMPDIR": "<private-evidence>/tmp"
+      },
+      "exit_status": 0,
+      "implementation_commit": "cb355b1124e584f49b337639a397846033e720b6",
+      "name": "scale-20000-1000000",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "4b391a8352488aaf0d61d41e47abcd66e3ec7d63d05c56260eb1d091cc263bf4"
+    },
+    {
+      "capture": "whole stdout/stderr separately; status saved before stream inspection",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "workflow",
+        "--case",
+        "w4_retention_scale",
+        "--seed",
+        "20261112",
+        "--evidence",
+        "<private-evidence>/final/scale-50000-1000000/manifest.json"
+      ],
+      "elapsed_seconds": 54.55403126194142,
+      "environment": {
+        "PROVISIOND_HARNESS_PORT_BASE": "55500",
+        "PROVISIOND_HARNESS_ROOT": "<private-evidence>/final/scale-50000-1000000",
+        "PROVISIOND_HARNESS_UNIT": "<isolated-unit>",
+        "PROVISIOND_TEST_RETENTION_SCALE": "50000:1000000",
+        "TMPDIR": "<private-evidence>/tmp"
+      },
+      "exit_status": 0,
+      "implementation_commit": "cb355b1124e584f49b337639a397846033e720b6",
+      "name": "scale-50000-1000000",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "c0cb11db89cf5399d7a58f1026f1a723f7b9baa46c834375c62d0b4097276239"
+    },
+    {
+      "capture": "whole stdout/stderr separately; status saved before stream inspection",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "workflow",
+        "--case",
+        "w4_retention_reads",
+        "--seed",
+        "20261112",
+        "--evidence",
+        "<private-evidence>/final/reads/manifest.json"
+      ],
+      "elapsed_seconds": 45.32091686408967,
+      "environment": {
+        "PROVISIOND_HARNESS_PORT_BASE": "55500",
+        "PROVISIOND_HARNESS_ROOT": "<private-evidence>/final/reads",
+        "PROVISIOND_HARNESS_UNIT": "<isolated-unit>",
+        "TMPDIR": "<private-evidence>/tmp"
+      },
+      "exit_status": 0,
+      "implementation_commit": "cb355b1124e584f49b337639a397846033e720b6",
+      "name": "reads",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "e070ea69734ef51c078064fc88c26e6b3edd978e8fbba59ca3cb17318a61534f"
+    },
+    {
+      "capture": "whole stdout/stderr separately; status saved before stream inspection",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "workflow",
+        "--case",
+        "w4_retention",
+        "--seed",
+        "20261112",
+        "--evidence",
+        "<private-evidence>/final/retention/manifest.json"
+      ],
+      "elapsed_seconds": 73.51939898286946,
+      "environment": {
+        "PROVISIOND_HARNESS_PORT_BASE": "55500",
+        "PROVISIOND_HARNESS_ROOT": "<private-evidence>/final/retention",
+        "PROVISIOND_HARNESS_UNIT": "<isolated-unit>",
+        "TMPDIR": "<private-evidence>/tmp"
+      },
+      "exit_status": 0,
+      "implementation_commit": "cb355b1124e584f49b337639a397846033e720b6",
+      "name": "retention",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "fab92f34963d4fa441823a5e98a771990b0dfaf54056357e48bc83398d581d6f"
+    },
+    {
+      "capture": "whole stdout/stderr separately; status saved before stream inspection",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "bash",
+        "tools/postgres.sh",
+        "--seed",
+        "20261112",
+        "--evidence",
+        "<private-evidence>/final/all/all.json"
+      ],
+      "elapsed_seconds": 2034.8129753929097,
+      "environment": {
+        "PROVISIOND_HARNESS_PORT_BASE": "55500",
+        "PROVISIOND_HARNESS_ROOT": "<private-evidence>/final/all",
+        "PROVISIOND_HARNESS_UNIT": "<isolated-unit>",
+        "TMPDIR": "<private-evidence>/tmp"
+      },
+      "exit_status": 0,
+      "implementation_commit": "cb355b1124e584f49b337639a397846033e720b6",
+      "name": "all",
+      "stderr_sha256": "e5134f8349f874798df6dbc38e7ed80f2d83904ca07dc67ae4619c9f1fd3f00f",
+      "stdout_sha256": "8d0717f13a0c23b98905cef98e5bc200f189d011b3710ef2c717875d8e547da3"
     }
   ],
   "continuation_baseline": "5061fe34e127c68de68e8312dbca6f875f6dc790",
   "control_count": 39,
-  "implementation_commit": "16c4f1123167a063f14bd4594add60c045080143",
+  "credential_fault_activation_workers": 1,
+  "implementation_commit": "cb355b1124e584f49b337639a397846033e720b6",
   "new_control_count": 4,
+  "ordinary_successor_workers": 3,
   "redaction": "recursive local-path/address removal and stable opaque replacements; whole private traces retained by hash",
   "result": "pass",
-  "source_audit": "83 tested operational hashes match; older protected-source reds retain their recorded identities",
+  "source_audit": "85 tested operational hashes match; older protected-source reds retain their recorded identities",
   "versions": {
     "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",
     "crates": {
@@ -198,6 +374,7 @@
     "python": "Python 3.14.7",
     "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14) (built from a source tarball)"
   },
+  "w6_blocking_regressions": 11,
   "w6_continuation_regressions": 9,
   "w6_lifetime_regressions": 2,
   "w6_repair_regressions": 9,
@@ -239,6 +416,13 @@
     "w6_c4_get",
     "w6_c4_constraints",
     "w6_c5",
+    "w6_e2_offers",
+    "w6_e2_keys",
+    "w6_e2_order",
+    "w6_e2_key_cleanup",
+    "w6_e2_delete",
+    "w6_e3_reply",
+    "w6_e1",
     "w6_r7",
     "w6_c2_failed",
     "w6_c2_unresolved"

@@ -26,3 +26,32 @@ M	tests/postgres/w6_repairs.py
 ```
 
 The final documentation/evidence commit preserves every tested operational hash. Earlier W6 source histories remain in their original regression artifacts.
+
+
+Final bounded repairs continue unchanged `ac83e17` with ordinary commits:
+
+```text
+0d51c84 Bound retirement and complete credential and deficiency handling
+cb355b1 Honor worker cancellation during credential health checks
+```
+
+```text
+M	migrations/0003-reconciliation.sql
+M	src/api/mod.rs
+M	src/engine.rs
+M	src/engine/deletion.rs
+M	src/engine/dispatch.rs
+M	src/engine/reconciliation.rs
+M	src/store/business.rs
+M	src/store/deletion.rs
+M	src/store/reconciliation.rs
+M	tests/postgres/simulator.py
+M	tests/postgres/w4_retention_scale.py
+M	tests/postgres/w6.py
+A	tests/postgres/w6_blocking.py
+A	tests/postgres/w6_blocking_baseline.py
+M	tests/postgres/w6_edges.py
+M	tests/postgres/workflow.py
+```
+
+The source inventory binds these tested operational files; the later documentation/evidence commit changes none of them.

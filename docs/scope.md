@@ -350,7 +350,7 @@ checks and six affected controls; it makes no new nine-phase or production-confo
 ## W6 reconciliation and termination subset
 
 The [W6 report](../evidence/w6/report.md) and [final aggregate](../evidence/w6/final-all.json)
-record 40 W6 groups, all prior phases and 39 recognized controls. Two review-base regressions,
+record 47 W6 groups, all prior phases and 39 recognized controls. Two review-base regressions,
 two early lifetime regressions, nine regressions against `9454e45` and nine against `5061fe3`
 retain their actual distinct source identities.
 Automatic create resolution uses exact correlators on every channel, direct identity/account
@@ -395,7 +395,7 @@ legacy cleanup evidence upgrade, monitorable operator decision outcomes and repe
 validation. Their recorded decision traces and protected-source reds are in the W6 report. These are selected
 simulator arms. Nine further groups cover failed confirmation after a single exact match, both
 older cleanup outcomes, receiptless cleanup/retry retirement, ordinary verification credential
-stops and early authenticated refusals. The report retains nineteen deferred P2/P3 defects.
+stops and early authenticated refusals. The report retains twenty-three deferred P2/P3 defects.
 
 A retained authoritative single exact match awaiting confirmation is positive evidence, so its
 original commitment survives failed/incomplete rereads and ordinary restart. Later complete evidence
@@ -409,3 +409,16 @@ housekeeping retirement. Retirement atomically retains only identity, tenant, cr
 actual horizon, while the episode outlives the deleted operation. Keyed operations still use their
 maximum stored receipt horizon; unresolved operations remain readable. No request body or synthetic
 receipt is retained to make a retired attempt discoverable.
+
+
+The final retirement repair carries each grouped all-scope receipt maximum into the same atomic
+operation removal and permanent minimal identity insert. Canonical `w6_e1` activates 990 due rows
+amid 20,000 added operations and 200,000 added receipts. Supplemental exact scale/read selectors
+retain their existing no-work, mixed, protected-alias, unsettled, receiptless and financial-history
+checks; they do not substitute for canonical activation. Eventual retired-history lookup scaling
+is deferred. Preflight offers, temporary-key registration, ordering, pre-acceptance key cleanup
+and deletion share the durable credential stop, with one external permit per entered call and no
+provider I/O in a store transaction. Other accounts and local negative expiry remain independent.
+Every reached non-clamp deficiency now carries null `clamped_sats`, while actual clamp overflow
+keeps its exact satoshi remainder and native partition. Schema 3 remains the unpublished offline
+forward release; earlier migration meanings and all deferred billing/incident work are unchanged.

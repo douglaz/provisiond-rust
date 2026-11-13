@@ -302,3 +302,15 @@ attempts retain scoped `410 gone` identities after housekeeping removes them, us
 horizon. Ordinary create search/get/constraint authentication failures stop that credential;
 confirmed creates still settle with a null constraint date. Authenticated early operator refusals
 emit safe correlated events before key, target, body, override or rate validation exits.
+
+The final W6 repair also covers preflight offers, temporary-key registration, ordering, eligible
+pre-acceptance key cleanup and deletion credential failures. Each rejection stops that credential
+durably; queued work makes no later provider call and healthy accounts continue. Generic refusal
+fixtures use provider/400 errors; the secret-redaction fixture keeps its authentication fault on an
+independent account. Non-clamp deficiencies store SQL/JSON null in `clamped_sats`, retaining native
+cost and opening-rate provenance; actual clamps retain their exact satoshi remainder.
+Retirement carries the grouped maximum receipt horizon into the atomic delete/identity insert.
+The canonical `w6_e1` activates a due backlog; the three `w4_retention_scale` shapes and default
+`w4_retention_reads` remain separate supplemental checks. The [W6 report](evidence/w6/report.md)
+records 47 groups, protected baseline reds and final validation. Minimal retired identities remain
+permanent; eventual retired-history read scaling remains deferred.

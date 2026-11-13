@@ -1630,6 +1630,47 @@ known safe principal/target/correlation and scoped metadata, with nulls before a
 malformed body text and retry prose are never copied into these events. Existing intent, acknowledged,
 replayed, refused and uncertain outcomes retain their meanings.
 
+### D-55. Bounded retirement, terminal credentials and nullable deficiency fields
+
+**Demonstrated 2026-11-13.** Final operational source `cb355b1124e584f49b337639a397846033e720b6`; PostgreSQL 18.6,
+Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and tokio-postgres 0.7.18.
+[Validation](../evidence/w6/validation.json) records exact commands, environments, true exits and
+whole separate stdout/stderr hashes. `nix develop --command bash tools/check.sh`, the complete
+`nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <private-evidence>/all.json`
+and nine Python units each exit 0. The canonical run contains all eleven phases, 47 W6 groups
+and 39 recognized controls. [Protected reds](../evidence/w6/blocking-regressions.json) retain eleven
+intended exit-1 assertions on unchanged `ac83e17`, with 37 protected runtime/migration/dependency
+hashes and byte-identical final fixture drivers. Earlier reds keep their historical identities.
+
+STO-14/25/33 retirement materializes the already grouped due set with its maximum all-scope receipt
+expiry, then uses it for both deletion and identity insertion in one statement. Receiptless age
+eligibility and its actual horizon remain unchanged. No index, statement-bound increase or task
+failure-policy change is needed. The [supplemental matrix](../evidence/w6/retention-bounds.json)
+records one receipt scan per plan, with mixed-purge execution 49.982, 144.978 and 195.318 ms at
+20k/200k, 20k/1M and 50k/1M respectively, under statement_timeout=1000 ms. Each actual API
+retirement removes the exact 991 IDs, retains their horizons and preserves financial history and
+permanent receipts. The default 20k/2M read selector and ordinary retention selector also exit 0.
+These local measurements select no production capacity. Canonical `w6_e1` independently activates
+the due transaction; permanent retired identities and deferred eventual read scans are unchanged.
+
+PRV-41 checks durable health before every remaining supported provider call. A local latch stops
+new calls immediately while a rejection's status write completes; restart reads the durable stop.
+Read-only and entered mutation calls share status/rejection handling while mutations acquire only
+their existing external permit around I/O. Worker health reads honor cancellation and whole-store
+retry rules; rejection recording retains the received fact without repeating I/O. Already in-flight
+outcomes still classify normally. Generic order/delete refusal fixtures are non-authentication
+provider/400 responses; the secret-redaction authentication fault uses an independent account.
+No credential rotation, automatic health reset, general backoff or production status API is added.
+
+STO-37 schema 3 drops only `clamped_sats`' inherited NOT NULL restriction and constrains it to be
+present for clamp_overflow and null otherwise. Every reached W6 non-clamp producer writes null.
+Native costs, per-record rates, absorbed windows, account/subject provenance, keys and money
+atomicity are unchanged. Actual clamps keep their original direct satoshi remainder. Real charged
+absence, abandoned estimates, late-attach floor-or-deficiency, reached no-rate exits, quarantine
+closure and a lost-resolution COMMIT repeat cover the supported field contract. Earlier migration
+files and W1–W5 evidence remain unchanged; discarded intermediate schema-3 prototypes are not an
+upgrade line. D-41–D-48 and D-37/D-38 remain unchanged.
+
 ## Open
 
 
