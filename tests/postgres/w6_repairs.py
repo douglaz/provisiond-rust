@@ -90,6 +90,10 @@ def visibility_money(w):
     t2,_,op2,barrier=lost(w,'repair-progress',search='in_progress')
     eligible(w,op2);w.start_engine();barrier.unlink()
     eventually(lambda:any(e.get('evidence',{}).get('in_progress') for e in w.events('engine','resolution_search') if e['operation']==op2))
+    # The search trace precedes its store transaction. Establish retained
+    # positive knowledge before the controlled stop tests its survival.
+    eventually(lambda:snapshot(w,op2)['operation']['error']['details'].get('reconciliation',{}).get('in_progress') is True)
+    w.h.event('w6_repair_in_progress_durable',operation=op2,snapshot=snapshot(w,op2))
     w.stop_engine();w.h.sql(f"UPDATE provisiond.operations SET mutation_wait_ended_at=clock_timestamp()-interval '130 seconds' WHERE id='{op2}'; UPDATE provisiond.provider_account_status SET status='account_unreachable' WHERE provider_account='{t2['account']}'")
     w.start_engine();time.sleep(1.2);w.stop_engine()
     assert snapshot(w,op2)['commitment']['reserved_sats']==43
