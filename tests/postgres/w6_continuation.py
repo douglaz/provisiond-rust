@@ -202,7 +202,7 @@ def ordinary_auth(w,site):
     assert not any(e['stage']=='request_received' and e['account']==account for e in observed[index+1:])
     assert any(e['stage']=='request_received' and e['account']=='sim-b' for e in observed[index+1:])
     final=snapshot(w,op);one_purchase(w,op)
-    assert final['operation']['request_summary']==original['operation']['request_summary']
+    assert final['operation']['request_summary']==dict(original['operation']['request_summary'],correlator=dict(kind='operation_uuid',value=op))
     if site=='/constraints':
         assert w.status(op)=='succeeded' and final['machines'][0]['earliest_cancellation_date'] is None
         assert final['commitment']['reserved_sats']==12 and len(final['ledger'])==2
