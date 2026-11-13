@@ -6,7 +6,7 @@ The final operational commit, complete source inventory, exact dependency/tool v
 
 The canonical fast gate and all-phase PostgreSQL command exited 0. Nine Python harness unit tests also passed with exit 0. The canonical command is `nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <private-evidence>/all.json`; the gate is `nix develop --command bash tools/check.sh`. See validation for full command/status and output-hash proof. Later documentation/evidence publication preserves every tested operational hash.
 
-Recorded 2026-11-13: this final bundle covers 47 W6 groups: the original 22, nine earlier repair groups, nine continuation groups and seven final repair groups. All 39 sensitivity controls remain. W7–W11 and the accepted scope choices remain outside this implementation.
+Recorded 2026-11-13: this final bundle covers 50 W6 groups: the original 22, nine earlier repair groups, nine continuation groups, seven retention/credential/field groups and three opening-rate/retired-replay groups. All 39 sensitivity controls remain. W7–W11 and the accepted scope choices remain outside this implementation.
 
 ## Activated scenarios and established facts
 
@@ -61,6 +61,9 @@ Every row below is `pass` in [final-w6.json](final-w6.json). It inherits the man
 | `w6_e2_delete` | A real suspended-tenant cleanup reaches its licensed/fenced delete and rejects authentication once. The attempt fails with a stalled episode and retained fence/running-machine funding; no gone-write or later credential call is invented. Other-account work continues. | PRV-41; OPS-11/41/42/45/48; CNF-284 |
 | `w6_e3_reply` | A matched but independently removed machine has both charged obligations. The resolution commits native 2/1 costs with null clamped_sats; its exact session's COMMIT reply is lost. Whole-store retry and an ordinary successor preserve the exact two deficiency rows, original money state and one purchase. | STO-37; LDG-39/66; OPS-27/49; selected CNF-162/197 |
 | `w6_e1` | The real API/engine prefix precedes 20k added operations and 200k added receipts, 990 actually due. The ordinary housekeeping transaction retires them and retains exact horizons, with financial/history state unchanged and the API/job still live. The red observes attributed SQLSTATE 57014, failed housekeeping and full rollback. | STO-14/24/25/33; WIR-27/51; selected CNF-158 |
+| `w6_f1_null` | A genuine create and caller delete close a two-hour historical 10/1 interval during a current outage. The customer debit stays 12 sats, the clamp 11 sats/native 2 and opening fields null; exact rational credit/mark and outage fields are checked. Rate return before a landed COMMIT reply is lost, actual whole-store retry, successor and caller replay preserve every row and one delete. | LDG-4/31/38/66/72; STO-37; selected CNF-160 |
+| `w6_f1_current` | The same historical exit keeps its 10/1 ledger conversion and exact arithmetic while the new deficiency records current 20/1. The subsequent small piece uses its actual new rate and exact carried credit. Lost receipt, return to 10/1, retry/restart/replay preserve the original opening evidence without another provider mutation. | LDG-4/31/38/66/72; STO-37; selected CNF-160 |
+| `w6_f2` | Real unresolved purchases and authenticated operator decisions establish principal-scoped permanent receipts. Identical/mismatched unexpired replays precede disclosed expiry and actual housekeeping deletion. Retired matching replay returns 410 with the retained horizon; changed valid bodies return 409. Effective-tenant/wrong-tenant/unknown-id privacy, principal collision isolation, strict validation, canonical equivalence, maximum receipt horizon, audit outcomes and unchanged full effect/receipt/ceiling snapshots are checked. | API-7/10/11/12/38; WIR-3/35; STO-14/25/33/35; DOM-21; selected CNF-21/158 |
 
 The earlier core phase additionally exercises ENG-04 stale-claim refusal, ENG-06 whole-settlement repeats, ENG-08 rejection of provider/rail/rescue entry while a component owns a transaction, and the existing generation/stop guards. W5 retains all interruption assertions: explicit provider/evidence barriers isolate its historical unresolved/snapshot boundaries from W6 periodic updates. The original failed-checkout assertion, observer faults and narrow timing bounds remain intact. Retention ignores only explicitly tagged background evidence-read events while retaining every purchase/effect and the whole independent resource state.
 
@@ -109,7 +112,7 @@ The survived step-8/pre-step-9 worker-position classification arm remains in W5 
 [New regression proof](continuation-regressions.json) records nine intended exit-1 assertions on
 unchanged `5061fe34e127c68de68e8312dbca6f875f6dc790`, with 37 runtime/migration/dependency
 hashes protected before and after. Only fixtures overlay the isolated export. Each arm records its
-independent activation and cleanup; the corresponding green is in the final 47-group inventory.
+independent activation and cleanup; the corresponding green is in the final 50-group inventory.
 Search/get baseline faults occur first in ordinary verification and then wrongly repeat in periodic
 resolution; the constraint baseline leaves credential health unchanged. Neither is misattributed to
 a prior lost reply or a periodic call that won the activation race.
@@ -139,7 +142,7 @@ no-repeat and restart assertions. Only the final complete source-bound exit-0 ru
 `ac83e172dae1d3c0cc7934c9633a403cfca0a679` runtime, migrations and dependencies. The recognizing
 runner exits 0 only after every child exits 1 at its exact intended assertion with fault activation
 and cleanup pass. All 37 protected hashes match before/after; the isolated export is removed.
-Every fixture overlay is byte-identical to the corresponding final green. The older review-base,
+Those historical fixture overlays retain their recorded hashes; their unchanged behavioral drivers remain in the current final greens. The older review-base,
 initial-W6, `9454e45` and `5061fe3` artifacts remain unchanged with their actual source identities.
 
 E1's real due transaction times out with SQLSTATE 57014 on the baseline; housekeeping exits,
@@ -147,7 +150,7 @@ the listeners stop, all 20k selected rows remain and no partial retired identity
 fixed canonical driver observes 990 retirements, retained horizons and later API/job liveness.
 The [supplemental matrix](retention-bounds.json) separately runs all three original exact scale
 shapes. No-work and mixed probes and retirement plans each scan receipts once. Mixed retirement
-execution is 49.982 ms at 20k/200k, 144.978 ms at 20k/1M and 195.318 ms at 50k/1M, under the
+execution is 213.550 ms at 20k/200k, 151.099 ms at 20k/1M and 217.715 ms at 50k/1M, under the
 unchanged 1000 ms statement bound. Each real API removes the exact 991 returned IDs: 990 expired
 receipted rows and one old receiptless row. Other-scope live aliases, unsettled statuses, recent
 receiptless settlement and financial/receipt history survive; rolled-back measurement writes leave
@@ -180,6 +183,67 @@ The final-only bundle replaces the earlier final manifests. Early ownership/fixt
 validation stopped on a source-hash change are excluded; their raw results remain private. No
 required activated fault was retried away or counted as a pass.
 
+## Opening-rate and retained operator replay repairs
+
+[Three new protected regressions](opening-retention-regressions.json) export unchanged
+`96c6001999a50fb4b3247b77ba29e60500baf72f` runtime, migrations and dependencies. All protected
+hashes agree before/after, all final fixture overlays match the greens and the export is removed.
+The two F1 children exit 1 at the null/current opening-rate assertions after historical debit,
+clamp/native, credit/mark and actual current condition checks. F2 exits 1 at its post-retirement
+response assertion with 404 instead of 410, after independently confirmed physical deletion and
+a retained identity/receipt. The recognizing command exits 0; cleanup passes. These are distinct
+from all older protected-source reds, whose identities and artifact hashes remain unchanged.
+
+The final integrated greens use opening-rate evidence from the producing insert, independently
+of historical usage conversion. They preserve null permanently, record a different current rate
+when present and retain all exact debit/clamp/native facts. The actually lost settlement reply
+produces an observed whole-transaction retry after rates return, then ordinary successor and
+caller replay preserve the full committed state. The unchanged-current-rate exit also remains green.
+This covers caller deletion's reached accounting during an outage, not excluded OPS-41 steps 4–5.
+
+Permanent retired identity authorizes scope; the permanent resolution response supplies the kind
+for the same strict validation. Fingerprint mismatch precedes the canonical all-receipt cutoff,
+so physical deletion does not change 410 into 404 or mask 409. A fresh key cannot mutate a retired
+resource. Both real principals, actual effective-tenant scope, wrong tenant/unknown id, canonical
+equivalence and an expired operator receipt protected by a live customer receipt are exercised.
+Audit outcomes remain acknowledged/replayed/refused as observed; complete database effect snapshots,
+receipts, fingerprints, deadlines and independent provider history remain unchanged under replays.
+Published database snapshots retain table counts, full-snapshot hashes and target-tenant rows;
+complete snapshots remain private. The before/after assertions compare the full actual tables.
+The test deliberately waits for actual deletion rather than depending on a live-row timing race;
+it does not claim a separately held pre-deletion logical-boundary experiment for F2.
+
+The final committed-source gate, eleven-phase suite, nine Python units, three retention scale
+shapes, default retained reads and ordinary retention each exit 0 as recorded in
+[validation](validation.json). All 50 W6 groups and 39 exact-assertion negative controls are present.
+The first private F2 fixture precheck expected the wrong reason for a key already used on another
+target; it failed and was corrected to idempotency_mismatch before the protected behavioral reds.
+Its unsuccessful raw record remains private and is not an earned regression or acceptance result.
+The first integrated suite exited 1 in F2's pre-resolution search wait: preceding scenarios had
+widened the account's effective visibility to 121 seconds. The target was not eligible during
+the fixture's 20-second wait. The final fixture uses the existing disclosed per-operation age
+control before requiring a real automatic search; no runtime window or bound is reduced. The
+failed run remains recorded in validation and cleanup passed. A subsequent separate W6 invocation
+stopped earlier, before F2, when an existing episode resolution received HTTP 503 at the unchanged
+250 ms checkout bound; its failure is retained, with no established cause. Some final prechecks
+requested per-command Nix min-free/max-free settings, but Nix explicitly ignored those restricted
+settings for this untrusted user. No disabled-collection or causal claim follows. The full suite
+leaves NIX_CONFIG unset, and cleanup removes only exact completed task-created archives/builds.
+A further integrated run stopped at F1's exact-credit oracle, which reconstructed the stop from
+PostgreSQL's microsecond-rounded representation. Its difference was one microsecond of current
+usage. The final fixture observes only the named machine's actual entered stop parameter and
+checks exact Fraction arithmetic at the existing microsecond precision. Pricing, native partition,
+clock and runtime bounds remain unchanged. That failed run and cleanup are retained in validation.
+The fresh complete suite runs on the corrected committed fixture. No failed or unactivated arm
+from these unsuccessful invocations is counted as passing.
+
+Credential coverage retains its existing limits. The local rejection latch is source-reviewed;
+the window with its durable status write held was not activated, and simultaneous three-worker
+credential rejection/in-flight outcomes were not run. E2 activates each rejection with one worker;
+ordinary successors use three. Its no-later-call observations cover the recorded 2.3/1.2-second
+windows and actual other-account progress, not every future schedule. Additional latch/concurrency
+activation remains optional deferred coverage; none is claimed here.
+
 ## Source and publication audit
 
 The operational commits and changed paths are listed in the [source change report](source-changes.md). AGENTS.md and spec-lock.json are unchanged. Earlier W1–W5 evidence is unchanged; the superseded W6 final manifests are replaced; no new branches/tags, history rewrites, push, pull request or merge was performed. All old components must stop and be prevented from restarting before the offline schema-3 migration; mixed releases and rollback past this release are not supported. Every test owns its recorded ports/directories/credentials; cleanup is restricted to recorded invocation resources. Externally retained raw proof is private.
@@ -194,7 +258,7 @@ The publication audit recursively removes host paths, local coordination identif
 - Deferred follow-on owner: general periodic billing, rate construction/solvency, full cross-kind conformance, rail-history response-size bounds, descriptor-at-startup deadlines and unrelated harness hardening. Fixture rate acceptance records support the reached exits; they are not a market feed or an implementation of the general rate estimator.
 - Unresolved outcomes remain external uncertainty: non-authoritative/multiple/conflicting/failed evidence never invents success. The original reserve has its bounded OPS-33 lifetime; an unresolved resource-offer exclusion has its own outcome lifetime. Matched in-progress orders and authoritative single matches awaiting confirmation are positive evidence, not negative timeouts. Operator decisions retain evidence and identity.
 
-The twenty-three follow-ups retain their ratings, affected paths and deferred scope:
+The twenty-four follow-ups retain their ratings, affected paths and deferred scope:
 
 1. **P2 review-followup — missing attempt backend evicts a healthy observer.** Prior review; `src/store/accounting.rs:127–155,196–198`. One absent backend tears down shared attribution for other attempts. Conservative charging, no undercount/money loss; not higher. Separate backend absence from observer visibility failure; test two registered attempts and one exited backend.
 2. **P2 review-followup — observer reconnect/error churn lacks backoff.** Prior review; `src/store/accounting.rs:161–194`. A persistent failure can retry/log every 20 ms, including with no registration. Availability/noise rather than a proved unsafe charge; not higher. Pace/coalesce within existing bounds, verify bounded attempt/log count and later recovery.
@@ -221,6 +285,8 @@ The twenty-three follow-ups retain their ratings, affected paths and deferred sc
 21. **P3 review-nit — older PRV-41 conformance anchor points one line before the clause.** The older R5 row links line 1267, while C4 links 1268. Navigation only; the old anchor is unchanged in this repair.
 22. **P3 review-nit — DOM-21 conformance prose still says the receiptless gap remains.** The older row disagrees with the current C3 implementation/evidence. Wording only; that row is left unchanged here.
 23. **P3 review-nit — legacy unresolved fixture error is not text-identical to the base.** `w6_continuation.py` says `engine restarted while operation was running`; the base said `interrupted by ordinary restart`. Migration never reads that text. Keep its state/identity/boolean assertions; literal alignment remains deferred.
+
+24. **P3 review-nit — the new deficiency CHECK constraints have generated names.** `migrations/0003-reconciliation.sql:95–97,132`. The cause/clamped_sats and absorbed-time table checks use generated names, while later migrations may need to reference a particular definition. Their enforced behavior and existing checks are correct, so this is naming/maintenance only. In separate schema-maintenance work use explicit stable names or document the generated identities, verify against pg_constraint and preserve the exact definitions/upgrade behavior. No constraints are renamed in F1.
 
 - D-37/D-38 remain unchanged: missing observer samples are charged, completion-only accounting cannot force an exit while a live transport withholds completion, and the PostgreSQL one-contiguous-SyncRep-span premise remains unverified. Review judgment does not replace execution evidence.
 

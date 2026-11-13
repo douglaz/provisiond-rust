@@ -55,3 +55,23 @@ M	tests/postgres/workflow.py
 ```
 
 The source inventory binds these tested operational files; the later documentation/evidence commit changes none of them.
+
+
+Opening-rate and retired-replay repairs continue `96c6001` with these ordinary commits:
+
+```text
+db55b42 Correct exit opening rates and retained operator replays
+c6636b1 Activate retained replay beyond the observed visibility window
+a063df0 Measure the entered exit instant in opening-rate regressions
+```
+
+```text
+M	src/api/operator.rs
+M	src/store/deletion.rs
+M	tests/postgres/proxy.py
+M	tests/postgres/w6.py
+M	tests/postgres/w6_blocking_baseline.py
+A	tests/postgres/w6_final_repairs.py
+```
+
+The final source inventory binds the committed operational bytes. Later documentation and evidence changes preserve those bytes.

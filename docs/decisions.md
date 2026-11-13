@@ -1671,6 +1671,42 @@ closure and a lost-resolution COMMIT repeat cover the supported field contract. 
 files and W1–W5 evidence remain unchanged; discarded intermediate schema-3 prototypes are not an
 upgrade line. D-41–D-48 and D-37/D-38 remain unchanged.
 
+### D-56. Separate deficiency opening evidence and retain operator replay decisions
+
+**Demonstrated 2026-11-13.** Operational source `a063df0c33f94e1228fb9e393bef93e966fd18cf`; PostgreSQL 18.6,
+Rust 1.97.1, Cargo 1.97.0, Python 3.14.7, Nix 2.34.9 and tokio-postgres 0.7.18.
+The exact commands, environments, true exit statuses and whole separate stream hashes are in
+[validation](../evidence/w6/validation.json). `nix develop --command bash tools/check.sh`,
+`nix develop --command bash tools/postgres.sh --seed 20261112 --evidence <private-evidence>/all.json`
+and `nix develop --command python3 -m unittest discover -s tests/postgres -p 'test_*.py'`
+each exit 0. The canonical run includes eleven phases, 50 W6 groups and 39 recognized controls;
+the three existing retention scale shapes, default retained reads and ordinary retention also exit 0.
+[Three protected reds](../evidence/w6/opening-retention-regressions.json) fail their intended
+assertions on unchanged `96c6001`, protecting all runtime/migration/dependency blobs before/after
+with identical final fixture overlays. Earlier reds retain their historical identities.
+
+LDG-66/STO-37 opening-rate columns describe the current condition at the deficiency insert.
+`exit_deficiency` reads that condition in its producing statement; LDG-38 continues to price each
+elapsed piece from the existing fixture history. An absent current rate yields null permanently;
+an available different rate is recorded, while rate-outage rows always remain null. No schema,
+native partition, money guard, rounding credit or high-water rule changes. Two real exits keep
+historical 10/1 usage, 12 customer sats and 11 clamped sats with native remainder 2, while opening
+fields are null or current 20/1. Rate return before an actually lost settlement reply, observed
+whole-transaction retry, ordinary successor and keyed replay preserve those exact rows.
+
+API-7/11/12/38 and STO-25/33 use the permanent retired identity's tenant for authorization and
+the retained resolution response's kind for strict body validation. Principal/key fingerprint
+checks still precede expiry. Matching operation receipts use the same all-scope maximum and
+logical cutoff as GET, then return the exact stored response while readable or gone with its
+retained horizon. Retired metadata cannot reach a new decision or ceiling write. The real
+housekeeping regression proves 410 after physical deletion, 409 mismatch, actual effective-tenant
+authorization, wrong-tenant/unknown-id privacy, principal isolation, canonical equivalence and
+unchanged receipts, deadlines, money, machines, episodes, provider history and ceilings. An expired
+operator receipt with another resolving receipt still live continues to replay without renewal.
+
+D-32/D-33's finite horizon, D-37/D-38 and D-41–D-48 remain unchanged. No rate model,
+incident, unsupported verb, provider, production policy or previously deferred repair is added.
+
 ## Open
 
 

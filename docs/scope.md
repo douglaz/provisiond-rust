@@ -350,7 +350,7 @@ checks and six affected controls; it makes no new nine-phase or production-confo
 ## W6 reconciliation and termination subset
 
 The [W6 report](../evidence/w6/report.md) and [final aggregate](../evidence/w6/final-all.json)
-record 47 W6 groups, all prior phases and 39 recognized controls. Two review-base regressions,
+record 50 W6 groups, all prior phases and 39 recognized controls. Two review-base regressions,
 two early lifetime regressions, nine regressions against `9454e45` and nine against `5061fe3`
 retain their actual distinct source identities.
 Automatic create resolution uses exact correlators on every channel, direct identity/account
@@ -395,7 +395,7 @@ legacy cleanup evidence upgrade, monitorable operator decision outcomes and repe
 validation. Their recorded decision traces and protected-source reds are in the W6 report. These are selected
 simulator arms. Nine further groups cover failed confirmation after a single exact match, both
 older cleanup outcomes, receiptless cleanup/retry retirement, ordinary verification credential
-stops and early authenticated refusals. The report retains twenty-three deferred P2/P3 defects.
+stops and early authenticated refusals. The report retains twenty-four deferred P2/P3 defects.
 
 A retained authoritative single exact match awaiting confirmation is positive evidence, so its
 original commitment survives failed/incomplete rereads and ordinary restart. Later complete evidence
@@ -422,3 +422,14 @@ provider I/O in a store transaction. Other accounts and local negative expiry re
 Every reached non-clamp deficiency now carries null `clamped_sats`, while actual clamp overflow
 keeps its exact satoshi remainder and native partition. Schema 3 remains the unpublished offline
 forward release; earlier migration meanings and all deferred billing/incident work are unchanged.
+
+
+The reached exit clamp producer separates LDG-66 opening evidence from LDG-38 historical
+usage pricing. Both an unavailable opening rate and a different current rate are demonstrated,
+with historical debit/native arithmetic, exact credit/mark, lost settlement receipt, whole-store
+repeat, ordinary successor and caller replay preserved. Null opening fields are never backfilled.
+Operator resolution replays survive actual housekeeping retirement, retaining fingerprint-first
+conflicts, the all-scope maximum horizon, effective-tenant privacy and structured refusal events.
+Permanent receipts supply the retired kind for strict validation; no operation is resurrected and
+a fresh key cannot mutate a retired identity. General rate construction and OPS-41 no-rate
+decision steps remain outside this reached caller-delete path.
