@@ -91,7 +91,12 @@ def read_deadline(w):
                 assert created=='SIMULATOR-RESOURCE-'+str(external)
                 identifiers={'order_reply':[created]}
                 if path=='/get':identifiers['search']=[created]
-                assert details==dict(accepted=True,attempted='create_machine',provider_identifiers=identifiers)
+                expected_details=dict(accepted=True,attempted='create_machine',provider_identifiers=identifiers)
+                if path=='/get':
+                    # OPS-27/33: timeout preserves the complete exact single
+                    # match while confirmation is still pending, across restart.
+                    expected_details['reconciliation']=dict(authoritative=True,matches=1,single_match=True,in_progress=False)
+                assert details==expected_details
                 view=w.operation_reads(t,op,'timeout',False,details)
                 assert stored['summary']==dict(admitted['summary'],correlator={'kind':'operation_uuid','value':op})
                 assert stored['request_purged'] and stored['result'] is None and stored['machine'] is None
