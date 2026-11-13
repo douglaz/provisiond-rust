@@ -11,6 +11,23 @@ ALTER TABLE provisiond.operations ADD CHECK
  ((resolution IS NULL) = (resolved_at IS NULL) AND
   (resolution IS NULL) = (resolved_by IS NULL) AND
   (resolution IS NULL) = (resolution_evidence IS NULL));
+-- OPS-23/35/45: schema 2 queued suspended-attach cleanups retained only '{}'.
+-- Upgrade that exact supported system shape from its authoritative linked
+-- machine. Mismatched ownership/accounts and unrelated malformed rows are not
+-- repaired into dispatchable operations.
+UPDATE provisiond.operations o
+ SET provider_account=m.provider_account,
+ request_summary=jsonb_build_object('kind','delete','machine_id',m.id,
+   'provider_account',m.provider_account,'external_id',m.external_id)
+ FROM provisiond.machines m,provisiond.provider_accounts a
+ WHERE o.kind='delete' AND o.status IN ('queued','running')
+ AND o.requested_by='system' AND o.system_reason='tenant_suspended'
+ AND o.episode_id IS NOT NULL AND o.request_summary='{}'
+ AND m.id=o.machine_id AND m.tenant_id=o.tenant_id
+ AND (o.provider_account IS NULL OR o.provider_account=m.provider_account)
+ AND a.account=m.provider_account
+ AND EXISTS(SELECT 1 FROM provisiond.episodes e WHERE e.id=o.episode_id
+   AND e.machine_id=m.id AND e.key='delete' AND e.state='open');
 CREATE FUNCTION provisiond.retain_resolution() RETURNS trigger LANGUAGE plpgsql
 SET search_path=pg_catalog AS $$ BEGIN
  IF OLD.resolution IS NOT NULL AND

@@ -10,6 +10,40 @@ impl Engine {
         d: &Dispatcher,
     ) -> Result<Option<Outcome>> {
         self.order_step(c, component, e, 101).await?;
+        // OPS-2/23, WIR-22: repeat caller validation before decision/fence,
+        // capability, marker or dispatch. System cleanup and operator retries
+        // never had a customer acknowledgment to repeat.
+        let data=self.preflight_value(c,component,e,"delete_target","SELECT jsonb_build_object('account',o.provider_account,'external_id',m.external_id,'machine_id',m.id,'machine_account',m.provider_account,'request',o.request,'requested_by',o.requested_by,'summary',o.request_summary)::text FROM provisiond.operations o LEFT JOIN provisiond.machines m ON m.id=o.machine_id AND m.tenant_id=o.tenant_id WHERE o.id::text=$1",&[&c.id]).await?;
+        if data["requested_by"] == "caller" {
+            let mut bad = crate::wire::unknown(&data["request"], &["acknowledge_destruction"]);
+            if data["request"]["acknowledge_destruction"] != true {
+                bad.push("/acknowledge_destruction".into());
+            }
+            crate::wire::least(bad)?;
+        }
+        let summary = &data["summary"];
+        if data["machine_id"].is_null()
+            || data["account"] != data["machine_account"]
+            || summary["kind"] != "delete"
+            || summary["machine_id"] != data["machine_id"]
+            || summary["provider_account"] != data["account"]
+            || summary["external_id"] != data["external_id"]
+            || !data["external_id"].as_str().is_some_and(|id| {
+                !id.is_empty()
+                    && id.len() <= 128
+                    && id
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b"._-:".contains(&b))
+            })
+        {
+            return Err(Error::new(
+                "conflict",
+                "incomplete delete record",
+                true,
+                json!({"reason":"incomplete_record"}),
+            )
+            .into());
+        }
         let claim = c.clone();
         let decision = self
             .transaction_stoppable(
@@ -32,7 +66,6 @@ impl Engine {
                 "no-rate cancellation branch outside local profile; no fence or provider call",
             );
         }
-        let data=self.preflight_value(c,component,e,"delete_target","SELECT jsonb_build_object('account',o.provider_account,'external_id',m.external_id)::text FROM provisiond.operations o JOIN provisiond.machines m ON m.id=o.machine_id WHERE o.id::text=$1",&[&c.id]).await?;
         let account = data["account"].as_str().context("delete account")?;
         let descriptor = d.catalog.get(account).context("delete descriptor")?;
         if !crate::pricing::has(descriptor, "delete_machine") {
