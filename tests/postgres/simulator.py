@@ -85,6 +85,7 @@ def main():
                         record('resource_created',resource=resource['external_id'],value=resource,test_fixture=True)
                     if 'offers' in body:state['offers']=body['offers']
                     if 'mode' in body:state['mode']=body['mode']
+                    if 'authentication_fault' in body:state['authentication_fault']=body['authentication_fault']
                     if 'deadline_delay' in body:state['deadline_delay']=body['deadline_delay']
                     if 'verification_resource' in body:state['verification_resource']=body['verification_resource']
                     if 'settlement' in body:
@@ -146,6 +147,10 @@ def main():
                 if barrier.exists():record('resolution_read_held',**identity)
                 while barrier.exists():time.sleep(.002)
             proof=state['evidence'].get(operation,{})
+            fault=state.get('authentication_fault')
+            if fault and body.get('account')==fault['account'] and self.path==fault['path']:
+                record('authentication_rejected',**identity)
+                self.reply({'error':{'kind':'authentication','message':'controlled credential rejection','retryable':False,'details':{}}});return
             if self.path=='/enumerate':
                 with lock:rows=[r for r in state['resources'].values() if r['account']==body['account']]
                 offset=int(body.get('cursor') or 0);page=rows[offset:offset+2]

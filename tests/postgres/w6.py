@@ -295,7 +295,7 @@ def delete_evidence(w):
         assert (final['machine']['meter_stopped_at'] is not None)==(expected=='applied')
         w.h.event('w6_causal_trace',scenario=w.case,operation=op,boundary=arm,before=before,snapshot=final,provider=external(w,op))
 
-def episodes(w):
+def episodes(w,suffix=''):
     w.stop_engine();t,_,op=admit(w,'suspended-cleanup')
     hold=w.h.root/'provider/hold-after-create';hold.touch();cut=w.control/'hold-step-101';cut.touch()
     w.provider_control(mode='normal');w.start_engine()
@@ -307,17 +307,17 @@ def episodes(w):
     proof(w,cleanup,delete='reject');cut.unlink();w.wait_status(cleanup,'failed');w.stop_engine()
     stalled=operation_state(w,cleanup);assert stalled['episodes'][0]['state']=='stalled' and stalled['machine']['destroy_committed']==episode
     path=f'/v1/episodes/{episode}/actions/'
-    retry=operator(w,path+'retry',{'reason':'opaque fixture decision'},'episode-retry-key')
+    retry=operator(w,path+'retry',{'reason':'opaque fixture decision'},'episode-retry-key'+suffix)
     fresh=retry['current_operation_id'];assert fresh!=cleanup
     assert operation_state(w,fresh)['operation']['requested_by']=='operator'
     # Current suspension is now false. The inherited fence still licenses this retry.
     w.h.sql(f"UPDATE provisiond.tenants SET status='active' WHERE id='{t['tenant_id']}'")
     proof(w,fresh,delete='reject');w.start_engine();w.wait_status(fresh,'failed');w.stop_engine()
     before=operation_state(w,fresh)
-    kept=operator(w,path+'keep',{'operator_ref':'opref-keep'},'episode-keep-key')
+    kept=operator(w,path+'keep',{'operator_ref':'opref-keep'},'episode-keep-key'+suffix)
     assert kept['state']=='closed' and kept['close_reason']=='kept' and kept['kept_by']=='operator-a'
-    assert operator(w,path+'keep',{'operator_ref':'opref-keep'},'episode-keep-key')==kept
-    operator(w,path+'retry',{'reason':'new attempt'},'closed-retry-key',status=409)
+    assert operator(w,path+'keep',{'operator_ref':'opref-keep'},'episode-keep-key'+suffix)==kept
+    operator(w,path+'retry',{'reason':'new attempt'},'closed-retry-key'+suffix,status=409)
     after=operation_state(w,fresh)
     assert before['commitments']==after['commitments'] and before['ledger']==after['ledger']
     assert after['machine']['destroy_committed'] is None
@@ -507,6 +507,10 @@ def channels(w):
 from w6_edges import measurement,episode_order,meter_edges,default_hooks
 
 SCENARIOS=dict(zip(CASES,[measurement,positive,empty,delayed,conflicting,multiple,startup,human,caller_delete,delete_evidence,episodes,late,gone_reply,worker_exact,account,delete_classification,resolution_reply,exit_accounting,channels,episode_order,meter_edges,default_hooks],strict=True))
+from w6_repairs import REPAIRS
+CASES.insert(0,'w6_r1')
+CASES.extend(name for name in REPAIRS if name!='w6_r1')
+SCENARIOS.update(REPAIRS)
 
 def w6(h,case=None,defect=None):
     global eventually,http
