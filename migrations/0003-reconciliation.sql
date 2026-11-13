@@ -20,7 +20,7 @@ UPDATE provisiond.operations o
  request_summary=jsonb_build_object('kind','delete','machine_id',m.id,
    'provider_account',m.provider_account,'external_id',m.external_id)
  FROM provisiond.machines m,provisiond.provider_accounts a
- WHERE o.kind='delete' AND o.status IN ('queued','running')
+ WHERE o.kind='delete' AND o.status IN ('queued','running','failed','needs_reconciliation')
  AND o.requested_by='system' AND o.system_reason='tenant_suspended'
  AND o.episode_id IS NOT NULL AND o.request_summary='{}'
  AND m.id=o.machine_id AND m.tenant_id=o.tenant_id
@@ -57,6 +57,17 @@ UPDATE provisiond.episodes SET state='attempting' WHERE state='open';
 UPDATE provisiond.episodes e SET current_operation_id=(
  SELECT o.id FROM provisiond.operations o WHERE o.episode_id=e.id
  ORDER BY o.created_at DESC,o.id DESC LIMIT 1);
+-- OPS-48/STO-52: preserve the outcome of the actual current legacy attempt.
+-- No failed operation is revived, and no provider call/fence is inferred.
+UPDATE provisiond.episodes e SET state=CASE o.status
+ WHEN 'failed' THEN 'stalled' WHEN 'needs_reconciliation' THEN 'uncertain'
+ ELSE e.state END
+ FROM provisiond.operations o,provisiond.machines m
+ WHERE e.state='attempting' AND o.id=e.current_operation_id
+ AND o.episode_id=e.id AND o.machine_id=e.machine_id AND m.id=e.machine_id
+ AND o.tenant_id=m.tenant_id AND o.provider_account=m.provider_account
+ AND o.kind='delete' AND o.requested_by='system' AND o.system_reason='tenant_suspended'
+ AND o.request_summary->>'external_id'=m.external_id AND e.key='delete';
 ALTER TABLE provisiond.episodes ADD CHECK(state IN ('attempting','uncertain','stalled','scheduled','closed')),
  ADD CHECK((state='closed')=(closed_at IS NOT NULL)),
  ADD CHECK((state='closed')=(close_reason IS NOT NULL)),
@@ -152,3 +163,12 @@ SET search_path=pg_catalog AS $$ DECLARE a numeric:=abs(n); b numeric:=d; r nume
  RETURN ARRAY[(div(n,a))::text,(div(d,a))::text];
 END $$;
 GRANT EXECUTE ON FUNCTION provisiond.reduced_credit(numeric,numeric) TO app;
+
+-- WIR-27/51, STO-14/33: only identity, ownership and the actual retired horizon
+-- survive receiptless operation retirement. No readable request history is kept.
+CREATE TABLE provisiond.retired_operations (
+ id uuid PRIMARY KEY,tenant_id text NOT NULL,created_at timestamptz NOT NULL,
+ retained_until timestamptz NOT NULL);
+CREATE TRIGGER retired_operations_retained BEFORE UPDATE OR DELETE OR TRUNCATE ON provisiond.retired_operations
+ FOR EACH STATEMENT EXECUTE FUNCTION provisiond.forbid_removal();
+GRANT SELECT,INSERT ON provisiond.retired_operations TO app;

@@ -109,6 +109,82 @@ impl State {
             )
             .into());
         };
+        // SEC-32/39: authentication is known here, before rate, override,
+        // target, key or body validation can refuse a supported mutating verb.
+        let parts: Vec<_> = r
+            .target
+            .split('?')
+            .next()
+            .unwrap_or(&r.target)
+            .split('/')
+            .collect();
+        let supported = match (r.method.as_str(), parts.as_slice()) {
+            ("POST", ["", "v1", "operations", id, "actions", "resolve"]) => {
+                Some(("operation", *id, "resolve"))
+            }
+            (
+                "POST",
+                [
+                    "",
+                    "v1",
+                    "episodes",
+                    id,
+                    "actions",
+                    verb @ ("keep" | "retry"),
+                ],
+            ) => Some(("episode", *id, *verb)),
+            _ => None,
+        };
+        let mut early_audit = supported.map(|(entity, id, verb)| {
+            let target = uuid::Uuid::parse_str(id).ok().map(|_| id);
+            let tenant_override = if admin {
+                r.headers.get("x-provisiond-tenant").filter(|value| uuid::Uuid::parse_str(value).is_ok())
+            } else { None };
+            json!({"event":"operator_decision","correlation_id":correlation,
+                "principal":principal,"tenant":null,"admin_override":tenant_override,
+                "target":target,"target_kind":entity,"verb":verb,"reason":null,
+                "outcome":"refused","operation_id":if entity=="operation" {json!(target)} else {Value::Null},
+                "operation_kind":if entity=="episode" {json!("delete")} else {Value::Null},
+                "machine_id":null,"prior_operation_id":null,"resolution":null})
+        });
+        let mut decision_started = false;
+        let result = self
+            .operator_authenticated(
+                r,
+                correlation,
+                principal,
+                admin,
+                &mut decision_started,
+                &mut early_audit,
+            )
+            .await;
+        if !decision_started {
+            if let (Some(mut audit), Err(error)) = (early_audit, &result) {
+                let reason = match error
+                    .downcast_ref::<Error>()
+                    .and_then(|error| error.0["kind"].as_str())
+                {
+                    Some("invalid_request") => "invalid_request",
+                    Some("not_found") => "not_found",
+                    Some("rate_limited") => "rate_limited",
+                    Some("overloaded") => "overloaded",
+                    _ => "request_refused",
+                };
+                audit["reason"] = json!(reason);
+                (self.trace)(audit);
+            }
+        }
+        result
+    }
+    async fn operator_authenticated(
+        &self,
+        r: &Request,
+        correlation: &str,
+        principal: &str,
+        admin: bool,
+        decision_started: &mut bool,
+        early_audit: &mut Option<Value>,
+    ) -> Result<(u16, Value)> {
         self.rate(&format!("operator:{principal}"), r.method != "GET")?;
         let tenant_override = if admin {
             r.headers.get("x-provisiond-tenant").map(String::as_str)
@@ -141,8 +217,11 @@ impl State {
                 ["", "v1", "operations", id] => {
                     // WIR-27/51: the same receipt horizon and retained identities
                     // as customer detail, with operator effective-tenant authority.
-                    let history =
-                        operation_history("candidate.id::text=$1", "i.resource_id::text=$1");
+                    let history = operation_history(
+                        "candidate.id::text=$1",
+                        "i.resource_id::text=$1",
+                        self.p.n("retention_seconds"),
+                    );
                     let sql = format!(
                         "SELECT COALESCE((SELECT jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at)) FROM {history} h WHERE h.id::text=$1 AND ($2::text IS NULL OR h.tenant_id=$2 OR (h.tenant_id IS NULL AND EXISTS(SELECT 1 FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=h.id AND r.scope_kind='tenant' AND r.scope_id=$2) OR h.tenant_id IS NULL AND EXISTS(SELECT 1 FROM provisiond.episodes e JOIN provisiond.machines m ON m.id=e.machine_id WHERE e.current_operation_id=h.id AND m.tenant_id=$2)))),'null'::jsonb)::text"
                     );
@@ -190,6 +269,16 @@ impl State {
             return Err(Error::missing().into());
         }
         let tenant = record["tenant_id"].as_str().context("operation tenant")?;
+        // Scoped target lookup has succeeded. These facts are safe to retain
+        // even if parsing or verb-field validation now refuses the request.
+        if let Some(audit) = early_audit {
+            audit["tenant"] = json!(tenant);
+            audit["machine_id"] = record["machine_id"].clone();
+            audit["prior_operation_id"] = record["current_operation_id"].clone();
+            if entity == "operation" {
+                audit["operation_kind"] = record["kind"].clone();
+            }
+        }
         let body = wire::parse(&r.body)?;
         if verb == "resolve" {
             let resolution = body["resolution"].as_str().unwrap_or("");
@@ -265,6 +354,7 @@ impl State {
             "resolution":body["resolution"],"operation_id":if entity=="operation" {json!(id)} else {Value::Null},
             "prior_operation_id":record["current_operation_id"],
             "operation_kind":if entity=="operation" {record["kind"].clone()} else {json!("delete")},"machine_id":record["machine_id"]});
+        *decision_started = true;
         let mut intent = audit.clone();
         intent["outcome"] = json!("intent");
         (self.trace)(intent);

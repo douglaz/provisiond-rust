@@ -28,9 +28,9 @@ use tokio::{
 // operation receipt, including other scopes. Select candidate identities before
 // aggregation, without narrowing the receipts by scope/tenant. A single statement
 // observes state, deadline and time, including permanent receipt-only identities.
-fn operation_history(operations: &str, receipts: &str) -> String {
+fn operation_history(operations: &str, receipts: &str, retention_seconds: i64) -> String {
     format!(
-        "(SELECT COALESCE(o.id,d.resource_id) AS id,o.tenant_id,o.created_at,v.body,d.expires_at,COALESCE(o.status IN ('succeeded','failed') AND d.expires_at<=statement_timestamp(),false) AS expired FROM (SELECT * FROM provisiond.operations candidate WHERE {operations}) o FULL JOIN (SELECT i.resource_id,max(i.expires_at) AS expires_at FROM provisiond.idempotency_records i WHERE i.resource_kind='operation' AND {receipts} GROUP BY i.resource_id) d ON d.resource_id=o.id LEFT JOIN provisiond.operation_views v ON v.id=o.id)"
+        "(SELECT COALESCE(o.id,d.resource_id) AS id,o.tenant_id,o.created_at,v.body,COALESCE(d.expires_at,o.age_deadline) AS expires_at,COALESCE(o.status IN ('succeeded','failed') AND COALESCE(d.expires_at,o.age_deadline)<=statement_timestamp(),false) AS expired FROM (SELECT candidate.id,candidate.tenant_id,candidate.created_at,candidate.status,candidate.updated_at+{retention_seconds}::bigint*interval '1 second' AS age_deadline FROM provisiond.operations candidate WHERE {operations} UNION ALL SELECT candidate.id,candidate.tenant_id,candidate.created_at,'failed',candidate.retained_until FROM provisiond.retired_operations candidate WHERE {operations}) o FULL JOIN (SELECT i.resource_id,max(i.expires_at) AS expires_at FROM provisiond.idempotency_records i WHERE i.resource_kind='operation' AND {receipts} GROUP BY i.resource_id) d ON d.resource_id=o.id LEFT JOIN provisiond.operation_views v ON v.id=o.id)"
     )
 }
 // STO-14/24/25/33: resolve all receipts for the settled candidate set once,
@@ -259,6 +259,7 @@ impl State {
         let history = operation_history(
             "candidate.id=r.resource_id AND r.resource_kind='operation'",
             "i.resource_id=r.resource_id AND r.resource_kind='operation'",
+            self.p.n("retention_seconds"),
         );
         let sql = format!(
             "SELECT COALESCE((SELECT jsonb_build_object('fingerprint',r.fingerprint,'resource_kind',r.resource_kind,'status',r.status,'body',r.response_body,'expires',provisiond.wire_time(r.expires_at),'expired',r.expires_at<=statement_timestamp(),'operation',jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at))) FROM provisiond.idempotency_records r LEFT JOIN LATERAL {history} h ON r.resource_kind='operation' AND h.id=r.resource_id AND (h.tenant_id=$1 OR h.tenant_id IS NULL) WHERE r.scope_kind='tenant' AND r.scope_id=$1 AND r.key=$2),'null'::jsonb)::text"
@@ -291,7 +292,11 @@ impl State {
         // DOM-21/WIR-27: use the same snapshot and maximum as keyed replay.
         // Tombstone authorization remains tenant-scoped; deadline aggregation is
         // across all resolving receipts, never an arbitrary receipt LIMIT 1.
-        let history = operation_history("candidate.id::text=$2", "i.resource_id::text=$2");
+        let history = operation_history(
+            "candidate.id::text=$2",
+            "i.resource_id::text=$2",
+            self.p.n("retention_seconds"),
+        );
         let sql = format!(
             "SELECT COALESCE((SELECT jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at)) FROM {history} h WHERE h.id::text=$2 AND (h.tenant_id=$1 OR (h.tenant_id IS NULL AND EXISTS(SELECT 1 FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=h.id AND r.scope_kind='tenant' AND r.scope_id=$1)))),'null'::jsonb)::text"
         );
@@ -1086,6 +1091,7 @@ impl State {
         let history = operation_history(
             "($1::text IS NULL OR candidate.tenant_id=$1)",
             "i.resource_id IN (SELECT id FROM provisiond.operations WHERE $1::text IS NULL OR tenant_id=$1)",
+            self.p.n("retention_seconds"),
         );
         let operation_table = format!("(SELECT * FROM {history} h WHERE NOT h.expired)");
         let table = match collection {
@@ -1434,8 +1440,10 @@ async fn housekeeping(store: Arc<Store>, p: Parameters) -> Result<()> {
             .await?;
             tx.rows("DELETE FROM provisiond.enrolments e WHERE tenant_id=$1 AND NOT EXISTS(SELECT 1 FROM provisiond.tenants t WHERE t.id=e.tenant_id) RETURNING handle",&[&tenant]).await?;
         }
+        // WIR-27/51: the deleted set and its actual horizons share one
+        // statement snapshot; a newly due row cannot lose its identity.
         let purge = format!(
-            "DELETE FROM provisiond.operations o WHERE o.id IN (SELECT id FROM {SETTLED_RETENTION} due) RETURNING o.id"
+            "WITH removed AS (DELETE FROM provisiond.operations o WHERE o.id IN (SELECT id FROM {SETTLED_RETENTION} due) RETURNING o.id,o.tenant_id,o.created_at,o.updated_at) INSERT INTO provisiond.retired_operations(id,tenant_id,created_at,retained_until) SELECT o.id,o.tenant_id,o.created_at,COALESCE((SELECT max(expires_at) FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=o.id),o.updated_at+$1::bigint*interval '1 second') FROM removed o RETURNING id"
         );
         tx.rows(&purge, &[&p.n("retention_seconds")]).await?;
         ensure!(
