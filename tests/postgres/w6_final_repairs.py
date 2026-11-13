@@ -29,6 +29,7 @@ def opening_rate(w,available):
     boundary=w.h.sql("SELECT max(accepted_at) FROM provisiond.fixture_rate_history WHERE currency='USD'")
     op=deletion(w,t,machine,'opening-rate-delete-'+str(available))
     before=operation_state(w,op)
+    w.h.proxy.exit_stop_machine=machine
     enumeration=w.h.root/'provider/hold-enumerate';enumeration.touch()
     statement=w.h.proxy.arm("SET state='deleted',state_observed_at=",'send')
     w.start_engine();connection=statement.wait()
@@ -54,10 +55,15 @@ def opening_rate(w,available):
         assert clamps[0]['provider_account']==t['account']
         assert clamps[0]['idempotency_key']==usage[0]['idempotency_key']
         assert state['meter'][0]['high_water_mark']==state['machine']['meter_stopped_at']
-        tail=datetime.fromisoformat(state['machine']['meter_stopped_at'])-datetime.fromisoformat(boundary)
+        stop_input=[e for e in w.h.events if e['event']=='w6_exit_stop_input' and e['machine']==machine]
+        assert len(stop_input)==1,'F1 actual gone-write stop parameter must be observed'
+        # The entered instant retains nanoseconds; existing metering truncates
+        # elapsed arithmetic to microseconds. PostgreSQL can round its stored
+        # timestamp up, so that stored representation is not this arithmetic input.
+        tail=datetime.fromisoformat(stop_input[0]['observed_at'])-datetime.fromisoformat(boundary)
         tail_micros=(tail.days*86400+tail.seconds)*1000000+tail.microseconds
         exact=Fraction(11*micros,3600*1000000)+(Fraction(22*tail_micros,3600*1000000) if available else 0)
-        assert Fraction(int(state['meter'][0]['credit_num']),int(state['meter'][0]['credit_den']))==computed-exact
+        assert Fraction(int(state['meter'][0]['credit_num']),int(state['meter'][0]['credit_den']))==computed-exact,'F1 exact credit must use the entered exit instant at existing microsecond precision'
         condition=json.loads(w.h.sql("SELECT jsonb_build_object('available',available,'value',value) FROM provisiond.rates WHERE currency='USD'"))
         assert condition==dict(available=available,value=current)
 
@@ -69,6 +75,7 @@ def opening_rate(w,available):
         w.h.event('w6_opening_rate',operation=op,created=created,machine=machine,
             current_available=available,current_rate=current,current_condition=condition,historical_rate=saved,
             boundary=boundary,elapsed_microseconds=micros,computed_sats=computed,native_minor=native,
+            stop_input=stop_input[0],tail_microseconds=tail_micros,
             before=before,state=state,history=rate_rows,provider=external(w,op),
             assertion=RATE_ASSERTIONS[w.case],commit_reply_held=True)
         assert (clamps[0]['rate_num'],clamps[0]['rate_den'])==((20,1) if available else (None,None)),RATE_ASSERTIONS[w.case]
@@ -89,6 +96,7 @@ def opening_rate(w,available):
             ordinary_successor=True,customer_replay=replay)
     finally:
         statement.release();gate.release();enumeration.unlink(missing_ok=True)
+        w.h.proxy.exit_stop_machine=None
         w.h.sql("UPDATE provisiond.rates SET available=true,value='%s' WHERE currency='USD'"%json.dumps(saved))
 
 
