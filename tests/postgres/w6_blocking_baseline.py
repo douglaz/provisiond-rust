@@ -13,6 +13,7 @@ import tempfile
 from harness import ROOT,cap_check,preflight_ports
 from w6_blocking import RETIRE_ASSERTION,FIELD_ASSERTION
 from w6_final_repairs import RATE_ASSERTIONS,REPLAY_ASSERTION
+from w6_retired_targets import ASSERTIONS as TARGET_ASSERTIONS
 
 BASE='ac83e172dae1d3c0cc7934c9633a403cfca0a679'
 ASSERTIONS={'w6_e1':RETIRE_ASSERTION,
@@ -27,9 +28,12 @@ def main():
     ap=argparse.ArgumentParser();ap.add_argument('--evidence',type=Path,required=True)
     final_assertions={**RATE_ASSERTIONS,'w6_f2':REPLAY_ASSERTION}
     ap.add_argument('--final-repairs',action='store_true')
-    ap.add_argument('--case',choices=[*ASSERTIONS,*final_assertions],action='append');args=ap.parse_args()
-    assertions=final_assertions if args.final_repairs else ASSERTIONS
-    base='96c6001999a50fb4b3247b77ba29e60500baf72f' if args.final_repairs else BASE
+    target_assertions={f'w6_g1_{kind}':message for kind,message in TARGET_ASSERTIONS.items()}
+    ap.add_argument('--retained-targets',action='store_true')
+    ap.add_argument('--case',choices=[*ASSERTIONS,*final_assertions,*target_assertions],action='append');args=ap.parse_args()
+    assert not (args.final_repairs and args.retained_targets),'select one protected baseline'
+    assertions=target_assertions if args.retained_targets else final_assertions if args.final_repairs else ASSERTIONS
+    base='ab014865b46f1f0c15c5ead33a85f24fdbaa3c81' if args.retained_targets else '96c6001999a50fb4b3247b77ba29e60500baf72f' if args.final_repairs else BASE
     cases=args.case or list(assertions)
     assert all(case in assertions for case in cases),'case does not belong to selected baseline'
     cap_check();preflight_ports()
@@ -65,9 +69,12 @@ def main():
             manifest=json.loads(raw.read_text()) if raw.exists() else {}
             failures=[e for e in manifest.get('events',[]) if e['event']=='failure']
             cleanup=[e for e in manifest.get('events',[]) if e['event']=='cleanup_complete']
-            activation=[e for e in manifest.get('events',[]) if e['event']==('w6_opening_rate' if case in RATE_ASSERTIONS else 'w6_retired_operator_replay' if case=='w6_f2' else 'w6_retirement_bound' if case=='w6_e1' else 'w6_terminal_credential' if case.startswith('w6_e2_') else 'w6_deficiency_fields')]
+            activation=[e for e in manifest.get('events',[]) if e['event']==('w6_retired_target' if case in target_assertions else 'w6_opening_rate' if case in RATE_ASSERTIONS else 'w6_retired_operator_replay' if case=='w6_f2' else 'w6_retirement_bound' if case=='w6_e1' else 'w6_terminal_credential' if case.startswith('w6_e2_') else 'w6_deficiency_fields')]
             valid=child.returncode==1 and len(failures)==1 and failures[0].get('type')=='AssertionError' and failures[0].get('message')==assertions[case] and cleanup and cleanup[-1]['result']=='pass' and bool(activation)
-            if case in RATE_ASSERTIONS:
+            if case in target_assertions:
+                a=activation[-1] if activation else {}
+                valid=valid and a.get('before_status')==409 and a.get('after_status')==404 and a.get('physical_retirement') and a.get('receipt_scopes')=={'tenant':1} and a.get('before')==a.get('after') and a.get('provider_before')==a.get('provider_after') and a.get('retained',{}).get('id')==a.get('operation')
+            elif case in RATE_ASSERTIONS:
                 valid=valid and activation[-1]['computed_sats']==23 and activation[-1]['state']['deficiencies'] and activation[-1]['commit_reply_held']
             elif case=='w6_f2':
                 valid=valid and activation[-1]['responses'][-1]['status']==404 and any(r['id']==activation[-1]['operation'] for r in activation[-1]['retained']['retired_operations'])

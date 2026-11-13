@@ -1440,10 +1440,10 @@ async fn housekeeping(store: Arc<Store>, p: Parameters) -> Result<()> {
             .await?;
             tx.rows("DELETE FROM provisiond.enrolments e WHERE tenant_id=$1 AND NOT EXISTS(SELECT 1 FROM provisiond.tenants t WHERE t.id=e.tenant_id) RETURNING handle",&[&tenant]).await?;
         }
-        // WIR-27/51: the deleted set and its actual horizons share one
-        // statement snapshot; a newly due row cannot lose its identity.
+        // WIR-27/51, API-7/11: the deleted set, actual horizons and strict
+        // validation/audit metadata share one statement snapshot.
         let purge = format!(
-            "WITH due AS MATERIALIZED (SELECT id,retained_until FROM {SETTLED_RETENTION} eligible), removed AS (DELETE FROM provisiond.operations o USING due WHERE o.id=due.id RETURNING o.id,o.tenant_id,o.created_at) INSERT INTO provisiond.retired_operations(id,tenant_id,created_at,retained_until) SELECT o.id,o.tenant_id,o.created_at,due.retained_until FROM removed o JOIN due ON due.id=o.id RETURNING id"
+            "WITH due AS MATERIALIZED (SELECT id,retained_until FROM {SETTLED_RETENTION} eligible), removed AS (DELETE FROM provisiond.operations o USING due WHERE o.id=due.id RETURNING o.id,o.tenant_id,o.created_at,o.kind,o.machine_id) INSERT INTO provisiond.retired_operations(id,tenant_id,created_at,retained_until,kind,machine_id) SELECT o.id,o.tenant_id,o.created_at,due.retained_until,o.kind,o.machine_id FROM removed o JOIN due ON due.id=o.id RETURNING id"
         );
         tx.rows(&purge, &[&p.n("retention_seconds")]).await?;
         ensure!(

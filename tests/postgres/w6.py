@@ -541,6 +541,9 @@ from w6_final_repairs import FINAL_REPAIRS
 # F2 retains complete relevant state before E1 adds its large synthetic history.
 CASES[CASES.index(next(iter(BLOCKING))):CASES.index(next(iter(BLOCKING)))]=list(FINAL_REPAIRS)
 SCENARIOS.update(FINAL_REPAIRS)
+from w6_retired_targets import RETAINED_TARGETS
+CASES[CASES.index(next(iter(BLOCKING))):CASES.index(next(iter(BLOCKING)))]=list(RETAINED_TARGETS)
+SCENARIOS.update(RETAINED_TARGETS)
 
 def w6(h,case=None,defect=None):
     global eventually,http

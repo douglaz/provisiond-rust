@@ -174,7 +174,10 @@ GRANT EXECUTE ON FUNCTION provisiond.reduced_credit(numeric,numeric) TO app;
 -- survive receiptless operation retirement. No readable request history is kept.
 CREATE TABLE provisiond.retired_operations (
  id uuid PRIMARY KEY,tenant_id text NOT NULL,created_at timestamptz NOT NULL,
- retained_until timestamptz NOT NULL);
+ retained_until timestamptz NOT NULL,
+ -- API-7/11, WIR-35: validation and audit identity survive independently of
+ -- receipt scope, including a receiptless system attempt. No result is retained.
+ kind text NOT NULL,machine_id uuid);
 CREATE TRIGGER retired_operations_retained BEFORE UPDATE OR DELETE OR TRUNCATE ON provisiond.retired_operations
  FOR EACH STATEMENT EXECUTE FUNCTION provisiond.forbid_removal();
 GRANT SELECT,INSERT ON provisiond.retired_operations TO app;

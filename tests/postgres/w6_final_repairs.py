@@ -103,7 +103,8 @@ def opening_rate(w,available):
 def retained_state(w):
     # Excludes only diagnostic observations and transient HTTP traffic budgets.
     tables=['operations','retired_operations','idempotency_records','ledger_entries',
-            'commitments','operator_deficiencies','machines','episodes','ceiling_counters','resource_exclusions']
+            'commitments','operator_deficiencies','machines','episodes','ceiling_counters','resource_exclusions',
+            'meter_totals','meter_alerts']
     return {name:json.loads(w.h.sql(f"SELECT COALESCE(jsonb_agg(v ORDER BY v::text),'[]') FROM (SELECT to_jsonb(t) v FROM provisiond.{name} t) s")) for name in tables}
 
 

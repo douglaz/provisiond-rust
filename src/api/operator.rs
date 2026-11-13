@@ -262,10 +262,10 @@ impl State {
             .ok_or_else(|| invalid("/idempotency_key"))?;
         let record = if entity == "operation" {
             // API-7/11, STO-25/33: authorize a retired identity by its retained
-            // tenant. Its permanent resolution receipt supplies only the kind
-            // and audit metadata needed for the same strict body validation.
+            // tenant. Retirement copies the actual kind and audit identity,
+            // independently of receipt scope or any prior operator decision.
             // No retired identity is eligible for a new decision below.
-            self.store.value("SELECT COALESCE((SELECT to_jsonb(o) FROM provisiond.operations o WHERE id::text=$1 AND ($2::text IS NULL OR tenant_id=$2)),(SELECT jsonb_build_object('tenant_id',o.tenant_id,'retired',true,'kind',CASE r.response_body->>'kind' WHEN 'create_machine' THEN 'create' WHEN 'delete_machine' THEN 'delete' END,'machine_id',r.response_body->'machine_id') FROM provisiond.retired_operations o JOIN LATERAL (SELECT response_body FROM provisiond.idempotency_records WHERE resource_kind='operation' AND resource_id=o.id AND scope_kind='operator' AND response_body->>'kind' IN ('create_machine','delete_machine') LIMIT 1) r ON true WHERE o.id::text=$1 AND ($2::text IS NULL OR o.tenant_id=$2)),'null')::text",&[&id,&tenant_override]).await?
+            self.store.value("SELECT COALESCE((SELECT to_jsonb(o) FROM provisiond.operations o WHERE id::text=$1 AND ($2::text IS NULL OR tenant_id=$2)),(SELECT jsonb_build_object('tenant_id',o.tenant_id,'retired',true,'kind',o.kind,'machine_id',o.machine_id) FROM provisiond.retired_operations o WHERE o.id::text=$1 AND ($2::text IS NULL OR o.tenant_id=$2)),'null')::text",&[&id,&tenant_override]).await?
         } else {
             self.store.value("SELECT COALESCE((SELECT to_jsonb(e)||jsonb_build_object('tenant_id',m.tenant_id,'provider_account',m.provider_account) FROM provisiond.episodes e JOIN provisiond.machines m ON m.id=e.machine_id WHERE e.id::text=$1 AND ($2::text IS NULL OR m.tenant_id=$2)),'null')::text",&[&id,&tenant_override]).await?
         };
