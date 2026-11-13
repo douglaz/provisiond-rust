@@ -167,7 +167,14 @@ def resolution_ceiling(w):
 def auth_stop(w):
     """PRV-41: each reached read site stops the credential, preserving others."""
     from w6 import create,lost,proof,eligible,deletion
-    account='sim-a';other='sim-b'
+    # This credential has its own retained observation history. Other scenarios
+    # deliberately grow sim-a's visibility beyond the negative window; that
+    # would legitimately release money before this case's pre-expiry check.
+    account='sim-auth';other='sim-b'
+    descriptor=dict(w.descriptor,account=account)
+    w.h.sql("INSERT INTO provisiond.provider_accounts VALUES('%s',true,'%s'); INSERT INTO provisiond.offer_listings VALUES('%s','%s',clock_timestamp())"%(account,json.dumps(descriptor),account,json.dumps([w.offer])))
+    w.provider_control(offers={name:[w.offer] for name in ('sim-a','sim-b',account)})
+    w.restart_api()
     for site in ('/search','/get','/constraints','/enumerate','/keys/list','/keys/delete','account-get','delete-get'):
         w.stop_engine();w.h.sql("UPDATE provisiond.provider_account_status SET status='healthy'")
         # Force assignment to the account under test without changing runtime policy.
@@ -218,7 +225,7 @@ def auth_stop(w):
         if op and w.status(op)=='needs_reconciliation':
             from w6 import operator
             operator(w,f'/v1/operations/{op}/actions/resolve',{'resolution':'abandoned','operator_ref':'auth-test-cleanup'},'auth-cleanup-'+op)
-    w.h.sql('UPDATE provisiond.provider_accounts SET assignable=true')
+    w.h.sql(f"UPDATE provisiond.provider_accounts SET assignable=(account<>'{account}')")
 
 
 def operator_retention(w):
