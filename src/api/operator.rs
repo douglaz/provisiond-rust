@@ -91,7 +91,7 @@ impl State {
     pub(super) async fn operator_handle(
         &self,
         r: &Request,
-        _correlation: &str,
+        correlation: &str,
     ) -> Result<(u16, Value)> {
         let authority = self
             .operators
@@ -139,11 +139,17 @@ impl State {
                 }
                 ["", "v1", "episodes", id] => Ok((200, self.episode(id, tenant_override).await?)),
                 ["", "v1", "operations", id] => {
-                    let record=self.store.value("SELECT COALESCE((SELECT jsonb_build_object('tenant',tenant_id,'body',body) FROM provisiond.operation_views WHERE id::text=$1 AND ($2::text IS NULL OR tenant_id=$2)),'null')::text",&[id,&tenant_override]).await?;
-                    if record.is_null() {
-                        return Err(Error::missing().into());
-                    }
-                    Ok((200, record["body"].clone()))
+                    // WIR-27/51: the same receipt horizon and retained identities
+                    // as customer detail, with operator effective-tenant authority.
+                    let history =
+                        operation_history("candidate.id::text=$1", "i.resource_id::text=$1");
+                    let sql = format!(
+                        "SELECT COALESCE((SELECT jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at)) FROM {history} h WHERE h.id::text=$1 AND ($2::text IS NULL OR h.tenant_id=$2 OR (h.tenant_id IS NULL AND EXISTS(SELECT 1 FROM provisiond.idempotency_records r WHERE r.resource_kind='operation' AND r.resource_id=h.id AND r.scope_kind='tenant' AND r.scope_id=$2) OR h.tenant_id IS NULL AND EXISTS(SELECT 1 FROM provisiond.episodes e JOIN provisiond.machines m ON m.id=e.machine_id WHERE e.current_operation_id=h.id AND m.tenant_id=$2)))),'null'::jsonb)::text"
+                    );
+                    Ok((
+                        200,
+                        operation_result(&self.store.value(&sql, &[id, &tenant_override]).await?)?,
+                    ))
                 }
                 _ => Err(unsupported().into()),
             };
@@ -235,6 +241,35 @@ impl State {
             }
             wire::least(bad)?;
         }
+        // SEC-32/39: log safe authenticated intent separately from the observed
+        // commit result. Free-form retry prose is represented only by its digest.
+        let reason = if verb == "retry" {
+            format!(
+                "sha256:{}",
+                wire::digest(
+                    body["reason"]
+                        .as_str()
+                        .context("validated reason")?
+                        .as_bytes()
+                )
+            )
+        } else {
+            body["operator_ref"]
+                .as_str()
+                .context("validated evidence reference")?
+                .to_owned()
+        };
+        let audit = json!({"event":"operator_decision","correlation_id":correlation,
+            "principal":principal,"tenant":tenant,"admin_override":tenant_override,
+            "target":id,"target_kind":entity,"verb":verb,"reason":reason,
+            "resolution":body["resolution"],"operation_id":if entity=="operation" {json!(id)} else {Value::Null},
+            "prior_operation_id":record["current_operation_id"],
+            "operation_kind":if entity=="operation" {record["kind"].clone()} else {json!("delete")},"machine_id":record["machine_id"]});
+        let mut intent = audit.clone();
+        intent["outcome"] = json!("intent");
+        (self.trace)(intent);
+        let mut observed_outcome = "refused";
+        let result: Result<(u16,Value)> = async {
         let fingerprint = wire::fingerprint(&r.method, &r.target, &body);
         let component = self.store.component();
         let mut tx = component.begin().await?;
@@ -257,10 +292,15 @@ impl State {
                 serde_json::from_str(&prior.get::<_, String>(2))?,
             );
             tx.rollback().await?;
+            observed_outcome="replayed";
             return Ok(response);
         }
         tx.serialize_tenants(&[tenant]).await?;
         if verb == "resolve" {
+            // API-7 step 5c / SEC-39: replay has already returned; the principal
+            // lock covers this allowance across every effective tenant.
+            self.ceiling(&mut tx,&format!("operator:{principal}"),"operator_resolutions",1,
+                self.p.value["operator_resolution_limit"].as_i64().unwrap_or(self.p.n("created_limit")),false).await?;
             let verb = body["resolution"].as_str().context("validated verb")?;
             let resolution = crate::store::Resolution {
                 id: id.into(),
@@ -276,6 +316,8 @@ impl State {
             if !tx.resolve(&resolution).await? {
                 return Err(Error::conflict("state").into());
             }
+            self.ceiling(&mut tx,&format!("operator:{principal}"),"operator_resolutions",1,
+                self.p.value["operator_resolution_limit"].as_i64().unwrap_or(self.p.n("created_limit")),true).await?;
         } else {
             if verb == "retry" {
                 self.ceiling(
@@ -337,11 +379,30 @@ impl State {
             )?
         };
         tx.rows("INSERT INTO provisiond.idempotency_records(scope_kind,scope_id,key,fingerprint,resource_kind,resource_id,status,response_body,expires_at) VALUES('operator',$1,$2,$3,$4,$5::text::uuid,200,$6::text::jsonb,transaction_timestamp()+$7::bigint*interval '1 second') RETURNING resource_id",&[&principal,&key,&fingerprint,&entity,&id,&response.to_string(),&self.p.n("receipt_seconds")]).await?;
+        observed_outcome="uncertain";
         ensure!(
             component.commit(tx)?.wait().await? == CommitOutcome::Acknowledged,
             "operator decision unacknowledged; resend same key"
         );
+        observed_outcome="acknowledged";
         Ok((200, response))
+        }.await;
+        let mut event = audit;
+        event["outcome"] = json!(observed_outcome);
+        if entity == "episode" {
+            if let Ok((_, response)) = &result {
+                event["operation_id"] = response["current_operation_id"].clone();
+            }
+        }
+        event["error_kind"] = json!(
+            result
+                .as_ref()
+                .err()
+                .and_then(|error| error.downcast_ref::<Error>())
+                .map(|error| error.0["kind"].clone())
+        );
+        (self.trace)(event);
+        result
     }
     async fn episode(&self, id: &str, tenant: Option<&str>) -> Result<Value> {
         let result=self.store.value("SELECT COALESCE((SELECT body FROM provisiond.episode_views WHERE id::text=$1 AND ($2::text IS NULL OR tenant_id=$2)),'null')::text",&[&id,&tenant]).await?;
@@ -416,10 +477,15 @@ impl State {
         tx: &mut Transaction,
         tenant: &str,
         machine: &str,
-        key: &str,
-        fingerprint: &str,
+        request: &Request,
+        body: &Value,
         correlation: &str,
     ) -> Result<(u16, Value)> {
+        let key = request
+            .headers
+            .get("idempotency-key")
+            .context("validated idempotency key")?;
+        let fingerprint = wire::fingerprint(&request.method, &request.target, body);
         self.ceiling(
             tx,
             tenant,
@@ -442,7 +508,8 @@ impl State {
         {
             return Err(unsupported().into());
         }
-        let id:String=tx.rows("INSERT INTO provisiond.operations(tenant_id,idempotency_key,kind,status,machine_id,provider_account,request,request_summary,correlation_id) VALUES($1,$2,'delete','queued',$3::text::uuid,$4,'{}',jsonb_build_object('kind','delete','machine_id',$3::text,'provider_account',$4::text,'external_id',$5::text),$6) RETURNING id::text",&[&tenant,&key,&machine,&account,&external,&correlation]).await?[0].get(0);
+        // OPS-2: caller payload lives through execution, then settlement purges it.
+        let id:String=tx.rows("INSERT INTO provisiond.operations(tenant_id,idempotency_key,kind,status,machine_id,provider_account,request,request_summary,correlation_id) VALUES($1,$2,'delete','queued',$3::text::uuid,$4,$7::text::jsonb,jsonb_build_object('kind','delete','machine_id',$3::text,'provider_account',$4::text,'external_id',$5::text),$6) RETURNING id::text",&[&tenant,&key,&machine,&account,&external,&correlation,&body.to_string()]).await?[0].get(0);
         self.ceiling(
             tx,
             tenant,

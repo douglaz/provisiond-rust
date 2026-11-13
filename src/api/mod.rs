@@ -547,7 +547,7 @@ impl State {
             self.deposit(&mut tx, id, key, &fingerprint, &v, &status)
                 .await?
         } else if let Some(machine) = delete_machine {
-            self.delete(&mut tx, id, machine, key, &fingerprint, correlation)
+            self.delete(&mut tx, id, machine, r, &v, correlation)
                 .await?
         } else {
             self.create(&mut tx, id, key, &fingerprint, &v, correlation)
