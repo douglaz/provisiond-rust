@@ -31,6 +31,17 @@ impl Transaction {
             "delete worker requires generation fence"
         );
         ensure!(c.kind == "delete", "delete outcome requires delete claim");
+        // OPS-41: dynamic per-claim gate precedes every funding/exemption path,
+        // including caller deletes, inherited fences and suspended tenants.
+        let incident=self.rows("SELECT id::text,grace_ends_at::text FROM provisiond.recovery_incidents WHERE closed_at IS NULL AND (grace_ends_at IS NULL OR grace_ends_at>transaction_timestamp())", &[]).await?;
+        if let Some(row) = incident.first() {
+            self.defer(c).await?;
+            let end: Option<String> = row.get(1);
+            if let Some(end) = end {
+                self.rows("UPDATE provisiond.operations SET available_at=$3::text::timestamptz WHERE id=$1::text::uuid AND status='queued' AND claim_number=$2 RETURNING id", &[&c.id,&c.number,&end]).await?;
+            }
+            return Ok("deferred".into());
+        }
         ledger::serialize(self, &[&c.tenant]).await?;
         let rows=self.rows("SELECT o.machine_id::text,o.episode_id::text,o.requested_by,m.state,m.destroy_committed::text,e.state,COALESCE(t.status,'active') FROM provisiond.operations o JOIN provisiond.machines m ON m.id=o.machine_id LEFT JOIN provisiond.episodes e ON e.id=o.episode_id LEFT JOIN provisiond.tenants t ON t.id=o.tenant_id WHERE o.id=$1::text::uuid AND o.status='running' AND o.claim_number=$2 FOR UPDATE OF o,m",&[&c.id,&c.number]).await?;
         let Some(row) = rows.first() else {
@@ -68,6 +79,13 @@ impl Transaction {
                     self.delete_episode_state(&c.id, "succeeded", Some("funded"))
                         .await?;
                     return Ok("finished".into());
+                }
+                // OPS-41 step 3: only an otherwise unfunded rate-present
+                // decision spends the historical paused-grace measure.
+                let paused=self.rows("SELECT r.id FROM provisiond.recovery_incidents r JOIN provisiond.machines m ON m.id=$1::text::uuid WHERE r.closed_at IS NULL AND r.grace_ends_at<=transaction_timestamp() AND provisiond.recovery_rate_present(m.native_terms->'offer'->>'currency',r.grace_ends_at-r.rederivation_seconds*interval '1 second',transaction_timestamp())<r.rederivation_seconds", &[&machine]).await?;
+                if !paused.is_empty() {
+                    self.defer(c).await?;
+                    return Ok("deferred".into());
                 }
             }
             let fence=self.rows("UPDATE provisiond.machines m SET destroy_committed=$2::text::uuid WHERE id=$1::text::uuid AND (destroy_committed IS NULL OR destroy_committed=$2::text::uuid) AND EXISTS(SELECT 1 FROM provisiond.episodes WHERE id=$2::text::uuid AND state<>'closed') RETURNING id",&[&machine,&episode]).await?;

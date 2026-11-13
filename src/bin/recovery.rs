@@ -22,6 +22,7 @@ async fn main() {
                 recovery::prepare(Arc::new(store)).await?;
             }
             Some("close") if args.len() == 2 => recovery::close(&store, &args[1]).await?,
+            Some("parent") if args.len() == 4 => recovery::parent(&store, &args[1], &args[2], &args[3]).await?,
             Some("establish") if args.len() == 3 => {
                 ensure!(std::env::var("PROVISIOND_COMPONENTS_STOPPED").as_deref() == Ok("yes"), "deployment must stop components and prevent restart before establishment");
                 let evidence = std::fs::read_to_string(std::env::var("PROVISIOND_RECOVERY_EVIDENCE").context("missing retained incident evidence file")?)?;

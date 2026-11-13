@@ -118,6 +118,7 @@ impl Engine {
             stop_bound,
         });
         engine.restart_pass().await?;
+        engine.recovery_quarantine().await?;
         Ok(engine)
     }
     // Concrete acceptance windows only; absent from default builds.
@@ -326,15 +327,13 @@ impl Engine {
         let mut count = 0;
         loop {
             let mut tx = component.begin().await?;
-            ensure!(
-                tx.rows(
-                    "SELECT id FROM provisiond.recovery_incidents WHERE closed_at IS NULL LIMIT 1",
-                    &[]
+            let recovering = !tx
+                .rows(
+                    "SELECT id FROM provisiond.recovery_incidents WHERE closed_at IS NULL",
+                    &[],
                 )
                 .await?
-                .is_empty(),
-                "open recovery incident unsupported: ordinary restart forbidden"
-            );
+                .is_empty();
             let rows=tx.rows("SELECT id::text,tenant_id FROM provisiond.operations WHERE status='running' ORDER BY id LIMIT 32",&[]).await?;
             if crate::store::test_defect("w6_skip_startup") && !tx.rows("SELECT id FROM provisiond.recovery_incidents WHERE closed_at IS NOT NULL LIMIT 1",&[]).await?.is_empty() {
                 tx.rollback().await?;
@@ -357,7 +356,7 @@ impl Engine {
                 // OPS-15: the about-to-order predicate is inside the guarded write.
                 // WIR-9/10b: generated errors carry the complete inner object;
                 // OPS-16 preserves an existing error and its evidence verbatim.
-                let mut rows=tx.rows("UPDATE provisiond.operations SET status='failed',error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',true,'details','{}'::jsonb)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' AND kind='create' AND about_to_order_at IS NULL RETURNING kind,status,commitment_id::text",&[&id]).await?;
+                let mut rows=tx.rows("UPDATE provisiond.operations SET status='failed',error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',true,'details','{}'::jsonb)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' AND kind='create' AND about_to_order_at IS NULL AND NOT $2 RETURNING kind,status,commitment_id::text",&[&id,&recovering]).await?;
                 if rows.is_empty() {
                     // WIR-9b/API-51: unresolved mutations cannot safely be repeated;
                     // the read-only refresh exception retains retryable advice.
@@ -386,6 +385,29 @@ impl Engine {
             }
         }
         component.trace(json!({"event":"restart_pass_complete","running_found":count}));
+        Ok(())
+    }
+    /// STO-54(2), STO-3: marked quarantine never reclassifies newly admitted
+    /// queued work. The ordinary running pass above still runs on every startup.
+    async fn recovery_quarantine(&self) -> Result<()> {
+        let component = self.component();
+        let mut tx = component.begin().await?;
+        crate::recovery::lock(&mut tx).await?;
+        let incident = tx.rows("SELECT id::text,steps_completed FROM provisiond.recovery_incidents WHERE closed_at IS NULL FOR UPDATE", &[]).await?;
+        if let Some(row) = incident.first() {
+            let id: String = row.get(0);
+            if row.get::<_, i32>(1) < 2 {
+                // No money is released: surviving rows may already have acted.
+                let quarantined = tx.rows("UPDATE provisiond.operations SET status='needs_reconciliation',request=NULL,error=COALESCE(error,jsonb_build_object('kind','internal','message','quarantined by recovery incident','retryable',false,'details',jsonb_build_object('incident_id',$1::text))),mutation_wait_ended_at=COALESCE(mutation_wait_ended_at,transaction_timestamp()),revision=revision+1,updated_at=transaction_timestamp() WHERE status='queued' AND kind IN ('create','install','rescue_inventory') RETURNING id", &[&id]).await?;
+                tx.rows("INSERT INTO provisiond.recovery_waiting_parents(incident_id,operation_id) SELECT $1::text::uuid,id FROM provisiond.operations WHERE kind='suspend_tenant' AND status IN ('queued','running','needs_reconciliation') ON CONFLICT DO NOTHING RETURNING operation_id", &[&id]).await?;
+                tx.rows("UPDATE provisiond.recovery_incidents SET steps_completed=2 WHERE id=$1::text::uuid AND steps_completed=1 RETURNING id", &[&id]).await?;
+                component.trace(json!({"event":"recovery_quarantine_prepared","incident":id,"queued_found":quarantined.len()}));
+            }
+        }
+        ensure!(
+            component.commit(tx)?.wait().await? == CommitOutcome::Acknowledged,
+            "recovery quarantine unacknowledged; no claims"
+        );
         Ok(())
     }
     pub async fn claim(self: &Arc<Self>) -> Result<Option<Claim>> {

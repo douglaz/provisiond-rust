@@ -310,6 +310,12 @@ impl Engine {
         account: &str,
         descriptor: &Value,
     ) -> Result<()> {
+        // STO-54/OPS-32: first complete post-event pass cannot record absence;
+        // only a later pass separated by the current effective window may do so.
+        let recovery_account = account.to_owned();
+        let recovery_absence=self.transaction(component,move|tx|{let account=recovery_account.clone();Box::pin(async move {
+            Ok(tx.rows("SELECT NOT EXISTS(SELECT 1 FROM provisiond.recovery_incidents r WHERE r.closed_at IS NULL AND NOT EXISTS(SELECT 1 FROM provisiond.recovery_account_passes p WHERE p.incident_id=r.id AND p.provider_account=$1 AND p.first_completed_at+greatest(COALESCE((SELECT (descriptor->>'visibility_seconds')::numeric FROM provisiond.provider_accounts WHERE account=$1),1),COALESCE((SELECT max(extract(epoch FROM observed_at-dispatched_at)) FROM provisiond.provider_observations WHERE provider_account=$1),0))*interval '1 second'<=transaction_timestamp()))", &[&account]).await?[0].get::<_,bool>(0))
+        })}).await?;
         let mut resources = BTreeMap::new();
         let mut complete = true;
         for channel in descriptor["channels"]
@@ -374,7 +380,7 @@ impl Engine {
             }
             let observation = if let Some(resource) = resources.get(external) {
                 Some((false, resource.clone(), observed_at))
-            } else if complete {
+            } else if complete && recovery_absence {
                 let eligible = machine["wait_end"]
                     .as_str()
                     .map(|s| {
@@ -437,6 +443,13 @@ impl Engine {
             component.trace(json!({"event":"unrecorded_provider_resource","provider_account":account,"external_id":external,"auto_attached":false}));
         }
         component.trace(json!({"event":"account_pass_complete","provider_account":account,"complete":complete,"resources":resources.len()}));
+        if complete {
+            let account = account.to_owned();
+            self.transaction(component,move|tx|{let account=account.clone();Box::pin(async move {
+                tx.rows("INSERT INTO provisiond.recovery_account_passes(incident_id,provider_account,first_completed_at) SELECT id,$1,transaction_timestamp() FROM provisiond.recovery_incidents WHERE closed_at IS NULL ON CONFLICT(incident_id,provider_account) DO UPDATE SET second_completed_at=CASE WHEN $2 THEN COALESCE(provisiond.recovery_account_passes.second_completed_at,EXCLUDED.first_completed_at) ELSE provisiond.recovery_account_passes.second_completed_at END RETURNING incident_id", &[&account,&recovery_absence]).await?;
+                Ok(())
+            })}).await?;
+        }
         // OPS-32/PRV-9: key cleanup is independent of create resolution. A pending
         // operation or provisioning machine never licenses deletion of its key.
         if descriptor["temporary_keys"] == true {
