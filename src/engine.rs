@@ -356,7 +356,15 @@ impl Engine {
                 // OPS-15: the about-to-order predicate is inside the guarded write.
                 // WIR-9/10b: generated errors carry the complete inner object;
                 // OPS-16 preserves an existing error and its evidence verbatim.
-                let mut rows=tx.rows("UPDATE provisiond.operations SET status='failed',error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',true,'details','{}'::jsonb)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' AND kind='create' AND about_to_order_at IS NULL AND NOT $2 RETURNING kind,status,commitment_id::text",&[&id,&recovering]).await?;
+                // OPS-15/STO-54: a parent mutates no provider. Keep its queue
+                // state and durable operator hold separate from uncertainty.
+                let mut rows=tx.rows("UPDATE provisiond.operations SET status='queued',yielded_at=NULL,revision=revision+1,updated_at=transaction_timestamp() WHERE id=$1::text::uuid AND status='running' AND kind='suspend_tenant' RETURNING kind,status,commitment_id::text", &[&id]).await?;
+                if !rows.is_empty() && recovering {
+                    tx.rows("INSERT INTO provisiond.recovery_waiting_parents(incident_id,operation_id) SELECT r.id,$1::text::uuid FROM provisiond.recovery_incidents r WHERE r.closed_at IS NULL AND (r.grace_ends_at IS NULL OR r.grace_ends_at>transaction_timestamp() OR EXISTS(SELECT 1 FROM provisiond.recovery_waiting_parents p WHERE p.incident_id=r.id AND p.disposition IS NULL)) ON CONFLICT DO NOTHING RETURNING operation_id", &[&id]).await?;
+                }
+                if rows.is_empty() {
+                    rows=tx.rows("UPDATE provisiond.operations SET status='failed',error=COALESCE(error,jsonb_build_object('kind','internal','message','interrupted by ordinary restart','retryable',true,'details','{}'::jsonb)),request=NULL,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1::text::uuid AND status='running' AND kind='create' AND about_to_order_at IS NULL AND NOT $2 RETURNING kind,status,commitment_id::text",&[&id,&recovering]).await?;
+                }
                 if rows.is_empty() {
                     // WIR-9b/API-51: unresolved mutations cannot safely be repeated;
                     // the read-only refresh exception retains retryable advice.
@@ -408,6 +416,11 @@ impl Engine {
             component.commit(tx)?.wait().await? == CommitOutcome::Acknowledged,
             "recovery quarantine unacknowledged; no claims"
         );
+        // STO-54(2): preparation and a visible primary row do not establish
+        // synchronous acknowledgment. Publish this boundary only after COMMIT.
+        if let Some(row) = incident.first() {
+            component.trace(json!({"event":"recovery_step_acknowledged","incident":row.get::<_,String>(0),"step":2}));
+        }
         Ok(())
     }
     pub async fn claim(self: &Arc<Self>) -> Result<Option<Claim>> {

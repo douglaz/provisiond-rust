@@ -421,6 +421,15 @@ impl Session {
     /// STO-7: one fixed primary FLUSH target, refreshed implicit statement snapshots.
     /// Never executes state-changing SQL or uses insertion position.
     async fn check(&self, kind: &str) -> Result<()> {
+        // STO-54 sensitivity control: an isolated test build admits the engine
+        // without its replacement peer. The fixture must observe real startup
+        // SQL/SyncRep, rather than count a harness permission as activation.
+        if test_defect("w7_no_ack") {
+            (self.trace)(
+                json!({"event":"test_recovery_admission_bypassed","kind":kind,"session":self.pid}),
+            );
+            return Ok(());
+        }
         let result = tokio::time::timeout(self.settings.check_bound, async {
             let target=self.scalar(&format!("SELECT pg_current_wal_flush_lsn()::text /* store {kind} target */")).await?;
             (self.trace)(json!({"event":"check_target","kind":kind,"session":self.pid,"target":target}));

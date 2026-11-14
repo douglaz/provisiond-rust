@@ -76,7 +76,7 @@ class Workflow:
         self.rail=self.simulator('rail',6)
         self.provider_control(offers={'sim-a':[self.offer],'sim-b':[self.offer]})
         h.config['workflow']=dict(parameters=parameters or PARAMETERS,descriptor=self.descriptor,offer=self.offer,rate=self.rate,listeners=dict(api=h.ports[4],provider=h.ports[5],rail=h.ports[6]),test_build_features=[] if default_build else ['store-test-hooks'])
-        self.builds={name:self.build_identity(h.target/'debug'/name,[] if default_build else ['store-test-hooks']) for name in ['api','engine','migrate']}
+        self.builds={name:self.build_identity(h.target/'debug'/name,[] if default_build else ['store-test-hooks']) for name in ['api','engine','migrate','recovery']}
         h.config['workflow']['builds']=dict(self.builds)
         if default_build:h.config['engine']['runtime_build']['features']=[]
         self.operator_env={}
@@ -98,8 +98,11 @@ class Workflow:
         eventually(lambda:(h.root/(kind+'.stdout')).read_text())
         return p
     def start(self,name,extra=None):
-        assert not self.quiesced, 'STO-54 component restart prevented by local deployment fence'
+        assert not self.quiesced or self.defect=='w7_no_ack' and not self.default_build, 'STO-54 component restart prevented by local deployment fence'
         h=self.h
+        if name=='api':
+            h.release_port(h.ports[4])
+            if self.operator_env:h.release_port(h.ports[7])
         identity=self.build_identity(h.target/'debug'/name,self.builds[name]['features'])
         assert identity==self.builds[name],'workflow executable changed after its recorded build'
         h.event('workflow_binary_started',component=name,case=getattr(self,'case','setup'),**identity)
@@ -272,6 +275,7 @@ class Workflow:
         assert all(p.poll() is not None for p in self.children)
         selected={'api_listening','api_stopping','api_tasks_finished','api_background_task_failed','api_request_task_failed','http_business_begin','http_response','dispatch_step','dispatch_step_held','dispatch_license_acknowledged','provider_verified','execute_returned','settlement_finished','external_entry','rail_credit_acknowledged','rail_observation_processed','activation_without_healthy_assignment','whole_transaction_retry','generation_checked','worker_zero_row','destination_read','destination_exposed','token_request_held','token_issued','token_request_abandoned','funding_held','preflight_read_retry','preflight_read_exhausted'}
         selected.update({'claim_precommit_retry','test_commit_checkout','http_handler_cancelled','http_response_held','http_reply_lost','test_stop_requested','test_record_snapshot','test_later_stop_requested','test_dispatch_paused','engine_superseded','defect_provider_retry','defect_checkout_released','session_admitted','commit_classified','startup_lock_acquired','startup_lock_lost','claim_attempt_started','claim_registered','stop_record_started','stop_record_finished','commit_possible_dispatch','commit_owner_completed','engine_fatal'})
+        selected.update({'recovery_startup_decision','recovery_loss_report','recovery_step_acknowledged','recovery_quarantine_prepared','recovery_watch_set_derived','restart_pass_complete','generation_advanced','delete_decision','account_pass_complete','unrecorded_provider_resource'})
         for child in self.children:
             if getattr(child,'name',None) in ['api','engine']:
                 trace=trace_events(child.log)

@@ -169,7 +169,7 @@ impl Transaction {
         charge: &Value,
     ) -> Result<()> {
         // An absent order has no machine. Keep its operation as the subject.
-        self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,absorbed_seconds,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) SELECT $1,NULL,'operation',$2::text::uuid,0,$2::text::uuid,$3,$4,$5,NULL,(value->>'rate_num')::bigint,(value->>'rate_den')::bigint,$6 FROM (VALUES(1)) one(n) LEFT JOIN provisiond.rates ON currency=$5 AND available ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&r.id,&cause,&charge["native_minor"].as_i64(),&charge["currency"].as_str(),&format!("{cause}:{}",r.id)]).await?;
+        self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,absorbed_seconds,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) SELECT $1,NULL,'operation',$2::text::uuid,0,$2::text::uuid,$3,$4,$5,NULL,(value->>'rate_num')::bigint,(value->>'rate_den')::bigint,$6 FROM (VALUES(1)) one(n) LEFT JOIN provisiond.current_rates ON currency=$5 AND available ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&r.id,&cause,&charge["native_minor"].as_i64(),&charge["currency"].as_str(),&format!("{cause}:{}",r.id)]).await?;
         Ok(())
     }
     async fn late_attach(&mut self, id: &str, tenant: &str, summary: &Value) -> Result<()> {
@@ -187,7 +187,7 @@ impl Transaction {
         let descriptor = self.effective_descriptor(account).await?;
         let rate = self
             .rows(
-                "SELECT value::text FROM provisiond.rates WHERE currency=$1 AND available",
+                "SELECT value::text FROM provisiond.current_rates WHERE currency=$1 AND available",
                 &[&offer["currency"].as_str()],
             )
             .await?;
@@ -218,7 +218,7 @@ impl Transaction {
                 (i128::from(native) * i128::from(wind) + i128::from(period) - 1)
                     / i128::from(period),
             )?;
-            self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,absorbed_seconds,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) SELECT $1,$2::text::uuid,'machine',$2::text::uuid,0,$3::text::uuid,'late_attach_cleanup',$4,$5,NULL,(value->>'rate_num')::bigint,(value->>'rate_den')::bigint,$6 FROM (VALUES(1)) one(n) LEFT JOIN provisiond.rates ON currency=$5 AND available ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&machine,&id,&cost,&offer["currency"].as_str(),&format!("late_attach_cleanup:{id}")]).await?;
+            self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,absorbed_seconds,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) SELECT $1,$2::text::uuid,'machine',$2::text::uuid,0,$3::text::uuid,'late_attach_cleanup',$4,$5,NULL,(value->>'rate_num')::bigint,(value->>'rate_den')::bigint,$6 FROM (VALUES(1)) one(n) LEFT JOIN provisiond.current_rates ON currency=$5 AND available ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&machine,&id,&cost,&offer["currency"].as_str(),&format!("late_attach_cleanup:{id}")]).await?;
         }
         self.enqueue_cleanup(&machine, "late_attach_cleanup")
             .await?;

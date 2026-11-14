@@ -331,7 +331,7 @@ impl Transaction {
     /// STO-1/OPS-6: savepoint confines a per-machine unique refusal; the number
     /// increment is rolled back before the short queued defer, in this transaction.
     pub(super) async fn claim_inner(&mut self) -> Result<Option<Claim>> {
-        let rows=self.rows("SELECT o.id::text FROM provisiond.operations o WHERE status='queued' AND available_at<=clock_timestamp() AND NOT EXISTS(SELECT 1 FROM provisiond.recovery_waiting_parents p JOIN provisiond.recovery_incidents r ON r.id=p.incident_id WHERE p.operation_id=o.id AND p.disposition IS NULL AND r.closed_at IS NULL) ORDER BY created_at,id FOR UPDATE OF o SKIP LOCKED LIMIT 1",&[]).await?;
+        let rows=self.rows("SELECT o.id::text FROM provisiond.operations o WHERE status='queued' AND kind NOT IN ('install','rescue_inventory','suspend_tenant') AND available_at<=clock_timestamp() AND NOT EXISTS(SELECT 1 FROM provisiond.recovery_waiting_parents p JOIN provisiond.recovery_incidents r ON r.id=p.incident_id WHERE p.operation_id=o.id AND p.disposition IS NULL AND r.closed_at IS NULL) ORDER BY created_at,id FOR UPDATE OF o SKIP LOCKED LIMIT 1",&[]).await?;
         let Some(row) = rows.first() else {
             return Ok(None);
         };
@@ -542,7 +542,7 @@ impl Transaction {
                 } else {
                     "clamp_overflow"
                 };
-                self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,absorbed_seconds,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) SELECT $1,$2::text::uuid,'machine',$2::text::uuid,0,$3::text::uuid,$8,$4,$5,$6,(r.value->>'rate_num')::bigint,(r.value->>'rate_den')::bigint,$7 FROM (VALUES(1)) AS one(n) LEFT JOIN provisiond.rates r ON r.currency=$5 AND r.available ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&machine,&c.id,&(native-customer_native),&charge["currency"].as_str(),&(!released).then_some(requested-debit),&key,&cause]).await?;
+                self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,absorbed_seconds,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) SELECT $1,$2::text::uuid,'machine',$2::text::uuid,0,$3::text::uuid,$8,$4,$5,$6,(r.value->>'rate_num')::bigint,(r.value->>'rate_den')::bigint,$7 FROM (VALUES(1)) AS one(n) LEFT JOIN provisiond.current_rates r ON r.currency=$5 AND r.available ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&account,&machine,&c.id,&(native-customer_native),&charge["currency"].as_str(),&(!released).then_some(requested-debit),&key,&cause]).await?;
             }
         }
         self.rows("DELETE FROM provisiond.resource_exclusions WHERE operation_id=$1::text::uuid RETURNING operation_id",&[&c.id]).await?;

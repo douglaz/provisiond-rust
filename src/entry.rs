@@ -63,3 +63,49 @@ pub async fn migrate(store: &Store) -> Result<()> {
         })
         .await
 }
+
+/// STO-54/56: continue an unmarked pre-lock phase in a separate process. The
+/// engine still makes no write before its own generation-only advance. A parent
+/// pipe makes the recovery actor exit if this startup process dies mid-phase.
+pub async fn continue_pre_lock(store: &Store, trace: Trace) -> Result<()> {
+    // STO-13: the existing isolated startup-order control must bypass this
+    // additional compatibility read too, so it still reaches the forbidden
+    // real startup boundary. Ordinary builds cannot select the defect.
+    if crate::store::test_defect("startup_order") {
+        return Ok(());
+    }
+    store.compatible_schema().await?;
+    let incident = crate::recovery::current(store).await?;
+    if incident.is_null() {
+        return Ok(());
+    }
+    ensure!(
+        incident["legacy"] == false,
+        "open recovery incident unsupported: legacy establishment prerequisites missing"
+    );
+    if incident["steps_completed"]
+        .as_i64()
+        .context("recovery step marks")?
+        >= 1
+    {
+        return Ok(());
+    }
+    let program = std::env::current_exe()?.with_file_name("recovery");
+    let mut child = std::process::Command::new(program)
+        .arg("prepare")
+        .env("PROVISIOND_COMPONENTS_STOPPED", "yes")
+        .env("PROVISIOND_RECOVERY_PARENT_PIPE", "yes")
+        .stdin(std::process::Stdio::piped())
+        .spawn()?;
+    let pipe = child.stdin.take().context("recovery parent pipe")?;
+    trace(
+        serde_json::json!({"event":"pre_lock_actor_started","pid":child.id(),"incident":incident["id"]}),
+    );
+    let status = child.wait()?;
+    drop(pipe);
+    ensure!(
+        status.success(),
+        "pre-lock recovery actor failed; no startup lock or generation write"
+    );
+    Ok(())
+}
