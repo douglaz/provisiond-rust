@@ -180,16 +180,19 @@ pub(super) async fn recover(
         .await?
     };
     for observation in observations.as_array().context("rail replay array")? {
-        if watches
-            .as_array()
-            .expect("validated watch set")
-            .iter()
-            .any(|d| {
-                d["invoice"] == observation["destination"]
-                    || d["address"] == observation["destination"]
-            })
-        {
+        // STO-54(3)/29/31: historical settlements resolve through every
+        // retained binding. STO-32's expiry bound applies only to active watches.
+        // History loss can remove a binding; keep that observation unresolved
+        // rather than mint a destination or entitlement from rail evidence.
+        let rail = observation["rail"].as_str().context("replay rail")?;
+        let destination = observation["destination"]
+            .as_str()
+            .context("replay destination")?;
+        let bound=store.value("SELECT to_json(EXISTS(SELECT 1 FROM provisiond.deposits WHERE ($1='lightning' AND invoice=$2) OR ($1='onchain' AND address=$2)))::text", &[&rail,&destination]).await?;
+        if bound == true {
             credit(&component, &store, p, observation).await?;
+        } else {
+            component.trace(json!({"event":"recovery_unbound_rail_observation","incident":id,"observation_digest":crate::wire::digest(observation.to_string().as_bytes())}));
         }
     }
     let mut tx = component.begin().await?;
@@ -200,7 +203,7 @@ pub(super) async fn recover(
         // Re-derive surviving usage rather than clear counters. Lost admissions
         // are not reconstructed entitlement; surviving larger counters remain.
         let interval = p.n("ceiling_seconds");
-        tx.rows("WITH boundary AS (SELECT floor(extract(epoch FROM transaction_timestamp())/$1::bigint)::bigint*$1::bigint AS start), counts AS (SELECT tenant_id AS principal,'machines_created'::text AS ceiling,count(*)::bigint AS used FROM provisiond.operations,boundary WHERE kind='create' AND created_at>=to_timestamp(start) GROUP BY tenant_id UNION ALL SELECT tenant_id,'machines_destroyed',count(*)::bigint FROM provisiond.operations,boundary WHERE kind='delete' AND requested_by='caller' AND created_at>=to_timestamp(start) GROUP BY tenant_id UNION ALL SELECT tenant_id,'spend',sum(COALESCE(admitted_sats,0))::bigint FROM provisiond.operations,boundary WHERE kind='create' AND created_at>=to_timestamp(start) GROUP BY tenant_id) INSERT INTO provisiond.ceiling_counters(principal,ceiling,interval_start,used) SELECT principal,ceiling,start,used FROM counts,boundary ON CONFLICT(principal,ceiling,interval_start) DO UPDATE SET used=greatest(provisiond.ceiling_counters.used,EXCLUDED.used) RETURNING principal", &[&interval]).await?;
+        tx.rows("WITH boundary AS (SELECT floor(extract(epoch FROM transaction_timestamp())/$1::bigint)::bigint*$1::bigint AS start), counts AS (SELECT tenant_id AS principal,'machines_created'::text AS ceiling,count(*)::bigint AS used FROM provisiond.operations,boundary WHERE kind='create' AND created_at>=to_timestamp(start) GROUP BY tenant_id UNION ALL SELECT tenant_id,'machines_destroyed',count(*)::bigint FROM provisiond.operations,boundary WHERE kind='delete' AND requested_by='caller' AND created_at>=to_timestamp(start) GROUP BY tenant_id UNION ALL SELECT tenant_id,'spend',sum(COALESCE(admitted_sats,0))::bigint FROM provisiond.operations,boundary WHERE kind='create' AND created_at>=to_timestamp(start) GROUP BY tenant_id UNION ALL SELECT 'operator:'||scope_id,'operator_resolutions',count(DISTINCT resource_id)::bigint FROM provisiond.idempotency_records,boundary WHERE scope_kind='operator' AND resource_kind='operation' AND created_at>=to_timestamp(start) GROUP BY scope_id UNION ALL SELECT 'operator:'||scope_id,'operator_retries',count(DISTINCT response_body->>'current_operation_id')::bigint FROM provisiond.idempotency_records,boundary WHERE scope_kind='operator' AND resource_kind='episode' AND response_body->>'state'='attempting' AND created_at>=to_timestamp(start) GROUP BY scope_id) INSERT INTO provisiond.ceiling_counters(principal,ceiling,interval_start,used) SELECT principal,ceiling,start,used FROM counts,boundary ON CONFLICT(principal,ceiling,interval_start) DO UPDATE SET used=greatest(provisiond.ceiling_counters.used,EXCLUDED.used) RETURNING principal", &[&interval]).await?;
         tx.rows("UPDATE provisiond.tenants SET credential_generation=credential_generation+1 RETURNING id", &[]).await?;
         // Sequence allocation is nontransactional and only moves forward on an
         // interrupted unmarked repeat. Never reset it to max(restored rows).

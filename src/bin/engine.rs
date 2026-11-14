@@ -10,11 +10,12 @@ async fn main() {
     let trace: Trace = Arc::new(|event| println!("{event}"));
     let mut process = Process::new(trace.clone());
     let result = async {
-        let store = entry::local_engine_store(process.clone(), trace)?;
+        let store = entry::local_engine_store(process.clone(), trace.clone())?;
         if std::env::args().any(|a| a == "--check-schema") {
             return store.compatible_schema().await;
         }
         let wait = startup_milliseconds(&std::env::var("PROVISIOND_STARTUP_WAIT_MS")?)?;
+        entry::continue_pre_lock(&store, trace).await?;
         let engine = Engine::start(
             store,
             process.clone(),

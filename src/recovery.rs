@@ -18,36 +18,32 @@ pub struct Establish {
 /// STO-54: unknown clock/prefix provenance is retained, never guessed from an LSN
 /// or event timestamp. This profile accepts no finite certificates yet: its local
 /// fixture has no independently certified source/event clock error bounds.
-fn reporting_evidence(id: &str, evidence: &Value) -> Result<Value> {
-    ensure!(
-        evidence["incident_id"] == id,
-        "evidence belongs to another incident"
-    );
+fn reporting_evidence(id: &str, evidence: &Value) -> Value {
+    // Missing or invalid reporting inputs cannot add a recovery blockade. The
+    // incident itself retains the unknown reasons under its own safe reference.
+    let fallback = format!("unknown/{id}");
     let reference = evidence["reference"]
         .as_str()
-        .context("missing incident evidence reference")?;
-    ensure!(
-        !reference.is_empty()
-            && reference.len() <= 256
-            && reference
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b"-_/.:".contains(&b)),
-        "invalid evidence reference"
-    );
+        .filter(|reference| {
+            !reference.is_empty()
+                && reference.len() <= 256
+                && reference
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"-_/.:".contains(&b))
+        })
+        .unwrap_or(&fallback);
     let lower = evidence["lower_unknown_reason"]
         .as_str()
         .filter(|s| !s.is_empty())
-        .context("missing lower-endpoint unknown reason")?;
+        .unwrap_or("no certified source clock error and recovered continuous-prefix inclusion proof supplied");
     let upper = evidence["upper_unknown_reason"]
         .as_str()
         .filter(|s| !s.is_empty())
-        .context("missing upper-endpoint unknown reason")?;
-    Ok(
-        json!({"incident_id":id,"reference":reference,"lower_unknown_reason":lower,
+        .unwrap_or("no certified event clock error and stopping/fencing certificate supplied");
+    json!({"incident_id":id,"reference":reference,"lower_unknown_reason":lower,
         "upper_unknown_reason":upper,"finite_duration_established":false,
-        "invalid_certificate_input":!evidence["lower"].is_null() || !evidence["upper"].is_null(),
-        "certificate_support":"not run: source/event clock and continuous-prefix certificates unavailable"}),
-    )
+        "invalid_certificate_input":!evidence["lower"].is_null() || !evidence["upper"].is_null() || evidence["incident_id"]!=id,
+        "certificate_support":"not run: source/event clock and continuous-prefix certificates unavailable"})
 }
 
 pub(crate) async fn lock(tx: &mut Transaction) -> Result<()> {
@@ -76,6 +72,13 @@ pub async fn establish(store: &Store, request: Establish) -> Result<Value> {
     );
     let mut tx = store.begin().await?;
     lock(&mut tx).await?;
+    if crate::store::test_defect("w7_lossless_restart") {
+        ensure!(
+            store.commit(tx)?.wait().await? == CommitOutcome::Acknowledged,
+            "control no-op unacknowledged"
+        );
+        return Ok(Value::Null);
+    }
     let existing = tx.rows("SELECT to_jsonb(r)::text FROM provisiond.recovery_incidents r WHERE id=$1::text::uuid FOR UPDATE", &[&request.id]).await?;
     let report = if let Some(row) = existing.first() {
         let retained: Value = serde_json::from_str(row.get::<_, &str>(0))?;
@@ -94,10 +97,6 @@ pub async fn establish(store: &Store, request: Establish) -> Result<Value> {
                 "STO-56 restore instant mismatch; keep components stopped"
             );
         }
-        ensure!(
-            retained["closed_at"].is_null(),
-            "event was closed or superseded; cannot acknowledge it for startup"
-        );
         // The evidence is deliberately not recomputed on a matching continuation.
         if crate::store::test_defect("w7_retry_reset") {
             tx.rows("UPDATE provisiond.recovery_incidents SET steps_completed=0,grace_ends_at=NULL WHERE id=$1::text::uuid RETURNING id", &[&request.id]).await?;
@@ -108,7 +107,7 @@ pub async fn establish(store: &Store, request: Establish) -> Result<Value> {
             request.expected_instant.is_none(),
             "uncommitted event must use the new inserting transaction's instant"
         );
-        let evidence = reporting_evidence(&request.id, &request.evidence)?;
+        let evidence = reporting_evidence(&request.id, &request.evidence);
         let predecessor = tx.rows("SELECT id::text FROM provisiond.recovery_incidents WHERE closed_at IS NULL FOR UPDATE", &[]).await?;
         let predecessor = predecessor.first().map(|r| r.get::<_, String>(0));
         ensure!(
@@ -119,6 +118,12 @@ pub async fn establish(store: &Store, request: Establish) -> Result<Value> {
         let rows = tx.rows("INSERT INTO provisiond.recovery_incidents(id,restore_instant,history_evidence_ref,history_evidence,supersedes_incident_id,rederivation_seconds,derivation_gap) VALUES($1::text::uuid,transaction_timestamp(),$2,$3::text::jsonb,$4::text::uuid,$5,$6) RETURNING to_jsonb(recovery_incidents)::text",
             &[&request.id,&evidence["reference"].as_str(),&evidence.to_string(),&request.predecessor,&request.rederivation_seconds,&request.derivation_gap]).await?;
         tx.rows("UPDATE provisiond.operations SET restore_markers_untrusted=true WHERE kind IN ('install','rescue_inventory') AND status IN ('queued','running','needs_reconciliation') RETURNING id", &[]).await?;
+        if crate::store::test_defect("w7_supersession_inherits") && request.predecessor.is_some() {
+            tx.rows("UPDATE provisiond.recovery_incidents r SET steps_completed=p.steps_completed,grace_ends_at=p.grace_ends_at FROM provisiond.recovery_incidents p WHERE r.id=$1::text::uuid AND p.id=r.supersedes_incident_id RETURNING r.id", &[&request.id]).await?;
+        }
+        if crate::store::test_defect("w7_finite_guess") {
+            tx.rows("UPDATE provisiond.recovery_incidents SET lost_window_starts_at=restore_instant,loss_end_at=restore_instant,history_evidence=jsonb_set(history_evidence,'{finite_duration_established}','true') WHERE id=$1::text::uuid RETURNING id", &[&request.id]).await?;
+        }
         serde_json::from_str::<Value>(rows[0].get::<_, &str>(0))?
     };
     ensure!(
@@ -131,16 +136,9 @@ pub async fn establish(store: &Store, request: Establish) -> Result<Value> {
 /// STO-54: the five actors use a live read; an open record cannot prolong the
 /// wall-clock freeze. Unsupported legacy history stays unavailable.
 pub async fn frozen(store: &Store) -> Result<bool> {
-    let r = current(store).await?;
-    ensure!(
-        r.is_null() || r["legacy"] == false,
-        "unsupported legacy recovery incident"
-    );
-    Ok(!r.is_null()
-        && (r["grace_ends_at"].is_null()
-            || chrono::DateTime::parse_from_rfc3339(
-                r["grace_ends_at"].as_str().context("grace instant")?,
-            )? > chrono::Utc::now()))
+    let r = store.value("SELECT jsonb_build_object('legacy',EXISTS(SELECT 1 FROM provisiond.recovery_incidents WHERE closed_at IS NULL AND legacy),'frozen',EXISTS(SELECT 1 FROM provisiond.recovery_incidents WHERE closed_at IS NULL AND (grace_ends_at IS NULL OR grace_ends_at>statement_timestamp())))::text", &[]).await?;
+    ensure!(r["legacy"] == false, "unsupported legacy recovery incident");
+    Ok(r["frozen"] == true)
 }
 
 /// STO-54(1): a separate operator recovery actor re-establishes account status
@@ -187,6 +185,10 @@ pub async fn prepare(store: std::sync::Arc<Store>) -> Result<()> {
     let row = tx.rows("SELECT steps_completed FROM provisiond.recovery_incidents WHERE id=$1::text::uuid AND closed_at IS NULL FOR UPDATE", &[&id]).await?;
     ensure!(row.len() == 1, "incident changed during pre-lock recovery");
     if row[0].get::<_, i32>(0) == 0 {
+        // LDG-72: before serving restored subjects, reuse the offline audit.
+        // Consistent restored marks/entries can pass while history is missing.
+        tx.rows("SELECT provisiond.audit_machine_meters()", &[])
+            .await?;
         for (name, status) in statuses {
             tx.rows("UPDATE provisiond.provider_account_status SET status=$2,source='provider',observed_at=transaction_timestamp(),updated_at=transaction_timestamp() WHERE provider_account=$1 AND status NOT IN ('terminated','credentials_rejected') RETURNING provider_account", &[&name,&status]).await?;
         }
@@ -252,7 +254,11 @@ pub async fn parent(
         .context("no waiting parent in current incident")?
         .get(0);
     tx.serialize_tenants(&[&tenant]).await?;
-    tx.rows("UPDATE provisiond.recovery_waiting_parents SET disposition=$3 WHERE incident_id=$1::text::uuid AND operation_id=$2::text::uuid AND (disposition IS NULL OR disposition=$3) RETURNING operation_id", &[&incident,&operation,&disposition]).await?;
+    let changed=tx.rows("UPDATE provisiond.recovery_waiting_parents SET disposition=$3 WHERE incident_id=$1::text::uuid AND operation_id=$2::text::uuid AND (disposition IS NULL OR disposition=$3) RETURNING operation_id", &[&incident,&operation,&disposition]).await?;
+    ensure!(
+        changed.len() == 1,
+        "waiting parent already received a different operator disposition"
+    );
     if disposition == "cancelled" {
         tx.rows("UPDATE provisiond.operations SET status='failed',request=NULL,error=COALESCE(error,jsonb_build_object('kind','internal','message','recovery parent cancelled by operator','retryable',false,'details','{}'::jsonb)),revision=revision+1,updated_at=transaction_timestamp() WHERE id=$1::text::uuid AND status IN ('queued','running','needs_reconciliation') RETURNING id", &[&operation]).await?;
     }

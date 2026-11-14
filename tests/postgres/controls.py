@@ -6,6 +6,11 @@ from harness import ROOT, cap_check
 import tempfile
 
 CONTROLS=[
+    ('w7_retry_reset','w7','w7_continuation','STO-56 same-ID establishment must preserve committed steps=2','w7_progress_retry_observed'),
+    ('w7_lossless_restart','w7','w7_lossless','STO-54 lossless promotion must establish incident before component startup','w7_lossless_incident_observed'),
+    ('w7_no_ack','w7','w7_lossless','STO-54 no component may start before synchronous incident acknowledgment','w7_no_ack_observed'),
+    ('w7_supersession_inherits','w7','w7_supersession','STO-56 supersession must start fresh progress and null grace','w7_supersession_observed'),
+    ('w7_finite_guess','w7','w7_reporting','STO-54 bare timestamp or LSN must not establish finite loss duration','w7_reporting_observed'),
     ('w6_blind_repeat','w6','w6_positive','one purchase/no repeated order','w6_lost_reply_activated'),
     ('w6_non_exact','w6','w6_conflicting','exact-correlator/no-attachment','w6_exact_observed'),
     ('w6_release_timeout','w6','w6_empty','original-reservation-preserved before negative window','w6_lost_reply_activated'),
@@ -48,11 +53,11 @@ CONTROLS=[
 ]
 
 
-def controls(seed,evidence,w5_only=False,w6_only=False):
+def controls(seed,evidence,w5_only=False,w6_only=False,w7_only=False):
     cap_check()
     root=Path(tempfile.mkdtemp(prefix='controls-',dir=ROOT))
     results=[]
-    required=[c for c in CONTROLS if c[0].startswith('w6_')] if w6_only else [c for c in CONTROLS if c[0].startswith('w5_')] if w5_only else CONTROLS
+    required=[c for c in CONTROLS if c[0].startswith('w7_')] if w7_only else [c for c in CONTROLS if c[0].startswith('w6_')] if w6_only else [c for c in CONTROLS if c[0].startswith('w5_')] if w5_only else CONTROLS
     # OPS-49: exercise the actual release helper with a retained checkout record,
     # without claiming a runtime leak. Keep these separate from runtime controls.
     from w5_release_control import sensitivity
@@ -70,6 +75,11 @@ def controls(seed,evidence,w5_only=False,w6_only=False):
         observed=[e for e in events if e['event']==observation]
         valid=(child.returncode==1 and len(failures)==1 and failures[0].get('type')=='AssertionError'
             and failures[0].get('message')==assertion and cleanup and cleanup[-1]['result']=='pass' and observed)
+        if defect=='w7_retry_reset':valid=valid and observed[-1]['before']['steps_completed']==2 and observed[-1]['after']['steps_completed']==0
+        if defect=='w7_lossless_restart':valid=valid and observed[-1]['record'] is None and observed[-1]['three_rows_survived'] is True
+        if defect=='w7_no_ack':valid=valid and observed[-1]['component_launch_blocked'] is False and observed[-1]['launched_pid'] is not None and observed[-1]['incident_acknowledged'] is False and observed[-1]['replacement_standby_absent'] is True and observed[-1]['startup_work'] is True and observed[-1]['generation_commit_waited_in_syncrep'] is True and observed[-1]['establishment_exit']!=0
+        if defect=='w7_supersession_inherits':valid=valid and observed[-1]['before']['steps_completed']==3 and observed[-1]['after']['steps_completed']==3
+        if defect=='w7_finite_guess':valid=valid and observed[-1]['finite_duration'] is True
         if defect=='w6_blind_repeat':valid=valid and observed[-1].get('accepted_count')==2 and observed[-1].get('reply_delivered') is False
         if defect=='w6_non_exact':valid=valid and observed[-1].get('search')=='wrong' and observed[-1].get('attached') is True
         if defect=='w6_release_timeout':valid=valid and observed[-1]['snapshot']['commitment']['state']=='closed' and observed[-1]['snapshot']['commitment']['reserved_sats']==0

@@ -31,9 +31,10 @@ impl Transaction {
             "delete worker requires generation fence"
         );
         ensure!(c.kind == "delete", "delete outcome requires delete claim");
-        // OPS-41: dynamic per-claim gate precedes every funding/exemption path,
-        // including caller deletes, inherited fences and suspended tenants.
-        let incident=self.rows("SELECT id::text,grace_ends_at::text FROM provisiond.recovery_incidents WHERE closed_at IS NULL AND (grace_ends_at IS NULL OR grace_ends_at>transaction_timestamp())", &[]).await?;
+        // OPS-39/41: the dynamic gate covers system exposure-reducing episodes,
+        // including operator retries and suspended tenants. Ordinary caller
+        // deletion remains usable throughout the selective restore freeze.
+        let incident=self.rows("SELECT r.id::text,r.grace_ends_at::text FROM provisiond.recovery_incidents r WHERE r.closed_at IS NULL AND (r.grace_ends_at IS NULL OR r.grace_ends_at>transaction_timestamp()) AND EXISTS(SELECT 1 FROM provisiond.operations o WHERE o.id=$1::text::uuid AND o.status='running' AND o.claim_number=$2 AND o.episode_id IS NOT NULL)", &[&c.id,&c.number]).await?;
         if let Some(row) = incident.first() {
             self.defer(c).await?;
             let end: Option<String> = row.get(1);
@@ -106,7 +107,7 @@ impl Transaction {
     }
     /// LDG-33/65: no rate leaves the stored date unchanged, never a stale reprice.
     pub(crate) async fn derive_runway(&mut self, machine: &str) -> Result<Option<bool>> {
-        let rows=self.rows("SELECT m.native_terms::text,p.descriptor::text,r.value::text FROM provisiond.machines m JOIN provisiond.provider_accounts p ON p.account=m.provider_account JOIN provisiond.rates r ON r.currency=m.native_terms->'offer'->>'currency' AND r.available WHERE m.id=$1::text::uuid",&[&machine]).await?;
+        let rows=self.rows("SELECT m.native_terms::text,p.descriptor::text,r.value::text FROM provisiond.machines m JOIN provisiond.provider_accounts p ON p.account=m.provider_account JOIN provisiond.current_rates r ON r.currency=m.native_terms->'offer'->>'currency' AND r.available WHERE m.id=$1::text::uuid",&[&machine]).await?;
         let Some(row) = rows.first() else {
             return Ok(None);
         };
@@ -270,7 +271,7 @@ impl Transaction {
                 let currency = terms["offer"]["currency"]
                     .as_str()
                     .context("quarantined outage currency")?;
-                let returned=self.rows("SELECT min(accepted_at)::text FROM provisiond.fixture_rate_history WHERE currency=$1 AND available AND accepted_at>$2::text::timestamptz",&[&currency,&from.to_rfc3339()]).await?[0].get::<_,Option<String>>(0).map(|v|parse_pg_time(&v)).transpose()?;
+                let returned=self.rows("SELECT min(t)::text FROM provisiond.fixture_rate_boundaries($1) b WHERE t>$2::text::timestamptz AND EXISTS(SELECT 1 FROM provisiond.fixture_rate_at($1,b.t) r WHERE r.available)",&[&currency,&from.to_rfc3339()]).await?[0].get::<_,Option<String>>(0).map(|v|parse_pg_time(&v)).transpose()?;
                 let end = (*stop).min(returned.unwrap_or(*stop));
                 let native = native_elapsed(&terms, from, end)?;
                 self.rows("UPDATE provisiond.operator_deficiencies SET absorbed_until=$2::text::timestamptz,absorbed_seconds=ceil(extract(epoch FROM $2::text::timestamptz-absorbed_from))::bigint,native_minor=$3 WHERE id=$1::text::uuid AND absorbed_until IS NULL RETURNING id",&[&outage.get::<_,String>(0),&end.to_rfc3339(),&native]).await?;
@@ -297,11 +298,11 @@ impl Transaction {
                 .and_hms_opt(0, 0, 0)
                 .context("month start")?
                 .and_utc();
-            let history=self.rows("SELECT value::text,available FROM provisiond.fixture_rate_history WHERE currency=$1 AND accepted_at<=$2::text::timestamptz ORDER BY accepted_at DESC,sequence DESC LIMIT 1",&[&currency,&start.to_rfc3339()]).await?;
-            let next=self.rows("SELECT min(accepted_at)::text FROM provisiond.fixture_rate_history WHERE currency=$1 AND accepted_at>$2::text::timestamptz",&[&currency,&start.to_rfc3339()]).await?[0].get::<_,Option<String>>(0).map(|s|parse_pg_time(&s)).transpose()?;
+            let history=self.rows("SELECT value::text,available FROM provisiond.fixture_rate_at($1,$2::text::timestamptz)",&[&currency,&start.to_rfc3339()]).await?;
+            let next=self.rows("SELECT min(t)::text FROM provisiond.fixture_rate_boundaries($1) WHERE t>$2::text::timestamptz",&[&currency,&start.to_rfc3339()]).await?[0].get::<_,Option<String>>(0).map(|s|parse_pg_time(&s)).transpose()?;
             let available = history.first().is_some_and(|r| r.get::<_, bool>(1));
             if !available && outage_window.is_none() {
-                let returned=self.rows("SELECT min(accepted_at)::text FROM provisiond.fixture_rate_history WHERE currency=$1 AND available AND accepted_at>$2::text::timestamptz",&[&currency,&start.to_rfc3339()]).await?[0].get::<_,Option<String>>(0).map(|v|parse_pg_time(&v)).transpose()?;
+                let returned=self.rows("SELECT min(t)::text FROM provisiond.fixture_rate_boundaries($1) b WHERE t>$2::text::timestamptz AND EXISTS(SELECT 1 FROM provisiond.fixture_rate_at($1,b.t) r WHERE r.available)",&[&currency,&start.to_rfc3339()]).await?[0].get::<_,Option<String>>(0).map(|v|parse_pg_time(&v)).transpose()?;
                 outage_window = Some((start, (*stop).min(returned.unwrap_or(*stop))));
             } else if available {
                 outage_window = None;
@@ -418,7 +419,7 @@ impl Transaction {
         // Outage rows always carry null; ON CONFLICT never backfills a null.
         let from = window.map(|v| v.0);
         let until = window.map(|v| v.1);
-        self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key,absorbed_seconds,absorbed_from,absorbed_until) SELECT m.provider_account,m.id,'machine',m.id,COALESCE((SELECT id FROM provisiond.operations WHERE machine_id=m.id ORDER BY created_at DESC LIMIT 1),m.id),$2,$3,m.native_terms->'offer'->>'currency',$4,CASE WHEN $2<>'rate_outage' AND r.available THEN (r.value->>'rate_num')::bigint END,CASE WHEN $2<>'rate_outage' AND r.available THEN (r.value->>'rate_den')::bigint END,$5,CASE WHEN $6::text IS NULL THEN 0 ELSE ceil(extract(epoch FROM $7::text::timestamptz-$6::text::timestamptz))::bigint END,$6::text::timestamptz,$7::text::timestamptz FROM provisiond.machines m LEFT JOIN provisiond.rates r ON r.currency=m.native_terms->'offer'->>'currency' WHERE m.id=$1::text::uuid ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&machine,&cause,&native,&clamped,&key,&from.map(|v|v.to_rfc3339()),&until.map(|v|v.to_rfc3339())]).await?;
+        self.rows("INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,subject_kind,subject_id,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key,absorbed_seconds,absorbed_from,absorbed_until) SELECT m.provider_account,m.id,'machine',m.id,COALESCE((SELECT id FROM provisiond.operations WHERE machine_id=m.id ORDER BY created_at DESC LIMIT 1),m.id),$2,$3,m.native_terms->'offer'->>'currency',$4,CASE WHEN $2<>'rate_outage' AND r.available THEN (r.value->>'rate_num')::bigint END,CASE WHEN $2<>'rate_outage' AND r.available THEN (r.value->>'rate_den')::bigint END,$5,CASE WHEN $6::text IS NULL THEN 0 ELSE ceil(extract(epoch FROM $7::text::timestamptz-$6::text::timestamptz))::bigint END,$6::text::timestamptz,$7::text::timestamptz FROM provisiond.machines m LEFT JOIN provisiond.current_rates r ON r.currency=m.native_terms->'offer'->>'currency' WHERE m.id=$1::text::uuid ON CONFLICT(idempotency_key) DO NOTHING RETURNING id",&[&machine,&cause,&native,&clamped,&key,&from.map(|v|v.to_rfc3339()),&until.map(|v|v.to_rfc3339())]).await?;
         Ok(())
     }
 }

@@ -347,13 +347,13 @@ impl State {
             self.p.n("retention_seconds"),
         );
         let sql = format!(
-            "SELECT COALESCE((SELECT jsonb_build_object('fingerprint',r.fingerprint,'resource_kind',r.resource_kind,'status',r.status,'body',r.response_body,'expires',provisiond.wire_time(r.expires_at),'expired',r.expires_at<=statement_timestamp(),'operation',jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at))) FROM provisiond.idempotency_records r LEFT JOIN LATERAL {history} h ON r.resource_kind='operation' AND h.id=r.resource_id AND (h.tenant_id=$1 OR h.tenant_id IS NULL) WHERE r.scope_kind='tenant' AND r.scope_id=$1 AND r.key=$2),'null'::jsonb)::text"
+            "SELECT CASE WHEN EXISTS(SELECT 1 FROM provisiond.credential_replacements WHERE tenant_id=$1 AND key=$2) THEN jsonb_build_object('credential_replaced',true) ELSE COALESCE((SELECT jsonb_build_object('fingerprint',r.fingerprint,'resource_kind',r.resource_kind,'status',r.status,'body',r.response_body,'expires',provisiond.wire_time(r.expires_at),'expired',r.expires_at<=statement_timestamp(),'operation',jsonb_build_object('body',h.body,'expired',h.expired,'retained_until',provisiond.wire_time(h.expires_at))) FROM provisiond.idempotency_records r LEFT JOIN LATERAL {history} h ON r.resource_kind='operation' AND h.id=r.resource_id AND (h.tenant_id=$1 OR h.tenant_id IS NULL) WHERE r.scope_kind='tenant' AND r.scope_id=$1 AND r.key=$2),'null'::jsonb) END::text"
         );
         let v = self.store.destination_value(&sql, &[&tenant, &key]).await?;
         if v.is_null() {
             return Ok(None);
         }
-        if v["fingerprint"] != fingerprint {
+        if v["credential_replaced"] == true || v["fingerprint"] != fingerprint {
             return Err(Error::conflict("idempotency_mismatch").into());
         }
         if v["resource_kind"] == "operation" {
@@ -702,7 +702,7 @@ impl State {
             return Err(Error::conflict("signup_window_closed").into());
         }
         let id = uuid::Uuid::new_v4().to_string();
-        // STO-54/STO-28: the simulator address is derived from the allocated
+        // STO-54 and the deposit schema: derive the simulator address from its
         // index, so a rollback fixture can actually detect address reuse.
         let index: i64 = tx
             .rows("SELECT nextval('provisiond.deposit_derivation_index')", &[])
@@ -784,7 +784,7 @@ impl State {
             .catalog
             .get(account)
             .context("missing configured descriptor")?;
-        let snapshot:Value=serde_json::from_str(&tx.rows("SELECT jsonb_build_object('status',s.status,'offers',COALESCE(l.offers,'[]'::jsonb),'stale',l.read_at IS NULL OR l.read_at<transaction_timestamp()-$2::bigint*interval '1 second','solvency',(SELECT solvency_halt FROM provisiond.funding_health WHERE singleton),'rate',r.value,'rate_available',COALESCE(r.available,false),'closed_ms',COALESCE((SELECT greatest(0,ceil(extract(epoch FROM closed_until-transaction_timestamp())*1000))::bigint FROM provisiond.channel_closures WHERE provider_account=$1 AND channel=$3),0),'ledger_valid',(SELECT ledger_valid FROM provisiond.spending_health WHERE singleton),'effective_visibility',ceil(COALESCE((SELECT max(extract(epoch FROM observed_at-dispatched_at)) FROM provisiond.provider_observations WHERE provider_account=$1),0)))::text FROM provisiond.provider_account_status s LEFT JOIN provisiond.offer_listings l USING(provider_account) LEFT JOIN provisiond.rates r ON r.currency=$4 WHERE s.provider_account=$1",&[&account,&self.p.n("listing_age_seconds"),&descriptor["channel"].as_str(),&descriptor["currency"].as_str()]).await?[0].get::<_,String>(0))?;
+        let snapshot:Value=serde_json::from_str(&tx.rows("SELECT jsonb_build_object('status',s.status,'offers',COALESCE(l.offers,'[]'::jsonb),'stale',l.read_at IS NULL OR l.read_at<transaction_timestamp()-$2::bigint*interval '1 second','solvency',(SELECT solvency_halt FROM provisiond.funding_health WHERE singleton),'rate',r.value,'rate_available',COALESCE(r.available,false),'closed_ms',COALESCE((SELECT greatest(0,ceil(extract(epoch FROM closed_until-transaction_timestamp())*1000))::bigint FROM provisiond.channel_closures WHERE provider_account=$1 AND channel=$3),0),'ledger_valid',(SELECT ledger_valid FROM provisiond.spending_health WHERE singleton),'effective_visibility',ceil(COALESCE((SELECT max(extract(epoch FROM observed_at-dispatched_at)) FROM provisiond.provider_observations WHERE provider_account=$1),0)))::text FROM provisiond.provider_account_status s LEFT JOIN provisiond.offer_listings l USING(provider_account) LEFT JOIN provisiond.current_rates r ON r.currency=$4 WHERE s.provider_account=$1",&[&account,&self.p.n("listing_age_seconds"),&descriptor["channel"].as_str(),&descriptor["currency"].as_str()]).await?[0].get::<_,String>(0))?;
         let effective = pricing::with_visibility(
             descriptor,
             snapshot["effective_visibility"].as_i64().unwrap_or(0),
@@ -1029,7 +1029,7 @@ impl State {
                 )
                 .into());
             }
-            let v=self.store.value("SELECT jsonb_build_object('offers',COALESCE(l.offers,'[]'::jsonb),'read_at',provisiond.wire_time(l.read_at),'rate',r.value,'rate_available',r.available)::text FROM provisiond.provider_accounts a LEFT JOIN provisiond.offer_listings l ON l.provider_account=a.account LEFT JOIN provisiond.rates r ON r.currency=$2 WHERE a.account=$1",&[&account,&d["currency"].as_str()]).await?;
+            let v=self.store.value("SELECT jsonb_build_object('offers',COALESCE(l.offers,'[]'::jsonb),'read_at',provisiond.wire_time(l.read_at),'rate',r.value,'rate_available',r.available)::text FROM provisiond.provider_accounts a LEFT JOIN provisiond.offer_listings l ON l.provider_account=a.account LEFT JOIN provisiond.current_rates r ON r.currency=$2 WHERE a.account=$1",&[&account,&d["currency"].as_str()]).await?;
             if v["rate_available"] != true {
                 return Err(gate("rate_unavailable").into());
             }

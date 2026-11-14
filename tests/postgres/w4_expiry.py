@@ -17,7 +17,7 @@ from workflow import PARAMETERS, http
 
 REFUSAL = 'expired authenticated deposit must receive HTTP 401 authentication refusal'
 STATUS = 'SELECT status FROM provisiond.tenants WHERE id=$1'
-RECEIPT = "SELECT COALESCE((SELECT jsonb_build_object('fingerprint'"
+RECEIPT = "SELECT CASE WHEN EXISTS(SELECT 1 FROM provisiond.credential_replacements"
 WORK = 'SELECT to_json(EXISTS(SELECT 1 FROM provisiond.enrolments'
 
 

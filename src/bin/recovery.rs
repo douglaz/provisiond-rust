@@ -1,5 +1,5 @@
 //! STO-13/54/56: separate operator entry; deployment owns stop/fence prerequisites.
-use anyhow::{Context, Result, ensure};
+use anyhow::{Result, ensure};
 use provisiond::{
     entry, recovery,
     store::{Process, Trace},
@@ -8,6 +8,19 @@ use std::{sync::Arc, time::Duration};
 
 #[tokio::main]
 async fn main() {
+    if std::env::var("PROVISIOND_RECOVERY_PARENT_PIPE").as_deref() == Ok("yes") {
+        std::thread::spawn(|| {
+            use std::io::Read;
+            let mut input = std::io::stdin().lock();
+            let mut byte = [0u8; 1];
+            loop {
+                match input.read(&mut byte) {
+                    Ok(0) | Err(_) => std::process::exit(1),
+                    Ok(_) => {}
+                }
+            }
+        });
+    }
     let trace: Trace = Arc::new(|v| println!("{v}"));
     let mut process = Process::new(trace.clone());
     let result: Result<()> = async {
@@ -25,11 +38,21 @@ async fn main() {
             Some("parent") if args.len() == 4 => recovery::parent(&store, &args[1], &args[2], &args[3]).await?,
             Some("establish") if args.len() == 3 => {
                 ensure!(std::env::var("PROVISIOND_COMPONENTS_STOPPED").as_deref() == Ok("yes"), "deployment must stop components and prevent restart before establishment");
-                let evidence = std::fs::read_to_string(std::env::var("PROVISIOND_RECOVERY_EVIDENCE").context("missing retained incident evidence file")?)?;
+                // STO-54: reporting input is optional, including on a retry after
+                // the host's file was lost. Retained incident evidence wins on a
+                // matching retry; initial establishment records unknown reasons.
+                let evidence = std::env::var("PROVISIOND_RECOVERY_EVIDENCE")
+                    .ok()
+                    .and_then(|path| std::fs::read_to_string(path).ok())
+                    .and_then(|body| serde_json::from_str(&body).ok())
+                    .unwrap_or_else(|| {
+                        eprintln!("STO-54 reporting input unavailable or malformed; endpoints remain unknown");
+                        serde_json::json!({"reporting_input":"unavailable_or_malformed"})
+                    });
                 let request = recovery::Establish {
                     id: args[1].clone(), predecessor: (args[2] != "none").then(|| args[2].clone()),
                     expected_instant: std::env::var("PROVISIOND_RECOVERY_EXPECTED_INSTANT").ok(),
-                    evidence: serde_json::from_str(&evidence)?,
+                    evidence,
                     rederivation_seconds: std::env::var("PROVISIOND_RECOVERY_INTERVAL_SECONDS")?.parse()?,
                     derivation_gap: std::env::var("PROVISIOND_RECOVERY_DERIVATION_GAP")?.parse()?,
                 };

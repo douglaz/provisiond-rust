@@ -175,7 +175,7 @@ def lock_dispatch_arm(w,mode):
         generation=h.sql('SELECT generation FROM provisiond.startup_generation')
         # This is a normal dispatcher iteration, held before selecting B. A has
         # an acknowledged claim and license, with its execution still represented.
-        selection=h.proxy.arm("SELECT id::text FROM provisiond.operations WHERE status='queued'",'send');gates.append(selection)
+        selection=h.proxy.arm("SELECT o.id::text FROM provisiond.operations o WHERE status='queued'",'send');gates.append(selection)
         connection=selection.wait();pid=connection['pid']
         assert pid!=lock_pid and p.poll() is None
         pending=None if mode=='empty_claim' else w.request('POST','/v1/machines',w.create_body(b),b,'lock-pending-'+mode,status=202)['id']
