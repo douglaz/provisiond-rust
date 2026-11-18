@@ -151,7 +151,7 @@ def retained_replay(w):
     # Disclosed fixture deadline with components stopped, followed by real
     # housekeeping. Observe physical deletion before issuing any replay; no
     # held writer, checkout race or manual operation deletion stands in for it.
-    w.api.terminate();w.api.wait(timeout=5)
+    w.stop_api()
     w.h.sql(f"UPDATE provisiond.idempotency_records SET expires_at=clock_timestamp()-interval '1 second' WHERE resource_kind='operation' AND resource_id='{op}'")
     until=w.h.sql(f"SELECT provisiond.wire_time(max(expires_at)) FROM provisiond.idempotency_records WHERE resource_kind='operation' AND resource_id='{op}'")
     w.restart_api()

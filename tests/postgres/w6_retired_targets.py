@@ -66,7 +66,7 @@ def retained_target(w,kind):
     assert retained_state(w)==before_live and w.external()==provider
     # The only clock control is the disclosed receipt deadline, with components
     # stopped. Real housekeeping must remove the operation and retain identity.
-    w.api.terminate();w.api.wait(timeout=5)
+    w.stop_api()
     w.h.sql(f"UPDATE provisiond.idempotency_records SET expires_at=clock_timestamp()-interval '1 second' WHERE resource_kind='operation' AND resource_id='{op}'")
     until=w.h.sql(f"SELECT provisiond.wire_time(max(expires_at)) FROM provisiond.idempotency_records WHERE resource_kind='operation' AND resource_id='{op}'")
     due=retained_state(w)

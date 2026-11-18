@@ -110,9 +110,11 @@ def reaped(w, p):
     from harness import eventually
     eventually(lambda:p.poll() is not None,seconds=5)
     p.wait(timeout=1)
-    assert p.returncode!=0
-    w.h.event('w5_process_exit',component=p.name,exit_status=p.returncode,harness_killed=False,
+    from workflow import exit_evidence
+    w.h.event('w5_process_exit',component=p.name,**exit_evidence(p),harness_killed=False,
               fatal_events=events(p,'engine_fatal'))
+    if p.name=='api':w.reserve_api_ports()
+    assert p.returncode!=0
 
 
 def successor(w, op, expected):
@@ -653,7 +655,7 @@ def connection_check(w):
     h=w.h
     for component in ('api','engine'):
         if component=='api':
-            w.api.terminate();w.api.wait(timeout=5)
+            w.stop_api()
         healthy=healthy_standby(h,component)
         gate=h.proxy.arm('store admission target','reply')
         try:
@@ -688,7 +690,7 @@ def process_death(w):
         connection=gate.wait();pid=connection['pid']
         pause_standby(h);paused=True;gate.release()
         eventually(lambda:h.sql(f"SELECT count(*) FROM pg_stat_activity WHERE pid={pid} AND wait_event='SyncRep'")=='1')
-        w.api.kill();w.api.wait(timeout=5);conn.close()
+        w.api.kill();w.api.wait(timeout=5);w.reserve_api_ports();conn.close()
         assert h.sql(f"SELECT count(*) FROM pg_stat_activity WHERE pid={pid} AND wait_event='SyncRep'")=='1'
         attempts=[]
         for attempt in (1,2):
@@ -814,7 +816,7 @@ SCENARIOS=dict(zip(CASES,[admission_before,admission_reply,claim_reply,step8,acc
 def default_hooks(w):
     """OPS-12/STO-7: environment/files cannot arm faults in ordinary binaries."""
     from w4_regressions import funded
-    h=w.h;w.api.terminate();w.api.wait(timeout=5)
+    h=w.h;w.stop_api()
     original_target=h.target;original_env=h.env;original_builds=w.builds;original_defect=w.defect
     target=h.root/'w5-default-target'
     h.owned_extra_paths=getattr(h,'owned_extra_paths',[])+[target]
@@ -845,7 +847,7 @@ def default_hooks(w):
         trace(w,other,'default build with fault files and blind-retry environment',faults_activated=False,expected_inert=True)
     finally:
         w.stop_engine()
-        if w.api.poll() is None:w.api.terminate();w.api.wait(timeout=5)
+        w.stop_api()
         for path in paths:
             if path.exists():path.unlink()
         h.target=original_target;h.env=original_env;w.builds=original_builds;w.defect=original_defect

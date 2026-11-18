@@ -110,7 +110,7 @@ def api_events(p):
 
 def startup(w):
     # Default binary, no retry for negative startup. Schema-only needs no service values.
-    w.api.terminate();w.api.wait(timeout=5)
+    w.stop_api()
     target=w.h.root/'default-startup-target'
     assert not target.exists(),'startup target must belong to this invocation'
     w.h.owned_extra_paths=getattr(w.h,'owned_extra_paths',[])+[target]
@@ -122,12 +122,19 @@ def startup(w):
               PROVISIOND_API_LISTEN=f'127.0.0.1:{w.h.ports[4]}',
               PROVISIOND_RAIL_SIMULATOR=f'127.0.0.1:{w.h.ports[6]}')
     def run(name,env,args=()):
+        w.h.release_port(w.h.ports[4])
+        if w.operator_env:w.h.release_port(w.h.ports[7])
         log=w.h.root/(name+'.stdout');err=w.h.root/(name+'.stderr')
         with log.open('w') as out,err.open('w') as errors:
             p=subprocess.Popen([str(executable),*args],env=env,stdout=out,stderr=errors,text=True)
         p.name='api';p.log=log;p.error=err;w.children.append(p);w.h.extra.append(p)
         w.h.event('workflow_binary_started',component='api',case=name,**identity)
         eventually(lambda:p.poll() is not None or any(e['event']=='api_listening' for e in api_events(p)))
+        if p.poll() is not None:
+            if p.returncode!=0:
+                from workflow import deployment_exit
+                deployment_exit(w.h,'api',p,case=name,retry_eligible=False)
+            w.reserve_api_ports()
         return p
     for var in ['PROVISIOND_RAIL_SIMULATOR','PROVISIOND_API_LISTEN']:
         for label,value in [('missing',None),('malformed','not-an-address'),('nonloopback','192.0.2.1:1234'),('zero-port','127.0.0.1:0')]:
@@ -154,9 +161,11 @@ def clean_failure(w,p,assertion):
     # No extra customer connection is made to wake the accept loop.
     eventually(lambda:p.poll() is not None or any(e['event']=='api_stopping' for e in api_events(p)),seconds=4)
     if p.poll() is None:eventually(lambda:p.poll() is not None,seconds=4)
-    w.h.event('api_lifecycle_exit_observed',exit_status=p.returncode,
+    from workflow import exit_evidence
+    w.h.event('api_lifecycle_exit_observed',**exit_evidence(p),
               tasks_finished=any(e['event']=='api_tasks_finished' for e in api_events(p)),
-              panic='panicked' in p.error.read_text(),stderr_sha256=hashlib.sha256(p.error.read_bytes()).hexdigest())
+              panic='panicked' in p.error.read_text())
+    w.reserve_api_ports()
     assert p.returncode==1 and 'panicked' not in p.error.read_text(),assertion
     assert any(e['event']=='api_tasks_finished' for e in api_events(p))
     with socket.socket() as s:assert s.connect_ex(('127.0.0.1',w.h.ports[4]))!=0

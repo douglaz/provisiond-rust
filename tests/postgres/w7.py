@@ -1,6 +1,7 @@
 """STO-54/56, OPS-15/41: actual operator recovery on isolated physical histories."""
 import hashlib
 import json
+from pathlib import Path
 import subprocess
 import shutil
 import socket
@@ -26,12 +27,34 @@ def record(w):
 def operator(w,*args,ok=True,extra=None):
     h=w.h
     old=h.env
-    h.env=dict(old,**environment(h),PROVISIOND_COMPONENTS_STOPPED='yes',
-        PROVISIOND_RECOVERY_INTERVAL_SECONDS='3',PROVISIOND_RECOVERY_DERIVATION_GAP='10000',
-        **(extra or {}))
+    prefix=h.root/f'recovery-{len(h.commands)}'
+    h.env=dict(old,**environment(h),PROVISIOND_RECOVERY_LOG=str(prefix.with_suffix('.jsonl')),
+        PROVISIOND_COMPONENTS_STOPPED='yes',
+        PROVISIOND_RECOVERY_INTERVAL_SECONDS='3',PROVISIOND_RECOVERY_DERIVATION_GAP='10000')
+    h.env.update(extra or {})
+    h.env={key:value for key,value in h.env.items() if value is not None}
     if w.defect and w.defect!='w7_no_ack':h.env['STORE_TEST_DEFECT']=w.defect
     try:
         result=h.run([str(h.target/'debug/recovery'),*args],ok=ok,timeout=12)
+        prefix.with_suffix('.stdout').write_text(result.stdout)
+        prefix.with_suffix('.stderr').write_text(result.stderr)
+        # STO-54/56: standalone CLI returns a single result, diagnostics stay in
+        # its explicitly requested file; plain operator notices stay on stderr.
+        assert not any(line.startswith('{') for line in result.stderr.splitlines()),'STO-54 recovery trace must not leak to stderr'
+        row=None
+        if result.returncode==0 and args[0]!='--check-schema':
+            assert len(result.stdout.splitlines())==1,'STO-56 recovery stdout must contain one result row'
+            row=json.loads(result.stdout)
+            assert row is None or isinstance(row,dict) and 'event' not in row,'STO-56 recovery stdout contains trace instead of result'
+            if args[0] in ('prepare','parent','close'):
+                expected=(record(w) if args[0]=='prepare' else json.loads(h.sql(f"SELECT to_jsonb(r) FROM provisiond.recovery_incidents r WHERE id='{args[1]}'")))
+                assert row==expected,'STO-56 recovery action must return its persisted result row'
+        else:assert not result.stdout,'STO-54 failed recovery must not print a result'
+        log=Path(h.env['PROVISIOND_RECOVERY_LOG']) if 'PROVISIOND_RECOVERY_LOG' in h.env else None
+        events=trace_events(log) if log and log.exists() else []
+        if log:assert events,'STO-54 requested recovery log must receive trace events'
+        h.event('recovery_cli_contract_observed',action=args[0],row=row,log_requested=log is not None,
+            trace_events=events,stdout_path=str(prefix.with_suffix('.stdout')),stderr_path=str(prefix.with_suffix('.stderr')))
         h.event('recovery_cli_completed',action=args[0],exit_status=result.returncode,
             stdout_sha256=hashlib.sha256(result.stdout.encode()).hexdigest(),
             stderr_sha256=hashlib.sha256(result.stderr.encode()).hexdigest())
@@ -173,7 +196,7 @@ def ordinary(w):
         generations.append(h.sql('SELECT generation FROM provisiond.startup_generation'))
         assert record(w) is None and w.status(op)=='queued'
     assert generations[0]!=generations[1]
-    w.api.terminate();w.api.wait(timeout=5)
+    w.stop_api()
     before=len(h.proxy.connections)
     h.stop('primary',mode='immediate');h.start('primary');h.identity()
     w.launch_api();p=w.start_engine();w.stop_engine()
@@ -185,7 +208,7 @@ def ordinary(w):
 
 def rebuild(w):
     h=w.h
-    w.stop_engine();w.api.terminate();w.api.wait(timeout=5);w.quiesced=True
+    w.stop_engine();w.stop_api();w.quiesced=True
     h.stop('standby')
     retired=h.nodes.pop('standby');h.nodes['intact-retired-standby']=retired
     h.backup('intact-rebuild',standby=True)
@@ -562,11 +585,16 @@ def reporting_progress(w):
     """STO-54/56: gate both preparation and delivery to the reporting waiter."""
     import concurrent.futures
     h=w.h;promote(w);bootstrap(w);id,_=establish(w)
-    operator(w,'prepare');w.quiesced=False
+    w.quiesced=False
     prepared=h.proxy.arm('SET steps_completed=2','send')
     delivery=None
     try:
         w.start_engine();connection=prepared.wait()
+        engine_trace=trace_events(w.engine.log)
+        assert any(e.get('event')=='recovery_loss_report' for e in engine_trace),'STO-54 supervised preparation must publish loss report in engine log'
+        assert any(e.get('event')=='recovery_step_acknowledged' and e.get('step')==1 for e in engine_trace),'STO-54 supervised preparation must publish step-one acknowledgment in engine log'
+        assert all('event' in e for e in engine_trace),'STO-56 supervised preparation must suppress CLI result rows'
+        assert not any(line.startswith('{') for line in w.engine.error.read_text().splitlines()),'STO-54 supervised recovery events must stay in engine log'
         assert record(w)['steps_completed']==1
         # The old start/stop fixture would already terminate at this point.
         assert any(e.get('event')=='restart_pass_complete' for e in trace_events(w.engine.log))
@@ -601,6 +629,8 @@ def reporting(w):
     result=operator(w,'establish',id,'none',ok=False,extra=dict(PROVISIOND_RECOVERY_EVIDENCE=str(path)))
     w.h.event('w7_reporting_file_observed',exit_status=result.returncode,case='malformed initial')
     assert result.returncode==0,'STO-54 malformed reporting file must not hold establishment'
+    assert record(w)['history_evidence']['reporting_input']=='malformed' and record(w)['history_evidence']['invalid_certificate_input'] is True
+    assert 'reporting input malformed JSON' in result.stderr
     operator(w,'prepare');w.quiesced=False;w.start_engine()
     wait_quarantine(w);w.stop_engine()
     before=record(w);assert before['steps_completed']==2
@@ -612,7 +642,7 @@ def reporting(w):
     finite=before['lost_window_starts_at'] is not None and before['loss_end_at'] is not None
     w.h.event('w7_reporting_observed',record=before,finite_duration=finite)
     assert before['lost_window_starts_at'] is None and before['loss_end_at'] is None and before['history_evidence']['finite_duration_established'] is False,'STO-54 bare timestamp or LSN must not establish finite loss duration'
-    w.stop_engine();w.api.terminate();w.api.wait(timeout=5)
+    w.stop_engine();w.stop_api()
     establish(w,id,before['supersedes_incident_id'])
     assert record(w)==before
     w.h.event('w7_reporting_observed',record=record(w),finite_duration=False)
@@ -622,8 +652,28 @@ def reporting(w):
     missing_id=str(uuid.uuid4())
     missing=operator(w,'establish',missing_id,id,extra=dict(PROVISIOND_RECOVERY_EVIDENCE=str(path)))
     assert missing.returncode==0 and record(w)['history_evidence']['finite_duration_established'] is False
+    assert record(w)['history_evidence']['reporting_input']=='absent' and record(w)['history_evidence']['invalid_certificate_input'] is False,'STO-54 missing reporting input is absent, not invalid'
+    assert 'no reporting input supplied' in missing.stderr
     id=missing_id;continue_recovery(w);w.stop_engine()
     w.h.event('w7_causal_trace',scenario=w.case,incident=id,initial_missing_reporting_file=True,no_extra_reporting_hold=True)
+    promote(w);bootstrap(w)
+    absent_id=str(uuid.uuid4())
+    absent=operator(w,'establish',absent_id,id,extra=dict(PROVISIOND_RECOVERY_EVIDENCE=None,PROVISIOND_RECOVERY_LOG=None))
+    evidence=record(w)['history_evidence']
+    assert evidence['reporting_input']=='absent' and evidence['invalid_certificate_input'] is False,'STO-54 unset reporting input is absent, not invalid'
+    assert evidence['finite_duration_established'] is False and 'no reporting input supplied' in absent.stderr
+    id=absent_id;continue_recovery(w);w.stop_engine()
+    quiet=operator(w,'prepare',extra=dict(PROVISIOND_RECOVERY_LOG=None))
+    assert json.loads(quiet.stdout)==record(w) and not quiet.stderr,'STO-54 quiet preparation must return only its result'
+    w.h.event('w7_causal_trace',scenario=w.case,incident=id,initial_unset_reporting_input=True,quiet_default=True,no_extra_reporting_hold=True)
+    promote(w);bootstrap(w)
+    unreadable_id=str(uuid.uuid4())
+    unreadable=operator(w,'establish',unreadable_id,id,extra=dict(PROVISIOND_RECOVERY_EVIDENCE=str(w.h.root)))
+    evidence=record(w)['history_evidence']
+    assert evidence['reporting_input']=='malformed' and evidence['invalid_certificate_input'] is True,'STO-54 unreadable reporting input remains invalid'
+    assert 'reporting input unreadable' in unreadable.stderr
+    id=unreadable_id;continue_recovery(w);w.stop_engine()
+    w.h.event('w7_causal_trace',scenario=w.case,incident=id,unreadable_reporting_input=True,no_extra_reporting_hold=True)
     for field in ('lower','upper'):
         promote(w);bootstrap(w)
         id,_=establish(w,predecessor=id,evidence_input={field:{'timestamp':'2026-01-01T00:00:00Z','lsn':'0/1234'}})
@@ -707,7 +757,7 @@ def credentials(w):
 def legacy_upgrade(w):
     from pathlib import Path
     from core import binary
-    h=w.h;w.stop_engine();w.api.terminate();w.api.wait(timeout=5)
+    h=w.h;w.stop_engine();w.stop_api()
     h.sql('DROP SCHEMA provisiond CASCADE; CREATE SCHEMA provisiond AUTHORIZATION migrator;')
     programs='\n'.join(Path('migrations/'+name).read_text() for name in ('0001-core.sql','0002-local-service.sql','0003-reconciliation.sql'))
     h.sql("BEGIN; CREATE TABLE provisiond.schema_migrations(version bigint PRIMARY KEY,semantics bigint NOT NULL,completed_at timestamptz NOT NULL DEFAULT transaction_timestamp());"+programs+"INSERT INTO provisiond.schema_migrations(version,semantics) VALUES(1,1),(2,2),(3,3); COMMIT;",role='migrator')
@@ -778,7 +828,7 @@ def interruptions(w):
     with socket.socket() as probe:assert probe.connect_ex(('127.0.0.1',h.ports[4]))!=0,'STO-54 listener must remain down before phase 3 mark'
     assert record(w)['steps_completed']==2 and record(w)['grace_ends_at'] is None
     skipped=int(h.sql('SELECT last_value FROM provisiond.deposit_derivation_index'))
-    p.terminate();p.wait(timeout=5)
+    p.terminate();p.wait(timeout=5);w.reserve_api_ports()
     h.proxy.close_connection(connection,'interrupted-phase-3');gate.release();h.proxy.gates.remove(gate)
     w.launch_api();assert record(w)['steps_completed']==3
     assert int(h.sql('SELECT last_value FROM provisiond.deposit_derivation_index'))>skipped
@@ -902,7 +952,7 @@ def expired_replay(w):
     h=w.h;tenant=w.enrol();w.fund(tenant,'expired-replay-baseline')
     expired=w.request('POST','/v1/deposits',{'amount_sats':31},tenant,'expired-history')
     live=w.request('POST','/v1/deposits',{'amount_sats':46},tenant,'live-history')
-    w.api.terminate();w.api.wait(timeout=5)
+    w.stop_api()
     (w.control/'hold-funding').touch()
     # Historical expiry metadata only; payment/credit outcomes are never seeded.
     h.sql(f"UPDATE provisiond.deposits SET expires_at=clock_timestamp()+interval '2 seconds' WHERE id='{expired['id']}'")
@@ -943,7 +993,7 @@ def expired_replay(w):
             assert not any(e.get('event') in ('api_listening','funding_held') for e in trace_events(p.log))
             if attempt==0:
                 # Interrupt the unmarked phase after acknowledged payment commits.
-                p.terminate();p.wait(timeout=5)
+                p.terminate();p.wait(timeout=5);w.reserve_api_ports()
                 h.proxy.close_connection(connection,'expired-replay-unmarked-successor')
         finally:
             gate.release()
@@ -986,14 +1036,22 @@ def w7(h,case=None,defect=None):
         # Independent physical histories and process inventories per selector.
         # Each foreground child owns its assertions and complete cleanup.
         for port in list(h.port_reservations):h.release_port(port)
+        h.release_slot();h.release_slot=lambda:None
+        from runner import children
+        jobs=[]
         for name in CASES:
             path=h.root/(name+'.json')
             command=['python3','tests/postgres/harness.py','--phase','w7','--case',name,'--seed',str(h.seed),'--evidence',str(path)]
-            result=subprocess.run(command,env=h.env,check=False)
+            jobs.append((command,path,h.env))
+        failed=False
+        for name,result in zip(CASES,children(jobs),strict=True):
+            path=h.root/(name+'.json')
             manifest=json.loads(path.read_text()) if path.exists() else {}
-            h.event('w7_child_result',scenario=name,exit_status=result.returncode,path=str(path),manifest=manifest)
-            assert result.returncode==0 and manifest.get('result')=='pass','W7 child scenario or cleanup failed'
-            h.results.append(dict(test=name,result='pass'))
+            h.event('w7_child_result',scenario=name,exit_status=result['exit_status'],wall_seconds=result['wall_seconds'],path=str(path),manifest=manifest)
+            passed=result['exit_status']==0 and manifest.get('result')=='pass'
+            failed=failed or not passed
+            h.results.append(dict(test=name,result='pass' if passed else 'fail'))
+        assert not failed,'W7 child scenario or cleanup failed'
         h.event('w7_inventory_complete',required=CASES,observed=[r['test'] for r in h.results])
         return
     w=Workflow(h,defect=defect,operator=True,default_build=case=='w7_default_hooks')

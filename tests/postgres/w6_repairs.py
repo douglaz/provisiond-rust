@@ -267,7 +267,7 @@ def operator_retention(w):
     hold=w.h.root/'provider/hold-reconciliation';hold.touch();proof(w,current,delete='acceptance_not_applied')
     w.start_engine();w.wait_status(current,'needs_reconciliation');w.stop_engine();hold.unlink()
     operator(w,f'/v1/operations/{current}/actions/resolve',{'resolution':'not_applied','operator_ref':'retention-episode'},'retention-episode-resolve')
-    w.api.terminate();w.api.wait(timeout=5)
+    w.stop_api()
     w.h.sql(f"UPDATE provisiond.idempotency_records SET expires_at=clock_timestamp()-interval '1 second' WHERE resource_id='{current}'; DELETE FROM provisiond.operations WHERE id='{current}'")
     w.launch_api()
     assert operator(w,f'/v1/episodes/{episode}',method='GET')['current_operation_id']==current
@@ -283,7 +283,7 @@ def legacy_cleanup(w):
     """STO-12/OPS-23/35/45: exact schema-2 placeholder upgrades offline."""
     from core import binary
     from w6 import proof,operation_state
-    w.stop_engine();w.api.terminate();w.api.wait(timeout=5)
+    w.stop_engine();w.stop_api()
     # This case is last: replace only this invocation's schema while all runtime
     # components are stopped. Provider simulator state remains independently held.
     w.h.sql('DROP SCHEMA provisiond CASCADE; CREATE SCHEMA provisiond AUTHORIZATION migrator; GRANT USAGE ON SCHEMA provisiond TO app')

@@ -160,7 +160,7 @@ def default_hooks(w):
     from w6 import create,lost,pending,proof,one_purchase
     from w5 import events,orders,admit
     from harness import eventually
-    h=w.h;w.stop_engine();w.api.terminate();w.api.wait(timeout=5)
+    h=w.h;w.stop_engine();w.stop_api()
     original=(h.target,h.env,w.builds,w.defect)
     target=h.root/'w6-default-target'
     h.owned_extra_paths=getattr(h,'owned_extra_paths',[])+[target]
@@ -213,7 +213,7 @@ def default_hooks(w):
         h.event('w6_default_observed',features=[],defect_environments=observed,delete_operation=op,control_files_ignored=True)
     finally:
         w.stop_engine()
-        if w.api.poll() is None:w.api.terminate();w.api.wait(timeout=5)
+        w.stop_api()
         for path in paths:
             if path.exists():path.unlink()
         hold.unlink(missing_ok=True)

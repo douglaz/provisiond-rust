@@ -36,8 +36,15 @@ def cap_check():
                                         'OOMPolicy=continue'}, r.stdout
 
 
+def check_port_range():
+    """STO-7 fixture isolation: listener slots must exclude ephemeral ports."""
+    first,last=map(int,Path('/proc/sys/net/ipv4/ip_local_port_range').read_text().split())
+    if first<=25999 and last>=25500:
+        raise ValueError(f'harness ports overlap kernel ephemeral range {first}..{last}; require 25500..25999 outside it')
+
+
 def free_port(port):
-    assert 55500 <= port <= 55559
+    assert 25500 <= port <= 25999
     with socket.socket() as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('127.0.0.1', port))
@@ -45,12 +52,13 @@ def free_port(port):
 
 def allocation():
     """Required private ten-port allocation, validated before starting any child."""
+    check_port_range()
     raw = os.environ.get('PROVISIOND_HARNESS_PORT_BASE', '')
     if not raw.isascii() or not raw.isdecimal():
         raise ValueError('PROVISIOND_HARNESS_PORT_BASE must be an integer')
     base = int(raw)
-    if base not in range(55500, 55560, 10):
-        raise ValueError('ten harness ports require a slot base in 55500..55550')
+    if base not in range(25500, 26000, 10):
+        raise ValueError('ten harness ports require a slot base in 25500..25990')
     return list(range(base, base + 10))
 
 
@@ -173,6 +181,11 @@ class Harness:
 
     def run(self, cmd, *, sql=None, ok=True, timeout=45):
         # SQL/passwords are intentionally omitted from command manifests.
+        from runner import reuse_build
+        cached = reuse_build(self,cmd) if os.environ.get('PROVISIOND_HARNESS_INVOCATION') else None
+        if cached is not None:
+            self.commands.append(dict(command=cached.args,exit_status=0))
+            return cached
         try:
             r = subprocess.run(cmd, input=sql, env=self.env, capture_output=True, text=True, timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -463,6 +476,7 @@ tcp_keepalives_count = 2
         paths.update(self.root/n for n in ['primary','restored','restore-backup','standby','rebuilt'])
         paths.update(getattr(self,'owned_extra_paths',[]))
         paths.add(self.target)  # invocation-owned build output, after every child is reaped
+        paths.add(self.archive)  # archived WAL is disposable only after assertions and server cleanup
         for path in sorted(paths):
             if path.exists() and not errors:
                 shutil.rmtree(path)
@@ -522,14 +536,16 @@ tcp_keepalives_count = 2
 
 
 def main():
+    from runner import DEFAULT_JOBS
     ap=argparse.ArgumentParser()
     ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','default-workflow','w5','w6','w7','all'],default='all')
     ap.add_argument('--case',choices=__import__('w7').CASES+__import__('w6').CASES+__import__('w5').CASES+['w7_controls','w6_controls','w5_controls','session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'],help='one focused regression; default runs all')
     ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset','w4_atomic','w4_ack','w4_overload','w5_generation','w5_checkout','w5_blind_retry','w5_stop_reset','w5_observer_run','w6_blind_repeat','w6_non_exact','w6_release_timeout','w6_skip_startup','w7_retry_reset','w7_lossless_restart','w7_no_ack','w7_supersession_inherits','w7_finite_guess'])
+    ap.add_argument('--jobs',type=int,default=DEFAULT_JOBS,help='global isolated worker bound (default: 6)')
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
-    preflight_ports()
+    if not 1<=args.jobs<=50:ap.error('--jobs must be in 1..50')
     cases={
         'w5':set(__import__('w5').CASES),
         'w6':set(__import__('w6').CASES),
@@ -570,37 +586,49 @@ def main():
     }
     if args.defect and (args.phase,args.case)!=defect_cases[args.defect]:
         ap.error('--defect requires its exact compatible phase and case')
+    from runner import invocation
+    cap_check()
+    with invocation(ROOT,args.jobs,candidates=args.phase in ('all','controls')):
+        return dispatch(args)
+
+
+def dispatch(args):
     if args.phase=='controls':
         from controls import controls
         return controls(args.seed,args.evidence,w5_only=args.case=='w5_controls',w6_only=args.case=='w6_controls',w7_only=args.case=='w7_controls')
     if args.phase=='all':
+        from runner import PHASES,children
         cap_check()
+        root=Path(tempfile.mkdtemp(prefix='all-',dir=ROOT))
+        jobs=[]
+        for phase in PHASES:
+            path=args.evidence.with_name(args.evidence.stem+'-'+phase+'.json') if args.evidence else root/(phase+'.json')
+            command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed),'--evidence',str(path)]
+            jobs.append((command,path,dict(os.environ)))
         records=[]
-        for phase in ['w1','checks','commits','regressions','corrections','core','workflow','default-workflow','w5','w6','w7','controls']:
-            command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed)]
-            # Explicit evidence names; every child command remains foreground.
-            path=None
-            if args.evidence:
-                path=args.evidence.with_name(args.evidence.stem+'-'+phase+'.json')
-            elif phase in ('w5','w6','w7'):
-                ROOT.mkdir(parents=True,exist_ok=True)
-                path=Path(tempfile.mkdtemp(prefix='all-'+phase+'-',dir=ROOT))/'manifest.json'
-            if path:command.extend(['--evidence',str(path)])
-            result=subprocess.run(command,check=False)
-            records.append(dict(phase=phase,command=['nix','develop','--command',*command],exit_status=result.returncode,
-                                result='pass' if result.returncode==0 else 'fail'))
-            if phase in ('w5','w6','w7') and result.returncode==0:
-                inventory_complete=__import__(phase).inventory_complete
-                child=json.loads(path.read_text()) if path and path.exists() else {}
-                if not inventory_complete(child):
-                    records[-1].update(result='fail',reason=f'missing or incomplete {phase} phase inventory')
-            if records[-1]['result']!='pass':
-                break
+        for phase,record in zip(PHASES,children(jobs),strict=True):
+            record.update(phase=phase,result='pass' if record['exit_status']==0 else 'fail')
+            if phase in ('w5','w6','w7') and record['exit_status']==0:
+                child=json.loads(Path(record['path']).read_text())
+                if not __import__(phase).inventory_complete(child):
+                    record.update(result='fail',reason=f'missing or incomplete {phase} phase inventory')
+            records.append(record)
         status=0 if len(records)==12 and all(r['exit_status']==0 and r['result']=='pass' for r in records) else 1
-        if args.evidence:
-            args.evidence.write_text(json.dumps(dict(result='pass' if status==0 else 'fail',phases=records),indent=2)+'\n')
+        manifest=dict(result='pass' if status==0 else 'fail',phases=records,
+                      jobs=int(os.environ['PROVISIOND_HARNESS_JOBS']))
+        if args.evidence:args.evidence.write_text(json.dumps(manifest,indent=2)+'\n')
+        print(json.dumps(manifest),flush=True)
         return status
-    h=Harness(args.phase,args.seed)
+    from runner import worker_slot
+    # STO-7/54, PRV-36: keep repeated-history cold startup and the real
+    # visibility-age witness clear of competing backup I/O. Their checkout
+    # and absence bounds remain unchanged; every other history can overlap.
+    slot=worker_slot(exclusive=args.phase=='w7' and args.case in ('w7_lossy','w7_reporting'));slot.__enter__()
+    try:h=Harness(args.phase,args.seed)
+    except BaseException:
+        slot.__exit__(None,None,None)
+        raise
+    h.release_slot=lambda:slot.__exit__(None,None,None)
     status='fail'
     try:
         if args.phase=='w1':
@@ -654,6 +682,7 @@ def main():
         (h.root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
         if args.evidence:
             args.evidence.write_text(json.dumps(manifest,indent=2)+'\n')
+        h.release_slot()
         print(json.dumps(dict(result=status,raw_evidence=str(h.root),scenarios=h.results)),flush=True)
     return 0 if status=='pass' else 1
 

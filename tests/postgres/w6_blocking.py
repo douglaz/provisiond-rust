@@ -30,7 +30,7 @@ def retirement(w):
     from w4_retention_scale import sql,snapshot,completions
     saved=dedicated_account(w,'sim-retirement')
     t,_,_=create(w,'retirement-genuine')
-    w.api.terminate();w.api.wait(timeout=5)
+    w.stop_api()
     # Fixed extra history: no planner overrides, runtime or timeout changes.
     sql(w,"""
       INSERT INTO provisiond.operations(id,tenant_id,idempotency_key,kind,status,request_summary,correlation_id)
@@ -46,7 +46,11 @@ def retirement(w):
     began=time.monotonic();w.restart_api()
     def remaining():return int(sql(w,"SELECT count(*) FROM provisiond.operations WHERE correlation_id='retire-scale'"))
     eventually(lambda:w.api.poll() is not None or remaining()==19010,seconds=15)
-    if w.api.poll() is not None:w.api.wait(timeout=5)
+    if w.api.poll() is not None:
+        from workflow import exit_evidence
+        w.api.wait(timeout=5)
+        w.h.event('api_lifecycle_exit_observed',**exit_evidence(w.api))
+        w.reserve_api_ports()
     after=snapshot(w);left=remaining();diagnostic=w.api.error.read_text()
     statements=[e for e in w.h.events[start:] if 'DELETE FROM provisiond.operations' in e.get('query','')]
     failures=[e for e in statements if e['event']=='protocol_response' and e.get('tag')=='E']
@@ -93,7 +97,7 @@ def credential(w,site):
     w.provider_control(authentication_fault=dict(account=account,path=site,operation=op))
     before=len(w.external()['events'])
     # One worker makes the pending-work ordering deterministic; no runtime bound changes.
-    p=w.start('engine',dict(PROVISIOND_TEST_CONTROL=str(w.control),PROVISIOND_WORKERS='1'));w.engine=p
+    p=w.start_engine(dict(PROVISIOND_WORKERS='1'))
     eventually(lambda:'restart_pass_complete' in p.log.read_text() or p.poll() is not None)
     assert p.poll() is None,p.error.read_text()
     eventually(lambda:any(e['stage']=='authentication_rejected' and e['command']==op and e['path']==site for e in w.external()['events'][before:]))
