@@ -1,5 +1,6 @@
 """STO-7/54: failed children retain their exits and cannot hide later children."""
 import json
+import fcntl
 import os
 from pathlib import Path
 import sys
@@ -10,6 +11,38 @@ from runner import children,worker_slot,port_pool
 
 
 class ForegroundWorkers(unittest.TestCase):
+    def test_timed_history_excludes_other_slots_without_releasing_its_ports(self):
+        # STO-7: keep a serial phase's live cluster lease while its fixed-window
+        # case owns every token; exceptional exit must restore ordinary overlap.
+        with tempfile.TemporaryDirectory() as directory,patch.dict(os.environ,
+                PROVISIOND_HARNESS_INVOCATION=directory,PROVISIOND_HARNESS_JOBS='3',
+                PROVISIOND_HARNESS_SLOT_BASE='25880',PROVISIOND_HARNESS_PORT_BASE='25880'):
+            root=Path(directory)
+            def available(token):
+                with (root/f'slot-{token}.lock').open('w') as lock:
+                    try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                    except BlockingIOError:return False
+                    return True
+            with port_pool(root,25880):
+                with worker_slot() as alone:
+                    base=os.environ['PROVISIOND_HARNESS_PORT_BASE']
+                    self.assertEqual([available(i) for i in range(3)],[False,True,True])
+                    with self.assertRaisesRegex(RuntimeError,'case failed'):
+                        with alone():
+                            self.assertEqual([available(i) for i in range(3)],[False,False,False])
+                            self.assertEqual(os.environ['PROVISIOND_HARNESS_PORT_BASE'],base)
+                            raise RuntimeError('case failed')
+                    self.assertEqual([available(i) for i in range(3)],[False,True,True])
+                    self.assertEqual(os.environ['PROVISIOND_HARNESS_PORT_BASE'],base)
+                self.assertEqual([available(i) for i in range(3)],[True,True,True])
+            leases=[json.loads(line) for line in (root/'ports.jsonl').read_text().splitlines()]
+            self.assertEqual([e['action'] for e in leases],['allocate','release'])
+            self.assertEqual(leases[0]['base'],leases[1]['base'])
+            events=[json.loads(line) for line in (root/'workers.jsonl').read_text().splitlines()]
+            self.assertEqual([e['event'] for e in events],['worker_started','worker_exclusive_started',
+                'worker_exclusive_finished','worker_finished'])
+            self.assertEqual([e['tokens'] for e in events],[1,3,3,1])
+
     def test_completed_worker_does_not_immediately_recycle_ports(self):
         with tempfile.TemporaryDirectory() as directory,patch.dict(os.environ,
                 PROVISIOND_HARNESS_INVOCATION=directory,PROVISIOND_HARNESS_JOBS='1',

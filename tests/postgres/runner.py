@@ -179,9 +179,34 @@ def worker_slot(exclusive=False):
             record=dict(pid=os.getpid(),port_base=selected,tokens=len(locks),exclusive=exclusive)
             def event(kind,**data):
                 with (root/'workers.jsonl').open('a') as stream:
-                    stream.write(json.dumps(dict(event=kind,timestamp=time.time(),**record,**data))+'\n')
+                    stream.write(json.dumps(dict(record,event=kind,timestamp=time.time(),**data))+'\n')
             event('worker_started',wait_seconds=time.monotonic()-waiting)
-            try:yield
+            @contextmanager
+            def alone():
+                # W6 retains one physical history across its cases. Keep that
+                # history's token and port lease while its timed case drains
+                # competing workers. Only this serial phase upgrades a slot.
+                extra=[]
+                try:
+                    if not exclusive:
+                        while True:
+                            for token in range(jobs):
+                                if token==index:continue
+                                lock=(root/f'slot-{token}.lock').open('w')
+                                try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                                except BlockingIOError:
+                                    lock.close()
+                                    for held in extra:held.close()
+                                    extra=[];break
+                                extra.append(lock)
+                            else:break
+                            time.sleep(.05)
+                    event('worker_exclusive_started',tokens=jobs,exclusive=True)
+                    try:yield
+                    finally:event('worker_exclusive_finished',tokens=jobs,exclusive=True)
+                finally:
+                    for held in extra:held.close()
+            try:yield alone
             finally:
                 event('worker_finished')
                 port_request(root,'release',base=selected)

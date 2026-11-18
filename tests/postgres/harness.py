@@ -620,15 +620,18 @@ def dispatch(args):
         print(json.dumps(manifest),flush=True)
         return status
     from runner import worker_slot
-    # STO-7/54, PRV-36: keep repeated-history cold startup and the real
-    # visibility-age witness clear of competing backup I/O. Their checkout
-    # and absence bounds remain unchanged; every other history can overlap.
-    slot=worker_slot(exclusive=args.phase=='w7' and args.case in ('w7_lossy','w7_reporting'));slot.__enter__()
+    # STO-7/54, PRV-36: isolate recorded fixed-window histories from competing
+    # backup I/O. The serial W6 phase upgrades only around default_hooks;
+    # focused default_hooks and the non-exact control start with all tokens.
+    exclusive=(args.phase=='w7' and args.case in ('w7_lossy','w7_reporting')
+        or args.phase=='w6' and args.case=='w6_default_hooks' or args.defect=='w6_non_exact')
+    slot=worker_slot(exclusive=exclusive);alone=slot.__enter__()
     try:h=Harness(args.phase,args.seed)
     except BaseException:
         slot.__exit__(None,None,None)
         raise
     h.release_slot=lambda:slot.__exit__(None,None,None)
+    h.exclusive_history=alone
     status='fail'
     try:
         if args.phase=='w1':

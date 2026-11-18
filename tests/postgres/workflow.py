@@ -195,7 +195,10 @@ class Workflow:
         # STO-7: each failed constructor still exits closed and unused. Only
         # fixture deployment may repeat a proven pre-admission checkout refusal;
         # negative/control starts use start directly and remain single attempts.
-        allowed={'client_keepalives_observed','check_target','call_cancelled_session_closed',
+        # Manager::create/Session::check emit target and peer observations before
+        # session_admitted (src/store/mod.rs). entry::continue_pre_lock cannot
+        # finish compatibility reads or reach recovery until that admission.
+        allowed={'client_keepalives_observed','check_target','check_observation','call_cancelled_session_closed',
                  'driver_closed_unused','supervisor_drained'}
         for attempt in range(1,4):
             self.engine=self.start('engine',dict(PROVISIOND_TEST_CONTROL=str(self.control),**(extra or {})))
@@ -203,12 +206,14 @@ class Workflow:
             if self.engine.poll() is None:return self.engine
             events=trace_events(self.engine.log)
             shape=[e.get('event') for e in events]
+            pre_admission=(all(e in allowed for e in shape) and all(
+                e.get('kind')=='admission' for e in events if e.get('event') in ('check_target','check_observation')))
             armed=any(not g.released.is_set() for g in self.h.proxy.gates)
             checkout_refusal='whole pool checkout deadline' in self.engine.error.read_text()
-            eligible=(self.engine.returncode!=0 and checkout_refusal and all(e in allowed for e in shape)
+            eligible=(self.engine.returncode!=0 and checkout_refusal and pre_admission
                 and not armed and self.defect is None)
             deployment_exit(self.h,'engine',self.engine,attempt=attempt,
-                events=shape,pre_admission=all(e in allowed for e in shape),
+                events=shape,pre_admission=pre_admission,
                 armed_transport_fault=armed,checkout_refusal=checkout_refusal,retry_eligible=eligible)
             assert eligible and attempt<3,'current engine startup failed before readiness: '+self.engine.error.read_text()
             self.h.event('engine_fixture_deployment_repeated',failed_attempt=attempt,

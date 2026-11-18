@@ -555,7 +555,12 @@ def w6(h,case=None,defect=None):
     w=Workflow(h,defect=defect,operator=True)
     try:
         for name in ([case] if case else CASES):
-            w.case=name;SCENARIOS[name](w)
+            w.case=name
+            if name=='w6_default_hooks':
+                # The unchanged 20 s resolution-search witness failed under
+                # parallel load; retain this cluster and lease while alone.
+                with h.exclusive_history():SCENARIOS[name](w)
+            else:SCENARIOS[name](w)
             h.results.append(dict(test=name,result='pass'))
         expected=[case] if case else CASES
         observed=[r['test'] for r in h.results if r['test'] in CASES]

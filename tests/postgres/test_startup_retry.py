@@ -158,8 +158,22 @@ class StartupRetry(unittest.TestCase):
     def test_engine_pre_admission_checkout_can_repeat_with_true_exit_and_hashes(self):
         # STO-7: a failed checked constructor closes unused; deployment retries
         # do not turn that invocation into a pass or change the 250 ms bound.
-        events=[dict(event=e) for e in ('client_keepalives_observed','check_target',
+        events=[dict(event=e,kind='admission') for e in ('client_keepalives_observed','check_target',
             'call_cancelled_session_closed','driver_closed_unused','supervisor_drained')]
+        self.assert_engine_retry_evidence(events)
+
+    def test_engine_standby_observations_can_repeat_with_true_exit_and_hashes(self):
+        # STO-7: the recorded engine-16 refusal waited on the fixed target ten
+        # times, then closed unused. Observing the peer is still pre-admission.
+        events=[dict(event='client_keepalives_observed',count=2,idle_seconds=2,interval_seconds=1),
+            dict(event='check_target',kind='admission',session=1866503,target='0/322C000'),
+            *[dict(event='check_observation',kind='admission',session=1866503,target='0/322C000',
+                observed=['1859245','replicator','provisiond_sync','127.0.0.1','streaming','sync','0/322BFE8'])
+                for _ in range(10)],
+            dict(event='driver_closed_unused'),dict(event='supervisor_drained')]
+        self.assert_engine_retry_evidence(events)
+
+    def assert_engine_retry_evidence(self,events):
         w=self.engine_fixture(events,status=71)
         processes=list(w.start.side_effect);w.start.side_effect=processes
         failed=processes[0]
@@ -169,21 +183,38 @@ class StartupRetry(unittest.TestCase):
         exits=[c.kwargs for c in w.h.event.call_args_list if c.args==('engine_fixture_deployment_exit',)]
         self.assertEqual(len(exits),1)
         self.assertEqual((exits[0]['attempt'],exits[0]['exit_status'],exits[0]['result']),(1,71,'fail'))
+        self.assertEqual(exits[0]['stderr_excerpt'],failed.error.read_text())
+        self.assertEqual(exits[0]['events'],[e['event'] for e in events])
         self.assertEqual(exits[0]['stdout_sha256'],hashlib.sha256(failed.log.read_bytes()).hexdigest())
         self.assertEqual(exits[0]['stderr_sha256'],hashlib.sha256(failed.error.read_bytes()).hexdigest())
         repeats=[c.kwargs for c in w.h.event.call_args_list if c.args==('engine_fixture_deployment_repeated',)]
         self.assertEqual(len(repeats),1);self.assertEqual(repeats[0]['checkout_ms'],250)
+        calls=w.h.event.call_args_list
+        self.assertLess(next(i for i,c in enumerate(calls) if c.args==('engine_fixture_deployment_exit',)),
+                        next(i for i,c in enumerate(calls) if c.args==('engine_fixture_deployment_repeated',)))
 
     def test_engine_admission_or_unknown_work_cannot_repeat(self):
-        for event in ('session_admitted','schema_compatible','check_observation','recovery_startup_decision',
-                'startup_lock_acquired','generation_advanced','restart_pass_complete','unknown_event'):
-            w=self.engine_fixture([dict(event='check_target'),dict(event=event)])
+        for event in ('session_admitted','schema_compatible','recovery_startup_decision',
+                'startup_lock_acquired','generation_advanced','restart_pass_complete','external_entry',
+                'http_business_begin','unknown_event'):
+            w=self.engine_fixture([dict(event='check_target',kind='admission'),
+                dict(event='check_observation',kind='admission'),dict(event=event)])
             with self.subTest(event=event),self.assertRaisesRegex(AssertionError,'current engine startup failed before readiness'):
                 Workflow.start_engine(w)
             self.assertEqual(w.start.call_count,1)
 
+    def test_engine_only_admission_check_events_can_repeat(self):
+        for event in ('check_target','check_observation'):
+            for kind in (None,'post_read','test','unknown'):
+                events=[dict(event='check_target',kind='admission'),dict(event=event,kind=kind)]
+                w=self.engine_fixture(events)
+                with self.subTest(event=event,kind=kind),self.assertRaisesRegex(
+                        AssertionError,'current engine startup failed before readiness'):
+                    Workflow.start_engine(w)
+                self.assertEqual(w.start.call_count,1)
+
     def test_engine_retry_bound_fault_defect_and_non_checkout_exits(self):
-        events=[dict(event='check_target')]
+        events=[dict(event='check_target',kind='admission'),dict(event='check_observation',kind='admission')]
         w=self.engine_fixture(events);w.start=Mock(side_effect=[process(events,1) for _ in range(3)])
         with self.assertRaisesRegex(AssertionError,'current engine startup failed before readiness'):
             Workflow.start_engine(w)
