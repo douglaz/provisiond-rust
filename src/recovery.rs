@@ -40,10 +40,16 @@ fn reporting_evidence(id: &str, evidence: &Value) -> Value {
         .as_str()
         .filter(|s| !s.is_empty())
         .unwrap_or("no certified event clock error and stopping/fencing certificate supplied");
-    json!({"incident_id":id,"reference":reference,"lower_unknown_reason":lower,
+    // STO-54: absent reporting input is an unknown, not an invalid certificate.
+    let absent = evidence == &json!({"reporting_input":"absent"});
+    let mut report = json!({"incident_id":id,"reference":reference,"lower_unknown_reason":lower,
         "upper_unknown_reason":upper,"finite_duration_established":false,
-        "invalid_certificate_input":!evidence["lower"].is_null() || !evidence["upper"].is_null() || evidence["incident_id"]!=id,
-        "certificate_support":"not run: source/event clock and continuous-prefix certificates unavailable"})
+        "invalid_certificate_input":!absent && (!evidence["lower"].is_null() || !evidence["upper"].is_null() || evidence["incident_id"]!=id),
+        "certificate_support":"not run: source/event clock and continuous-prefix certificates unavailable"});
+    if let Some(input) = evidence.get("reporting_input") {
+        report["reporting_input"] = input.clone();
+    }
+    report
 }
 
 pub(crate) async fn lock(tx: &mut Transaction) -> Result<()> {
@@ -54,6 +60,11 @@ pub(crate) async fn lock(tx: &mut Transaction) -> Result<()> {
 
 pub async fn current(store: &Store) -> Result<Value> {
     store.value("SELECT COALESCE((SELECT to_jsonb(r) FROM provisiond.recovery_incidents r WHERE closed_at IS NULL),'null'::jsonb)::text", &[]).await
+}
+
+/// STO-56: report the retained incident, including after operator close.
+pub async fn incident(store: &Store, id: &str) -> Result<Value> {
+    store.value("SELECT COALESCE((SELECT to_jsonb(r) FROM provisiond.recovery_incidents r WHERE id=$1::text::uuid),'null'::jsonb)::text", &[&id]).await
 }
 
 /// STO-56: the retained event ID and predecessor identify one operator event.
