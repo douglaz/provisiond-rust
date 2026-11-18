@@ -6,8 +6,8 @@ from pathlib import Path
 import subprocess
 import sys
 
-BASE='20710b00f879d4fe368bacf07baaf09258778b87'
-FIXTURE='eb75a027807adadac59b6997d9a17180143f013b'
+BASE='8339aae5ecf20e6337f4d5d5e22ec4f4573efbfb'
+FIXTURE='06b7636cfed13cd4d6049dbe316ed8b191c93fa2'
 ASSERTIONS={
     'w7_reporting':'STO-54 malformed reporting file must not hold establishment',
     'w7_parent_retirement':'STO-14 cancelled recovery parent must retire without stopping API',
