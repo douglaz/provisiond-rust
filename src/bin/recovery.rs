@@ -21,7 +21,7 @@ async fn main() {
             }
         });
     }
-    let trace: Trace = Arc::new(|v| println!("{v}"));
+    let trace: Trace = Arc::new(|v| eprintln!("{v}"));
     let mut process = Process::new(trace.clone());
     let result: Result<()> = async {
         let store = entry::local_store(process.clone(), trace)?;
@@ -32,23 +32,40 @@ async fn main() {
             Some("report") if args.len() == 1 => println!("{}", recovery::current(&store).await?),
             Some("prepare") if args.len() == 1 => {
                 ensure!(std::env::var("PROVISIOND_COMPONENTS_STOPPED").as_deref() == Ok("yes"), "pre-lock preparation requires stopped components");
-                recovery::prepare(Arc::new(store)).await?;
+                let store = Arc::new(store);
+                recovery::prepare(store.clone()).await?;
+                println!("{}", recovery::current(&store).await?);
             }
-            Some("close") if args.len() == 2 => recovery::close(&store, &args[1]).await?,
-            Some("parent") if args.len() == 4 => recovery::parent(&store, &args[1], &args[2], &args[3]).await?,
+            Some("close") if args.len() == 2 => {
+                recovery::close(&store, &args[1]).await?;
+                println!("{}", recovery::incident(&store, &args[1]).await?);
+            }
+            Some("parent") if args.len() == 4 => {
+                recovery::parent(&store, &args[1], &args[2], &args[3]).await?;
+                println!("{}", recovery::incident(&store, &args[1]).await?);
+            }
             Some("establish") if args.len() == 3 => {
                 ensure!(std::env::var("PROVISIOND_COMPONENTS_STOPPED").as_deref() == Ok("yes"), "deployment must stop components and prevent restart before establishment");
                 // STO-54: reporting input is optional, including on a retry after
                 // the host's file was lost. Retained incident evidence wins on a
                 // matching retry; initial establishment records unknown reasons.
-                let evidence = std::env::var("PROVISIOND_RECOVERY_EVIDENCE")
-                    .ok()
-                    .and_then(|path| std::fs::read_to_string(path).ok())
-                    .and_then(|body| serde_json::from_str(&body).ok())
-                    .unwrap_or_else(|| {
-                        eprintln!("STO-54 reporting input unavailable or malformed; endpoints remain unknown");
-                        serde_json::json!({"reporting_input":"unavailable_or_malformed"})
-                    });
+                let input = std::env::var_os("PROVISIOND_RECOVERY_EVIDENCE")
+                    .map(std::fs::read_to_string);
+                let evidence = match input {
+                    None => None,
+                    Some(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => None,
+                    Some(Err(_)) => {
+                        eprintln!("STO-54: reporting input unreadable; loss endpoints remain unknown");
+                        Some(serde_json::json!({"reporting_input":"malformed"}))
+                    }
+                    Some(Ok(body)) => Some(serde_json::from_str(&body).unwrap_or_else(|_| {
+                        eprintln!("STO-54: reporting input malformed JSON; loss endpoints remain unknown");
+                        serde_json::json!({"reporting_input":"malformed"})
+                    })),
+                }.unwrap_or_else(|| {
+                    eprintln!("STO-54: no reporting input supplied; loss endpoints remain unknown");
+                    serde_json::json!({"reporting_input":"absent"})
+                });
                 let request = recovery::Establish {
                     id: args[1].clone(), predecessor: (args[2] != "none").then(|| args[2].clone()),
                     expected_instant: std::env::var("PROVISIOND_RECOVERY_EXPECTED_INSTANT").ok(),
