@@ -538,7 +538,7 @@ tcp_keepalives_count = 2
 def main():
     from runner import DEFAULT_JOBS
     ap=argparse.ArgumentParser()
-    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','default-workflow','w5','w6','w7','all'],default='all')
+    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','default-workflow','w5','w6','w7','all','iteration'],default='all')
     ap.add_argument('--case',choices=__import__('w7').CASES+__import__('w6').CASES+__import__('w5').CASES+['w7_controls','w6_controls','w5_controls','session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'],help='one focused regression; default runs all')
     ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset','w4_atomic','w4_ack','w4_overload','w5_generation','w5_checkout','w5_blind_retry','w5_stop_reset','w5_observer_run','w6_blind_repeat','w6_non_exact','w6_release_timeout','w6_skip_startup','w7_retry_reset','w7_lossless_restart','w7_no_ack','w7_supersession_inherits','w7_finite_guess'])
     ap.add_argument('--jobs',type=int,default=DEFAULT_JOBS,help='global isolated worker bound (default: 6)')
@@ -588,7 +588,7 @@ def main():
         ap.error('--defect requires its exact compatible phase and case')
     from runner import invocation
     cap_check()
-    with invocation(ROOT,args.jobs,candidates=args.phase in ('all','controls')):
+    with invocation(ROOT,args.jobs,candidates=args.phase in ('all','iteration','controls')):
         return dispatch(args)
 
 
@@ -596,24 +596,25 @@ def dispatch(args):
     if args.phase=='controls':
         from controls import controls
         return controls(args.seed,args.evidence,w5_only=args.case=='w5_controls',w6_only=args.case=='w6_controls',w7_only=args.case=='w7_controls')
-    if args.phase=='all':
+    if args.phase in ('all','iteration'):
         from runner import PHASES,children
         cap_check()
-        root=Path(tempfile.mkdtemp(prefix='all-',dir=ROOT))
+        phases=PHASES if args.phase=='all' else ['w7','controls']
+        root=Path(tempfile.mkdtemp(prefix=args.phase+'-',dir=ROOT))
         jobs=[]
-        for phase in PHASES:
+        for phase in phases:
             path=args.evidence.with_name(args.evidence.stem+'-'+phase+'.json') if args.evidence else root/(phase+'.json')
             command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed),'--evidence',str(path)]
             jobs.append((command,path,dict(os.environ)))
         records=[]
-        for phase,record in zip(PHASES,children(jobs),strict=True):
+        for phase,record in zip(phases,children(jobs),strict=True):
             record.update(phase=phase,result='pass' if record['exit_status']==0 else 'fail')
             if phase in ('w5','w6','w7') and record['exit_status']==0:
                 child=json.loads(Path(record['path']).read_text())
                 if not __import__(phase).inventory_complete(child):
                     record.update(result='fail',reason=f'missing or incomplete {phase} phase inventory')
             records.append(record)
-        status=0 if len(records)==12 and all(r['exit_status']==0 and r['result']=='pass' for r in records) else 1
+        status=0 if len(records)==len(phases) and all(r['exit_status']==0 and r['result']=='pass' for r in records) else 1
         manifest=dict(result='pass' if status==0 else 'fail',phases=records,
                       jobs=int(os.environ['PROVISIOND_HARNESS_JOBS']))
         if args.evidence:args.evidence.write_text(json.dumps(manifest,indent=2)+'\n')
