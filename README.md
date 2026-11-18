@@ -13,8 +13,9 @@ offline migrations, fenced engine transactions and atomic money primitives. The 
 compatibility before serving a loopback customer HTTP subset. The engine dispatches local simulated
 creates through acknowledged licensing and verified settlement, reconciles independent simulator evidence,
 and executes immediate-destroy deletion. An isolated operator listener resolves uncertain outcomes and
-retries or keeps stalled cleanup episodes. Reached exit metering is implemented; general billing and
-recovery incidents remain unimplemented. No real provider accounts or funds may be used.
+retries or keeps stalled cleanup episodes. Reached exit metering is implemented; general billing remains deferred.
+Operator recovery incidents have a local simulator implementation and recorded committed-source
+rehearsal. No real provider accounts or funds may be used.
 
 ## Where to start
 
@@ -39,11 +40,11 @@ the path of an existing private directory outside `/tmp` as well. Choose a free 
 under the private harness root so a drill does not overwrite the recorded acceptance manifests:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence "$PROVISIOND_HARNESS_ROOT/w1.json"
+PROVISIOND_HARNESS_PORT_BASE=25500 nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence "$PROVISIOND_HARNESS_ROOT/w1.json"
 ```
 
 This single foreground command creates fresh private directories under the owned harness
-root, checks its entire ten-port slot within 55500–55559 before starting any server, bootstraps one primary and one authenticated
+root, checks its entire ten-port slot before starting any server, bootstraps one primary and one authenticated
 synchronous standby, rebuilds the standby, verifies a physical backup, restores a post-backup
 fixture from archived WAL, explicitly promotes with components stopped, and tears down.
 Its exit status includes assertions and cleanup. Raw logs remain outside git; the optional
@@ -54,7 +55,7 @@ isolated test allocation. See [scope](docs/scope.md) for limits.
 The store connection/destination spike is exercised with:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command python3 tests/postgres/harness.py --phase checks --seed 20261105 --evidence "$PROVISIOND_HARNESS_ROOT/checks.json"
+PROVISIOND_HARNESS_PORT_BASE=25500 nix develop --command python3 tests/postgres/harness.py --phase checks --seed 20261105 --evidence "$PROVISIOND_HARNESS_ROOT/checks.json"
 ```
 
 It uses the actual Rust client and ordinary bounded pools. The opt-in `store-probe` example is
@@ -62,11 +63,33 @@ an orchestration fixture; the default gate compiles it without starting PostgreS
 are generated per invocation and stay outside git. [Recorded results](evidence/r2-final-checks.json)
 separate real server faults from focused identity-predicate fixtures.
 
-Run the complete database, transactional-core and defect-control inventory from fresh private directories:
+Run the complete database, transactional-core and defect-control inventory before publication from fresh private directories:
 
 ```sh
-PROVISIOND_HARNESS_PORT_BASE=55500 nix develop --command bash tools/postgres.sh --seed 20261106 --evidence "$PROVISIOND_HARNESS_ROOT/acceptance.json"
+PROVISIOND_HARNESS_PORT_BASE=25500 nix develop --command bash tools/postgres.sh --jobs 1 --seed 20261113 --evidence "$PROVISIOND_HARNESS_ROOT/acceptance.json"
 ```
+
+The full suite uses `--jobs N` (default 6, accepted range 1–50), with a single global worker
+bound across phases, W7 children and controls. Choose a ten-port-aligned base in 25500–25990
+that leaves room for all workers below 26000; base 25500 supports up to 50 workers. Every
+allocation checks all ten ports. The harness refuses if 25500–25999 overlaps the kernel's
+configured ephemeral range; it does not change that range. Mutable resources are isolated and
+selected timing-sensitive histories run exclusively. Before publication use 2–3 workers or
+serial execution; the final recorded run used `--jobs 1`.
+
+For each iteration, run the quick checks, Python units, W7 and controls together:
+
+```sh
+PROVISIOND_HARNESS_PORT_BASE=25500 nix develop --command bash tools/iteration.sh --seed 20261113 --evidence "$PROVISIOND_HARNESS_ROOT/iteration.json"
+```
+
+`--phase iteration` selects W7 and controls in one harness invocation. `tools/iteration.sh`
+adds the quick checks and Python units, reports every exit and elapsed time, and returns the
+first nonzero exit. It performs no automatic rerun. The recorded iteration took 475.5 seconds;
+the planning estimate is about 11 minutes. A known checkout-deadline or timing-window failure
+gets one explicitly recorded rerun. The full suite still runs once before the PR, with the
+recorded rerun rule if needed, and may take longer than 20 minutes. Both commands require the
+same capped unit, private root and TMPDIR described above; use a private `CARGO_TARGET_DIR`.
 
 The aggregate manifest retains absolute paths in its child-command records. Redact identifying
 paths before sharing or committing it.
@@ -76,10 +99,10 @@ destination checks, sent-COMMIT cancellation/retention, warnings, lost replies, 
 primary restart, residual-backend and bounded-process-stop fixtures, retained-object deadline
 closure, caller-runtime shutdown, constructor cancellation/deadlines, the transactional core,
 the complete HTTP funding/create workflow, a default-feature workflow, W5 interruption scenarios,
-thirty-nine defect controls, and cleanup. The parent accepts a failing control only with its
+W7 recovery scenarios, forty-four defect controls, and cleanup. The parent accepts a failing control only with its
 exact exit code and intended assertion after observed fault activation. A scenario/setup/cleanup failure makes the command
-non-zero. The aggregate manifest requires all eleven phases (W1, checks, commits, regressions, corrections,
-core, workflow, default-workflow, W5, W6, controls);
+non-zero. The aggregate manifest requires all twelve phases (W1, checks, commits, regressions, corrections,
+core, workflow, default-workflow, W5, W6, W7, controls);
 each writes its own sanitized manifest and retains raw evidence under the private harness root.
 
 The `commits` and `regressions` phases can also run alone with the same harness options.
@@ -94,7 +117,7 @@ Observer loss can cause a conservative exhaustion exit, while a live transport w
 COMMIT reply forever causes no accounting exit. Original stop bounds remain independent.
 This is selected historical W5 coverage, with the known limits in D-37–D-39.
 [W6](evidence/w6/report.md) adds simulator reconciliation and deletion; deployment-wide saturation
-and recovery remain deferred.
+remains deferred to W8; local recovery incidents are described below.
 The protected unchanged-runtime comparisons are reproducible in the same private allocation with
 `nix develop --command python3 tests/postgres/w5_baseline.py --evidence <private-baseline-manifest>`.
 The runner exports the fixed base, overlays fixtures only and verifies runtime/dependency hashes
@@ -136,7 +159,7 @@ preparatory database command. This bootstrap fixture is not a production deploym
 
 For an offline release, first stop old components, prevent their restart, and establish that their
 sessions cannot write. Run `nix develop --command cargo run --bin migrate`; only an acknowledged
-migration permits new components to start. Schema/semantic history must be exactly 1/1, 2/2 and 3/3;
+migration permits new components to start. Schema/semantic history must be exactly 1/1, 2/2, 3/3 and 4/4;
 there is no down-migration. Lock-timeout retries are bounded; failed initial/reconnect acquisition
 exits immediately. Uncertain completion requires a later invocation to inspect durable history.
 
@@ -151,8 +174,8 @@ Missing local configuration refuses startup. Only the isolated test profile is s
 
 The customer subset supports enrolment token issuance, enrolment and status; deposit creation and
 detail; assigned providers and offers; create and acknowledged delete; machine and operation list/detail;
-balance and optional commitments; and customer OPTIONS. Recovery and other customer mutations remain
-unsupported. Operator-only routes stay hidden on this listener, including preflight. Fleet callers should poll `GET /v1/operations?terminal=false`, plus balance and machines,
+balance and optional commitments; and customer OPTIONS. Recovery-token replacement is supported by `POST /v1/recovery/revoke`; other customer
+mutations remain unsupported. Operator-only routes stay hidden on this listener, including preflight. Fleet callers should poll `GET /v1/operations?terminal=false`, plus balance and machines,
 at the server's advertised cadence. Use the same idempotency key after a lost reply. A fresh key
 creates a fresh operation and can buy a second machine; `needs_reconciliation` is never an invitation
 to buy again. Reconciliation searches exact retained evidence and never repeats the purchase.
@@ -206,7 +229,7 @@ zero-row record and B's refusal without its own result, then settles B's distinc
 Queued waits require one pending attempt with no precommit retry and actual checked-entry
 refusal. `--case queued_claim_pool --defect queued_claim_pool` isolates the pool defect;
 the canonical controls include both queued entry and pool windows.
-`--phase controls` runs all thirty-nine required defects. Each defect requires its exact phase/case;
+`--phase controls` runs all forty-four required defects. Each defect requires its exact phase/case;
 unknown or mismatched selectors exit nonzero before setup. The canonical command includes every
 control and accepts only its intended assertion failure after activation and successful cleanup.
 ENG-05 simulator reconciliation is recorded in W6. DB-10 deployment-wide saturation remains
@@ -271,8 +294,8 @@ Only simulator immediate destroy with no surviving billable attachments is suppo
 settles at its observation instant; acceptance alone requires later non-mutating evidence. Caller,
 late-attach and already-queued suspension cleanup share the worker. Ordered funding/fence decisions
 precede capability/marker/provider dispatch. No-rate steps 4–5 stop before a fence/call; general
-exhaustion, suspension fan-out, extend-runway, scheduled cancellation and open-incident startup
-continuation are not implemented.
+exhaustion, suspension fan-out, extend-runway and scheduled cancellation are not implemented.
+Supported recovery incidents continue using their persisted progress; legacy incidents refuse startup.
 
 The optional separate loopback operator listener uses `PROVISIOND_OPERATOR_LISTEN` and
 `PROVISIOND_OPERATOR_AUTHORITY`. The latter names a private JSON file such as
@@ -325,3 +348,36 @@ resolution. The actual operation kind and machine identity survive retirement in
 prior operator receipts, so normally completed customer creates and deletes retain cross-target
 key conflicts and strict per-kind validation. See the [opening-rate and retention regressions](evidence/w6/opening-retention-regressions.json)
 and [retained-target regressions](evidence/w6/retained-target-regressions.json).
+
+
+## Local recovery incidents
+
+The [recovery runbook](docs/recovery.md) covers the exercised local stop/fence, physical backup,
+replacement-standby, incident-entry and continuation sequence (STO-54/56). Every promotion enters
+this procedure, including lossless promotion. Ordinary process or intact-primary restart without
+an open incident remains ordinary; rebuilding only the standby creates no incident.
+
+The separate `recovery` binary establishes a retained event ID with an acknowledged transaction,
+reports possible-loss unknowns, prepares the pre-lock phase, records parent dispositions and closes
+only when every current prerequisite holds. The engine keeps its generation-only first write.
+The API replays both simulated rails before marking step 3 and opening its listener, invalidates
+spending credentials, and skips deposit derivation forward. Recovery credentials can issue a fresh
+token; a repeated key returns `409 credential_already_replaced` and never a stored bearer response.
+
+Wall-clock grace selectively defers system cancellations, TTL and operation retention; it does not
+block caller deletion, reconciliation or payments. Funding-only grace additionally counts retained
+rate-present time, independently per currency. The controlled rate input and historical readers use
+one stamped fixture history. General rate estimation and periodic billing remain deferred.
+
+Every successful `recovery establish`, `prepare`, `parent` and `close` prints one incident JSON
+row on stdout; `report` prints the open row or `null`. Internal traces are quiet by default.
+Plain errors and reporting-input notices use stderr. Set `PROVISIOND_RECOVERY_LOG=<path>` to
+append JSON diagnostics; an unopenable file refuses before recovery work. The engine-supervised
+`prepare` child writes traces to the engine log without a result row. Unset or nonexistent
+reporting input is recorded as absent with unknown loss endpoints, not an invalid certificate.
+
+[W7 evidence](evidence/w7/report.md) separates tested arms, sensitivity controls and
+remaining operator prerequisites. The final serial run on `f302686` exited 0 for the fast gate,
+units and all twelve phases; the earlier three-worker failure remains recorded. Neither finite
+loss-bound certificates nor address non-reuse under unbounded rollback are demonstrated. Different-person/before-first-payment rehearsal and production fencing remain
+operator-owned. No real providers or funds are authorized.

@@ -15,7 +15,7 @@ exposed as a public provisiond service, pointed at real provider accounts, or gi
 | Local service behaviour | Loopback customer HTTP funding/create subset, common simulated rail ingestion and automatic healthy assignment, ordered local create dispatch and verified atomic settlement. The supported path and its limits are described below. | demonstrated subset; [W4 evidence](../evidence/w4/report.md) |
 | Simulator-only behaviour | Deterministic acceptance/reply pause hooks and Rust simulator entries; verified-create outcomes drive the atomic settlement primitive, without real provider/rail drivers. Simulator evidence is never substituted for provider evidence. | simulator paths implemented |
 | Unsupported behaviour | Everything in "Not supported in this profile" below, and every v1 requirement not marked implemented or demonstrated in `docs/conformance-map.md`. | by design |
-| Production work not yet attempted | Real-provider drivers, rescue installation, every operation kind beyond the first slice, a customer UI, security review, key custody, billing operations, separate-host deployment rehearsal, operator runbooks, exposure limits. | not attempted |
+| Production work not yet attempted | Real-provider drivers, rescue installation, every operation kind beyond the first slice, a customer UI, security review, key custody, billing operations, separate-host deployment rehearsal, production operator runbooks, exposure limits. | not attempted |
 
 ## Operating assumptions
 
@@ -117,8 +117,9 @@ and immediate-destroy delete have cancellable simulator execution; other provide
 refused. Ordinary restart
 moves interrupted writes to reconciliation, fails refreshes and conditionally fails pre-order
 creates with atomic commitment/exclusion release. Existing errors and markers survive. Open
-recovery incidents stop the unsupported startup path. Parent fan-out, install/rescue workflows,
-full metering/rates/solvency and operator recovery remain unimplemented. W6 implements create/delete
+legacy recovery incidents stop the unsupported startup path. Established incidents continue through
+the phased recovery described below. Parent fan-out, install/rescue workflows and full
+metering/rates/solvency remain unimplemented. W6 implements create/delete
 resolution and late attach with its atomic cleanup obligation.
 Unsupported kinds are refused rather than silently requeued.
 
@@ -202,7 +203,8 @@ The loopback customer listener supports `POST /v1/enrol/token`, `POST /v1/enrol`
 and immediate delete,
 operation list/detail, balance with optional commitments, and unauthenticated OPTIONS. Credentials
 are shown once and stored hashed. Recovery credentials do not authenticate ordinary routes; recovery
-and maintenance remain unsupported. W6 adds an isolated operator subset, described below. Traffic
+credentials authorize only spending-token replacement, including pending/suspended maintenance.
+Other recovery/maintenance routes remain unsupported. W6 adds an isolated operator subset, described below. Traffic
 and enrolment concurrency state stays in
 memory without persisted caller addresses. Ordinary checked credential verification precedes the
 failed-auth source allowance, so a full abuse bucket cannot refuse a valid principal sharing the
@@ -292,10 +294,10 @@ operation replay/readability and receipt horizon, 3600 s listing age, 1/20 sat L
 and confirmation depth two. Enrolment concurrency pacing is a constant 1000 ms independent of delay.
 Supported traffic configurations must allow list, balance and machine reads at the finest advertised
 1000 ms cadence. Parameter/descriptor files and simulator addresses are required; these settings do
-not select production capacities or close D-6/7/8/9.
+not select production capacities or close D-6/8/9; D-7 settles only the local mechanism below.
 
-The canonical runner requires ten phases and retains the full W1–W3 inventory plus the workflow,
-default-feature workflow, W5 and thirty-five sensitivity controls, plus the direct release-assertion
+The canonical runner requires twelve phases and retains the full W1–W3 inventory plus the workflow,
+default-feature workflow, W5, W6, W7 and forty-four sensitivity controls, plus the direct release-assertion
 probe. Historical W3 evidence above
 retains its original source identity. Fresh W4 evidence is recorded separately. Default API startup
 checks build into a separate target directory. The workflow records executable hashes and feature
@@ -310,11 +312,14 @@ cleanup results covered registered resources only and did not cover the unregist
 
 The local fixtures have observed cold API/engine setup refusals at the unchanged 250 ms checkout
 bound. Their underlying cause is not established. The application process exits on that refusal.
-For ordinary API setup only, the fixture may make at most three separate deployment attempts after
+For ordinary API setup, the fixture may make at most three separate deployment attempts after
 recording a failed process that never opened its listener or began business/funding/external work.
-It records each actual exit and both log hashes, and repeats nothing while a transport fault is
-armed or a defect build is selected. Engine startup and negative startup tests receive no such
-retry. These are fixture deployment attempts, not runtime recovery or a production availability
+An empty read-only rail-history replay is permitted by shape; any credit or other business/external
+work excludes the retry. Engine deployment may retry only a cold whole-checkout refusal before
+session admission, including while awaiting the admission standby check. Each failed start, exit
+and both log hashes are recorded before port reservation or another attempt. Fault-armed, defect
+and negative startup cases remain single invocations. D-68 amends D-20's historical engine rule;
+the 250 ms product checkout bound is unchanged. These are fixture deployment attempts, not runtime recovery or a production availability
 claim; failed or unactivated fault scenarios remain failures or inconclusive observations.
 
 Physical database fixture setup has explicit 180 s command bounds for initdb, offline replication-role
@@ -332,11 +337,10 @@ For ordinary authenticated, keyed POST requests to deposits/machines that expect
 client makes at most three HTTP attempts with identical bytes and key after a retryable checkout
 overload. It follows both body and HTTP pacing hints, waiting at most one second per resend, and records
 every such response with correlation and key/body digests. Expected errors, reads, enrolment, armed
-transport faults and defect controls receive the first response directly. Engine startup and business
+transport faults and defect controls receive the first response directly. Post-startup engine failures and business
 errors gain no retry. This is test-client protocol handling, not a runtime timeout or capacity policy.
 Core fixture setup similarly makes at most three API admission requests with the same key and body,
-only after a whole-checkout refusal, mirroring its funding helper. Target fault probes and engine
-startups are direct.
+only after a whole-checkout refusal, mirroring its funding helper. Target fault probes are direct; the narrowly shaped deployment retry above is separate.
 
 The [refusal and pacing supplement](../evidence/refusal-pacing/report.md) records separate unchanged-runtime
 reds and fixed-runtime greens for definitive provider/400 rejection and mixed-source caller pacing.
@@ -379,8 +383,8 @@ without customer CORS. Only supported per-kind resolutions, operation list/detai
 retry and keep are exposed. Principal-scoped receipts retain the authenticated decision. Production
 authority distribution and credential management remain outside the prototype.
 
-Open recovery incidents still refuse startup: continuation, restore grace and exception suppression
-belong to W7. General exhaustion and suspension fan-out, extension/survival by extension, scheduled
+W7 supplies continuation, restore grace and exception suppression for established incidents.
+Unsupported legacy incidents still refuse startup. General exhaustion and suspension fan-out, extension/survival by extension, scheduled
 cancellation, surviving attachments, other mutations and import/rescue remain `not run`, owned by
 deferred follow-on work. No-rate OPS-41 steps 4–5 remain `not run`; reaching them stops safely before
 fence/provider dispatch. Production D-6 policy and saturation/recovery are W8; W9–W11 and any real
@@ -422,7 +426,7 @@ and deletion share the durable credential stop, with one external permit per ent
 provider I/O in a store transaction. Other accounts and local negative expiry remain independent.
 Every reached non-clamp deficiency now carries null `clamped_sats`, while actual clamp overflow
 keeps its exact satoshi remainder and native partition. Schema 3 remains the unpublished offline
-forward release; earlier migration meanings and all deferred billing/incident work are unchanged.
+forward release; earlier migration meanings and deferred billing work are unchanged; W7 adds the offline schema-4 incident release.
 
 
 The reached exit clamp producer separates LDG-66 opening evidence from LDG-38 historical
@@ -437,3 +441,64 @@ cover normally completed customer creates and deletes with only tenant receipts:
 key mismatches stay 409 after actual retirement, wrong-kind bodies stay invalid_request, and
 a fresh key cannot mutate a retired identity. General rate construction and OPS-41 no-rate
 decision steps remain outside this reached caller-delete path.
+
+
+## Recovery incident subset
+
+The [runbook](recovery.md) and [report](../evidence/w7/report.md) describe the local
+STO-54/56 implementation. Schema/semantics 4 is an offline contract release, preserving schema-3
+money/retirement rules and conservatively backfilling nullable install/rescue provenance. It adds
+no admission or execution for install, rescue or suspension parents; their tests seed historical
+metadata. Unsupported prerequisite history remains unavailable.
+
+The local fencing mechanism stops and joins the complete owned component inventory, stops the old
+PostgreSQL process, quarantines its data/launch identity and refuses ordinary relaunch. Existing
+sessions, new connections and the retired launch identity are independently probed. The replacement
+is a verified physical backup of the new authority, authenticated as the sole designated peer and
+sampled through flush catch-up. This assumes exclusive control of the local launch/data paths; it
+is no proof of production fencing, separate failure domains or hardware durability. The backup
+stream is distinct and uses no maintenance commit-mode exception.
+
+Every new promotion/history replacement establishes a fresh incident before components start.
+Same-event retries preserve instant, predecessor, evidence and all progress. A successor resumes
+unmarked phases and still runs the ordinary interrupted-running pass. New events atomically
+supersede retained predecessors. The engine's first write remains its separate UUID advance;
+pre-lock preparation belongs to a separate, supervised recovery actor.
+
+Step 3 reconstructs the unexpired watch query and independently replays the two simulated rails
+through retained bindings, including expired deposits with known settlements. It reseeds surviving
+admission counters, invalidates spending generations and advances deposit allocation. Its mark and
+original grace end commit together. Payment replay does not reconstruct lost commitments or
+extensions. Known correlators can reconcile without repurchase; missing correlators and unknown
+external effects remain operator-owned. Unrecorded machines are reported per account.
+
+The wall-clock freeze and incident lifetime are separate. System exposure-reducing attempts read
+the live claim gate before funding or suspension/retry exemptions; caller deletion remains usable.
+Only unfunded rate-present system decisions reach paused grace. Fixture rate inputs atomically
+retain stamps used by current reads, exit spans and recovery grace; no second independent history
+is fed by recovery tests. This is not a production median/quorum estimator. Close reads current
+machine disposition, every waiting parent, the second account pass and each currency's remaining
+grace. Settled parents can retire while their incident disposition and operation identity survive.
+
+Both possible-loss endpoints remain unknown without certified clock and matching-prefix evidence.
+Absent/malformed reporting files impose no startup hold; continuation reuses retained evidence.
+Certificate ingestion is not implemented, and certified-known lower/upper/lagging-standby variants
+are `not run`, owned by the deployment operator. The finite fixture gap of 10000 covers only the
+removed allocations actually observed in its backup/restore trace; it is not an unbounded non-reuse
+proof. Re-derivation interval 3 seconds is a fixture value, not production policy.
+
+The report binds the final serial run on `f302686` to 96 committed operational files: fast gate,
+Python units and all twelve canonical phases exited 0. It preserves the earlier failures and the
+known timing class's one recorded serial rerun. Each iteration uses `tools/iteration.sh` (quick
+checks, units, W7 and controls); before publication `tools/postgres.sh --jobs N` runs the full suite
+with 2–3 workers or serially. These fixtures select no production availability guarantee.
+The engine/API survival of a brief post-startup connection-check timeout remains an open W8
+question; the fixture customer client does not retry enrolment's retryable 503.
+CNF-295's different-person and before-first-customer-payment obligations remain operator-owned
+`not run`. General fan-out, extensions, scheduled
+cancellation, OPS-41 no-rate steps 4–5, production alarms/fencing and W8–W11 remain deferred.
+
+Recovery CLI actions return one result row on stdout; diagnostics are quiet by default and can be
+appended through `PROVISIOND_RECOVERY_LOG`. Reporting notices/errors remain on stderr; the
+engine-supervised preparation child sends traces to the engine log without a result row. Absent
+reporting input retains unknown endpoints and is distinct from malformed input (D-66).

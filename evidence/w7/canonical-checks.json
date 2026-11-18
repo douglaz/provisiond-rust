@@ -1,0 +1,157 @@
+{
+  "phase": "checks",
+  "result": "pass",
+  "exit_status": 0,
+  "wall_seconds": 30.599839622998843,
+  "full_manifest_sha256": "f422b84356a5aab512afc61b4ffdacef6ddccd260509509ce8ee9e35f370a183",
+  "full_manifest_bytes": 205643,
+  "retention": "retained privately, not published",
+  "scenario_count": 13,
+  "result_counts": {
+    "pass": 13
+  },
+  "scenarios": [
+    {
+      "test": "fresh-pooled-settings-and-idle-check",
+      "result": "pass",
+      "session": 3814159,
+      "settings": [
+        "statement_timeout=1s",
+        "lock_timeout=500ms",
+        "idle_in_transaction_session_timeout=1s",
+        "default_transaction_isolation=read committed",
+        "search_path=pg_catalog, fixture",
+        "synchronous_commit=on",
+        "tcp_keepalives_idle=2",
+        "tcp_keepalives_interval=1",
+        "tcp_keepalives_count=2",
+        "synchronous_standby_names=FIRST 1 (provisiond_sync)"
+      ],
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[0] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "precommit-abandon-failure-cancellation",
+      "result": "pass",
+      "establishes": "uncommitted insert absent; aborted/cancelled sessions closed, never recycled dirty",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[1] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-05-denied-and-privilege-boundaries",
+      "result": "pass",
+      "grants": "app: USAGE store_guard; EXECUTE store_guard.sample(); no pg_read_all_stats or owner membership",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[2] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-05-NULL-and-authentication",
+      "result": "pass",
+      "injection": "real server SECURITY INVOKER hides stats; separate wrong password",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[3] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "active-primary-fixed-target",
+      "result": "pass",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[4] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-06",
+      "result": "pass",
+      "reader_session": 3814159,
+      "fixture": "deliberate contract violation: cancel isolated SyncRep backend; no sync settings lowered",
+      "establishes": "post-read fixed target blocks exposure on the original physical session until catch-up",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[5] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-07",
+      "result": "pass",
+      "attempts": [
+        {
+          "attempt": 1,
+          "event": "destination_read",
+          "session": 3814270
+        },
+        {
+          "attempt": 2,
+          "event": "destination_read",
+          "session": 3814275
+        }
+      ],
+      "establishes": "failed value discarded; SELECT/check repeated on new admitted session",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[6] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-09",
+      "result": "pass",
+      "session": 3814292,
+      "establishes": "reply withheld and unused transport closed at deadline; no check writes/SyncRep waiter",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[7] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-05-zero",
+      "result": "pass",
+      "injection": "sole standby stopped",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[8] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-05-duplicate",
+      "result": "pass",
+      "injection": "isolated pg_receivewal protocol connection; not another physical standby",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[9] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-05-non-designated",
+      "result": "pass",
+      "injection": "pg_basebackup streaming sender reached the exact read-only check target while pending; separate fresh cold admission refused with backup ahead of its own target and designated receiver paused",
+      "establishes": "non-designated later flush never substitutes for designated peer",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[10] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-05-wrong-identity",
+      "result": "pass",
+      "injection": "real replication HBA rejection; separate SQL function adapter tests wrong-role predicate",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[11] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "checks-no-client-cancel",
+      "result": "pass",
+      "observed_cancel_packets": 0,
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-checks.json:scenarios[12] has no exit_status field; no value inferred from phase or command exits."
+    }
+  ],
+  "children": [],
+  "scenario_exit_note": "Each scenario exit is copied from the matching raw scenarios row when present; null means that exact row has no exit_status field. Command exits are not inferred as scenario exits; the full command inventory is retained privately.",
+  "cleanup": [
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1795015125.9089873,
+      "elapsed": 30.502751960011665,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "retained privately, not published"
+    }
+  ],
+  "command": [
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "checks",
+    "--seed",
+    "20261113",
+    "--evidence",
+    "<private-evidence>/canonical-checks.json"
+  ],
+  "path": "<private-evidence>/canonical-checks.json",
+  "published_as": "evidence/w7/canonical-checks.json"
+}

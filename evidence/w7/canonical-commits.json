@@ -1,0 +1,183 @@
+{
+  "phase": "commits",
+  "result": "pass",
+  "exit_status": 0,
+  "wall_seconds": 12.593221611983608,
+  "full_manifest_sha256": "cc1516610ed0cb6096acf62f807000b73bc77d575ac6d524af31c7f498c3ff4f",
+  "full_manifest_bytes": 232831,
+  "retention": "retained privately, not published",
+  "scenario_count": 16,
+  "result_counts": {
+    "pass": 13,
+    "expected negative demonstration": 2,
+    "not run": 1
+  },
+  "scenarios": [
+    {
+      "test": "commit-command-and-rejection-semantics",
+      "result": "pass",
+      "establishes": "COMMIT plus complete idle reply acknowledges; failed pre-COMMIT and deferred constraint rejection do not",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-commits.json:scenarios[0] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "retention-defect-control",
+      "result": "expected negative demonstration",
+      "exit_status": 42,
+      "assertion": "original write checkout retained",
+      "establishes": "exact same green retention assertion detects original-checkout loss after observed SyncRep"
+    },
+    {
+      "test": "DB-01-independent-client-pools",
+      "result": "pass",
+      "engine_fixture_backend": 3815528,
+      "api_fixture_backend": 3815531,
+      "establishes": "both state-changing fixture commits simultaneously wait for the sole designated standby; pre-admitted read remains usable",
+      "not_run": "product engine/API business workflows and alarms",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-commits.json:scenarios[2] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-02-timeout_request",
+      "result": "pass",
+      "session": 3815567,
+      "read_session": 3815564,
+      "establishes": "real SyncRep preceded cancellation; original checkout retained, extra write refused, same read session usable; clean terminal result after release",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-commits.json:scenarios[3] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-02-drop_request",
+      "result": "pass",
+      "session": 3815675,
+      "read_session": 3815672,
+      "establishes": "real SyncRep preceded cancellation; original checkout retained, extra write refused, same read session usable; clean terminal result after release",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-commits.json:scenarios[4] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-02-cancel_worker",
+      "result": "pass",
+      "session": 3815721,
+      "read_session": 3815718,
+      "establishes": "real SyncRep preceded cancellation; original checkout retained, extra write refused, same read session usable; clean terminal result after release",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-commits.json:scenarios[5] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-01",
+      "result": "pass",
+      "establishes": "state-changing real client COMMIT waits beyond server/client call bounds; healthy read session still usable; fresh checks fail closed",
+      "not_run": "engine retry, funding/settlement and production alarm arms",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-commits.json:scenarios[6] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "warning-defect-control",
+      "result": "expected negative demonstration",
+      "exit_status": 43,
+      "assertion": "replication warning must not acknowledge",
+      "diagnostic": {
+        "detail": "The transaction has already committed locally, but might not have been replicated to the standby.",
+        "event": "driver_notice",
+        "message": "canceling wait for synchronous replication due to user request",
+        "severity": "WARNING",
+        "sqlstate": "01000"
+      },
+      "establishes": "actual driver warning plus COMMIT completion; intentional defect fails exact assertion"
+    },
+    {
+      "test": "DB-08",
+      "result": "pass",
+      "exit_status": 0,
+      "assertion": "replication warning must not acknowledge",
+      "diagnostic": {
+        "detail": "The transaction has already committed locally, but might not have been replicated to the standby.",
+        "event": "driver_notice",
+        "message": "canceling wait for synchronous replication due to user request",
+        "severity": "WARNING",
+        "sqlstate": "01000"
+      },
+      "establishes": "actual driver warning plus COMMIT completion; intentional defect fails exact assertion"
+    },
+    {
+      "test": "lost-COMMIT-reply",
+      "result": "pass",
+      "session": 3815874,
+      "establishes": "COMMIT reached server and fixture committed; withheld terminal reply then socket death yields unresolved, never rollback; replacement checked",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-commits.json:scenarios[9] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-03",
+      "result": "pass",
+      "old_backend": 3815904,
+      "establishes": "backend outlives process during SyncRep, outside replacement pool accounting; replacement check remains enabled",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-commits.json:scenarios[10] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "bounded-process-stop",
+      "result": "pass",
+      "exit_status": 75,
+      "stop_bound_ms": 1000,
+      "elapsed_seconds": 1.014567853009794,
+      "establishes": "original sent COMMIT owned while process survives; stop bound exits whole fixture with unresolved report",
+      "not_run": "product stop-record/ENG-07 implementation"
+    },
+    {
+      "test": "DB-04-backend",
+      "result": "pass",
+      "old_backend": 3815980,
+      "establishes": "real waiting COMMIT becomes unresolved; same pool cannot expose new session until read-only admission passes after recovery",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-commits.json:scenarios[12] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-04-primary",
+      "result": "pass",
+      "old_backend": 3816141,
+      "establishes": "real waiting COMMIT becomes unresolved; same pool cannot expose new session until read-only admission passes after recovery",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-commits.json:scenarios[13] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "commit-lifecycle-no-client-cancel",
+      "result": "pass",
+      "observed_cancel_packets": 0,
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-commits.json:scenarios[14] has no exit_status field; no value inferred from phase or command exits."
+    },
+    {
+      "test": "DB-10",
+      "result": "not run",
+      "reason": "full capacity/saturation/retry/recovery is W8",
+      "exit_status": null,
+      "exit_status_note": "Raw canonical-commits.json:scenarios[15] has no exit_status field; no value inferred from phase or command exits."
+    }
+  ],
+  "children": [],
+  "scenario_exit_note": "Each scenario exit is copied from the matching raw scenarios row when present; null means that exact row has no exit_status field. Command exits are not inferred as scenario exits; the full command inventory is retained privately.",
+  "cleanup": [
+    {
+      "event": "cleanup_complete",
+      "timestamp": 1795015138.5014968,
+      "elapsed": 12.492861267004628,
+      "result": "pass",
+      "errors": [],
+      "raw_evidence": "retained privately, not published"
+    }
+  ],
+  "command": [
+    "python3",
+    "tests/postgres/harness.py",
+    "--phase",
+    "commits",
+    "--seed",
+    "20261113",
+    "--evidence",
+    "<private-evidence>/canonical-commits.json"
+  ],
+  "path": "<private-evidence>/canonical-commits.json",
+  "published_as": "evidence/w7/canonical-commits.json"
+}

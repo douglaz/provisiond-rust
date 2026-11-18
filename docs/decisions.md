@@ -1732,13 +1732,259 @@ validation/privacy/isolation and refuse fresh keys with full state and provider 
 identical fixtures, activation, actual outcomes and cleanup. Existing F1/F2 and earlier reds remain
 separate. D-32/D-33, D-37/D-38 and D-41–D-48 are unchanged; all deferred work remains deferred.
 
+### D-7. Rehearsed local authority fencing and replacement bootstrap
+
+**Measured 2026-11-14, provisional local rehearsal.** The [runbook](recovery.md) uses the
+complete owned component inventory, PostgreSQL process stop, data-directory quarantine and a
+retired launch identity. Existing sessions fail, new connections fail and ordinary relaunch of
+that identity refuses. A promoted or physically restored authority receives a verified replacement
+standby before incident acknowledgment. The old primary returns only through a fresh verified
+standby rebuild. This settles the local mechanism; exclusive launcher/data ownership is a
+precondition, and production fencing/separate failure domains are not demonstrated.
+
+PostgreSQL/pg_basebackup/pg_verifybackup 18.6 use `pg_basebackup -X stream`, with `bootstrap_backup`
+distinct from `provisiond_sync`, and no maintenance commit-mode exception or prerequisite incident
+commit. The 2026-11-14 provisional selector exits are not published. Final serial selector
+exits are recorded in the [W7 phase](../evidence/w7/canonical-w7.json); the
+[lossless](../evidence/w7/scenario-w7_lossless.json) and
+[ordinary restart/standby](../evidence/w7/scenario-w7_ordinary.json) scenarios and
+[recovery report](../evidence/w7/report.md) delimit the actual observations. D-65 records the
+final serial committed-source validation on 2026-11-18. This local automated rehearsal does not
+discharge CNF-295's different-person/before-first-customer-payment obligations.
+
+### D-58. Persist event progress while preserving the engine's first write
+
+**Implemented and provisionally exercised 2026-11-14.** Offline schema/semantics 4 retains event
+instant, predecessor, unknown reporting evidence, phase marks and original grace. Matching event
+retries are acknowledged no-ops even after nonzero progress or loss of a host reporting file. New
+promotions/restores supersede rather than inherit marks. The separate supervised pre-lock recovery
+actor makes phase-1 writes; engine startup retains its own generation-only first transaction and
+all later OPS-50 guards. Legacy prerequisites remain refused. Continuation/interruption and
+supersession scenarios are retained in the final
+[continuation](../evidence/w7/scenario-w7_continuation.json),
+[interruptions](../evidence/w7/scenario-w7_interruptions.json) and
+[supersession](../evidence/w7/scenario-w7_supersession.json) manifests. Final per-file hashes
+are in the [source inventory](../evidence/w7/source-inventory.json), and selector exits are in
+the [W7 phase](../evidence/w7/canonical-w7.json). The 2026-11-14 provisional exits are not
+published; current arm limits are in the [report](../evidence/w7/report.md).
+No startup-generation write moves into incident establishment.
+
+### D-59. Share stamped simulator rate input across current and historical decisions
+
+**Implemented and provisionally exercised 2026-11-14.** The existing controlled `rates` input
+retains one `fixture_rate_history` row atomically. Schema 4 adds acceptance order/time, observation
+and freshness-bound stamps and the held verdict to that same retained row; `rate_observations`
+is an updatable projection, not another independently fed history. Per-currency allocation is
+serialized and acceptance time never moves behind its predecessor. `current_rates`, exit pricing
+and paused-grace spans select this common as-of state, including equal acceptance timestamps,
+older late observations and newest-observation freshness. Missing history supplies no rate-present
+time. Existing fixture price/source metadata stays separate from its controlled acceptance clock.
+
+These are supplied complete simulator verdicts with a 3600-second fixture freshness stamp, not
+production source quorum/window estimation. Historical probes explicitly supply their tested
+stamps. Runtime grants allow append/read, not rewriting historical settings; no pruner is added.
+A real supported input update now suffices for outage/return without a second manual USD history.
+The four candidate regressions and exact-span/live-worker checks are recorded in the
+[report](../evidence/w7/report.md). D-6 production tuning, D-46 and general metering remain unchanged.
+
+### D-60. Preserve unknown possible-loss bounds without a reporting hold
+
+**Implemented and provisionally exercised 2026-11-14.** The local host has no independently
+certified source/event clock-error and matching continuous-prefix evidence. Endpoint-certificate
+ingestion is not implemented. Supplied timestamp/LSN objects are reported as unsupported invalid
+certificate input, never finite bounds. Absent, unreadable or malformed reporting files produce
+diagnostics and incident-keyed unknown reasons without delaying otherwise valid recovery. A
+matching continuation uses persisted evidence unchanged. Independently certified known lower/upper
+and lagging-standby arms remain operator-owned `not run`; the event time never fills either bound.
+The final [reporting](../evidence/w7/scenario-w7_reporting.json) and
+[acknowledgment](../evidence/w7/scenario-w7_reporting_progress.json) manifests hold the observed
+reporting arms; the [W7 phase](../evidence/w7/canonical-w7.json) records their selector exits.
+The 2026-11-14 provisional exits are not published. See the [report](../evidence/w7/report.md)
+for limits.
+
+### D-61. Recovery-only replacement stores a key decision, never a bearer response
+
+**Implemented and provisionally exercised 2026-11-14.** API-56/WIR-38 uses the recovery credential,
+authenticates before validation and serializes replacements under LDG-35. Pending/suspended tenants
+can replace; ordinary and operator powers remain separate. The digest and issued generation change
+atomically with a principal-key/fingerprint decision. No live token response is stored. Concurrent
+revocations expose increasing generations with only the latest live; a lost acknowledged response
+is recoverable through a fresh recovery key, while the used key returns credential_already_replaced.
+The [credential scenario](../evidence/w7/report.md) records actual lost delivery, replay refusal,
+concurrent generation ordering and unchanged money. Incident step 3 invalidates once; marked
+continuation preserves a token reissued afterward.
+
+### D-62. Parent disposition outlives its settled operation
+
+**Implemented and provisionally exercised 2026-11-14.** `recovery_waiting_parents` retains a UUID
+identity and disposition, without an operation-lifetime foreign key. Historical parent cancellation
+through the recovery entry settles the operation; real API housekeeping retires it after the
+freeze/receipt horizon while retaining incident disposition, minimal retired identity and key
+refusal. The inherited-candidate FK failure and fixed-source service trace are in the
+[regression evidence](../evidence/w7/regressions.json). No parent admission/fan-out worker is added.
+D-32/D-33 and financial-history retention remain unchanged.
+
+### D-63. Recovery validation remains arm-specific and provisional
+
+**Recorded 2026-11-14.** Toolchain: PostgreSQL 18.6, Rust 1.97.1, Cargo 1.97.0, Python 3.14.7,
+Nix 2.34.9; dependency versions, actual command exits, features and per-source hashes are in
+[validation](../evidence/w7/validation.json). The [report](../evidence/w7/report.md) distinguishes
+four inherited-candidate regressions from five isolated sensitivity controls. No new runtime
+defect on the unchanged review base is asserted, and a missing old recovery binary/schema is
+not treated as a valid red. Tests on this candidate tree are provisional; final committed-source
+verification and independent acceptance are `not run`. D-41–D-57, D-32/D-33 and D-37/D-38 remain
+unchanged. D-6 stays open for W8; no real provider, funds or production platform is authorized.
+
+### D-64. Separate settled-history replay from active watches and observe phase acknowledgment
+
+**Implemented and provisionally exercised 2026-11-14.** STO-54(3) requires both STO-32's
+unexpired watch query and STO-31's replay. Recovery resolves historical rail observations through
+STO-29's retained destination bindings without an expiry filter, then reuses the ordinary finality,
+identity, actual-value and atomic payment/ledger path. Missing bindings remain unresolved; replay
+creates neither destinations nor lost entitlement. No subscription is added for expired deposits.
+
+With PostgreSQL 18.6 and the D-63 toolchain, `--phase w7 --case w7_expired_replay --seed 20261113`
+exited 1 at the intended pre-mark credit assertion on protected inherited runtime, then 0 after
+the correction. A retained expired deposit receives Lightning 31 and on-chain 23, alongside a live
+Lightning 46; the balance is 215 including the original 115. Ordinary watching is held. Proxy gates
+observe credit before the step-3 mark/listener and an interrupted successor replays without a
+second credit. A marked successor preserves the completed incident and replacement token.
+
+STO-54(2)'s post-COMMIT acknowledgment trace is distinct from the ordinary restart-pass trace and
+quarantine preparation. The reporting fixture waits for that acknowledgment and the persisted mark
+before stopping. `--phase w7 --case w7_reporting_progress --seed 20261113` exited 0 with both a
+pre-mark command gate and a committed-reply delivery gate activated: a primary-visible step 2
+alone did not release the waiter. This is a scheduling-boundary demonstration, not an old-runtime
+regression claim. The 2026-11-14 provisional commands and exits are not published. Final
+per-file hashes are in the [source inventory](../evidence/w7/source-inventory.json), versions
+and top-level commands in [validation](../evidence/w7/validation.json), selector exits in the
+[W7 phase](../evidence/w7/canonical-w7.json), and observations in the
+[expired replay](../evidence/w7/scenario-w7_expired_replay.json),
+[reporting progress](../evidence/w7/scenario-w7_reporting_progress.json) and
+[candidate-red](../evidence/w7/regressions.json) manifests. At the provisional date, final
+committed-source acceptance is `not run`.
+
+### D-65. Final committed-source recovery validation
+
+**Measured 2026-11-18.** The serial pre-publication run on
+`f302686a210f3b77decd169699314c1490a9cacc` used PostgreSQL 18.6, Rust 1.97.1,
+Cargo 1.97.0, Python 3.14.7 and Nix 2.34.9. Commands and observed exits/wall times:
+
+| Command | Exit | Wall seconds |
+|---|---:|---:|
+| `nix develop --command bash tools/check.sh` | 0 | 54.122 |
+| `nix develop --command python3 -m unittest discover -s tests/postgres -p 'test_*.py'` | 0 | 2.799 |
+| `nix develop --command bash tools/postgres.sh --jobs 1 --seed 20261113 --evidence <private-evidence>/canonical.json` | 0 | 1744.391 |
+
+Total 1801.614 seconds; harness port base was 25500. Private evidence paths use
+`<private-evidence>/<file>`; the final parent is published separately as
+[canonical.json](../evidence/w7/canonical.json). The [validation](../evidence/w7/validation.json),
+[coverage comparison](../evidence/w7/coverage.json), [source inventory](../evidence/w7/source-inventory.json)
+and [report](../evidence/w7/report.md) record the twelve phases, 21 W7 children, 44 controls
+at their exact activated assertions, five actual historical candidate reds, cleanup and source
+identity. Operational paths matched committed HEAD before and after; documentation/evidence
+remained dirty and were finalized afterward without changing executable inputs. The final
+96-file operational map is `dcaa24c27ed739129fcf66bcbd4e4af706d69bd7de8643e26c49522b1c299060`.
+
+The preceding three-worker run on this same commit exited 1 after 755.081 seconds: W6
+`delete_classification` lost its engine on a post-startup checkout deadline; W7
+`w7_interruptions` and control `w6_skip_startup` saw retryable enrolment 503 responses,
+"store checkout unavailable". It remains a failure. The serial run is its one recorded rerun
+under the known timing-class rule. [Prior failures](../evidence/w7/prior-failure.json) retain
+all earlier failures separately; no host-load cause, production resilience or erased failure
+is inferred. The second Run's private raw proof was deleted from the host before finalization;
+its accepted identity remains provable from the committed source map. Historical D-63 remains
+unchanged; this entry supplies the final five-regression count and committed-source result.
+D-64's provisional "final committed-source acceptance is `not run`" is superseded by D-65.
+D-6 and production capacity remain open, including engine/API survival of a brief post-startup
+connection-check timeout. The fixture customer client does not honour enrolment's retryable 503.
+
+### D-66. Recovery result output and optional diagnostics
+
+**Implemented in `f5018aa` and `06b7636`, measured 2026-11-18.** Successful `establish`,
+`prepare`, `parent` and `close` print exactly one incident JSON result row on stdout; `report`
+prints the open row or `null`, and `--check-schema` prints no result. Plain errors and
+reporting-input notices use stderr. Internal JSON traces are quiet by default;
+`PROVISIOND_RECOVERY_LOG` appends unchanged JSON lines to a diagnostic file and an unopenable
+path refuses before work. The engine-supervised `prepare` child keeps its trace stream in
+the engine log without a result row; a configured diagnostic file receives the same events.
+
+An unset reporting variable or nonexistent file records `reporting_input: "absent"`,
+`invalid_certificate_input: false`, unknown endpoints and the plain STO-54 notice. Unreadable
+or malformed supplied input is recorded as malformed; it does not establish finite loss
+bounds or add a reporting hold. This preserves STO-54's unknown/no-extra-hold semantics.
+The [runbook](recovery.md), [final validation](../evidence/w7/validation.json) and
+[live journey](../evidence/w7/live-journey.json) record the committed contract: the 16-step
+journey on `06b7636` exited 0 in 55.7 seconds; all 16 recovery calls returned one row and
+only the two establishes emitted their expected plain notices.
+
+### D-67. Invocation-local builds, bounded workers and isolated listener slots
+
+**Implemented in `66cec39`, refined in `fbbfc01`, measured 2026-11-18.**
+`tests/postgres/runner.py` builds the hook-enabled, default and protected-candidate variants
+once per invocation, sequentially, then shares immutable binaries. One global worker bound
+covers phases, W7 children and controls (`--jobs`, default 6, accepted 1–50). Each worker owns
+its directories, credentials and ten ports. Selected timing-sensitive histories, including
+W6 default hooks and the non-exact control, hold every worker token exclusively.
+
+The listener range is 25500–25999, with ten-aligned bases 25500–25990; the base must leave
+room for every worker. Idle slots and stopped listeners retain port reservations. A guard
+reads the kernel ephemeral range and refuses any overlap; no kernel setting is changed.
+The first six-worker complete pass took 801.8 seconds for the canonical command and 851.1
+seconds including quick checks/units; later failed runs remain recorded. The final serial
+run took 1744.391 seconds for canonical with peak sampled memory 4186673152 bytes.
+[Phase/build measurements](../evidence/w7/phase-metrics.json) and the
+[validation record](../evidence/w7/report.md) separate these source-bound invocations.
+No production admission, pool or availability setting follows from fixture scheduling.
+
+### D-68. Shape-based fixture deployment attempts amend the historical startup rule
+
+**Implemented in `66cec39`, extended in `fbbfc01`.** This amends D-20's statement that
+all engine startups remain single invocations. The fixture permits at most three separate
+ordinary deployment attempts for a cold whole-checkout refusal before admission. For API
+startup, no listener, business mutation, credit or other external work may have begun;
+an empty read-only rail-history replay is eligible by shape. Engine eligibility requires
+no admitted session or generation/business work; an admission target and standby-check
+observations while waiting for the designated peer remain pre-admission. These checks use
+event shape, never a scenario name. Armed faults, defect builds and negative startup probes
+are excluded. An admitted/post-startup engine exit is excluded.
+
+Every failed start is recorded first, with its actual exit and both stream hashes, before
+re-reserving ports or attempting another deployment. The product's 250 ms checkout and all
+other bounds are unchanged. This is fixture deployment handling, not an in-process startup
+retry or a production guarantee. The [report](../evidence/w7/report.md) and
+[prior failures](../evidence/w7/prior-failure.json) preserve the refusals that motivated it;
+D-20's historical text, D-32/D-33, D-37/D-38 and D-41–D-57 stay unchanged.
+
+### D-69. Separate iteration checks from the full pre-publication suite
+
+**Selected and measured 2026-11-18.** The decision is **"Split it (Recommended)"**: each
+iteration runs the quick checks plus the W7 tests and controls (~11 min); a failure of this
+known timing kind (checkout-deadline / timing-window class) gets one rerun, and the rerun
+is recorded; before the PR the full suite runs once with fewer tests at a time (2-3 workers
+or serial), taking longer than 20 min.
+
+`tools/iteration.sh` runs the quick gate, Python units and `--phase iteration` (W7 plus
+controls), reports every command's actual exit/time and returns the first nonzero exit.
+It performs no automatic rerun. Its single measured invocation exited 0 in 475.484 seconds
+(32 s quick gate, 2 s units, 440 s phase set; whole-second step measurements), with 21 W7
+children, all 44 controls and five candidate reds. Both earlier acceptance runs on `fbbfc01`
+passed that iteration subset; only the first passed all twelve phases (811.067 s canonical).
+The second full run failed W6 `w6_episode_order` on the known checkout-deadline class and
+is retained as a failure.
+
+`tools/postgres.sh --jobs N` runs all twelve phases before publication. The final recorded
+full run used `--jobs 1`, following the one recorded three-worker failure described in D-65.
+[Iteration measurements](../evidence/w7/iteration-validation.json) and
+[final validation](../evidence/w7/validation.json) keep the two scopes distinct. The full
+suite's duration is accepted here; neither coverage nor assertions are removed.
+
 ## Open
 
 
 | ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
 |---|---|---|---|---|
 | D-6 | Fixed pool, timeout, and retry values | W2/W8 | "OVR-19 constraints, measured behavior, and deployment phase." | open |
-| D-7 | Promotion/fencing and standby replacement procedure | W7 | "Rehearsed operational mechanism, not a prose assurance." | open |
 | D-8 | First real provider path and spending limit | W10/W11 | "Current provider evidence and explicit operator approval." | open; needs the owner |
 | D-9 | Fleet/exposure limits | W11 | "Stated assumptions and measured recovery, not arbitrary defaults." | open |
 
@@ -1779,3 +2025,14 @@ reconnect or alarm policy; full capacity and recovery evidence belongs to W8.
 
 When an open entry is settled, move it to "Settled" with the exact versions, commands, exit statuses
 and evidence paths that meet its basis. Preference, scope and cost questions go to the owner.
+
+
+### Provisional recovery fixture parameters (D-6 remains open)
+
+| Fixture input | Requirement | Value / scope |
+|---|---|---|
+| Re-derivation interval | STO-54/56, OVR-19 | 3 seconds in the isolated recovery fixture only |
+| Derivation skip | STO-54, OVR-19 | 10000 indices; demonstrated only against the fixture's independently recorded removed allocations |
+
+Existing store, checkout, startup, stop-record, visibility and bootstrap bounds are unchanged.
+No production recovery point, allocation-loss bound, capacities or alarms are selected.
