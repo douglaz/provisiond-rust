@@ -191,7 +191,7 @@ def startup(w):
         first=w.start_engine();eventually(lambda:any(e['event']=='dispatch_step_held' and e['operation']==op for e in events(first)))
         w.h.event('w6_interrupted_worker',operation=op,marked=marked,claim=1)
         w.stop_engine();hold.unlink()
-        w.h.sql(f"INSERT INTO provisiond.recovery_incidents(id,closed_at) VALUES('{uuid.uuid4()}',clock_timestamp())")
+        w.h.sql(f"INSERT INTO provisiond.recovery_incidents(legacy,id,closed_at) VALUES(true,'{uuid.uuid4()}',clock_timestamp())")
         barrier=w.h.root/'provider/hold-reconciliation';barrier.touch(exist_ok=True)
         second=w.start_engine()
         found=events(second,'restart_pass_complete')[-1]['running_found']
@@ -555,7 +555,12 @@ def w6(h,case=None,defect=None):
     w=Workflow(h,defect=defect,operator=True)
     try:
         for name in ([case] if case else CASES):
-            w.case=name;SCENARIOS[name](w)
+            w.case=name
+            if name=='w6_default_hooks':
+                # The unchanged 20 s resolution-search witness failed under
+                # parallel load; retain this cluster and lease while alone.
+                with h.exclusive_history():SCENARIOS[name](w)
+            else:SCENARIOS[name](w)
             h.results.append(dict(test=name,result='pass'))
         expected=[case] if case else CASES
         observed=[r['test'] for r in h.results if r['test'] in CASES]

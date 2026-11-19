@@ -200,7 +200,7 @@ def snapshot(w):
 
 def mixed(w, shape, probe, purge, total):
     h=w.h
-    w.api.terminate();w.api.wait(timeout=5)
+    w.stop_api()
     sql(w,"""
       UPDATE provisiond.idempotency_records SET expires_at=statement_timestamp()-interval '1 second'
         WHERE scope_id='scale-history' AND key IN (SELECT 'scale-'||i FROM generate_series(1,1000) i);
@@ -266,7 +266,7 @@ def retention_scale(w):
     assert shape in SHAPES
     for operations,receipts in [shape]:
         shape=f'{operations}-operations-{receipts}-receipts'
-        w.api.terminate();w.api.wait(timeout=5)
+        w.stop_api()
         seed(w,t['tenant_id'],operations,receipts)
         probe=live(w,shape)
         assert sql(w,'SET statement_timeout=1000; PREPARE probe(bigint) AS '+probe+'; EXECUTE probe(86400);').splitlines()[-1]=='false'
@@ -286,7 +286,7 @@ def retention_reads(w):
     op=w.request('POST','/v1/machines',body,t,'scale-genuine',status=202)['id']
     shape=tuple(map(int,os.environ.get('PROVISIOND_TEST_RETENTION_SCALE','20000:2000000').split(':')))
     assert shape in [(20000,200000),(20000,1000000),(50000,1000000),(20000,2000000)]
-    w.api.terminate();w.api.wait(timeout=5)
+    w.stop_api()
     seed(w,t['tenant_id'],*shape,status='queued')
     live(w,'read-only-'+str(shape))
     start=len(h.events)

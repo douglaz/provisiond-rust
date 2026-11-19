@@ -36,8 +36,15 @@ def cap_check():
                                         'OOMPolicy=continue'}, r.stdout
 
 
+def check_port_range():
+    """STO-7 fixture isolation: listener slots must exclude ephemeral ports."""
+    first,last=map(int,Path('/proc/sys/net/ipv4/ip_local_port_range').read_text().split())
+    if first<=25999 and last>=25500:
+        raise ValueError(f'harness ports overlap kernel ephemeral range {first}..{last}; require 25500..25999 outside it')
+
+
 def free_port(port):
-    assert 55500 <= port <= 55559
+    assert 25500 <= port <= 25999
     with socket.socket() as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('127.0.0.1', port))
@@ -45,12 +52,13 @@ def free_port(port):
 
 def allocation():
     """Required private ten-port allocation, validated before starting any child."""
+    check_port_range()
     raw = os.environ.get('PROVISIOND_HARNESS_PORT_BASE', '')
     if not raw.isascii() or not raw.isdecimal():
         raise ValueError('PROVISIOND_HARNESS_PORT_BASE must be an integer')
     base = int(raw)
-    if base not in range(55500, 55560, 10):
-        raise ValueError('ten harness ports require a slot base in 55500..55550')
+    if base not in range(25500, 26000, 10):
+        raise ValueError('ten harness ports require a slot base in 25500..25990')
     return list(range(base, base + 10))
 
 
@@ -84,6 +92,7 @@ class Harness:
         self.root = Path(tempfile.mkdtemp(prefix=f'{phase}-', dir=ROOT))
         self.phase, self.seed = phase, seed
         self.events, self.commands, self.results, self.nodes = [], [], [], {}
+        self.retired_authorities = set()
         self.started = time.monotonic()
         self.passwords = {r: secrets.token_hex(24) for r in
                           ['replicator', 'administrator', 'migrator', 'app', 'observer', 'denied']}
@@ -96,19 +105,19 @@ class Harness:
                            max_connections=24, shared_buffers='32MB', wal_level='replica',
                            archive_mode='on', restart_after_crash='on', ports=self.ports[:3],bootstrap_readiness_seconds=60,postgres_stop_wait_seconds=60,bootstrap_command_seconds=180,
                            authentication='scram-sha-256 loopback only', standby_role='replicator')
-        if phase in ('checks','commits','regressions','corrections','core','workflow','default-workflow','w5','w6'):
+        if phase in ('checks','commits','regressions','corrections','core','workflow','default-workflow','w5','w6','w7'):
             self.config['store'] = dict(read_pool=1,write_pool=1,statement_ms=1000,lock_ms=500,
                 idle_transaction_ms=1000,call_ms=2000,check_ms=3000,checkout_ms=250,
                 keepalive_idle_seconds=2,keepalive_interval_seconds=1,keepalive_count=2,
                 isolation='read committed',search_path='pg_catalog,fixture',stop_fixture_ms=1000,
                 transport='direct TCP; loopback proxy for faults; sslmode=disable')
             self.config['ports'].append(self.ports[3])
-        if phase in ('core','workflow','default-workflow','w5','w6'):
+        if phase in ('core','workflow','default-workflow','w5','w6','w7'):
             self.config['engine']=dict(workers=3,write_pool=3,compatibility_read_pool=1,
                 startup_lock_outside_pool=True,startup_wait_ms=500,store_retry_ms=2000,stop_record_ms=1000,
                 startup_lock_keepalives=dict(idle_seconds=2,interval_seconds=1,count=2,profile_assignment="shared with pooled local values"),
                 runtime_build=dict(features=["store-test-hooks"],target_directory=str(self.target)),
-                migration_lock_ms=500,migration_lock_retries=2,schema_version=3,semantic_version=3,notice_cap=16)
+                migration_lock_ms=500,migration_lock_retries=2,schema_version=4,semantic_version=4,notice_cap=16)
         self.archive = self.root / 'archive'
         self.archive.mkdir()
         self.event('invocation', seed=seed, specification=SPEC, phase=phase,
@@ -172,6 +181,11 @@ class Harness:
 
     def run(self, cmd, *, sql=None, ok=True, timeout=45):
         # SQL/passwords are intentionally omitted from command manifests.
+        from runner import reuse_build
+        cached = reuse_build(self,cmd) if os.environ.get('PROVISIOND_HARNESS_INVOCATION') else None
+        if cached is not None:
+            self.commands.append(dict(command=cached.args,exit_status=0))
+            return cached
         try:
             r = subprocess.run(cmd, input=sql, env=self.env, capture_output=True, text=True, timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -258,6 +272,7 @@ tcp_keepalives_count = 2
 
     def start(self, name, role='administrator'):
         cap_check()
+        assert name not in self.retired_authorities, 'STO-54 old authority launch identity is fenced'
         n = self.nodes[name]
         self.release_port(n['port'])
         free_port(n['port'])
@@ -296,35 +311,94 @@ tcp_keepalives_count = 2
         self.event('fault_activated', fault='owned_backend_crash', pid=pid,
                    postmaster_pid=self.nodes['primary']['process'].pid)
 
-    def backup(self, name, standby=False):
+    def backup(self, name, standby=False, source='primary'):
         dest = self.root / name
+        assert not dest.exists(), 'backup destination must be fresh and invocation-owned'
+        self.owned_extra_paths = getattr(self, 'owned_extra_paths', [])
+        self.owned_extra_paths.append(dest)
+        source_port = self.nodes[source]['port']
+        source_system = self.sql('SELECT system_identifier FROM pg_control_system()', node=source)
+        source_timeline = self.sql('SELECT timeline_id FROM pg_control_checkpoint()', node=source)
         started=time.monotonic()
-        self.event('backup_requested', destination=name, wal_mode='stream', application_name='bootstrap_backup',command_bound_seconds=self.config['bootstrap_command_seconds'])
-        self.run(['pg_basebackup','-d',f'host=127.0.0.1 port={self.ports[0]} user=replicator dbname=postgres application_name=bootstrap_backup',
+        self.event('backup_requested', destination=name, source=source, source_system_identifier=source_system,
+                   source_timeline=source_timeline, wal_mode='stream', application_name='bootstrap_backup',command_bound_seconds=self.config['bootstrap_command_seconds'])
+        self.run(['pg_basebackup','-d',f'host=127.0.0.1 port={source_port} user=replicator dbname=postgres application_name=bootstrap_backup',
                   '-D',str(dest),'-X','stream','--checkpoint=fast','--no-password'],timeout=self.config['bootstrap_command_seconds'])
         self.run(['pg_verifybackup',str(dest)],timeout=self.config['bootstrap_command_seconds'])
         provenance=self.root/(name+'-backup-manifest.json')
         provenance.write_bytes((dest/'backup_manifest').read_bytes())
-        self.event('backup_provenance_retained',path=str(provenance),sha256=hashlib.sha256(provenance.read_bytes()).hexdigest())
+        manifest = json.loads(provenance.read_text())
+        assert str(manifest['System-Identifier']) == source_system
+        self.event('backup_provenance_retained',path=str(provenance),sha256=hashlib.sha256(provenance.read_bytes()).hexdigest(),
+                   source=source, system_identifier=source_system, wal_ranges=manifest['WAL-Ranges'])
         if standby:
             (dest/'standby.signal').touch()
             # Set the final application name and authenticated role before startup.
             (dest/'postgresql.auto.conf').write_text(
-                f"primary_conninfo = 'host=127.0.0.1 port={self.ports[0]} user=replicator application_name=provisiond_sync passfile={self.pgpass}'\n")
-        self.event('backup_complete', destination=name, verified=True,elapsed_seconds=time.monotonic()-started)
+                f"primary_conninfo = 'host=127.0.0.1 port={source_port} user=replicator application_name=provisiond_sync passfile={self.pgpass}'\n")
+        self.event('backup_complete', destination=name, source=source, verified=True,
+                   maintenance_session_closed=True, maintenance_mode_exception=False,
+                   elapsed_seconds=time.monotonic()-started)
 
-    def identity(self):
-        target = self.sql('SELECT pg_current_wal_flush_lsn()')
-        eventually(lambda: self.sql(f"SELECT count(*)=1 FROM pg_stat_replication WHERE application_name='provisiond_sync' AND usename='replicator' AND client_addr='127.0.0.1' AND sync_state='sync' AND flush_lsn >= '{target}'::pg_lsn")=='t')
-        p = self.sql('SELECT system_identifier FROM pg_control_system()')
-        s = self.sql('SELECT system_identifier FROM pg_control_system()',node='standby')
+    def identity(self, primary='primary', standby='standby'):
+        target = self.sql('SELECT pg_current_wal_flush_lsn()', node=primary)
+        eventually(lambda: self.sql(f"SELECT count(*)=1 FROM pg_stat_replication WHERE application_name='provisiond_sync' AND usename='replicator' AND client_addr='127.0.0.1' AND sync_state='sync' AND flush_lsn >= '{target}'::pg_lsn", node=primary)=='t')
+        p = self.sql('SELECT system_identifier FROM pg_control_system()', node=primary)
+        s = self.sql('SELECT system_identifier FROM pg_control_system()',node=standby)
         assert p == s
-        assert self.sql('SELECT pg_is_in_recovery()',node='standby') == 't'
-        self.event('identity_catchup', system_identifier=p, sampled_primary_flush=target,
+        assert self.sql('SELECT pg_is_in_recovery()',node=standby) == 't'
+        self.event('identity_catchup', primary=primary, standby=standby, system_identifier=p, sampled_primary_flush=target,
                    standby_system_identifier=s, authenticated_role='replicator',
-                   primary_checkpoint=self.sql('SELECT timeline_id, redo_lsn FROM pg_control_checkpoint()'),
-                   standby_checkpoint=self.sql('SELECT timeline_id, redo_lsn FROM pg_control_checkpoint()',node='standby'),
+                   primary_checkpoint=self.sql('SELECT timeline_id, redo_lsn FROM pg_control_checkpoint()', node=primary),
+                   standby_checkpoint=self.sql('SELECT timeline_id, redo_lsn FROM pg_control_checkpoint()',node=standby),
                    provenance='verified pg_basebackup from this primary; exclusive run-owned data and credentials')
+
+    def fence_authority(self, name, workflow):
+        """STO-54: local-only fence over the complete owned component inventory."""
+        node = self.nodes[name]
+        connection_log = self.root / (name + '-fence-session.stdout')
+        connection_error = self.root / (name + '-fence-session.stderr')
+        with connection_log.open('w') as out, connection_error.open('w') as err:
+            retained = subprocess.Popen(['psql','-XAt','-v','ON_ERROR_STOP=1','-h','127.0.0.1',
+                '-p',str(node['port']),'-U','app','-d','postgres'],env=self.env,
+                stdin=subprocess.PIPE,stdout=out,stderr=err,text=True)
+        self.extra.append(retained)
+        retained.stdin.write('SELECT pg_backend_pid();\n'); retained.stdin.flush()
+        eventually(lambda: connection_log.read_text().strip())
+        workflow.quiesced = True
+        inventory = [p for p in self.extra if getattr(p, 'name', None) in ('api', 'engine')]
+        assert set(inventory) == {p for p in workflow.children if getattr(p, 'name', None) in ('api', 'engine')}
+        for process in inventory:
+            if process.poll() is None:
+                process.terminate()
+            process.wait(timeout=5)
+        assert all(p.poll() is not None for p in inventory)
+        # Recovery leaves the public listeners down while checked DB sessions
+        # are opened. Keep their ports out of ephemeral client allocation too.
+        self.reserve_port(self.ports[4])
+        if workflow.operator_env:
+            self.reserve_port(self.ports[7])
+        self.event('components_quiesced', inventory=[dict(component=p.name, pid=p.pid, exit_status=p.returncode) for p in inventory],
+                   restart_prevented=True, complete_inventory=True)
+        self.stop(name)
+        retained.communicate('SELECT 1;\n', timeout=5)
+        assert retained.returncode != 0, 'STO-54 existing old-authority session must fail'
+        quarantine = self.root / (node['data'].name + '-quarantined')
+        assert not quarantine.exists()
+        node['data'].rename(quarantine)
+        node['data'] = quarantine
+        self.retired_authorities.add(name)
+        refused = self.run(['psql', '-XAt', '-h', '127.0.0.1', '-p', str(node['port']),
+                            '-U', 'app', '-d', 'postgres', '-c', 'SELECT 1'], ok=False)
+        assert refused.returncode != 0, 'STO-54 fenced authority must refuse new component connections'
+        try:
+            self.start(name)
+        except AssertionError as error:
+            assert str(error) == 'STO-54 old authority launch identity is fenced'
+        else:
+            raise AssertionError('STO-54 fenced authority must refuse normal relaunch')
+        self.event('authority_fenced', node=name, quarantine=str(quarantine), new_connection_exit=refused.returncode,
+                   existing_connection_exit=retained.returncode, old_identity_relaunch_refused=True, local_only=True)
 
     def drill(self):
         self.init()
@@ -402,6 +476,7 @@ tcp_keepalives_count = 2
         paths.update(self.root/n for n in ['primary','restored','restore-backup','standby','rebuilt'])
         paths.update(getattr(self,'owned_extra_paths',[]))
         paths.add(self.target)  # invocation-owned build output, after every child is reaped
+        paths.add(self.archive)  # archived WAL is disposable only after assertions and server cleanup
         for path in sorted(paths):
             if path.exists() and not errors:
                 shutil.rmtree(path)
@@ -461,18 +536,21 @@ tcp_keepalives_count = 2
 
 
 def main():
+    from runner import DEFAULT_JOBS
     ap=argparse.ArgumentParser()
-    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','default-workflow','w5','w6','all'],default='all')
-    ap.add_argument('--case',choices=__import__('w6').CASES+__import__('w5').CASES+['w6_controls','w5_controls','session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'],help='one focused regression; default runs all')
-    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset','w4_atomic','w4_ack','w4_overload','w5_generation','w5_checkout','w5_blind_retry','w5_stop_reset','w5_observer_run','w6_blind_repeat','w6_non_exact','w6_release_timeout','w6_skip_startup'])
+    ap.add_argument('--phase',choices=['w1','checks','commits','regressions','corrections','core','controls','workflow','default-workflow','w5','w6','w7','all','iteration'],default='all')
+    ap.add_argument('--case',choices=__import__('w7').CASES+__import__('w6').CASES+__import__('w5').CASES+['w7_controls','w6_controls','w5_controls','session','transaction','runtime','cancelled','execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency','migrations','money','claims','generation','stops','external','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','surface','predispatch','startup','w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'],help='one focused regression; default runs all')
+    ap.add_argument('--defect', choices=['execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','generation','claim_guard','payment_atomic','claim_cancel','defer_cancel','licensing_stop','outcome_stop','replacement_outcome','deadline','lock_observers','surface','predispatch','startup_order','terminal_zero','terminal_capacity','loss_stop','queued_claim','queued_claim_pool','displaced_record','lock_record_reset','w4_atomic','w4_ack','w4_overload','w5_generation','w5_checkout','w5_blind_retry','w5_stop_reset','w5_observer_run','w6_blind_repeat','w6_non_exact','w6_release_timeout','w6_skip_startup','w7_retry_reset','w7_lossless_restart','w7_no_ack','w7_supersession_inherits','w7_finite_guess'])
+    ap.add_argument('--jobs',type=int,default=DEFAULT_JOBS,help='global isolated worker bound (default: 6)')
     ap.add_argument('--seed',type=int,default=20261105)
     ap.add_argument('--evidence',type=Path)
     args=ap.parse_args()
-    preflight_ports()
+    if not 1<=args.jobs<=50:ap.error('--jobs must be in 1..50')
     cases={
         'w5':set(__import__('w5').CASES),
         'w6':set(__import__('w6').CASES),
-        'controls':{'w5_controls','w6_controls'},
+        'w7':set(__import__('w7').CASES),
+        'controls':{'w5_controls','w6_controls','w7_controls'},
         'workflow':{'w4_atomic','w4_ack','w4_overload','w4_search_error','w4_verify_stop','w4_search_stop','w4_get_stop','w4_lock_dispatch','w4_query','w4_record','w4_default','w4_redaction','w4_halt','w4_forward','w4_live_stop','w4_price','w4_empty_data','w4_spend','w4_abandon','w4_unauth','w4_pacing','w4_token_pacing','w4_settlement','w4_guards','w4_suspended_attach','w4_no_rate','w4_no_rate_absent','w4_stop_cost','w4_regressions','w4_reserve_record','w4_rate_record','w4_conversion_record','w4_offer_record','w4_underpayment','w4_overpayment','w4_operator_hiding','w4_api_startup','w4_api_idle','w4_api_checkout','w4_api_commit','w4_observation','w4_preflight','w4_restart_error','w4_stop_error','w4_simulator','w4_expiry','w4_provider_refusal','w4_provider_ambiguity','w4_mixed_pacing','w4_read_deadline','w4_retention','w4_retention_scale','w4_retention_reads'},
         'regressions':{'session','transaction','runtime','cancelled'},
         'corrections':{'execute_cancel','checkout','caller_sql','commit_setting','notices','notice_sticky','verify_cancel','admission_latency'},
@@ -481,6 +559,11 @@ def main():
     if args.case and args.case not in cases.get(args.phase,set()):
         ap.error('--case is incompatible with the selected phase')
     defect_cases={
+        'w7_retry_reset':('w7','w7_continuation'),
+        'w7_lossless_restart':('w7','w7_lossless'),
+        'w7_no_ack':('w7','w7_lossless'),
+        'w7_supersession_inherits':('w7','w7_supersession'),
+        'w7_finite_guess':('w7','w7_reporting'),
         'w6_blind_repeat':('w6','w6_positive'),
         'w6_non_exact':('w6','w6_conflicting'),
         'w6_release_timeout':('w6','w6_empty'),
@@ -503,37 +586,53 @@ def main():
     }
     if args.defect and (args.phase,args.case)!=defect_cases[args.defect]:
         ap.error('--defect requires its exact compatible phase and case')
+    from runner import invocation
+    cap_check()
+    with invocation(ROOT,args.jobs,candidates=args.phase in ('all','iteration','controls')):
+        return dispatch(args)
+
+
+def dispatch(args):
     if args.phase=='controls':
         from controls import controls
-        return controls(args.seed,args.evidence,w5_only=args.case=='w5_controls',w6_only=args.case=='w6_controls')
-    if args.phase=='all':
+        return controls(args.seed,args.evidence,w5_only=args.case=='w5_controls',w6_only=args.case=='w6_controls',w7_only=args.case=='w7_controls')
+    if args.phase in ('all','iteration'):
+        from runner import PHASES,children
         cap_check()
+        phases=PHASES if args.phase=='all' else ['w7','controls']
+        root=Path(tempfile.mkdtemp(prefix=args.phase+'-',dir=ROOT))
+        jobs=[]
+        for phase in phases:
+            path=args.evidence.with_name(args.evidence.stem+'-'+phase+'.json') if args.evidence else root/(phase+'.json')
+            command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed),'--evidence',str(path)]
+            jobs.append((command,path,dict(os.environ)))
         records=[]
-        for phase in ['w1','checks','commits','regressions','corrections','core','workflow','default-workflow','w5','w6','controls']:
-            command=['python3','tests/postgres/harness.py','--phase',phase,'--seed',str(args.seed)]
-            # Explicit evidence names; every child command remains foreground.
-            path=None
-            if args.evidence:
-                path=args.evidence.with_name(args.evidence.stem+'-'+phase+'.json')
-            elif phase in ('w5','w6'):
-                ROOT.mkdir(parents=True,exist_ok=True)
-                path=Path(tempfile.mkdtemp(prefix='all-'+phase+'-',dir=ROOT))/'manifest.json'
-            if path:command.extend(['--evidence',str(path)])
-            result=subprocess.run(command,check=False)
-            records.append(dict(phase=phase,command=['nix','develop','--command',*command],exit_status=result.returncode,
-                                result='pass' if result.returncode==0 else 'fail'))
-            if phase in ('w5','w6') and result.returncode==0:
-                inventory_complete=__import__(phase).inventory_complete
-                child=json.loads(path.read_text()) if path and path.exists() else {}
-                if not inventory_complete(child):
-                    records[-1].update(result='fail',reason=f'missing or incomplete {phase} phase inventory')
-            if records[-1]['result']!='pass':
-                break
-        status=0 if len(records)==11 and all(r['exit_status']==0 and r['result']=='pass' for r in records) else 1
-        if args.evidence:
-            args.evidence.write_text(json.dumps(dict(result='pass' if status==0 else 'fail',phases=records),indent=2)+'\n')
+        for phase,record in zip(phases,children(jobs),strict=True):
+            record.update(phase=phase,result='pass' if record['exit_status']==0 else 'fail')
+            if phase in ('w5','w6','w7') and record['exit_status']==0:
+                child=json.loads(Path(record['path']).read_text())
+                if not __import__(phase).inventory_complete(child):
+                    record.update(result='fail',reason=f'missing or incomplete {phase} phase inventory')
+            records.append(record)
+        status=0 if len(records)==len(phases) and all(r['exit_status']==0 and r['result']=='pass' for r in records) else 1
+        manifest=dict(result='pass' if status==0 else 'fail',phases=records,
+                      jobs=int(os.environ['PROVISIOND_HARNESS_JOBS']))
+        if args.evidence:args.evidence.write_text(json.dumps(manifest,indent=2)+'\n')
+        print(json.dumps(manifest),flush=True)
         return status
-    h=Harness(args.phase,args.seed)
+    from runner import worker_slot
+    # STO-7/54, PRV-36: isolate recorded fixed-window histories from competing
+    # backup I/O. The serial W6 phase upgrades only around default_hooks;
+    # focused default_hooks and the non-exact control start with all tokens.
+    exclusive=(args.phase=='w7' and args.case in ('w7_lossy','w7_reporting')
+        or args.phase=='w6' and args.case=='w6_default_hooks' or args.defect=='w6_non_exact')
+    slot=worker_slot(exclusive=exclusive);alone=slot.__enter__()
+    try:h=Harness(args.phase,args.seed)
+    except BaseException:
+        slot.__exit__(None,None,None)
+        raise
+    h.release_slot=lambda:slot.__exit__(None,None,None)
+    h.exclusive_history=alone
     status='fail'
     try:
         if args.phase=='w1':
@@ -557,6 +656,9 @@ def main():
         elif args.phase=='default-workflow':
             from workflow import workflow
             workflow(h,'w4_default')
+        elif args.phase=='w7':
+            from w7 import w7
+            w7(h,args.case,args.defect)
         elif args.phase=='w6':
             from w6 import w6
             w6(h,args.case,args.defect)
@@ -584,6 +686,7 @@ def main():
         (h.root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
         if args.evidence:
             args.evidence.write_text(json.dumps(manifest,indent=2)+'\n')
+        h.release_slot()
         print(json.dumps(dict(result=status,raw_evidence=str(h.root),scenarios=h.results)),flush=True)
     return 0 if status=='pass' else 1
 

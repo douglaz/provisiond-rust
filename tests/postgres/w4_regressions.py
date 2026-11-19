@@ -126,11 +126,15 @@ def pacing(w):
     # API-50: accepted intervals must cover sustained three-read fleet cycles.
     t=funded(w,'poll-budget');other=funded(w,'poll-budget-other')
     invalid=dict(PARAMETERS,read_limit=3,rate_interval_ms=10000)
-    w.api.terminate();w.api.wait(timeout=5);w.parameters.write_text(json.dumps(invalid))
+    w.stop_api();w.parameters.write_text(json.dumps(invalid))
     w.api=w.start('api',dict(PROVISIOND_API_LISTEN=f'127.0.0.1:{w.h.ports[4]}',PROVISIOND_RAIL_SIMULATOR=f'127.0.0.1:{w.h.ports[6]}',PROVISIOND_LOCAL_PARAMETERS=str(w.parameters),PROVISIOND_TEST_CONTROL=str(w.control)))
     eventually(lambda:w.api.poll() is not None or 'api_listening' in w.api.log.read_text())
     rejected=w.api.poll() is not None
     w.h.event('polling_budget_validation_observed',read_limit=3,rate_interval_ms=10000,rejected=rejected,exit_status=w.api.poll())
+    if rejected:
+        from workflow import deployment_exit
+        deployment_exit(w.h,'api',w.api,case='polling-budget',retry_eligible=False)
+        w.reserve_api_ports()
     assert rejected,'incoherent polling budget must be rejected'
     for interval,limit,cycles in [(1000,3,4),(1500,6,5)]:
         w.restart_api(dict(PARAMETERS,read_limit=limit,rate_interval_ms=interval))

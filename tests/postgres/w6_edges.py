@@ -160,7 +160,7 @@ def default_hooks(w):
     from w6 import create,lost,pending,proof,one_purchase
     from w5 import events,orders,admit
     from harness import eventually
-    h=w.h;w.stop_engine();w.api.terminate();w.api.wait(timeout=5)
+    h=w.h;w.stop_engine();w.stop_api()
     original=(h.target,h.env,w.builds,w.defect)
     target=h.root/'w6-default-target'
     h.owned_extra_paths=getattr(h,'owned_extra_paths',[])+[target]
@@ -194,7 +194,7 @@ def default_hooks(w):
         effect=h.root/'provider/hold-before-effect';effect.touch();paths.append(effect)
         w.provider_control(mode='normal');p=w.start_engine()
         eventually(lambda:any(e['stage']=='effect_held' for e in w.external()['events'] if e.get('command')==op))
-        w.stop_engine();h.sql(f"INSERT INTO provisiond.recovery_incidents(id,closed_at) VALUES('{uuid.uuid4()}',clock_timestamp())")
+        w.stop_engine();h.sql(f"INSERT INTO provisiond.recovery_incidents(legacy,id,closed_at) VALUES(true,'{uuid.uuid4()}',clock_timestamp())")
         p=w.start_engine()
         assert events(p,'restart_pass_complete')[-1]['running_found']==1
         assert w.status(op)=='needs_reconciliation'
@@ -213,7 +213,7 @@ def default_hooks(w):
         h.event('w6_default_observed',features=[],defect_environments=observed,delete_operation=op,control_files_ignored=True)
     finally:
         w.stop_engine()
-        if w.api.poll() is None:w.api.terminate();w.api.wait(timeout=5)
+        w.stop_api()
         for path in paths:
             if path.exists():path.unlink()
         hold.unlink(missing_ok=True)

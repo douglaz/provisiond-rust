@@ -57,7 +57,7 @@ impl Engine {
             )
             .await?;
         component.trace(json!({"event":"delete_decision","operation":c.id,"decision":decision}));
-        if decision == "finished" {
+        if decision == "finished" || decision == "deferred" {
             return Ok(None);
         }
         if decision == "no_rate" {

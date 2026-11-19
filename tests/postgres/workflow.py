@@ -28,6 +28,41 @@ def trace_events(path):
             if line.startswith(b'{') and line.endswith(b'\n')]
 
 
+def exit_evidence(process):
+    return dict(exit_status=process.returncode,
+        stderr_excerpt=process.error.read_text()[-2000:],
+        stdout_path=str(process.log),stderr_path=str(process.error),
+        stdout_sha256=hashlib.sha256(process.log.read_bytes()).hexdigest(),
+        stderr_sha256=hashlib.sha256(process.error.read_bytes()).hexdigest())
+
+
+def deployment_exit(h,component,process,**data):
+    """STO-7: retain the true failed invocation before any fixture cleanup."""
+    h.event(component+'_fixture_deployment_exit',result='fail',**exit_evidence(process),**data)
+
+
+def empty_recovery_replay(events):
+    """STO-7/54: prove the failed write constructor preceded any business work.
+
+    One admitted session served startup reads. The second constructor closed
+    unused (session=0); it never reached BEGIN. An empty adapter replay is a GET.
+    Unknown events fail closed, as do any admitted write session or step mark.
+    """
+    allowed={'client_keepalives_observed','check_target','check_observation','session_admitted',
+             'schema_compatible','recovery_startup_decision','recovery_watch_set_derived',
+             'external_entry','call_cancelled_session_closed','driver_closed_unused','supervisor_drained'}
+    external=[e for e in events if e.get('event')=='external_entry']
+    decisions=[e for e in events if e.get('event')=='recovery_startup_decision']
+    watches=[e for e in events if e.get('event')=='recovery_watch_set_derived']
+    return (all(e.get('event') in allowed for e in events)
+        and len(external)==1 and external[0].get('kind')=='Rail' and external[0].get('simulator') is True
+        and len(decisions)==1 and decisions[0].get('incident',{}).get('steps_completed')==2
+        and len(watches)==1 and watches[0].get('deposits')==[]
+        and sum(e.get('event')=='session_admitted' for e in events)==1
+        and any(e.get('event')=='call_cancelled_session_closed' and e.get('session')==0 for e in events)
+        and any(e.get('event')=='driver_closed_unused' for e in events))
+
+
 def http(port,method,path,body=None,token=None,key=None,raw=None,headers=None):
     conn=HTTPConnection('127.0.0.1',port,timeout=8)
     hs={'Content-Type':'application/json'}
@@ -46,6 +81,7 @@ class Workflow:
     def __init__(self,h,defect=None,default_build=False,parameters=None,operator=False):
         self.defect=defect
         self.default_build=default_build
+        self.quiesced=False
         self.h=h;self.children=[];self.engine=None;self.private=[]
         prepare(h)
         h.run(['cargo','build','--bins',*(['--features','store-test-hooks'] if not default_build else []),'--locked'],timeout=120)
@@ -75,7 +111,7 @@ class Workflow:
         self.rail=self.simulator('rail',6)
         self.provider_control(offers={'sim-a':[self.offer],'sim-b':[self.offer]})
         h.config['workflow']=dict(parameters=parameters or PARAMETERS,descriptor=self.descriptor,offer=self.offer,rate=self.rate,listeners=dict(api=h.ports[4],provider=h.ports[5],rail=h.ports[6]),test_build_features=[] if default_build else ['store-test-hooks'])
-        self.builds={name:self.build_identity(h.target/'debug'/name,[] if default_build else ['store-test-hooks']) for name in ['api','engine','migrate']}
+        self.builds={name:self.build_identity(h.target/'debug'/name,[] if default_build else ['store-test-hooks']) for name in ['api','engine','migrate','recovery']}
         h.config['workflow']['builds']=dict(self.builds)
         if default_build:h.config['engine']['runtime_build']['features']=[]
         self.operator_env={}
@@ -97,7 +133,11 @@ class Workflow:
         eventually(lambda:(h.root/(kind+'.stdout')).read_text())
         return p
     def start(self,name,extra=None):
+        assert not self.quiesced or self.defect=='w7_no_ack' and not self.default_build, 'STO-54 component restart prevented by local deployment fence'
         h=self.h
+        if name=='api':
+            h.release_port(h.ports[4])
+            if self.operator_env:h.release_port(h.ports[7])
         identity=self.build_identity(h.target/'debug'/name,self.builds[name]['features'])
         assert identity==self.builds[name],'workflow executable changed after its recorded build'
         h.event('workflow_binary_started',component=name,case=getattr(self,'case','setup'),**identity)
@@ -110,8 +150,21 @@ class Workflow:
         return p
     def build_identity(self,path,features):
         return dict(executable=str(path),sha256=hashlib.sha256(path.read_bytes()).hexdigest(),features=features)
+    def reserve_api_ports(self):
+        # STO-7/54: stopped listeners retain their allocation during SQL,
+        # backup and deployment work; start releases them immediately before bind.
+        try:
+            self.h.reserve_port(self.h.ports[4])
+            if self.operator_env:self.h.reserve_port(self.h.ports[7])
+        except OSError as error:
+            self.h.event('api_fixture_reservation_error',result='fail',errno=error.errno,error=str(error))
+            raise
+    def stop_api(self):
+        if self.api.poll() is None:self.api.terminate()
+        self.api.wait(timeout=5)
+        self.reserve_api_ports()
     def restart_api(self,parameters=None):
-        if self.api.poll() is None:self.api.terminate();self.api.wait(timeout=5)
+        self.stop_api()
         self.parameters.write_text(json.dumps(parameters or PARAMETERS))
         self.h.event('api_parameters_applied',parameters=parameters or PARAMETERS)
         self.launch_api()
@@ -126,15 +179,45 @@ class Workflow:
             forbidden=any(e.get('event') in ['api_listening','external_entry'] or e.get('event','').startswith(('http_','rail_','funding_','invoice_')) for e in events)
             armed=any(not g.released.is_set() for g in self.h.proxy.gates)
             checkout_refusal='whole pool checkout deadline' in self.api.error.read_text()
-            eligible=(self.api.returncode!=0 and checkout_refusal and not forbidden and not armed and self.defect is None)
-            self.h.event('api_fixture_deployment_exit',attempt=attempt,exit_status=self.api.returncode,result='fail',pre_listener=not any(e.get('event')=='api_listening' for e in events),business_begin_count=sum(e.get('event')=='http_business_begin' for e in events),funding_or_external_events=sum(e.get('event')=='external_entry' or e.get('event','').startswith(('rail_','funding_','invoice_')) for e in events),armed_transport_fault=armed,checkout_refusal=checkout_refusal,retry_eligible=eligible,stdout_sha256=hashlib.sha256(self.api.log.read_bytes()).hexdigest(),stderr_sha256=hashlib.sha256(self.api.error.read_bytes()).hexdigest())
+            replay=False
+            if (checkout_refusal and not armed
+                    and self.defect is None and empty_recovery_replay(events)):
+                code,settlements,_=http(self.h.ports[6],'GET','/settlements')
+                replay=code==200 and settlements==[]
+            eligible=(self.api.returncode!=0 and checkout_refusal and (not forbidden or replay) and not armed and self.defect is None)
+            deployment_exit(self.h,'api',self.api,attempt=attempt,pre_listener=not any(e.get('event')=='api_listening' for e in events),business_begin_count=sum(e.get('event')=='http_business_begin' for e in events),funding_or_external_events=sum(e.get('event')=='external_entry' or e.get('event','').startswith(('rail_','funding_','invoice_')) for e in events),armed_transport_fault=armed,checkout_refusal=checkout_refusal,retry_eligible=eligible,empty_read_only_recovery_replay=replay)
+            try:self.reserve_api_ports()
+            except OSError as error:
+                raise AssertionError('current API startup failed before readiness: '+self.api.error.read_text()) from error
             assert eligible and attempt<3,'current API startup failed before readiness: '+self.api.error.read_text()
             self.h.event('api_fixture_deployment_repeated',failed_attempt=attempt,previous_process_exited=True,read_only_before_listener=True,checkout_ms=250)
-    def start_engine(self):
-        self.engine=self.start('engine',dict(PROVISIOND_TEST_CONTROL=str(self.control)))
-        eventually(lambda:'restart_pass_complete' in self.engine.log.read_text() or self.engine.poll() is not None)
-        assert self.engine.poll() is None,'current engine startup failed before readiness: '+self.engine.error.read_text()
-        return self.engine
+    def start_engine(self,extra=None):
+        # STO-7: each failed constructor still exits closed and unused. Only
+        # fixture deployment may repeat a proven pre-admission checkout refusal;
+        # negative/control starts use start directly and remain single attempts.
+        # Manager::create/Session::check emit target and peer observations before
+        # session_admitted (src/store/mod.rs). entry::continue_pre_lock cannot
+        # finish compatibility reads or reach recovery until that admission.
+        allowed={'client_keepalives_observed','check_target','check_observation','call_cancelled_session_closed',
+                 'driver_closed_unused','supervisor_drained'}
+        for attempt in range(1,4):
+            self.engine=self.start('engine',dict(PROVISIOND_TEST_CONTROL=str(self.control),**(extra or {})))
+            eventually(lambda:'restart_pass_complete' in self.engine.log.read_text() or self.engine.poll() is not None)
+            if self.engine.poll() is None:return self.engine
+            events=trace_events(self.engine.log)
+            shape=[e.get('event') for e in events]
+            pre_admission=(all(e in allowed for e in shape) and all(
+                e.get('kind')=='admission' for e in events if e.get('event') in ('check_target','check_observation')))
+            armed=any(not g.released.is_set() for g in self.h.proxy.gates)
+            checkout_refusal='whole pool checkout deadline' in self.engine.error.read_text()
+            eligible=(self.engine.returncode!=0 and checkout_refusal and pre_admission
+                and not armed and self.defect is None)
+            deployment_exit(self.h,'engine',self.engine,attempt=attempt,
+                events=shape,pre_admission=pre_admission,
+                armed_transport_fault=armed,checkout_refusal=checkout_refusal,retry_eligible=eligible)
+            assert eligible and attempt<3,'current engine startup failed before readiness: '+self.engine.error.read_text()
+            self.h.event('engine_fixture_deployment_repeated',failed_attempt=attempt,
+                previous_process_exited=True,pre_admission=True,events=shape,checkout_ms=250)
     def stop_engine(self):
         if self.engine and self.engine.poll() is None:self.engine.terminate();self.engine.wait(timeout=5)
         self.engine=None
@@ -268,8 +351,10 @@ class Workflow:
             if p.poll() is None:p.terminate()
             p.wait(timeout=5)
         assert all(p.poll() is not None for p in self.children)
+        self.reserve_api_ports()
         selected={'api_listening','api_stopping','api_tasks_finished','api_background_task_failed','api_request_task_failed','http_business_begin','http_response','dispatch_step','dispatch_step_held','dispatch_license_acknowledged','provider_verified','execute_returned','settlement_finished','external_entry','rail_credit_acknowledged','rail_observation_processed','activation_without_healthy_assignment','whole_transaction_retry','generation_checked','worker_zero_row','destination_read','destination_exposed','token_request_held','token_issued','token_request_abandoned','funding_held','preflight_read_retry','preflight_read_exhausted'}
         selected.update({'claim_precommit_retry','test_commit_checkout','http_handler_cancelled','http_response_held','http_reply_lost','test_stop_requested','test_record_snapshot','test_later_stop_requested','test_dispatch_paused','engine_superseded','defect_provider_retry','defect_checkout_released','session_admitted','commit_classified','startup_lock_acquired','startup_lock_lost','claim_attempt_started','claim_registered','stop_record_started','stop_record_finished','commit_possible_dispatch','commit_owner_completed','engine_fatal'})
+        selected.update({'recovery_startup_decision','recovery_loss_report','recovery_step_acknowledged','recovery_quarantine_prepared','recovery_watch_set_derived','restart_pass_complete','generation_advanced','delete_decision','account_pass_complete','unrecorded_provider_resource'})
         for child in self.children:
             if getattr(child,'name',None) in ['api','engine']:
                 trace=trace_events(child.log)

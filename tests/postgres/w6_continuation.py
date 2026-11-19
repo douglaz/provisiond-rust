@@ -64,7 +64,7 @@ def single_match(w):
 def schema_two(w,status,count=1):
     """Exact supported schema-2 rows, isolated while API/engine are stopped."""
     from core import binary
-    w.stop_engine();w.api.terminate();w.api.wait(timeout=5)
+    w.stop_engine();w.stop_api()
     w.h.sql('DROP SCHEMA provisiond CASCADE; CREATE SCHEMA provisiond AUTHORIZATION migrator; GRANT USAGE ON SCHEMA provisiond TO app')
     for name in ('0001-core.sql','0002-local-service.sql'):
         w.h.sql(Path('migrations',name).read_text(),role='migrator')

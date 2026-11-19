@@ -114,7 +114,7 @@ impl super::Transaction {
         let rate: Value = serde_json::from_str(
             &self
                 .rows(
-                    "SELECT COALESCE((SELECT jsonb_build_object('value',value,'available',available) FROM provisiond.rates WHERE currency=$1),'null'::jsonb)::text",
+                    "SELECT COALESCE((SELECT jsonb_build_object('value',value,'available',available) FROM provisiond.current_rates WHERE currency=$1),'null'::jsonb)::text",
                     &[&offer["currency"].as_str()],
                 )
                 .await?[0]
