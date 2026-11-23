@@ -191,31 +191,70 @@ def idle_failure(w):
 
 def checkout_failure(w):
     from w4_regressions import funded
+    from w4_probe import completed_probe
+    from test_w4_probe import probe_completion_regressions
+    w.h.event('housekeeping_probe_checker_regressions',tests=probe_completion_regressions(),result='pass')
     t=funded(w,'housekeeping-deadline');p=w.api
-    # Begin just after a completed housekeeping read, giving the held HTTP
-    # request time to complete within the unchanged 1 s request drain bound.
-    tick=w.h.proxy.arm('SELECT to_json(EXISTS(SELECT 1 FROM provisiond.enrolments','reply')
-    tick.wait();tick.release()
+    # STO-55, STO-7, OVR-18/19; D-70: a pre-transaction checkout failure
+    # skips one tick. It does not change sent-COMMIT or fatal-task ownership.
+    probe='SELECT to_json(EXISTS(SELECT 1 FROM provisiond.enrolments'
+    tick=w.h.proxy.arm(probe,'reply')
+    try:tick.wait()
+    finally:tick.release()
+    before=len(api_events(p))
     gate=w.h.proxy.arm("SELECT jsonb_build_object('balance_sats'",'reply')
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         held=pool.submit(http,w.h.ports[4],'GET','/v1/balance',None,t['spending_token'])
-        gate.wait();start=time.monotonic()
         try:
-            # 1.6 s < 2 s call bound, > one housekeeping tick + actual 250 ms checkout.
-            time.sleep(1.6)
+            gate.wait();start=time.monotonic()
+            try:
+                skip=eventually(lambda:next((e for e in api_events(p)[before:]
+                    if e.get('event')=='housekeeping_tick_skipped'
+                    and e.get('stage')=='freeze_read'
+                    and any('whole pool checkout deadline' in c or
+                            'pool checkout/create/check: Timeout occurred while waiting for a slot' in c
+                            for c in e.get('error_contexts',[]))),None),seconds=1.7)
+            except AssertionError as error:
+                raise AssertionError('held read must cause an actual housekeeping freeze_read checkout failure and skipped tick') from error
+            elapsed=time.monotonic()-start
+            assert .25<=elapsed<2,'checkout fault must occur within the held read call bound'
+            assert not held.done() and not gate.released.is_set(),'customer read must still own the checkout at the skipped tick'
+            assert any(e.get('event')=='pool_checkout_waiting' for e in api_events(p)[before:])
+            assert p.poll() is None and w.api is p,'checkout failure must preserve the same API process'
+            w.h.event('housekeeping_checkout_failure_observed',read_reply_held_seconds=elapsed,
+                      checkout_ms=250,call_ms=2000,session=gate.connection['pid'],
+                      api_pid=p.pid,process_alive=True,request_pending=True,skip=skip)
         finally:gate.release()
         response=held.result(timeout=5)
-    w.h.event('housekeeping_checkout_failure_observed',read_reply_held_seconds=time.monotonic()-start,
-              held_response_status=response[0],checkout_ms=250,call_ms=2000,session=gate.connection['pid'])
-    assert response[0]==200,'held real read must complete during bounded API draining'
-    # On original source, the next connection wakes the stale-ready process and
-    # demonstrates its panic. Corrected source already stopped without it.
-    if not any(e['event']=='api_stopping' for e in api_events(p)) and p.poll() is None:
-        try:http(w.h.ports[4],'OPTIONS','/v1/machines')
-        except (OSError, HTTPException):pass
-    clean_failure(w,p,'housekeeping checkout failure must exit nonzero without panic or SIGABRT')
-    assert 'housekeeping failed' in p.error.read_text() and 'pool checkout' in p.error.read_text()
-    w.launch_api()
+    assert response[0]==200,'held real read must complete after read capacity is restored'
+    # STO-55: observe two actual later housekeeping reads on the restored
+    # checkout, including their completed protocol replies, without restarting.
+    resumed=[];cursor=len(w.h.events)
+    for _ in range(2):
+        # Own a new send before releasing it; a reply gate can catch preparation
+        # or a trailing Z from the previous execution. Never reuse its cursor.
+        marker=max(cursor,len(w.h.events))
+        tick=w.h.proxy.arm(probe,'send')
+        try:
+            connection=tick.wait()
+            session=connection['pid'];query=connection['query']
+        finally:tick.release()
+        completion=eventually(lambda:completed_probe(w.h.events,marker,session,query),seconds=2)
+        cursor=completion['next_cursor']
+        resumed.append(completion)
+    healthy=http(w.h.ports[4],'GET','/v1/balance',None,t['spending_token'])
+    assert healthy[0]==200 and healthy[1]==response[1]
+    assert p.poll() is None and w.api is p,'housekeeping and customer reads must resume in the same API process'
+    assert not any(e.get('event') in ('api_stopping','api_tasks_finished','api_background_task_failed','api_request_task_failed')
+                   for e in api_events(p)[before:]),'skipped tick must not enter the fatal lifecycle'
+    errors=p.error.read_text()
+    assert not any(word in errors for word in ('panicked','housekeeping failed','fatal'))
+    assert not any(e.get('event')=='alarm' and e.get('threshold_ms')==0
+                   for e in (json.loads(line) for line in errors.splitlines() if line.startswith('{')))
+    w.h.event('housekeeping_checkout_recovery_observed',api_pid=p.pid,process_alive=True,
+              held_response_status=response[0],healthy_response_status=healthy[0],
+              resumed_probe_sessions=[e['session'] for e in resumed],resumed_probe_executions=resumed,
+              api_restarted=False,fatal_lifecycle=False)
     w.h.results.append(dict(test='W4-housekeeping-checkout-lifecycle',result='pass'))
 
 
