@@ -60,7 +60,8 @@ there is no asynchronous fallback, automatic promotion, connection authority or 
    provisiond, schema, financial, credential or incident writes or enters a component pool.
 6. **Close backup sessions; migrate offline if necessary.** Wait for backup and verification to
    finish before component recovery. On the verified replacement topology, run the deployable
-   `migrate` binary as the migrator. Schema/semantics must be exactly 1/1, 2/2, 3/3, 4/4. The runner
+   `migrate` binary as the migrator, following [release.md](release.md), including disabled
+   application login and zero old backends. This release requires completed history 1/1 through 5/5. The runner
    records one acknowledged migration per transaction and never runs in API/engine startup.
    Unsupported schema/semantic history and legacy incident prerequisites refuse startup. There
    is no down-migration or mixed-release service.
@@ -184,4 +185,151 @@ rollback. Synthetic extension state is not an implemented extend-runway route.
 Different-person and before-first-customer-payment rehearsal, production fencing, separate failure
 domains, production recovery bounds/alarms and general billing/provider conformance remain `not
 run`, owned by the deployment operator or deferred work. Never use this local automated rehearsal
-as their discharge. W8 tuning and W9–W11 are outside this procedure.
+as their discharge. W8 adds the saturation procedure below; W9–W11 remain outside this procedure.
+
+## Saturation recovery on unchanged history
+
+STO-55's five steps below are ordered. STO-7 forbids cancelling or terminating any individual
+primary backend waiting in SyncRep, except by primary shutdown. Use the inventory and private
+configuration variables from [release.md](release.md), with `CURRENT_RELEASE` naming the installed
+current release's directory. Keep the primary data/history identity unchanged. This is an outage;
+there is no fixed recovery duration or guaranteed observer connection. These commands are written
+for the owned local profile and have not yet been run as the W8 saturation journey.
+
+1. **Stop replacement processes and connection growth through deployment controls.** This needs
+   no database connection. Freeze other launchers. Mask the exact application units first:
+
+   ```sh
+   systemctl --user mask --runtime "$ENGINE_UNIT" "$API_UNIT"
+   # If an owned runaway-client unit is the identified connection-growth source:
+   # systemctl --user mask --runtime "$RUNAWAY_UNIT"
+   # systemctl --user stop "$RUNAWAY_UNIT"
+   ```
+
+   Stop every separately inventoried launcher/client that can open application connections,
+   including a manually launched recovery actor. Only act on this deployment's recorded units
+   and PIDs. A stopped client may leave a backend behind; pool counts prove no global occupancy
+   bound. Do not keep attempting new psql connections or reset supervisor counters during this step.
+
+2. **Quiesce application work and preserve uncertainty.** No SQL is needed:
+
+   ```sh
+   systemctl --user stop "$API_UNIT" "$ENGINE_UNIT"
+   systemctl --user show "$ENGINE_UNIT" "$API_UNIT" -p ActiveState -p SubState -p MainPID
+   journalctl --user -u "$ENGINE_UNIT" -u "$API_UNIT" -n 200 --no-pager
+   ps -ww --ppid "$(head -n 1 "$PRIMARY_DATA/postmaster.pid")" -o pid,ppid,args
+   tail -n 200 "$PRIMARY_LOG"
+   ```
+
+   Require MainPID=0 and stopped/failed units, plus stopped independent actors. Retain failed
+   request keys, operation IDs, provider identifiers and private raw logs. A fatal stop or signal
+   death is no classification of its in-flight work. PostgreSQL process titles may show COMMIT
+   waiting for replication; server logs may also report waits if replication-wait logging was enabled in advance. Absence of those text markers proves no
+   absence of SyncRep waiters. With no observer connection, treat all residual backends as
+   possibly waiting; never target one with kill, pg_cancel_backend or pg_terminate_backend.
+   OPS-21's 1000 ms record bound remains unchanged; the templates allow 5 seconds before forced
+   kill. A process that dies before a record is acknowledged leaves restart recovery to OPS-15.
+
+3. **Restore the designated standby so existing waits can complete.** Use process controls on
+   that existing authenticated peer, without fresh primary SQL:
+
+   ```sh
+   pg_ctl -D "$STANDBY_DATA" status
+   # If stopped:
+   pg_ctl -D "$STANDBY_DATA" -l "$STANDBY_LOG" -o "$STANDBY_SERVER_OPTIONS" start -w -t 60
+   # If suspended, instead resume the recorded owned standby postmaster:
+   # kill -CONT "$OWNED_STANDBY_PID"
+   tail -n 200 "$STANDBY_LOG"
+   tail -n 200 "$PRIMARY_LOG"
+   ps -ww --ppid "$(head -n 1 "$PRIMARY_DATA/postmaster.pid")" -o pid,ppid,args
+   ```
+
+   pg_ctl status returns 0 for running, 3 for stopped; other statuses require inspection.
+   Preserve the original postmaster command-line options (including ports and configuration paths)
+   in the two SERVER_OPTIONS variables as release.md describes; start does not reload postmaster.opts.
+   If SQL replay alone was explicitly paused, resume it using the separate standby administrator
+   connection: `psql "$STANDBY_OPERATOR_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c 'SELECT pg_wal_replay_resume()'`.
+   This is not a new primary observer connection. Wait for existing replication waits and
+   disconnected clients to finish where possible. Never change designated identity, disable
+   synchronous replication or manufacture a rollback from a failed checkout/check.
+
+4. **If still necessary, shut down and start the primary on its intact unchanged history.**
+   If residual backends or exhaustion prevent progress, this is the allowed way to end SyncRep
+   waits, and needs no SQL connection:
+
+   ```sh
+   pg_ctl -D "$PRIMARY_DATA" stop -m fast -w -t 60
+   pg_ctl -D "$PRIMARY_DATA" -l "$PRIMARY_LOG" -o "$PRIMARY_SERVER_OPTIONS" start -w -t 60
+   ```
+
+   Check command statuses and logs before continuing. A timeout is unverified, not permission to
+   target a backend. Never substitute promotion, restore, copying data or clearing replication
+   configuration for this step. If history must change, stop this procedure and enter STO-54's
+   incident procedure above, even for a lossless promotion. A locally committed transaction may
+   survive this shutdown; its prior client failure did not establish rollback.
+
+5. **Restart only after connection and read checks pass.** Confirm unchanged owned data paths,
+   primary system identity/history and designated peer provenance against the deployment's
+   retained inventory. With connection growth stopped, the administrator can inspect recovery:
+
+   ```sh
+   psql "$OPERATOR_DATABASE_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+   SELECT pg_is_in_recovery(),system_identifier FROM pg_control_system();
+   SHOW synchronous_commit;
+   SHOW synchronous_standby_names;
+   SELECT usename,application_name,state,sync_state,flush_lsn FROM pg_stat_replication;
+   SELECT pid,usename,wait_event_type,wait_event FROM pg_stat_activity;
+   SELECT version,semantics,contract_step,rollback_floor FROM provisiond.schema_migrations ORDER BY version;
+   SQL
+   (
+     set -a
+     . "$APP_ENV"
+     set +a
+     "$CURRENT_RELEASE/bin/engine" --check-schema &&
+     "$CURRENT_RELEASE/bin/api" --check-schema &&
+     "$CURRENT_RELEASE/bin/recovery" --check-schema &&
+     "$CURRENT_RELEASE/bin/recovery" report
+   )
+   ```
+
+   Require primary recovery=false, unchanged system identity and intact history, synchronous
+   commit on, the configured FIRST 1 designated standby only, correct authenticated sender in
+   sync/streaming state, and successful real application connection/read/flush checks (exit 0).
+   No new recovery incident is created on unchanged history. If one was already open, continue
+   its marks and prerequisites. Keep stopped on any failed check. If login was disabled during
+   earlier release work, re-enable it as release.md step 6 describes only after that migration
+   succeeded. When ready:
+
+   ```sh
+   systemctl --user unmask --runtime "$ENGINE_UNIT" "$API_UNIT"
+   for u in "$ENGINE_UNIT" "$API_UNIT"; do
+     if systemctl --user is-failed --quiet "$u"; then
+       systemctl --user reset-failed "$u"
+     fi
+   done
+   systemctl --user start "$ENGINE_UNIT"
+   journalctl --user -u "$ENGINE_UNIT" -n 100 --no-pager
+   # Require restart_pass_complete and any required incident step-2 acknowledgment.
+   systemctl --user start "$API_UNIT"
+   journalctl --user -u "$API_UNIT" -n 100 --no-pager
+   # Require api_listening before resuming customer requests.
+   ```
+
+   Reset only failed units because a cleanly stopped unit may have been collected and resetting
+   an unloaded unit fails. Reconcile previously running creates through retained exact correlators
+   and direct reads,
+   never through another purchase. Rail replay credits retained payments once. Customers inspect
+   operation/balance/payment/machine reads and resend identical bytes under the original key,
+   obeying retryable 503 pacing with bounded attempts. Do not invent failure for a commit that
+   landed, success for an unacknowledged reply, or a receipt for a checkout-refused request.
+
+The templates use `Restart=on-failure`, initial delay 1 s, three exponential steps to 8 s,
+`StartLimitIntervalSec=infinity`, `StartLimitBurst=4`, MemoryMax=16G and MemorySwapMax=0.
+The fourth start is the last until operator recovery and reset-failed; keep the failed units loaded
+and do not restart the user manager to bypass the bound. Systemd rate counters are not a durable
+external admission authority. Runtime checkout unavailability alarms on stderr after a 2000 ms
+failure streak independently for read/write pools; the next successful checkout on that pool clears
+the streak. Fatal engine/API exits alarm immediately (threshold 0 ms) and successful checkouts never
+reset a sent transaction's uncertainty. Journald retains JSON lines with event=alarm and a readable
+message. Check the journal and unit failed state after the start bound is reached. Production alert
+routing and independent liveness/standby monitoring remain deployment-owned.

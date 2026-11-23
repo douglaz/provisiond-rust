@@ -5,7 +5,10 @@ use deadpool::managed::Manager as _;
 use serde_json::json;
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 use tokio::sync::oneshot;
@@ -46,7 +49,12 @@ impl Drop for Observer {
     }
 }
 impl Accounting {
-    pub(super) fn start(manager: Manager, session: Session) -> Result<(Arc<Self>, Observer)> {
+    pub(super) fn start(
+        manager: Manager,
+        session: Session,
+        retry_bound: Duration,
+        fatal: Arc<AtomicBool>,
+    ) -> Result<(Arc<Self>, Observer)> {
         let accounting = Arc::new(Self {
             epoch: Instant::now(),
             attempts: Mutex::new(BTreeMap::new()),
@@ -55,7 +63,7 @@ impl Accounting {
         let (stop, stopped) = oneshot::channel();
         let owner = accounting.clone();
         manager.process.clone().submit(async move {
-            tokio::select! { _ = stopped => {}, _ = owner.observe(manager, session) => {} }
+            tokio::select! { _ = stopped => {}, _ = owner.observe(manager, session, retry_bound, fatal) => {} }
         })?;
         Ok((accounting, Observer(Some(stop))))
     }
@@ -90,6 +98,10 @@ impl Accounting {
         attempt.exempt
     }
     fn failed(&self, reason: &str) {
+        #[allow(
+            clippy::for_kv_map,
+            reason = "owner key is used by optional accounting diagnostics"
+        )]
         for (_owner, attempt) in self.attempts.lock().expect("accounting").iter_mut() {
             #[cfg(feature = "store-test-hooks")]
             let before = json!({"first_received_us":attempt.first_received.map(|t|self.instant(t)),"last_sent_us":attempt.last_sent.map(|t|self.instant(t)),"exempt_us":attempt.exempt.as_micros()});
@@ -156,7 +168,13 @@ impl Accounting {
         );
         Ok(())
     }
-    async fn observe(&self, manager: Manager, initial: Session) {
+    async fn observe(
+        &self,
+        manager: Manager,
+        initial: Session,
+        retry_bound: Duration,
+        fatal: Arc<AtomicBool>,
+    ) {
         let mut session = Some(initial);
         let mut ticks = tokio::time::interval(PERIOD);
         ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -170,16 +188,46 @@ impl Accounting {
                 session.take();
             }
             if session.is_none() {
-                match manager.create().await {
-                    Ok(connected) => {
-                        (self.trace)(
-                            json!({"event":"commit_observer_reestablished","session":connected.pid,"backend_start":connected.backend_start,"checked":true}),
-                        );
-                        session = Some(connected);
+                // STO-55: reconnect attempts and backoff share the Store-retry bound.
+                let started = Instant::now();
+                let mut backoff = PERIOD;
+                let mut alarmed = false;
+                let mut last_error = None;
+                loop {
+                    let remaining = retry_bound.saturating_sub(started.elapsed());
+                    let result = tokio::time::timeout(remaining, manager.create()).await;
+                    match result {
+                        Ok(Ok(connected)) => {
+                            (self.trace)(
+                                json!({"event":"commit_observer_reestablished","session":connected.pid,"backend_start":connected.backend_start,"checked":true}),
+                            );
+                            session = Some(connected);
+                            break;
+                        }
+                        Ok(Err(error)) => last_error = Some(error),
+                        Err(error) => {
+                            if last_error.is_none() {
+                                last_error = Some(error.into());
+                            }
+                        }
                     }
-                    Err(error) => {
-                        self.failed(&format!("checked observer reconnect: {error:#}"));
-                        continue;
+                    let reason = format!(
+                        "Commit observer reconnect failed; database unavailability or connection exhaustion: {:#}",
+                        last_error.as_ref().expect("failed reconnect")
+                    );
+                    self.failed(&reason);
+                    tokio::time::sleep(backoff.min(retry_bound.saturating_sub(started.elapsed())))
+                        .await;
+                    backoff = (backoff * 2).min(Duration::from_secs(1));
+                    if !alarmed && started.elapsed() >= Duration::from_millis(2000) {
+                        crate::entry::alarm("engine", &reason, 2000);
+                        alarmed = true;
+                    }
+                    if started.elapsed() >= retry_bound {
+                        crate::entry::alarm("engine", &reason, 0);
+                        fatal.store(true, Ordering::Release);
+                        (self.trace)(json!({"event":"engine_fatal","reason":reason}));
+                        return;
                     }
                 }
             }

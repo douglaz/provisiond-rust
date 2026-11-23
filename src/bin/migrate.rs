@@ -1,4 +1,4 @@
-//! STO-12/13: forward-only offline migration entry point, supported schema 1/1.
+//! STO-12/13: forward-only offline migration entry point, input schemas 0..=5, output schema/semantics 5/5.
 use provisiond::{
     entry,
     store::{Process, Trace},

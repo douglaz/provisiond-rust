@@ -387,7 +387,7 @@ W7 supplies continuation, restore grace and exception suppression for establishe
 Unsupported legacy incidents still refuse startup. General exhaustion and suspension fan-out, extension/survival by extension, scheduled
 cancellation, surviving attachments, other mutations and import/rescue remain `not run`, owned by
 deferred follow-on work. No-rate OPS-41 steps 4–5 remain `not run`; reaching them stops safely before
-fence/provider dispatch. Production D-6 policy and saturation/recovery are W8; W9–W11 and any real
+fence/provider dispatch. Production D-6 policy remains open; local saturation/recovery implementation is W8; W9–W11 and any real
 pilot remain unauthorized. Known P2/P3 and preexisting limits are retained in the W6 report.
 
 Demonstrating no duplicate purchase for the supported traces is not a proof of exactly-once execution by an arbitrary provider. External uncertainty remains part of the product model. [S5] [S10]
@@ -492,13 +492,37 @@ Python units and all twelve canonical phases exited 0. It preserves the earlier 
 known timing class's one recorded serial rerun. Each iteration uses `tools/iteration.sh` (quick
 checks, units, W7 and controls); before publication `tools/postgres.sh --jobs N` runs the full suite
 with 2–3 workers or serially. These fixtures select no production availability guarantee.
-The engine/API survival of a brief post-startup connection-check timeout remains an open W8
-question; the fixture customer client does not retry enrolment's retryable 503.
+D-70 implements the local engine/API resilience decision for a brief post-startup connection-check
+timeout; its W8 live evidence remains not run. The existing fixture customer client does not retry enrolment's retryable 503.
 CNF-295's different-person and before-first-customer-payment obligations remain operator-owned
 `not run`. General fan-out, extensions, scheduled
-cancellation, OPS-41 no-rate steps 4–5, production alarms/fencing and W8–W11 remain deferred.
+cancellation, OPS-41 no-rate steps 4–5, production alarms/fencing and W9–W11 remain deferred; W8 is implemented below, awaiting live evidence.
 
 Recovery CLI actions return one result row on stdout; diagnostics are quiet by default and can be
 appended through `PROVISIOND_RECOVERY_LOG`. Reporting notices/errors remain on stderr; the
 engine-supervised preparation child sends traces to the engine log without a result row. Absent
 reporting input retains unknown endpoints and is distinct from malformed input (D-66).
+
+
+## W8 implementation awaiting live evidence
+
+Schema/semantics 5 is the required offline release. `Store::migrate` records transactional release
+and rollback declarations, conservatively backfills 1–4, and refuses DDL unless every explicitly
+configured application login is NOLOGIN with zero backends. Every runtime entry checks schema,
+shared-row semantics and contract/floor declarations before serving, claiming or recovery writes.
+The old exact-schema-4 release is excluded. No CONCURRENTLY statement is used. See
+[release.md](release.md) for the numbered operator procedure and [recovery.md](recovery.md#saturation-recovery-on-unchanged-history)
+for the five-step unchanged-history saturation procedure, including absent observer access.
+
+The local systemd 260 templates bound starts at four with backoff, memory and no-swap limits.
+Runtime checkout failure streaks alarm at 2000 ms; fatal service exits alarm immediately. Engine
+post-admission startup acquisitions and dispatcher configuration use bounded Store retry; the API
+keeps request checkout refusal retryable without exiting for that request. D-70 records the local
+values; D-6 remains Open until live evidence. Safe reconciliation IDs accumulate independently of
+latest verdicts. A landed create cannot reuse another operation's external identity or debit its
+fee/unit through operator resolution. Ownership, generation fencing and money flags are unchanged.
+
+These W8 changes are implemented, not demonstrated. The suite and regression red/green runs are
+not run under the current test suspension; no live run has occurred. Build/lint results are not
+conformance evidence. Production alert routing, capacity tuning and separate-host rehearsal remain
+outside this local profile. W9–W11 remain deferred.

@@ -1,0 +1,40 @@
+# Local profile, systemd 260. One instance per deployment; OPS-47/STO-55.
+[Unit]
+# OVR-19: identify the single deployment component.
+Description=provisiond api (%i)
+# STO-55/OVR-18: four starts total, then operator reset after recovery.
+StartLimitIntervalSec=infinity
+# STO-55/OVR-19: includes the first start; no automatic reset window.
+StartLimitBurst=4
+# STO-55: retain failed units and their counters until operator recovery.
+CollectMode=inactive
+
+[Service]
+# OPS-47: track the real binary, never a detached replacement launcher.
+Type=exec
+# OVR-19/STO-13: private per-deployment config; no credentials in this unit.
+EnvironmentFile=%h/.config/provisiond/%i-api.env
+# STO-13: operator changes current only while both units are stopped/masked.
+ExecStart=%h/.local/lib/provisiond/current/bin/api
+# STO-55/OPS-47: exits go to the bounded external supervisor.
+Restart=on-failure
+# STO-55/OVR-19: initial restart delay 1 second.
+RestartSec=1s
+# STO-55/OVR-19: exponential delays 1, 2, 4, 8 seconds.
+RestartSteps=3
+# STO-55/OVR-19: cap the delay (the start limit stops after four starts).
+RestartMaxDelaySec=8s
+# STO-55/OVR-19: local host resource ceiling, not a capacity guarantee.
+MemoryMax=16G
+# STO-55/OVR-19: no swap for the component.
+MemorySwapMax=0
+# STO-55: OOM failure belongs to this unit and its restart bound.
+OOMPolicy=stop
+# OPS-21: at least the local 1000 ms stop-record bound before forced kill.
+TimeoutStopSec=5s
+# OPS-47: stop the whole unit including supervised recovery children.
+KillMode=control-group
+# OVR-18/19: JSON alarms and diagnostics visible with journalctl --user.
+StandardError=journal
+# OVR-18/19: retain structured lifecycle events alongside alarms.
+StandardOutput=journal

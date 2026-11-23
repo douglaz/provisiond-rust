@@ -1532,17 +1532,35 @@ async fn housekeeping(store: Arc<Store>, p: Parameters) -> Result<()> {
     let component = store.component();
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
-        if crate::recovery::frozen(&store).await? {
-            continue;
+        // STO-7/55: failed reads/checkouts skip this tick before business work.
+        match crate::recovery::frozen(&store).await {
+            Ok(false) => {}
+            Ok(true) => continue,
+            Err(error) => {
+                component.trace(json!({"event":"housekeeping_tick_skipped","stage":"freeze_read","error_contexts":error.chain().take(2).map(ToString::to_string).collect::<Vec<_>>()}));
+                continue;
+            }
         }
         let probe = format!(
             "SELECT to_json(EXISTS(SELECT 1 FROM provisiond.enrolments e JOIN provisiond.tenants t ON t.id=e.tenant_id WHERE t.status='pending' AND e.expires_at<statement_timestamp()) OR EXISTS(SELECT 1 FROM {SETTLED_RETENTION} due))::text"
         );
-        let work = store.value(&probe, &[&p.n("retention_seconds")]).await?;
+        let work = match store.value(&probe, &[&p.n("retention_seconds")]).await {
+            Ok(work) => work,
+            Err(error) => {
+                component.trace(json!({"event":"housekeeping_tick_skipped","stage":"work_probe","error_contexts":error.chain().take(2).map(ToString::to_string).collect::<Vec<_>>()}));
+                continue;
+            }
+        };
         if work != true {
             continue;
         }
-        let mut tx = component.begin().await?;
+        let mut tx = match component.begin().await {
+            Ok(tx) => tx,
+            Err(error) => {
+                component.trace(json!({"event":"housekeeping_tick_skipped","stage":"transaction_entry","error_contexts":error.chain().take(2).map(ToString::to_string).collect::<Vec<_>>()}));
+                continue;
+            }
+        };
         // STO-54: serialize the live freeze check with new establishment/marks.
         crate::recovery::lock(&mut tx).await?;
         if !tx.rows("SELECT id FROM provisiond.recovery_incidents WHERE closed_at IS NULL AND (grace_ends_at IS NULL OR grace_ends_at>transaction_timestamp())", &[]).await?.is_empty() {

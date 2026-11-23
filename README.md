@@ -157,11 +157,15 @@ administrator. That file gives the migrator USAGE/EXECUTE on the observer and ow
 `provisiond` schema, without statistics/admin membership. The migration never needs an undocumented
 preparatory database command. This bootstrap fixture is not a production deployment package.
 
-For an offline release, first stop old components, prevent their restart, and establish that their
-sessions cannot write. Run `nix develop --command cargo run --bin migrate`; only an acknowledged
-migration permits new components to start. Schema/semantic history must be exactly 1/1, 2/2, 3/3 and 4/4;
-there is no down-migration. Lock-timeout retries are bounded; failed initial/reconnect acquisition
-exits immediately. Uncertain completion requires a later invocation to inspect durable history.
+Follow the numbered [offline release procedure](docs/release.md) to stop/mask all components,
+disable every application login and drain its PostgreSQL sessions before running the installed
+`migrate`. `PROVISIOND_APPLICATION_ROLES` must name all application login roles; migration refuses
+LOGIN roles or any residual backend before DDL. Only acknowledged migration completion permits
+new components to start. This release requires schema/semantics 5/5 with the declared contract and
+rollback guards; the runner accepts exact historical prefixes 0–4 for upgrade. No down-migration
+or CONCURRENTLY statement is used. Lock retries are bounded; failed acquisition exits immediately
+with release/stage/reason/SQLSTATE. For connection exhaustion, including loss of observer access,
+follow [saturation recovery on unchanged history](docs/recovery.md#saturation-recovery-on-unchanged-history).
 
 `api --check-schema` and `engine --check-schema` perform the real compatibility check and exit 0
 only for a supported database. Ordinary `api` also requires a local parameter file

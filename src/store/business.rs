@@ -477,11 +477,25 @@ impl Transaction {
             .unwrap_or(0);
         let declared = offer["declared_cancellation_bound"].as_str();
         let strategies = offer["install_strategies"].to_string();
-        let rows=self.rows("INSERT INTO provisiond.machines(tenant_id,provider_account,external_id,offer_id,kind,state,install_strategies,billing_unit_seconds,declared_cancellation_bound,earliest_cancellation_date) VALUES($1,$2,$3,$4,$5,'running',$6::text::jsonb,$7,$8::text::timestamptz,$9::text::timestamptz) ON CONFLICT(provider_account,external_id) DO UPDATE SET external_id=EXCLUDED.external_id WHERE provisiond.machines.tenant_id=EXCLUDED.tenant_id RETURNING id::text",&[&c.tenant,&account,&external_id,&offer_id,&machine_kind,&strategies,&seconds,&declared,&earliest_date]).await?;
-        let machine: String = rows
-            .first()
-            .context("machine belongs to another tenant")?
-            .get(0);
+        let rows=self.rows("INSERT INTO provisiond.machines(tenant_id,provider_account,external_id,offer_id,kind,state,install_strategies,billing_unit_seconds,declared_cancellation_bound,earliest_cancellation_date) VALUES($1,$2,$3,$4,$5,'running',$6::text::jsonb,$7,$8::text::timestamptz,$9::text::timestamptz) ON CONFLICT(provider_account,external_id) DO NOTHING RETURNING id::text",&[&c.tenant,&account,&external_id,&offer_id,&machine_kind,&strategies,&seconds,&declared,&earliest_date]).await?;
+        // OPS-27/LDG-32: an account/external identity belongs to one create,
+        // including within the same tenant. Resolve before posting any money.
+        let machine: String = if let Some(row) = rows.first() {
+            row.get(0)
+        } else {
+            let owned = self.rows("SELECT m.id::text FROM provisiond.machines m JOIN provisiond.operations o ON o.machine_id=m.id WHERE m.provider_account=$1 AND m.external_id=$2 AND o.id=$3::text::uuid AND o.kind='create' AND o.tenant_id=$4", &[&account,&external_id,&c.id,&c.tenant]).await?;
+            owned
+                .first()
+                .ok_or_else(|| {
+                    crate::wire::Error::new(
+                        "conflict",
+                        "external id is already attached to another operation",
+                        false,
+                        json!({"reason":"external_id_attached"}),
+                    )
+                })?
+                .get(0)
+        };
         self.rows("UPDATE provisiond.operations SET machine_id=$2::text::uuid WHERE id=$1::text::uuid AND machine_id IS DISTINCT FROM $2::text::uuid RETURNING id",&[&c.id,&machine]).await?;
         self.rows("UPDATE provisiond.commitments SET machine_id=$2::text::uuid WHERE id=$1::text::uuid AND machine_id IS NULL RETURNING id",&[&commitment,&machine]).await?;
         for (field, kind) in [

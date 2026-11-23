@@ -1979,6 +1979,74 @@ full run used `--jobs 1`, following the one recorded three-worker failure descri
 [final validation](../evidence/w7/validation.json) keep the two scopes distinct. The full
 suite's duration is accepted here; neither coverage nor assertions are removed.
 
+### D-70. Offline release declarations and bounded local saturation policy
+
+**Implemented, not run (2026-11-23); D-6 remains Open pending live evidence.** STO-12/13,
+STO-7/55, OPS-47/49/21, OVR-18/19 and ADR-0048 own these choices. Schema/semantics 5 records
+stop order, contract flag and oldest admissible semantics on each history row. Historical 1–4
+are conservatively contract steps with floors equal to their semantics. The initial
+about_to_order_at release's no-rollback restriction remains: backfill means potentially dispatched.
+Schema 5's attachment ownership tightening is a contract with floor 5. API, engine and recovery
+accept only 5..=5/semantics 5 and the exact declaration set; migrate accepts exact historical
+prefixes 0–4 as inputs plus declared 5 for no-op. No concurrent index is used. An older schema-4
+binary must refuse 5; there is no down migration.
+
+The mandatory `PROVISIOND_APPLICATION_ROLES` lists comma-separated exact deployment login
+identities (local `app`). Each migrate transaction, before DDL, checks existing NOLOGIN roles
+and zero backends across the primary using only pg_roles.rolcanlogin and pg_stat_activity session
+user/count. PostgreSQL 18's public-view documentation confirms this visibility; live validation
+with the unprivileged migrator is not run. No bootstrap privilege change is proposed. The operator
+owns a complete role/launcher inventory and freezes role changes through the offline procedure.
+Migration lock timeout/retries remain 500 ms/two retries; connection failures get no retry.
+Authentication diagnostics retain SQLSTATE and the server's exact message without formatting
+connection configurations. Commit uncertainty and earlier completed versions survive failures.
+
+For pvr-kin, the API's existing request path maps failed whole checkout (waiting/create/check,
+250 ms) to retryable 503 overloaded with retry_after_ms=250; it starts no business transaction,
+creates no refusal receipt and does not exit merely because a request had no checkout. Housekeeping
+freeze/probe read failures and transaction-entry failures (including checkout, connection and
+connection-check failures) trace a skipped tick and try again after one second. Errors after
+transaction entry, including an unacknowledged COMMIT, still end the service under the existing
+ownership policy; the supervisor handles that exit. Clients resend identical bytes and the same key,
+honour both retry_after_ms and Retry-After, and use a finite attempt budget (local journey: at most
+three attempts).
+Enrolment overload is equally retryable; the server does not implement a client retry loop.
+
+An engine already admitted and advanced must survive a brief failed startup checkout/check.
+The restart-pass/quarantine acquisitions now repeat begin (no business statement or sent COMMIT
+exists yet), with 10 ms backoff within the existing monotonic 2000 ms Store-retry budget.
+Dispatcher configuration reads use a complete fenced transaction under the same existing loop.
+Workers, claims and periodic reconciliation retain their existing whole-transaction retry rules;
+no provider call is repeated, generation refusal is fatal immediately, and a lost claim reply
+still exits without a blind retry. Sustained exhaustion raises a stderr JSON alarm and exits for
+the supervisor. Sent COMMIT ownership, standby-wait accounting and the 1000 ms Stop-record bound
+are unchanged. Initial pre-lock connection failure remains a failed deployment invocation.
+
+Observer reconnects back off from 20 ms to 1 s within the same 2000 ms Store-retry bound.
+Sustained failure alarms at 2000 ms; exhaustion sets the existing fatal state for bounded restart.
+
+Read/write checkout failure streaks alarm independently after 2000 ms without a successful
+checkout on that pool; a timer only observes state, never reconnects. Fatal component exits alarm
+immediately (0 ms threshold), including startup database refusal. Each event has event=alarm,
+component, readable message, threshold_ms and operator_action_required. Systemd 260 templates
+retain these on stderr in the journal. The local restart policy is four total starts, no automatic
+counter reset, 1 s initial delay, three exponential steps to 8 s, 16 GiB MemoryMax, no swap and
+5 s stop allowance. StartLimitIntervalSec=infinity requires operator reset after recovery; failed
+units must remain loaded. Counters are not durable across manager restart/unload. Production
+alert routing and independent liveness/standby monitoring remain operator obligations.
+
+The numbered release and saturation runbooks use stop/mask, disabled login/zero backends before
+migration, out-of-band process/log inspection, standby restoration and fast primary shutdown when
+needed. They preserve uncertainty and restart only after real connection/read checks on unchanged
+history. A promotion or history replacement still enters STO-54 incident recovery.
+
+pvr-7tx keeps the safe provider-ID union apart from the latest search verdict; money flags keep
+their prior meanings. pvr-ggy's shared landed-order writer rejects a different operation's external
+identity, including same-tenant conflicts, before fee/unit debits. The operator receives conflict
+with reason external_id_attached. New live/regression evidence is not run; tests are suspended.
+Build commands, exact observed statuses and wall times are recorded in the implementation handoff;
+compilation alone does not close D-6 or demonstrate CNF-57/CNF-373.
+
 ## Open
 
 
@@ -2011,8 +2079,11 @@ not outage guarantees.
 | Store timeouts | STO-7, STO-55 | statement 1000 ms; lock 500 ms; idle transaction 1000 ms |
 | API read/write concurrency | STO-55 | one checkout in each ordinary pool |
 | Engine worker concurrency | STO-55 | three retained worker permits and three write checkouts; one compatibility read checkout; startup lock and one read-only accounting observer outside pools |
-| Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms |
-| Pool checkout bound | STO-55 | 250 ms |
+| Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms; D-70 includes post-admission startup acquisitions/configuration; backoff 10 ms |
+| Pool checkout bound | STO-55 | 250 ms; request refusal 503 overloaded, retryable, retry_after_ms=250; no business transaction or refusal receipt |
+| Connection-exhaustion alarm threshold | STO-55, OVR-18 | D-70: independent read/write failure streak 2000 ms; fatal service/startup failure immediate (0 ms) |
+| Supervisor restart guarantee | STO-55, OPS-47, OVR-18 | D-70: four total starts, interval infinity, delay 1 s, three steps to 8 s; operator reset after recovery |
+| Ordinary OS resources | STO-55 | D-70: per-unit MemoryMax=16G, MemorySwapMax=0, stop allowance 5 s |
 | Startup-lock connection keepalives | OPS-47, OVR-19 | explicit local assignment sharing pooled values; client/server idle 2 s, interval 1 s, count 2; validated and observed on lock session |
 | Pooled-connection keepalives | STO-7 | client/server idle 2 s, interval 1 s, count 2 |
 | Stop-record bound | OPS-21 | 1000 ms in lifecycle and W3 worker record fixtures |

@@ -12,7 +12,7 @@ async fn main() {
     let result = async {
         let store = entry::local_engine_store(process.clone(), trace.clone())?;
         if std::env::args().any(|a| a == "--check-schema") {
-            return store.compatible_schema().await;
+            return store.compatible_schema_for("engine").await;
         }
         let wait = startup_milliseconds(&std::env::var("PROVISIOND_STARTUP_WAIT_MS")?)?;
         entry::continue_pre_lock(&store, trace).await?;
@@ -40,6 +40,7 @@ async fn main() {
             result = &mut reconciliation => result,
         };
         eprintln!("provisiond engine loop stopped: {stopped:?}");
+        entry::alarm("engine", &format!("Engine stopped; database failure or ownership loss requires bounded supervisor recovery: {stopped:?}"), 0);
         // Observe completion/failure of either required path. The lock observer
         // has already applied the original OPS-21 record bounds/exits. Exit
         // before either pinned future or any process-owned work can be dropped.
@@ -47,6 +48,11 @@ async fn main() {
     }
     .await;
     if let Err(error) = &result {
+        entry::alarm(
+            "engine",
+            &format!("engine unavailable after fatal startup or service failure: {error:#}"),
+            0,
+        );
         eprintln!("provisiond engine: {error:#}");
     }
     // An uncertain sent transaction is never released merely to keep this process

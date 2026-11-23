@@ -102,7 +102,7 @@ impl Engine {
             !retry_bound.is_zero() && !stop_bound.is_zero(),
             "retry and stop bounds must be positive"
         );
-        let database = EngineDatabase::start(store, wait_ms).await?;
+        let database = EngineDatabase::start_with_retry_bound(store, wait_ms, retry_bound).await?;
         let worker_slots = Arc::new(tokio::sync::Semaphore::new(database.worker_limit()));
         let engine = Arc::new(Self {
             database,
@@ -188,14 +188,71 @@ impl Engine {
         self.database.lock_pid()
     }
     fn fatal<T>(&self, reason: &'static str) -> Result<T> {
-        self.database.fatal(reason);
-        Err(FatalEngine(reason).into())
+        self.fatal_with_error(reason, None)
+    }
+    // STO-55: retry exhaustion must retain the last database refusal in the journal.
+    fn fatal_with_error<T>(
+        &self,
+        reason: &'static str,
+        error: Option<&anyhow::Error>,
+    ) -> Result<T> {
+        let diagnostic = match error {
+            Some(error) => format!("{reason}: {error:#}"),
+            None => reason.to_owned(),
+        };
+        crate::entry::alarm(
+            "engine",
+            &diagnostic,
+            if reason.contains("retry exhausted") {
+                self.retry_bound.as_millis() as u64
+            } else {
+                0
+            },
+        );
+        self.database.fatal(&diagnostic);
+        Err(anyhow::Error::new(FatalEngine(reason)).context(diagnostic))
     }
     pub fn is_fatal(&self) -> bool {
         self.database.is_fatal()
     }
     pub fn later_stop(&self) -> Result<()> {
         self.fatal("later stop: exit without repeating pending records")
+    }
+    /// OPS-49/STO-55: post-admission startup checkout/check failures use the
+    /// existing budget. A failed begin has sent no business statement or COMMIT.
+    async fn begin_startup(&self, component: &Component) -> Result<Transaction> {
+        let started = Instant::now();
+        loop {
+            match component.begin().await {
+                Ok(tx) => return Ok(tx),
+                Err(error) => {
+                    if error.downcast_ref::<FatalEngine>().is_some() {
+                        return Err(error);
+                    }
+                    if started.elapsed() >= self.retry_bound {
+                        return self.fatal_with_error(
+                            "startup store retry exhausted before business transaction",
+                            Some(&error),
+                        );
+                    }
+                    component.trace(json!({"event":"startup_checkout_retry","spent_ms":started.elapsed().as_millis()}));
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    if started.elapsed() >= self.retry_bound {
+                        return self.fatal_with_error(
+                            "startup store retry exhausted before business transaction",
+                            Some(&error),
+                        );
+                    }
+                }
+            }
+        }
+    }
+    /// OPS-49: a complete read-only transaction, no external I/O to repeat.
+    pub(super) async fn configuration(&self) -> Result<Value> {
+        self.transaction(&self.component(), |tx| Box::pin(async move {
+            let rows = tx.rows("SELECT COALESCE(jsonb_object_agg(account,descriptor),'{}'::jsonb)::text FROM provisiond.provider_accounts", &[]).await?;
+            Ok(serde_json::from_str(&rows[0].get::<_,String>(0))?)
+        })).await
     }
     /// OPS-49 excludes COMMIT's standby wait; elapsed precommit work is charged
     /// separately. Constraint errors return to the caller, serialization retries
@@ -243,10 +300,14 @@ impl Engine {
             Ok(())
         };
         let mut spent = Duration::ZERO;
+        let mut last_error = None;
         loop {
             check_stop()?;
             if spent >= self.retry_bound {
-                return self.fatal("store retry exhausted; outcome retained until process exit");
+                return self.fatal_with_error(
+                    "store retry exhausted; outcome retained until process exit",
+                    last_error.as_ref(),
+                );
             }
             let started = Instant::now();
             let mut transaction_id = None;
@@ -304,11 +365,15 @@ impl Engine {
                     if !serialization {
                         spent += started.elapsed();
                     }
+                    last_error = Some(error);
                 }
             }
             check_stop()?;
             if spent >= self.retry_bound {
-                return self.fatal("store retry exhausted; outcome retained until process exit");
+                return self.fatal_with_error(
+                    "store retry exhausted; outcome retained until process exit",
+                    last_error.as_ref(),
+                );
             }
             component.trace(json!({"event":"whole_transaction_retry","transaction":transaction_id,"spent_ms":spent.as_millis(),"serialization":serialization,"external_call_repeated":false}));
             if stop.is_some() {
@@ -326,7 +391,7 @@ impl Engine {
         let component = self.component();
         let mut count = 0;
         loop {
-            let mut tx = component.begin().await?;
+            let mut tx = self.begin_startup(&component).await?;
             let recovering = !tx
                 .rows(
                     "SELECT id FROM provisiond.recovery_incidents WHERE closed_at IS NULL",
@@ -351,7 +416,7 @@ impl Engine {
             for row in rows {
                 let id: String = row.get(0);
                 let tenant: String = row.get(1);
-                let mut tx = component.begin().await?;
+                let mut tx = self.begin_startup(&component).await?;
                 crate::ledger::serialize(&mut tx, &[&tenant]).await?;
                 // OPS-15: the about-to-order predicate is inside the guarded write.
                 // WIR-9/10b: generated errors carry the complete inner object;
@@ -399,7 +464,7 @@ impl Engine {
     /// queued work. The ordinary running pass above still runs on every startup.
     async fn recovery_quarantine(&self) -> Result<()> {
         let component = self.component();
-        let mut tx = component.begin().await?;
+        let mut tx = self.begin_startup(&component).await?;
         crate::recovery::lock(&mut tx).await?;
         let incident = tx.rows("SELECT id::text,steps_completed FROM provisiond.recovery_incidents WHERE closed_at IS NULL FOR UPDATE", &[]).await?;
         if let Some(row) = incident.first() {
@@ -460,9 +525,13 @@ impl Engine {
         // Ordinary pre-COMMIT failures consume OPS-49's whole-transaction budget.
         // Once a claim might have committed, a lost reply is fatal, never retried.
         let mut spent = Duration::ZERO;
+        let mut last_error = None;
         let claim = loop {
             if spent >= self.retry_bound {
-                return self.fatal("claim store retry exhausted before dispatch");
+                return self.fatal_with_error(
+                    "claim store retry exhausted before dispatch",
+                    last_error.as_ref(),
+                );
             }
             #[cfg(feature = "store-test-hooks")]
             component.trace(json!({"event":"claim_attempt_started"}));
@@ -506,10 +575,14 @@ impl Engine {
                         return Err(error);
                     }
                     spent += started.elapsed();
+                    last_error = Some(error);
                 }
             }
             if spent >= self.retry_bound {
-                return self.fatal("claim store retry exhausted before dispatch");
+                return self.fatal_with_error(
+                    "claim store retry exhausted before dispatch",
+                    last_error.as_ref(),
+                );
             }
             component.trace(json!({"event":"claim_precommit_retry","spent_ms":spent.as_millis()}));
             let backoff = Instant::now();
