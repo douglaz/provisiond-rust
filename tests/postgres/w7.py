@@ -38,9 +38,21 @@ def operator(w,*args,ok=True,extra=None):
         result=h.run([str(h.target/'debug/recovery'),*args],ok=ok,timeout=12)
         prefix.with_suffix('.stdout').write_text(result.stdout)
         prefix.with_suffix('.stderr').write_text(result.stderr)
-        # STO-54/56: standalone CLI returns a single result, diagnostics stay in
-        # its explicitly requested file; plain operator notices stay on stderr.
-        assert not any(line.startswith('{') for line in result.stderr.splitlines()),'STO-54 recovery trace must not leak to stderr'
+        # STO-54/56: internal traces stay in the requested diagnostic file.
+        # OVR-18/STO-55: failed standalone calls can also emit entry::alarm's
+        # recovery operator alarm on stderr, alongside plain operator notices.
+        for line in result.stderr.splitlines():
+            line=line.strip()
+            try:alarm=json.loads(line)
+            except json.JSONDecodeError:
+                assert not line.startswith(('{','[')),'STO-54 malformed recovery JSON on stderr'
+                continue
+            assert (result.returncode!=0 and isinstance(alarm,dict)
+                and set(alarm)=={'event','component','message','threshold_ms','operator_action_required'}
+                and alarm['event']=='alarm' and alarm['component']=='recovery'
+                and isinstance(alarm['message'],str) and alarm['message'].strip()
+                and type(alarm['threshold_ms']) is int and alarm['threshold_ms']==0
+                and alarm['operator_action_required'] is True),'STO-54 recovery trace or invalid operator alarm on stderr'
         row=None
         if result.returncode==0 and args[0]!='--check-schema':
             assert len(result.stdout.splitlines())==1,'STO-56 recovery stdout must contain one result row'
@@ -381,11 +393,56 @@ def lossy(w):
         payment_replay_count=2,provider_survived=True,residuals=['lost commitment/extension information is not rebuilt from payments','consistent history does not certify absence of loss'],
         seeded_extension=True,runway_before_backup=residual_before['runway_until'],runway_in_lost_history=extension_view['runway_until'],restored_runway=restored_view['runway_until'],consistent_meter_audit_does_not_certify_no_loss=True,
         limit='A finite skip-forward test is not proof of address non-reuse under an arbitrarily large unbounded rollback.')
+    assert h.sql(f"SELECT count(*) FROM provisiond.recovery_account_passes WHERE incident_id='{id}'")=='0','STO-54 no complete post-restore pass while reconciliation is held'
+    before_absence=json.loads(h.sql(f"SELECT jsonb_build_object('state',state,'state_observed_at',state_observed_at,'meter_stopped_at',meter_stopped_at) FROM provisiond.machines WHERE id='{residual_machine}'"))
     barrier.unlink();w.start_engine()
     account=residual_before['provider_account']
     eventually(lambda:h.sql(f"SELECT count(*) FROM provisiond.recovery_account_passes WHERE incident_id='{id}' AND provider_account='{account}'")=='1')
-    assert h.sql(f"SELECT state FROM provisiond.machines WHERE id='{residual_machine}'")!='deleted','STO-54 first complete account pass must record no absence'
-    eventually(lambda:h.sql(f"SELECT state FROM provisiond.machines WHERE id='{residual_machine}'")=='deleted')
+    def account_observation():
+        # STO-53/54, PRV-36: read the persisted max, including the real
+        # restored correlator's dispatch-to-observation latency. Never age it.
+        return json.loads(h.sql(f"""
+            SELECT jsonb_build_object('incident',p.incident_id,'account',p.provider_account,
+                'machine_id',m.id,'external_id',m.external_id,
+                'machine',jsonb_build_object('state',m.state,
+                    'state_observed_at',m.state_observed_at,'meter_stopped_at',m.meter_stopped_at),
+                'first_completed_at',p.first_completed_at,'second_completed_at',p.second_completed_at,
+                'now',transaction_timestamp(),'declared_seconds',(a.descriptor->>'visibility_seconds')::numeric,
+                'max_sample',sample.value,'effective_seconds',v.seconds,
+                'absence_not_before',p.first_completed_at+v.seconds*interval '1 second',
+                'remaining_seconds',greatest(0,extract(epoch FROM
+                    p.first_completed_at+v.seconds*interval '1 second'-transaction_timestamp())),
+                'absence_after_window',m.state_observed_at>=p.first_completed_at+v.seconds*interval '1 second',
+                'second_pass_after_window',p.second_completed_at>=p.first_completed_at+v.seconds*interval '1 second')
+            FROM provisiond.recovery_account_passes p
+            JOIN provisiond.provider_accounts a ON a.account=p.provider_account
+            JOIN provisiond.machines m ON m.id='{residual_machine}' AND m.provider_account=p.provider_account
+            LEFT JOIN LATERAL (SELECT to_jsonb(o) AS value,
+                extract(epoch FROM o.observed_at-o.dispatched_at) AS seconds
+                FROM provisiond.provider_observations o WHERE o.provider_account=p.provider_account
+                ORDER BY o.observed_at-o.dispatched_at DESC LIMIT 1) sample ON true
+            CROSS JOIN LATERAL (SELECT greatest((a.descriptor->>'visibility_seconds')::numeric,
+                COALESCE(sample.seconds,0)) AS seconds) v
+            WHERE p.incident_id='{id}' AND p.provider_account='{account}'
+        """))
+    first=account_observation()
+    h.event('w7_lossy_account_window',phase='first_complete_pass',**first)
+    assert first['machine']==before_absence and first['machine']['state']!='deleted','STO-54 first complete account pass must record no absence'
+    assert first['second_completed_at'] is None,'STO-54 first complete pass must precede an eligible second pass'
+    # Wait from this incident/account's first completed pass plus its actual
+    # effective window, with 20 seconds for scheduling/completion. The absolute
+    # 180-second fixture cap prevents a widening window or a stalled sweep from
+    # making the scenario unbounded. Polling performs reads only.
+    wait_seconds=min(180,float(first['remaining_seconds'])+20)
+    def later_absence():
+        observed=account_observation()
+        if observed['machine']['state']!='deleted':return False
+        assert observed['absence_after_window'],'STO-54 absence must be observed after the effective window'
+        if observed['second_completed_at'] is None:return False
+        assert observed['second_pass_after_window'],'STO-54 only a later eligible complete pass may record absence'
+        return observed
+    second=eventually(later_absence,seconds=wait_seconds)
+    h.event('w7_lossy_account_window',phase='later_complete_pass',wait_seconds=wait_seconds,**second)
     w.wait_status(known_op,'succeeded');w.stop_engine()
     assert w.status(op)=='needs_reconciliation','OPS-27 missing restored correlator must remain operator-owned'
     assert len([e for e in w.external()['events'] if e.get('stage')=='accepted' and e.get('command')==op])==1
