@@ -164,8 +164,8 @@ async fn own_commit(
             return;
         }
     }
-    // Last pre-dispatch observation; no await separates this boundary from the
-    // irrevocable owner below. Cancellation beyond it cannot release the checkout.
+    // Last cancellation observation. Registration below either admits dispatch
+    // without yielding, or waits for observer-exhaustion exit and sends no COMMIT.
     if !super::test_defect("verify_cancel") && sender.is_closed() {
         session.close();
         trace(json!({"event":"precommit_cancelled","session":pid,"commit_not_dispatched":true}));
@@ -177,8 +177,21 @@ async fn own_commit(
         diagnostics.commit_warning = false;
     }
     // OPS-49: register exact backend identity before COMMIT is first polled.
-    if let Some(accounting) = &accounting {
-        accounting.register(owner, session);
+    let registered = match &accounting {
+        Some(accounting) => accounting.register(owner, session).await,
+        None => true,
+    };
+    if !registered {
+        session.close();
+        checkout.take().expect("checkout").discard();
+        drop(_permit);
+        let _ = sender.send((
+            CommitOutcome::NotDispatched {
+                reason: "commit observer reconnect exhausted; COMMIT not dispatched".into(),
+            },
+            std::time::Duration::ZERO,
+        ));
+        return;
     }
     let before = protocol.snapshot();
     trace(json!({"event":"owner_accepted","owner":owner,"session":pid}));
@@ -278,10 +291,14 @@ async fn own_commit(
     drop(unpooled);
     drop(_permit);
     trace(json!({"event":"commit_owner_completed","owner":owner,"session":pid}));
-    let exempt = accounting
-        .as_ref()
-        .map_or(std::time::Duration::ZERO, |a| a.finish(owner));
-    let _ = sender.send((outcome, exempt));
+    let deliver = |exempt| {
+        let _ = sender.send((outcome, exempt));
+    };
+    if let Some(accounting) = &accounting {
+        accounting.finish(owner, deliver);
+    } else {
+        deliver(std::time::Duration::ZERO);
+    }
 }
 
 // Concrete opt-in fixture observation, inert in ordinary builds. It never

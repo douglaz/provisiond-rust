@@ -11,7 +11,7 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use tokio::sync::oneshot;
+use tokio::sync::{Notify, oneshot};
 
 // Local measurement precision, not a production retry or availability setting.
 const PERIOD: Duration = Duration::from_millis(20);
@@ -33,9 +33,16 @@ impl Attempt {
         }
     }
 }
+#[derive(Default)]
+struct State {
+    attempts: BTreeMap<u64, Attempt>,
+    exhausted: Option<String>,
+}
 pub(super) struct Accounting {
     epoch: Instant,
-    attempts: Mutex<BTreeMap<u64, Attempt>>,
+    state: Mutex<State>,
+    fatal: Arc<AtomicBool>,
+    drained: Notify,
     trace: Trace,
 }
 // The database owns the lifetime; the process reactor owns its I/O. Dropping the
@@ -57,52 +64,79 @@ impl Accounting {
     ) -> Result<(Arc<Self>, Observer)> {
         let accounting = Arc::new(Self {
             epoch: Instant::now(),
-            attempts: Mutex::new(BTreeMap::new()),
+            state: Mutex::new(State::default()),
+            fatal,
+            drained: Notify::new(),
             trace: manager.trace.clone(),
         });
         let (stop, stopped) = oneshot::channel();
         let owner = accounting.clone();
         manager.process.clone().submit(async move {
-            tokio::select! { _ = stopped => {}, _ = owner.observe(manager, session, retry_bound, fatal) => {} }
+            tokio::select! { _ = stopped => {}, _ = owner.observe(manager, session, retry_bound) => {} }
         })?;
         Ok((accounting, Observer(Some(stop))))
     }
     fn instant(&self, instant: Instant) -> u128 {
         instant.duration_since(self.epoch).as_micros()
     }
-    pub(super) fn register(&self, owner: u64, session: &Session) {
-        self.attempts.lock().expect("accounting").insert(
-            owner,
-            Attempt {
-                dispatched: Some(Instant::now()),
-                pid: session.pid,
-                backend_start: session.backend_start.clone(),
-                ..Attempt::default()
-            },
-        );
-        (self.trace)(
-            json!({"event":"commit_accounting_registered","owner":owner,"session":session.pid,"backend_start":session.backend_start,"dispatch_us":self.instant(Instant::now())}),
-        );
+    pub(super) async fn register(&self, owner: u64, session: &Session) -> bool {
+        let drained = self.drained.notified();
+        {
+            let mut state = self.state.lock().expect("accounting");
+            if state.exhausted.is_none() {
+                state.attempts.insert(
+                    owner,
+                    Attempt {
+                        dispatched: Some(Instant::now()),
+                        pid: session.pid,
+                        backend_start: session.backend_start.clone(),
+                        ..Attempt::default()
+                    },
+                );
+                (self.trace)(
+                    json!({"event":"commit_accounting_registered","owner":owner,"session":session.pid,"backend_start":session.backend_start,"dispatch_us":self.instant(Instant::now())}),
+                );
+                return true;
+            }
+            if state.attempts.is_empty() {
+                return false;
+            }
+        }
+        // OPS-49/STO-7, D-38: do not dispatch without an observer after
+        // exhaustion, or return an error that can exit before sent receipts resolve.
+        drained.await;
+        false
     }
-    pub(super) fn finish(&self, owner: u64) -> Duration {
-        let mut attempt = self
-            .attempts
-            .lock()
-            .expect("accounting")
-            .remove(&owner)
-            .expect("registered COMMIT");
+    pub(super) fn finish(&self, owner: u64, deliver: impl FnOnce(Duration)) {
+        let mut state = self.state.lock().expect("accounting");
+        let mut attempt = state.attempts.remove(&owner).expect("registered COMMIT");
         attempt.end_run();
         (self.trace)(
             json!({"event":"commit_accounting_completed","owner":owner,"session":attempt.pid,"backend_start":attempt.backend_start,"completion_us":self.instant(Instant::now()),"exempt_us":attempt.exempt.as_micros()}),
         );
-        attempt.exempt
+        // Resolve the receipt before publishing fatal, under the same lock
+        // that excludes every later registration from the final transition.
+        deliver(attempt.exempt);
+        self.exit_if_drained(&state);
+    }
+    fn exit_if_drained(&self, state: &State) {
+        let Some(reason) = state
+            .exhausted
+            .as_ref()
+            .filter(|_| state.attempts.is_empty())
+        else {
+            return;
+        };
+        self.fatal.store(true, Ordering::Release);
+        (self.trace)(json!({"event":"engine_fatal","reason":reason}));
+        self.drained.notify_waiters();
     }
     fn failed(&self, reason: &str) {
         #[allow(
             clippy::for_kv_map,
             reason = "owner key is used by optional accounting diagnostics"
         )]
-        for (_owner, attempt) in self.attempts.lock().expect("accounting").iter_mut() {
+        for (_owner, attempt) in self.state.lock().expect("accounting").attempts.iter_mut() {
             #[cfg(feature = "store-test-hooks")]
             let before = json!({"first_received_us":attempt.first_received.map(|t|self.instant(t)),"last_sent_us":attempt.last_sent.map(|t|self.instant(t)),"exempt_us":attempt.exempt.as_micros()});
             // OPS-49: the isolated sensitivity defect skips only this closure.
@@ -129,9 +163,9 @@ impl Accounting {
         .context("observer sample deadline")??;
         in_flight.0 = None;
         let received = Instant::now();
-        let mut attempts = self.attempts.lock().expect("accounting");
+        let mut state = self.state.lock().expect("accounting");
         let mut missing = false;
-        for (owner, attempt) in attempts.iter_mut() {
+        for (owner, attempt) in state.attempts.iter_mut() {
             // A registration made after this statement's submission has no sample.
             if !pids.contains(&attempt.pid) || attempt.dispatched.is_some_and(|d| d > sent) {
                 continue;
@@ -168,13 +202,7 @@ impl Accounting {
         );
         Ok(())
     }
-    async fn observe(
-        &self,
-        manager: Manager,
-        initial: Session,
-        retry_bound: Duration,
-        fatal: Arc<AtomicBool>,
-    ) {
+    async fn observe(&self, manager: Manager, initial: Session, retry_bound: Duration) {
         let mut session = Some(initial);
         let mut ticks = tokio::time::interval(PERIOD);
         ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -225,16 +253,20 @@ impl Accounting {
                     }
                     if started.elapsed() >= retry_bound {
                         crate::entry::alarm("engine", &reason, 0);
-                        fatal.store(true, Ordering::Release);
-                        (self.trace)(json!({"event":"engine_fatal","reason":reason}));
+                        // STO-55 bounds reconnects; D-38 defers this accounting
+                        // exit until every already registered sent receipt resolves.
+                        let mut state = self.state.lock().expect("accounting");
+                        state.exhausted = Some(reason);
+                        self.exit_if_drained(&state);
                         return;
                     }
                 }
             }
             let pids: Vec<_> = self
-                .attempts
+                .state
                 .lock()
                 .expect("accounting")
+                .attempts
                 .values()
                 .map(|a| a.pid)
                 .collect();
