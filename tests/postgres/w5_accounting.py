@@ -171,8 +171,8 @@ def reconnect(w):
         if hold.exists():hold.unlink()
 
 
-def failure_run(w):
-    """OPS-49/STO-7: close a real matching run on observer transport failure.
+def failure_run(w,saturation=False):
+    """OPS-49/STO-7/55: observer exhaustion retains the sent COMMIT owner.
 
     Closure is an internal invariant observation, tested by skipping end_run.
     Completion arithmetic independently proves charging on this server history;
@@ -181,9 +181,10 @@ def failure_run(w):
     import json
     from harness import eventually
     from scenarios import pause_standby,resume_standby
-    h=w.h;t,body,op=admit(w,'accounting-failure-run')
+    h=w.h;scenario_start=len(h.events)
+    t,body,op=admit(w,'accounting-failure-run')
     healthy_standby(h,'engine-observer-failure')
-    statement=h.proxy.arm('SET status=$3,result=','send');commit=reply=None;paused=False
+    statement=h.proxy.arm('SET status=$3,result=','send');commit=reply=None;paused=False;capacity=[]
     try:
         p=w.start_engine();connection=statement.wait();pid=connection['pid']
         pause_dispatch(w,p)
@@ -199,8 +200,18 @@ def failure_run(w):
         assert state['state']=='active' and state['wait_event']=='SyncRep' and state['query']=='COMMIT /* store COMMIT */'
         assert state['backend_start']==samples[-1]['backend_start']
         h.event('w5_observer_failure_prerequisite',operation=op,owner=owner,settlement=state,observer_session=observer,matching_samples=samples)
+        if saturation:
+            from w8 import saturate
+            capacity=saturate(h)
+            # Fixed owned clients have no supervisor or connection retry. Stop
+            # the API out of band; engine dispatch is already quiesced, with
+            # its sent settlement retained. No fresh observer drives recovery.
+            w.stop_api()
+            h.event('w8_saturation_quiesced',replacement_processes=0,api_exit=w.api.returncode,dispatch_paused=True,sent_commit_retained=True)
         # Kill precisely the original observer, independently excluding SyncRep.
-        assert h.sql(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid={observer} AND state='idle' AND wait_event IS DISTINCT FROM 'SyncRep'")=='t'
+        # Its periodic read can be active at the first probe, especially while
+        # opening saturation clients. Wait for idle without relaxing the guard.
+        eventually(lambda:h.sql(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid={observer} AND state='idle' AND wait_event IS DISTINCT FROM 'SyncRep'")=='t')
         eventually(lambda:any(e['owner']==owner for e in events(p,'test_observer_run_closed')))
         closure=next(e for e in events(p,'test_observer_run_closed') if e['owner']==owner)
         before=closure['before'];after=closure['after']
@@ -216,7 +227,7 @@ def failure_run(w):
         # Independent server observations bound a genuinely unobserved wait.
         server=[]
         while time.monotonic()-failed_at<2.2:
-            assert p.poll() is None and not connection['closed']
+            assert p.poll() is None and not connection['closed'], 'STO-7 observer exhaustion must retain alive process and owned sent COMMIT'
             value=h.sql(f"SELECT state||':'||wait_event FROM pg_stat_activity WHERE pid={pid}")
             assert value=='active:SyncRep';server.append(dict(elapsed=time.monotonic()-failed_at,state=value))
             assert not any(e['owner']==owner for e in events(p,'commit_accounting_completed'))
@@ -225,15 +236,21 @@ def failure_run(w):
         eventually(lambda:any(e.get('owner')==owner for e in events(p,'test_commit_checkout')))
         ownership=next(e for e in events(p,'test_commit_checkout') if e['owner']==owner)
         assert ownership['session']==pid and ownership['pooled_checkout_held'] and not ownership['transport_dead']
-        resume_standby(h);paused=False;reply.wait()
+        alarms=[json.loads(line) for line in p.error.read_text().splitlines() if line.startswith('{')]
+        assert any(e.get('event')=='alarm' and e.get('threshold_ms')==0 and 'observer reconnect failed' in e.get('message','') for e in alarms), 'STO-55 bounded observer reconnect must actually exhaust'
+        attempts=len(h.proxy.connections)
+        time.sleep(.15)
+        assert len(h.proxy.connections)==attempts, 'STO-55 exhausted observer must stop reconnecting'
+        assert not events(p,'engine_fatal') and not events(p,'commit_observer_reestablished')
+        h.event('w5_observer_exhaustion_retained',owner=owner,ownership=ownership,alarms=alarms,connections=attempts,unobserved_server_samples=server)
+        # STO-55 step 3: signal the previously identified owned receiver; the
+        # saturation arm needs no SQL connection for this recovery action.
+        resume_standby(h,verify=not saturation);paused=False;reply.wait()
         stored=snapshot(w,op);provider=external(w,op)
         assert stored['operation']['status']=='succeeded' and len(orders(w,op))==1
-        eventually(lambda:events(p,'commit_observer_reestablished'))
-        fresh=events(p,'commit_observer_reestablished')[-1]
-        assert fresh['checked'] and fresh['session']!=observer
-        assert any(e.get('session')==fresh['session'] for e in events(p,'session_admitted'))
-        # Wait for the checked replacement to observe the now-idle same backend.
-        eventually(lambda:any(e['owner']==owner and e['observer_session']==fresh['session'] and not e['matching'] for e in events(p,'commit_observer_sample')))
+        assert p.poll() is None and not connection['closed'], 'STO-7 observer exhaustion must retain alive process and owned sent COMMIT'
+        assert not events(p,'engine_fatal') and not any(e['owner']==owner for e in events(p,'commit_accounting_completed'))
+        assert not events(p,'commit_observer_reestablished'), 'STO-55 exhausted observer cannot reconnect after standby returns'
         h.proxy.close_connection(connection,'w5_observer_failure_commit_reply_lost');reply.release()
         reaped(w,p)
         observer_contract(w,p)
@@ -241,13 +258,33 @@ def failure_run(w):
         assert abs(exempt-measured)<=2, 'OPS-49 unobserved gap must remain charged at completion'
         completed=next(e for e in events(p,'commit_accounting_completed') if e['owner']==owner)
         assert completed['completion_us']-closure['failed_us']>2_000_000
-        assert not events(p,'whole_transaction_retry')
-        assert any('store retry exhausted' in e.get('reason','') for e in events(p,'engine_fatal'))
-        h.event('w5_accounting_activated',scenario=w.case,activated=True,operation=op,owner=owner,session=pid,observer_failure=closure,checked_replacement=fresh,ownership=ownership,unobserved_server_samples=server,completion=completed,exempt_us=exempt,engine_exit=p.returncode,proof='run closure invariant plus independent completion charging; no reconnect during stall')
+        # Other engine components may unwind an unsent transaction after the
+        # final receipt. The exhausted observer must admit no later COMMIT.
+        rows=events(p)
+        assert not any(e['event']=='commit_possible_dispatch' for e in rows[rows.index(completed)+1:])
+        # W5 shares proxy history. This invocation claims only this operation,
+        # pauses dispatch at its settlement, then reaps before any successor.
+        # Count every transport in that scenario window: filtering by the first
+        # PID/owner would hide a whole-transaction repeat on a fresh connection.
+        assert {e['operation'] for e in rows if e['event']=='claim_registered'}=={op}
+        settlements=[e for e in h.events[scenario_start:] if e['event']=='bytes_transmitted' and 'SET status=$3,result=' in e.get('query','')]
+        h.event('w5_owned_settlement_count',scenario=w.case,operation=op,owner=owner,transmissions=len(settlements),sessions=[e['session'] for e in settlements],scope='scenario entry through engine exit, all transports, sole claimed operation')
+        assert len(settlements)==1, 'OPS-49 observer exhaustion must not repeat the owned settlement'
+        fatal=next(e for e in events(p,'engine_fatal') if 'observer reconnect failed' in e.get('reason',''))
+        assert events(p).index(completed)<events(p).index(fatal), 'STO-7 completion must precede deferred observer fatal'
+        h.event('w5_accounting_activated',scenario=w.case,activated=True,operation=op,owner=owner,session=pid,observer_failure=closure,observer_exhausted=True,deferred_fatal=fatal,ownership=ownership,unobserved_server_samples=server,completion=completed,exempt_us=exempt,engine_exit=p.returncode,proof='run closure and independent completion charging; exhaustion retains owner until receipt resolves')
+        if capacity:
+            from w8 import release_capacity
+            release_capacity(capacity);capacity=[]
+            h.identity()
+            h.event('w8_saturation_recovered',recovery_controls='out-of-band API stop, dispatch pause, receiver resume',fresh_sql_required_for_recovery=False,primary_shutdown='not run; standby restoration completed wait',same_history=True)
         successor(w,op,'succeeded')
         assert snapshot(w,op)==stored and external(w,op)==provider and len(orders(w,op))==1
         trace(w,op,'observer fails inside established SyncRep run; unobserved gap charged',run_closed=True,one_purchase=True,rows_unchanged=True)
     finally:
+        if capacity:
+            from w8 import release_capacity
+            release_capacity(capacity)
         if paused:resume_standby(h)
         statement.release()
         if commit:commit.release()
@@ -257,3 +294,4 @@ def failure_run(w):
 
 
 CASES={**{'w5_accounting_'+mode:(lambda w,mode=mode:accounting(w,mode)) for mode in ('reply','syncrep','mixed','unavailable','mismatch','stop')},'w5_accounting_reconnect':reconnect,'w5_accounting_failure_run':failure_run}
+CASES['w5_accounting_saturation']=lambda w:failure_run(w,True)

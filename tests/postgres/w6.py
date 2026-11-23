@@ -33,9 +33,13 @@ def pending(w,op):
     assert not state['machines'] and not state['ledger']
     return state
 
-def lost(w,suffix,resource=False,**evidence):
+def lost(w,suffix,resource=False,tenant=None,**evidence):
     w.stop_engine()
-    t,body,op=admit(w,suffix,resource=resource)
+    if tenant is None:t,body,op=admit(w,suffix,resource=resource)
+    else:
+        assert not resource, 'existing-tenant fixture uses an ordinary catalogue offer'
+        t=tenant;body=w.create_body(t)
+        op=w.request('POST','/v1/machines',body,t,suffix,status=202)['id']
     proof(w,op,**evidence)
     hold=w.h.root/'provider'/'hold-reconciliation';hold.touch(exist_ok=True)
     w.provider_control(mode='drop_reply')

@@ -43,10 +43,24 @@ def single_match(w):
     assert after['commitment']['state']=='open' and after['commitment']['reserved_sats']==43,'C1 OPS-27 single exact match preserves original funding after failed confirmation'
     assert after['operation']['status']=='needs_reconciliation' and len(after['exclusions'])==1
     # Partial or failed later searches cannot retract the retained positive fact.
+    # OPS-13/27: preserve the safe identifiers separately from the latest verdict.
+    known=set(after['operation']['error']['details']['reconciliation']['provider_identifiers'])
+    resource=next(e['resource'] for e in external(w,op) if e['stage']=='resource_created')
+    assert resource in known and known
     for search in ('incomplete','failed'):
+        previous=snapshot(w,op)['operation']['resolution_attempted_at']
         proof(w,op,search=search,direct='failed');p=w.start_engine()
-        eventually(lambda:events(p,'resolution_search'));w.stop_engine()
-        assert snapshot(w,op)['commitment']['reserved_sats']==43
+        eventually(lambda:events(p,'resolution_search'))
+        eventually(lambda:snapshot(w,op)['operation']['resolution_attempted_at']!=previous and
+                   snapshot(w,op)['operation']['error']['details']['reconciliation']['authoritative'] is False)
+        w.stop_engine()
+        reread=snapshot(w,op)
+        details=reread['operation']['error']['details']
+        assert known<=set(details['reconciliation']['provider_identifiers']), 'OPS-13 failed reread must retain earlier safe provider identifiers'
+        assert known<=set(details['provider_identifiers']['reconciliation'])
+        assert details['reconciliation']['authoritative'] is False
+        assert reread['commitment']['reserved_sats']==43 and not reread['ledger'] and not reread['machines']
+        w.h.event('w8_identifier_union_observed',operation=op,search=search,retained=sorted(known),latest=details['reconciliation'],money_unchanged=True)
     proof(w,op,search='normal',direct='normal');w.start_engine();w.wait_status(op,'succeeded');w.stop_engine()
     final=operation_state(w,op);one_purchase(w,op)
     assert final['operation']['resolution']=='observed'
@@ -265,7 +279,43 @@ def early_refusals(w):
     w.h.event('w6_early_refusals_complete',responses=responses,state=before)
 
 
-CONTINUATION={'w6_c1':single_match,'w6_c3_system':receiptless,'w6_c3_retry':lambda w:receiptless(w,True),
+def attached_conflict(w):
+    """OPS-27/LDG-32: observed resolution cannot adopt another create's machine."""
+    from w6 import create,deletion,lost,operation_state,one_purchase
+    saved=dedicated_account(w,'sim-attachment-conflict')
+    tenant,owner,machine=create(w,'attachment-owner')
+    external_id=w.h.sql(f"SELECT external_id FROM provisiond.machines WHERE id='{machine}'")
+    # Exercise the dangerous same-tenant case with the earlier commitment
+    # closed by a real delete. An open commitment's unique index would hide it.
+    deleted=deletion(w,tenant,machine,'attachment-owner-delete')
+    w.start_engine();w.wait_status(deleted,'succeeded');w.stop_engine()
+    try:
+        for scope in ('same-tenant','other-tenant'):
+            _,_,target,hold=lost(w,'attachment-target-'+scope,tenant=tenant if scope=='same-tenant' else None,search='incomplete')
+            try:
+                before=[operation_state(w,op) for op in (owner,target)]
+                provider=w.external()
+                key='attachment-conflict-'+scope
+                body=dict(resolution='observed',external_id=external_id,operator_ref='attachment-conflict')
+                for attempt in range(2):
+                    code,reply,_=http(w.h.ports[7],'POST',f'/v1/operations/{target}/actions/resolve',body,w.operator_tokens[0],key)
+                    after=[operation_state(w,op) for op in (owner,target)]
+                    debit=sum(-entry['amount_sats'] for entry in after[1]['ledger'] if entry['operation_id']==target and entry['kind'] in ('setup_fee_debit','first_unit_debit'))
+                    w.h.event('w8_operator_attachment_conflict_attempt',owner=owner,target=target,scope=scope,attempt=attempt+1,status=code,new_fee_unit_debits=debit)
+                    assert code==409, 'OPS-27 observed resolution must refuse another operation identity before debit'
+                    assert reply['error']['details']['reason']=='external_id_attached', 'OPS-27 observed resolution must clearly refuse another operation identity'
+                    assert after==before, 'OPS-27 conflicting observed resolution must post no fee/unit debit or partial attachment'
+                    assert w.h.sql(f"SELECT count(*) FROM provisiond.idempotency_records WHERE key='{key}'")=='0'
+                assert w.external()==provider
+                one_purchase(w,owner);one_purchase(w,target)
+                w.h.event('w8_operator_attachment_conflict_observed',owner=owner,target=target,scope=scope,machine=machine,reason='external_id_attached',state_unchanged=True,fee_unit_debits=0,attempts=2)
+                trace(w,target,'observed operator identity belongs to another create; refused before debit',owner_state=before[0],target_state=before[1])
+            finally:hold.unlink(missing_ok=True)
+    finally:
+        restore_accounts(w,saved)
+
+
+CONTINUATION={'w6_c1':single_match,'w6_attachment_conflict':attached_conflict,'w6_c3_system':receiptless,'w6_c3_retry':lambda w:receiptless(w,True),
     'w6_c4_search':lambda w:ordinary_auth(w,'/search'),'w6_c4_get':lambda w:ordinary_auth(w,'/get'),
     'w6_c4_constraints':lambda w:ordinary_auth(w,'/constraints'),'w6_c5':early_refusals,
     'w6_c2_failed':legacy_failed,'w6_c2_unresolved':legacy_unresolved}
