@@ -196,6 +196,19 @@ current release's directory. Keep the primary data/history identity unchanged. T
 there is no fixed recovery duration or guaranteed observer connection. These commands are written
 for the owned local profile and have not yet been run as the W8 saturation journey.
 
+Prepare the private event directory before restarting either unit (the release preparation
+uses the same commands for the `local` instance):
+
+```sh
+install -d -m 0700 "$HOME/.local/state/provisiond"
+export ENGINE_EVENTS="$HOME/.local/state/provisiond/local-engine-events.jsonl"
+export API_EVENTS="$HOME/.local/state/provisiond/local-api-events.jsonl"
+```
+
+For another instance, match both event filenames to the unit instance (`%i` in the templates).
+OVR-18/19 and STO-55: high-volume events go to these append files to avoid journald's per-user
+rate limit suppressing alarms and fatal/refusal diagnostics, which remain on stderr in the journal.
+
 1. **Stop replacement processes and connection growth through deployment controls.** This needs
    no database connection. Freeze other launchers. Mask the exact application units first:
 
@@ -216,14 +229,17 @@ for the owned local profile and have not yet been run as the W8 saturation journ
    ```sh
    systemctl --user stop "$API_UNIT" "$ENGINE_UNIT"
    systemctl --user show "$ENGINE_UNIT" "$API_UNIT" -p ActiveState -p SubState -p MainPID
+   tail -n 200 "$ENGINE_EVENTS" "$API_EVENTS"
    journalctl --user -u "$ENGINE_UNIT" -u "$API_UNIT" -n 200 --no-pager
    ps -ww --ppid "$(head -n 1 "$PRIMARY_DATA/postmaster.pid")" -o pid,ppid,args
    tail -n 200 "$PRIMARY_LOG"
    ```
 
    Require MainPID=0 and stopped/failed units, plus stopped independent actors. Retain failed
-   request keys, operation IDs, provider identifiers and private raw logs. A fatal stop or signal
-   death is no classification of its in-flight work. PostgreSQL process titles may show COMMIT
+   request keys, operation IDs, provider identifiers and private raw logs, including both
+   `$ENGINE_EVENTS` and `$API_EVENTS` for `stop_record_started`, `stop_record_outcome`,
+   `stop_record_finished` and `api_stopping`. A fatal stop or signal death is no classification
+   of its in-flight work. PostgreSQL process titles may show COMMIT
    waiting for replication; server logs may also report waits if replication-wait logging was enabled in advance. Absence of those text markers proves no
    absence of SyncRep waiters. With no observer connection, treat all residual backends as
    possibly waiting; never target one with kill, pg_cancel_backend or pg_terminate_backend.
@@ -307,14 +323,29 @@ for the owned local profile and have not yet been run as the W8 saturation journ
        systemctl --user reset-failed "$u"
      fi
    done
-   systemctl --user start "$ENGINE_UNIT"
-   journalctl --user -u "$ENGINE_UNIT" -n 100 --no-pager
-   # Require restart_pass_complete and any required incident step-2 acknowledgment.
-   systemctl --user start "$API_UNIT"
-   journalctl --user -u "$API_UNIT" -n 100 --no-pager
-   # Require api_listening before resuming customer requests.
+   # Both units must still be stopped when recording their event-file offsets.
+   ENGINE_FROM=$(( $(stat -c %s "$ENGINE_EVENTS" 2>/dev/null || echo 0) + 1 ))
+   API_FROM=$(( $(stat -c %s "$API_EVENTS" 2>/dev/null || echo 0) + 1 ))
+   STARTED=no
+   systemctl --user start "$ENGINE_UNIT" &&
+   timeout 120 sh -c 'until tail -c +"$1" "$2" 2>/dev/null | grep -m1 -F "\"event\":\"restart_pass_complete\""; do sleep 1; done' _ "$ENGINE_FROM" "$ENGINE_EVENTS" &&
+   systemctl --user is-active "$ENGINE_UNIT" &&
+   # If an incident is open, require recovery_step_acknowledged step 2 in:
+   # tail -c +"$ENGINE_FROM" "$ENGINE_EVENTS"
+   systemctl --user start "$API_UNIT" &&
+   timeout 120 sh -c 'until tail -c +"$1" "$2" 2>/dev/null | grep -m1 -F "\"event\":\"api_listening\""; do sleep 1; done' _ "$API_FROM" "$API_EVENTS" &&
+   systemctl --user is-active "$API_UNIT" &&
+   STARTED=yes
+   # Alarms and fatal/refusal diagnostics remain in the journal.
+   journalctl --user -u "$ENGINE_UNIT" -u "$API_UNIT" -n 200 --no-pager
+   [ "$STARTED" = yes ] || { echo 'Startup not confirmed: do not resume customer traffic; inspect the journal and event files' >&2; false; }
    ```
 
+   Event files append across restarts. Record offsets while both units are stopped; the
+   bounded waits read only bytes appended after those offsets, including markers that would
+   have scrolled out of a line-count tail. Require exit 0 from each start, wait and active check.
+   A timeout (exit 124), other nonzero result or inactive unit is a failed step: stop here,
+   inspect the journal and event files, and do not start the API or resume customer requests.
    Reset only failed units because a cleanly stopped unit may have been collected and resetting
    an unloaded unit fails. Reconcile previously running creates through retained exact correlators
    and direct reads,

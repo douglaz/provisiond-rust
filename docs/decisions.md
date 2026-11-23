@@ -2029,7 +2029,10 @@ Read/write checkout failure streaks alarm independently after 2000 ms without a 
 checkout on that pool; a timer only observes state, never reconnects. Fatal component exits alarm
 immediately (0 ms threshold), including startup database refusal. Each event has event=alarm,
 component, readable message, threshold_ms and operator_action_required. Systemd 260 templates
-retain these on stderr in the journal. The local restart policy is four total starts, no automatic
+retain these on stderr in the journal; stdout events append to per-instance files under
+`%h/.local/state/provisiond/` so event volume cannot suppress those alarms through journald's
+per-user rate limit. Event-file rotation and retention are deployment-owned; no rotation is shipped.
+The local restart policy is four total starts, no automatic
 counter reset, 1 s initial delay, three exponential steps to 8 s, 16 GiB MemoryMax, no swap and
 5 s stop allowance. StartLimitIntervalSec=infinity requires operator reset after recovery; failed
 units must remain loaded. Counters are not durable across manager restart/unload. Production

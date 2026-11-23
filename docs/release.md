@@ -11,6 +11,9 @@ has not been run for schema 5. Never advance after a failed command or an uncert
    ```sh
    export ENGINE_UNIT=provisiond-engine@local.service
    export API_UNIT=provisiond-api@local.service
+   install -d -m 0700 "$HOME/.local/state/provisiond"
+   export ENGINE_EVENTS="$HOME/.local/state/provisiond/local-engine-events.jsonl"
+   export API_EVENTS="$HOME/.local/state/provisiond/local-api-events.jsonl"
    export APP_ROLE=app
    export PROVISIOND_APPLICATION_ROLES="$APP_ROLE"
    # Set NEW_RELEASE to the installed release directory containing bin/.
@@ -24,6 +27,11 @@ has not been run for schema 5. Never advance after a failed command or an uncert
    # Define empty strings only when every setting is already in postgresql.conf.
    : "${PRIMARY_SERVER_OPTIONS?}" "${STANDBY_SERVER_OPTIONS?}"
    ```
+
+   OVR-18/19 and STO-55: high-volume events go to per-instance append files to avoid
+   journald's per-user rate limit suppressing alarms and fatal/refusal diagnostics on stderr.
+   The mode-0700 state directory must exist before either unit starts; for another instance,
+   change both unit names and event filenames to match the templates' `%i` specifier.
 
    Template configuration files are `%h/.config/provisiond/local-engine.env` and
    `local-api.env`; the application connection uses `app`, the migrator connection uses
@@ -169,14 +177,30 @@ has not been run for schema 5. Never advance after a failed command or an uncert
        systemctl --user reset-failed "$u"
      fi
    done
-   systemctl --user start "$ENGINE_UNIT"
-   journalctl --user -u "$ENGINE_UNIT" -n 100 --no-pager
-   # Require restart_pass_complete and, if incident open, recovery_step_acknowledged step 2.
-   systemctl --user start "$API_UNIT"
-   journalctl --user -u "$API_UNIT" -n 100 --no-pager
-   # Require api_listening, then inspect customer balance, payments, operations and machines.
+   # Both units must still be stopped when recording their event-file offsets.
+   ENGINE_FROM=$(( $(stat -c %s "$ENGINE_EVENTS" 2>/dev/null || echo 0) + 1 ))
+   API_FROM=$(( $(stat -c %s "$API_EVENTS" 2>/dev/null || echo 0) + 1 ))
+   STARTED=no
+   systemctl --user start "$ENGINE_UNIT" &&
+   timeout 120 sh -c 'until tail -c +"$1" "$2" 2>/dev/null | grep -m1 -F "\"event\":\"restart_pass_complete\""; do sleep 1; done' _ "$ENGINE_FROM" "$ENGINE_EVENTS" &&
+   systemctl --user is-active "$ENGINE_UNIT" &&
+   # If an incident is open, require recovery_step_acknowledged step 2 in:
+   # tail -c +"$ENGINE_FROM" "$ENGINE_EVENTS"
+   systemctl --user start "$API_UNIT" &&
+   timeout 120 sh -c 'until tail -c +"$1" "$2" 2>/dev/null | grep -m1 -F "\"event\":\"api_listening\""; do sleep 1; done' _ "$API_FROM" "$API_EVENTS" &&
+   systemctl --user is-active "$API_UNIT" &&
+   STARTED=yes
+   # Alarms and fatal/refusal diagnostics remain in the journal.
+   journalctl --user -u "$ENGINE_UNIT" -u "$API_UNIT" -n 200 --no-pager
+   [ "$STARTED" = yes ] || { echo 'Startup not confirmed: do not resume customer traffic; inspect the journal and event files' >&2; false; }
    ```
 
+   Event files append across restarts. Record offsets while both units are stopped; the
+   bounded waits read only bytes appended after those offsets, including markers that would
+   have scrolled out of a line-count tail. Require exit 0 from each start, wait and active check.
+   A timeout (exit 124), other nonzero result or inactive unit is a failed step: stop here,
+   inspect the journal and event files, and do not start the API or resume customer requests.
+   After api_listening, inspect customer balance, payments, operations and machines.
    Reset only failed units because a cleanly stopped unit may have been collected and resetting
    an unloaded unit fails. A failed start is a failed release step. Inspect rather than repeatedly
    resetting limits.

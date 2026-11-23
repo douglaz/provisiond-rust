@@ -108,6 +108,15 @@ impl Component {
             let rows=tx.rows("SELECT generation::text FROM provisiond.startup_generation WHERE singleton FOR SHARE /* OPS-50 first statement */",&[]).await?;
             let matches = rows.len() == 1 && rows[0].get::<_, String>(0) == fence.generation;
             if !matches && !super::test_defect("generation") {
+                // OVR-18/19, STO-55: a superseded engine may exit directly; alarm on stderr first.
+                crate::entry::alarm(
+                    "engine",
+                    &format!(
+                        "engine superseded: startup generation {} is no longer current",
+                        fence.generation
+                    ),
+                    0,
+                );
                 fence.fatal.store(true, Ordering::Release);
                 (self.store.trace)(
                     json!({"event":"engine_superseded","generation":fence.generation,"fatal":true}),
@@ -383,6 +392,8 @@ impl EngineDatabase {
         self.fence.fatal.load(Ordering::Acquire)
     }
     pub fn fatal(&self, reason: &str) {
+        // OVR-18/19, STO-55: direct process exits bypass the entry-point alarm.
+        crate::entry::alarm("engine", reason, 0);
         self.fence.fatal.store(true, Ordering::Release);
         (self.store.trace)(json!({"event":"engine_fatal","reason":reason}));
     }
