@@ -194,7 +194,9 @@ primary backend waiting in SyncRep, except by primary shutdown. Use the inventor
 configuration variables from [release.md](release.md), with `CURRENT_RELEASE` naming the installed
 current release's directory. Keep the primary data/history identity unchanged. This is an outage;
 there is no fixed recovery duration or guaranteed observer connection. These commands are written
-for the owned local profile and have not yet been run as the W8 saturation journey.
+for the owned local profile. The [recorded W8 journey](../evidence/w8/live.json) exercised standby
+restoration with unavailable observer capacity; primary shutdown fallback remains not run. [Completed validation](../evidence/w8/validation.json) preserves the canonical W5 fixture failure
+and the separate unchanged-source W5 pass.
 
 Prepare the private event directory before restarting either unit (the release preparation
 uses the same commands for the `local` instance):

@@ -31,8 +31,7 @@ when the work package that needs them starts, not as empty placeholders.
 ### D-3. PostgreSQL and physical bootstrap
 
 **Measured 2026-11-05.** Use nixpkgs `postgresql_18` at
-`aff8a0b28396750446e5537a96461bc4facdb287`: PostgreSQL 18.6,
-`/nix/store/h9aczmrkpcmm9z47648m5n9sg67vi5gw-postgresql-18.6/bin/postgres`.
+`aff8a0b28396750446e5537a96461bc4facdb287`: PostgreSQL 18.6 (`postgres --version`).
 The complete tool/OS versions and command statuses are in [W1 evidence](../evidence/r2-final-w1.json).
 `nix develop --command python3 tests/postgres/harness.py --phase w1 --seed 20261105 --evidence evidence/r2-final-w1.json`
 exited 0: fresh bootstrap, loss and rebuild of the sole designated standby, verified
@@ -1981,7 +1980,7 @@ suite's duration is accepted here; neither coverage nor assertions are removed.
 
 ### D-70. Offline release declarations and bounded local saturation policy
 
-**Implemented, not run (2026-11-23); D-6 remains Open pending live evidence.** STO-12/13,
+**Measured local prototype (2026-11-23); completed canonical result fail, separate focused W5 pass.** STO-12/13,
 STO-7/55, OPS-47/49/21, OVR-18/19 and ADR-0048 own these choices. Schema/semantics 5 records
 stop order, contract flag and oldest admissible semantics on each history row. Historical 1–4
 are conservatively contract steps with floors equal to their semantics. The initial
@@ -1994,8 +1993,8 @@ binary must refuse 5; there is no down migration.
 The mandatory `PROVISIOND_APPLICATION_ROLES` lists comma-separated exact deployment login
 identities (local `app`). Each migrate transaction, before DDL, checks existing NOLOGIN roles
 and zero backends across the primary using only pg_roles.rolcanlogin and pg_stat_activity session
-user/count. PostgreSQL 18's public-view documentation confirms this visibility; live validation
-with the unprivileged migrator is not run. No bootstrap privilege change is proposed. The operator
+user/count. PostgreSQL 18's public-view documentation confirms this visibility; the [recorded local journey](../evidence/w8/live.json) exercised the offline release. Final canonical core passed on b1b0c721; overall canonical failed
+on the separate W5 fixture allowlist (F27). No bootstrap privilege change is proposed. The operator
 owns a complete role/launcher inventory and freezes role changes through the offline procedure.
 Migration lock timeout/retries remain 500 ms/two retries; connection failures get no retry.
 Authentication diagnostics retain SQLSTATE and the server's exact message without formatting
@@ -2009,8 +2008,11 @@ connection-check failures) trace a skipped tick and try again after one second. 
 transaction entry, including an unacknowledged COMMIT, still end the service under the existing
 ownership policy; the supervisor handles that exit. Clients resend identical bytes and the same key,
 honour both retry_after_ms and Retry-After, and use a finite attempt budget (local journey: at most
-three attempts).
+four attempts).
 Enrolment overload is equally retryable; the server does not implement a client retry loop.
+pvr-kin remains open: targeted post-admission checkout/configuration failure and recovery, and
+paced enrolment retry verification are not run. General successful startup and C14 supervisor
+bounds do not demonstrate these injections; this D-70 implementation is only partially verified.
 
 An engine already admitted and advanced must survive a brief failed startup checkout/check.
 The restart-pass/quarantine acquisitions now repeat begin (no business statement or sent COMMIT
@@ -2023,7 +2025,9 @@ the supervisor. Sent COMMIT ownership, standby-wait accounting and the 1000 ms S
 are unchanged. Initial pre-lock connection failure remains a failed deployment invocation.
 
 Observer reconnects back off from 20 ms to 1 s within the same 2000 ms Store-retry bound.
-Sustained failure alarms at 2000 ms; exhaustion sets the existing fatal state for bounded restart.
+Sustained failure alarms at 2000 ms. Exhaustion retains the process and owned sent COMMIT until its reply or dead transport resolves; completion accounting precedes the deferred fatal exit. [Historical RED/GREEN and final focused W5](../evidence/w8/regressions.json) record this ordering.
+Final canonical W5 did not reach this assertion; current GREEN is the single separate unchanged-source
+W5 invocation on b1b0c721 (exit 0 / 137.348692 seconds). Exhaustion does not release the checkout or prove rollback.
 
 Read/write checkout failure streaks alarm independently after 2000 ms without a successful
 checkout on that pool; a timer only observes state, never reconnects. Fatal component exits alarm
@@ -2046,22 +2050,28 @@ history. A promotion or history replacement still enters STO-54 incident recover
 pvr-7tx keeps the safe provider-ID union apart from the latest search verdict; money flags keep
 their prior meanings. pvr-ggy's shared landed-order writer rejects a different operation's external
 identity, including same-tenant conflicts, before fee/unit debits. The operator receives conflict
-with reason external_id_attached. New live/regression evidence is not run; tests are suspended.
-Build commands, exact observed statuses and wall times are recorded in the implementation handoff;
-compilation alone does not close D-6 or demonstrate CNF-57/CNF-373.
+with reason external_id_attached. [Live](../evidence/w8/live.json) and [historical regression](../evidence/w8/regressions.json) evidence now exist. Tests are restored. Both the first canonical (exit 1 / 1678.641406 seconds) and final canonical (exit 1 /
+1844.113252 seconds) failed; [validation](../evidence/w8/validation.json) retains them. Final canonical
+W6 passed both `w6_c1` and `w6_attachment_conflict` on clean b1b0c721; [regressions](../evidence/w8/regressions.json)
+binds their current GREEN separately from historical RED fixture identities. The final canonical
+W5 P2 fixture refusal F27 remains a failure despite the separate W5 pass. No owner policy changed.
+The live D17/D18 functional cases were not reachable and remain not run; suite proofs own those fixes. Compilation alone is not conformance evidence.
 
-## Open
+### D-6 provisional W2 parameters — measured local prototype
 
-
-| ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
-|---|---|---|---|---|
-| D-6 | Fixed pool, timeout, and retry values | W2/W8 | "OVR-19 constraints, measured behavior, and deployment phase." | open |
-| D-8 | First real provider path and spending limit | W10/W11 | "Current provider evidence and explicit operator approval." | open; needs the owner |
-| D-9 | Fleet/exposure limits | W11 | "Stated assumptions and measured recovery, not arbitrary defaults." | open |
-
-### D-6 provisional W2 parameters (Open for W8)
-
-D-6 remains **Open for W8**. Provisional OVR-19 store-timeout rows are statement 1000 ms,
+D-6 is **settled for the measured local prototype only**. The [live journey](../evidence/w8/live.json)
+exited 0 in 170.318 seconds. [Validation](../evidence/w8/validation.json) records Nix 2.35.6,
+Python 3.14.7, PostgreSQL 18.6, rustc 1.97.1, cargo 1.97.0 and canonical systemd 262 (templates
+260). Iteration exit 0 / 855.070254 seconds includes fast gate exit 0 and 50 Python tests exit 0,
+at 18574b3 plus the exact reviewed patch, then committed byte-identically as b1b0c721.
+Canonical ran clean b1b0c721 once: exit 1 / 1844.113252 seconds, 11 of 12 phases pass, sole W5
+fixture failure F27. Separate unchanged-source W5 exited 0 / 137.348692 seconds. The first failed
+canonical and all prior failures remain recorded. Complete commands, counts and private raw hashes
+are linked there; no single green all-phase invocation is claimed. The 104-file operational map
+b19007e2 remains equal after metadata writes and runtime bytes equal aa1ad12. The evidence
+identifies the tested commit separately from publication metadata and embeds no circular publication hash.
+Targeted pvr-kin startup/enrolment verification remains not run.
+OVR-19 store-timeout rows are statement 1000 ms,
 lock 500 ms, idle transaction 1000 ms, client pre-COMMIT call/connect 2000 ms, read-only check
 3000 ms, and checkout 250 ms. Pooled TCP keepalives are idle 2 s, interval 1 s, count 2 on
 both client and server. Isolation is read committed; search path is `pg_catalog,fixture`;
@@ -2071,18 +2081,17 @@ fixture/observer and replication-test headroom; it is not a product capacity bud
 three engine worker write slots, one compatibility read slot and a dedicated startup-lock session;
 W5 adds one dedicated read-only observer and includes the transient generation-advance session
 in startup capacity checking. W3 did not implement a periodic scheduler. W4 adds local create dispatch polling; general
-maintenance/reconciliation remains deferred. The Store-retry bound is 2000 ms. Production capacity,
-retry policy, alarm thresholds and restart policy remain unselected.
+maintenance/reconciliation remains deferred. The Store-retry bound is 2000 ms. Production capacity, retry policy, alarm thresholds and restart policy remain unselected; the separate production row remains open.
 The lifecycle fixture uses a 1000 ms stop bound and exits unresolved at that bound; two complete
 read/check attempts are allowed for a broken destination-read session. These are test values,
 not outage guarantees.
 
-| OVR-19 owning row | Requirement | Provisional local fixture value |
+| OVR-19 owning row | Requirement | Measured local fixture value |
 |---|---|---|
 | Store timeouts | STO-7, STO-55 | statement 1000 ms; lock 500 ms; idle transaction 1000 ms |
 | API read/write concurrency | STO-55 | one checkout in each ordinary pool |
 | Engine worker concurrency | STO-55 | three retained worker permits and three write checkouts; one compatibility read checkout; startup lock and one read-only accounting observer outside pools |
-| Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms; D-70 includes post-admission startup acquisitions/configuration; backoff 10 ms |
+| Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms; D-70 implements post-admission acquisitions/configuration, targeted verification not run; backoff 10 ms |
 | Pool checkout bound | STO-55 | 250 ms; request refusal 503 overloaded, retryable, retry_after_ms=250; no business transaction or refusal receipt |
 | Connection-exhaustion alarm threshold | STO-55, OVR-18 | D-70: independent read/write failure streak 2000 ms; fatal service/startup failure immediate (0 ms) |
 | Supervisor restart guarantee | STO-55, OPS-47, OVR-18 | D-70: four total starts, interval infinity, delay 1 s, three steps to 8 s; operator reset after recovery |
@@ -2090,18 +2099,30 @@ not outage guarantees.
 | Startup-lock connection keepalives | OPS-47, OVR-19 | explicit local assignment sharing pooled values; client/server idle 2 s, interval 1 s, count 2; validated and observed on lock session |
 | Pooled-connection keepalives | STO-7 | client/server idle 2 s, interval 1 s, count 2 |
 | Stop-record bound | OPS-21 | 1000 ms in lifecycle and W3 worker record fixtures |
-| W6 reconciliation scheduling | ENG-05, OPS-32/33 | one-second delay between supervised passes on ordinary admitted pools; pass duration includes evidence I/O; no outage bound or general maintenance scheduler; production policy remains W8 |
+| W6 reconciliation scheduling | ENG-05, OPS-32/33 | one-second delay between supervised passes on ordinary admitted pools; pass duration includes evidence I/O; no outage bound or general maintenance scheduler; production policy remains open |
 | Connection budget | STO-55 | local max 24, reserved 3 (21 ordinary); engine 6 steady / 7 startup; API 2; offline migrator plus waiting runner 2 with components stopped; remaining operator/fixture/replication headroom, no residual-backend upper bound |
 
 Client call/connect 2000 ms and check 3000 ms are implementation bounds obeying STO-7/OPS-49's
 server-timeout floor. The store owner has no commit deadline. D-6 selects no production retry,
-reconnect or alarm policy; full capacity and recovery evidence belongs to W8.
+reconnect or alarm policy; local full-capacity and unchanged-history recovery arms are recorded in W8; primary shutdown fallback remains not run.
+
+Evidence commands, versions, observed exits and timing are in [validation](../evidence/w8/validation.json), [live](../evidence/w8/live.json) and [regressions](../evidence/w8/regressions.json). These observations settle no production tuning or owner preference.
+
+
+
+## Open
+
+
+| ID | Choice | Where resolved | Required basis (implementation plan, section 9) | Status |
+|---|---|---|---|---|
+| D-6 production parameters | Production capacity, timeout, retry, alarm and restart selection | Future deployment | OVR-19 constraints and measured production deployment behavior | open; local prototype evidence selects no production policy |
+| D-8 | First real provider path and spending limit | W10/W11 | "Current provider evidence and explicit operator approval." | open; needs the owner |
+| D-9 | Fleet/exposure limits | W11 | "Stated assumptions and measured recovery, not arbitrary defaults." | open |
 
 When an open entry is settled, move it to "Settled" with the exact versions, commands, exit statuses
 and evidence paths that meet its basis. Preference, scope and cost questions go to the owner.
 
-
-### Provisional recovery fixture parameters (D-6 remains open)
+### Provisional recovery fixture parameters (production D-6 remains open)
 
 | Fixture input | Requirement | Value / scope |
 |---|---|---|

@@ -2,8 +2,8 @@
 
 STO-12/13, STO-7, STO-55, CNF-57 and ADR-0048 own this procedure. Use the release's
 `deploy/systemd/provisiond-engine@.service` and `provisiond-api@.service` with systemd 260,
-one engine and one API, one primary and its designated synchronous standby. This procedure
-has not been run for schema 5. Never advance after a failed command or an uncertain migration.
+one engine and one API, one primary and its designated synchronous standby. The [recorded W8 local journey](../evidence/w8/live.json) exercised schema 5. Completed canonical validation failed in W5 fixture startup; the separate unchanged-source W5
+follow-up passed. [Validation](../evidence/w8/validation.json) retains both results. Never advance after a failed command or an uncertain migration.
 
 1. **Prepare the inventory and private configuration.** In a shell with `psql`, `pg_ctl` and
    the release binaries available, assign these absolute paths and the exact owned unit names:
@@ -123,7 +123,7 @@ has not been run for schema 5. Never advance after a failed command or an uncert
    readable](https://www.postgresql.org/docs/18/view-pg-roles.html) and [session existence and
    user identity as visible to ordinary users](https://www.postgresql.org/docs/18/monitoring-stats.html#MONITORING-STATS-VIEWS).
    The migrator does not inspect privileged wait/query fields, change roles or terminate sessions.
-   This visibility is documentation-verified; the unprivileged live check is not run yet.
+   This visibility was exercised in the [W8 local offline release](../evidence/w8/live.json); final canonical core passed; [validation](../evidence/w8/validation.json) records the overall canonical failure and separate W5 pass.
 
 5. **Run the new release's migration and require exit 0.** The subshell keeps application and
    migration identities separate:
