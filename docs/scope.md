@@ -154,10 +154,12 @@ connections. A failure closes the listener, cancels and joins both periodic task
 request handlers one second to finish before cancelling and joining the remainder. The existing
 Process then has its unchanged one-second drain bound. A sent COMMIT remains process-owned even
 after its handler is cancelled; unresolved work at that bound requires exit 1, with no rollback or
-nonexecution inferred. Ordinary background checkout exhaustion also exits 1 with its component/error
-diagnostic; it has no in-process engine retry loop. Recovery requires a separate supervisor/operator
-restart after the underlying capacity/configuration problem is addressed, followed by ordinary keyed
-request or adapter replay. This is bounded failure handling, not an availability guarantee.
+nonexecution inferred. D-70 supersedes the earlier background-checkout exit behavior: pretransaction
+housekeeping checkout/probe failures skip the tick and try again after one second. Errors after
+transaction entry still end the service under the existing ownership policy; API components do not
+run the engine's whole-transaction retry loop. Recovery from such an exit uses the supervisor/operator
+and ordinary keyed request or adapter replay after the underlying problem is addressed. This is
+bounded failure handling, not an availability guarantee.
 The engine dispatches queued creates after its acknowledged startup generation and ordinary restart
 pass. Executable lock observation runs independently of dispatch/claim COMMIT waits. A dispatch
 refusal after loss joins the original record drain; late acknowledged claims inherit the original
@@ -333,12 +335,15 @@ The cause of occasional host setup delays is not established. Failed earlier run
 The [W4 report](../evidence/w4/report.md) and source inventory record the committed runtime/fixtures
 used by the final nine-phase run. Later documentation/evidence changes preserve those hashes.
 
-For ordinary authenticated, keyed POST requests to deposits/machines that expect success, the fixture
-client makes at most three HTTP attempts with identical bytes and key after a retryable checkout
-overload. It follows both body and HTTP pacing hints, waiting at most one second per resend, and records
-every such response with correlation and key/body digests. Expected errors, reads, enrolment, armed
-transport faults and defect controls receive the first response directly. Post-startup engine failures and business
-errors gain no retry. This is test-client protocol handling, not a runtime timeout or capacity policy.
+For ordinary POST enrolment and authenticated, keyed POST requests to deposits/machines that expect
+success, `Workflow.request` makes at most three HTTP attempts after a retryable checkout overload.
+It freezes exact request bytes before the first send, retains any key (ignored by enrolment), honours
+both body and HTTP pacing hints and waits at most one second per resend; longer hints stop the
+fixture rather than shorten the wait. Each resend records correlation and key/body digests. Expected
+errors, reads, armed transport faults and defect controls receive the first response directly.
+Business errors gain no retry. D-71 supersedes the historical exclusion of enrolment; the seven
+[client checks](../evidence/kin/regressions.json) cover its finite policy. This is test-client protocol
+handling, not a runtime timeout or production capacity policy.
 Core fixture setup similarly makes at most three API admission requests with the same key and body,
 only after a whole-checkout refusal, mirroring its funding helper. Target fault probes are direct; the narrowly shaped deployment retry above is separate.
 
@@ -492,10 +497,14 @@ Python units and all twelve canonical phases exited 0. It preserves the earlier 
 known timing class's one recorded serial rerun. Each iteration uses `tools/iteration.sh` (quick
 checks, units, W7 and controls); before publication `tools/postgres.sh --jobs N` runs the full suite
 with 2–3 workers or serially. These fixtures select no production availability guarantee.
-D-70 implements bounded engine/API retry handling. Targeted post-admission engine checkout/configuration
-failure and recovery, and paced enrolment retry remain not run (pvr-kin stays open).
-[W8 live evidence](../evidence/w8/live.json) records the broader local journey. The existing fixture
-customer client does not retry enrolment's retryable 503; the journey uses a separate four-attempt client.
+D-70 implements bounded engine/API retry handling. D-71 and the [pvr-kin report](../evidence/kin/report.md)
+record paced enrolment recovery and the post-admission CONFIGURATION lock-timeout recovery arm;
+the separate startup acquisition-failure arm remains not run.
+The W7-era statement that the fixture customer client does not retry enrolment's retryable 503 is
+historical and superseded by D-71's three-attempt ordinary fixture policy. The broader
+[W8 live journey](../evidence/w8/live.json) used a separate four-attempt client. The current targeted
+pvr-kin script sends one busy request and one paced resend, then a separate used-code check; it has
+no automatic HTTP retry loop.
 CNF-295's different-person and before-first-customer-payment obligations remain operator-owned
 `not run`. General fan-out, extensions, scheduled
 cancellation, OPS-41 no-rate steps 4–5, production alarms/fencing and W9–W11 remain deferred; W8 completed validation and its separate focused W5 result are stated below.
@@ -522,9 +531,11 @@ The numbered [release](release.md) and [saturation recovery](recovery.md#saturat
 procedures retain the one-primary/one-designated-standby manual profile.
 
 Runtime read/write checkout failure streaks alarm at 2000 ms; fatal service exits alarm immediately.
-Post-admission startup and configuration implement bounded Store retry; targeted failure/recovery
-and paced enrolment retry verification remain not run (pvr-kin stays open). Request checkout refusal remains
-retryable without service exit; pretransaction housekeeping failures skip a tick. Safe provider IDs
+Post-admission startup and configuration implement bounded Store retry. At W8 publication their
+targeted failure/recovery and paced enrolment verification were not run; the later D-71 evidence
+below demonstrates enrolment recovery and only the CONFIGURATION arm. Separate startup acquisition
+failure remains not run. Request checkout refusal remains retryable without service exit;
+pretransaction housekeeping failures skip a tick. Safe provider IDs
 accumulate independently of latest verdicts, and conflicting external identities are refused before
 fee/unit debits. Generation fencing and money flags are unchanged.
 
@@ -569,3 +580,38 @@ window widening (F24, pvr-5rl); F27 (pvr-58k) rejects a clean pre-admission driv
 Both are fail-closed fixture limits. Six final follow-ups F21–F24/F26/F27 are filed;
 [report](../evidence/w8/report.md) lists their IDs. No deterministic-suite claim is made. W6 proves a stable window only; its
 batch-snapshot runtime implication remains preexisting and unmeasured. W9–W11 remain deferred.
+
+
+## pvr-kin local availability observations
+
+The [baseline diagnostic](../evidence/kin/r1.json) confirmed a P1 under STO-55/DOM-17: c5045df
+returned retryable 503 with a 250 ms body hint and 1 s header, then refused the identical unexpired
+enrolment request with 400 after 1.081186978 seconds in the same process; a fresh code returned 200.
+D-71 releases only the atomic admission reservation belonging to a typed pre-BEGIN checkout refusal.
+Successful use, validation precedence and failures from BEGIN onward retain single-use semantics;
+there is no durable enrolment replay or server retry loop.
+
+The [default release live run](../evidence/kin/live.json) on 5deadfa exited 0 / 10.065245687 seconds:
+503, identical-body 200 after 1.077288216 seconds, then used-code 400, one account, no refusal receipt,
+same API process. After generation advance and restart-pass, an actual configuration lock timeout
+55P03 rolled back, spent 500 ms in one whole-transaction retry, acknowledged configuration COMMIT
+and completed 71 ordinary claim polls during one second, same engine PID/invocation, no restart
+and no repeated external call. Only this post-admission CONFIGURATION recovery arm is demonstrated;
+the separate startup acquisition-failure arm remains not run. The earlier accept-i2-a setup failure
+remains inconclusive (exit 1 / 0.241099419 seconds), both arms not run.
+
+[Regression evidence](../evidence/kin/regressions.json) retains baseline red exit 1 / 51.024309556
+seconds at the intended retry-should-return-200 assertion (actual 400), fixed green exit 0 /
+60.319961566 seconds (503→200→400), and seven client checks exit 0 / 1.516944277 seconds.
+[Validation](../evidence/kin/validation.json) records clean tested 70d86db: first iteration fail
+(exit 1 / 554.955759231 seconds), exactly one timing-class rerun pass (exit 0 / 509.967890345
+seconds), then the single serial canonical pass (exit 0 / 1831.510351548 seconds), all twelve phase
+processes passing. Its 281 non-control rows are 274 pass, two expected negative demonstrations and
+five not run; workflow has 85 pass rows including `W4-enrolment-pre-BEGIN-busy-retry` once. All 44
+controls and five candidate regressions retain expected negative classifications. The first
+iteration's 25900 port selection exposed a preexisting unit assumption; the controlled comparison
+establishes only that port-unit cause, not the independent W7 checkout timing cause or a cure for it.
+The rerun used documented 25500. Historical W8 failed canonicals and separate focused W5 pass above
+remain unchanged. Source/runtime/test-byte bindings, cleanup and deferred follow-ups are in the
+report. These observations select no production capacity/outage guarantee, automatic failover,
+history change, real dispatch, purchase, funds or new accepted profile.

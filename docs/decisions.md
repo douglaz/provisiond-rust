@@ -496,7 +496,9 @@ one second of waiting per resend. Every replayed refusal and unchanged key/body 
 Expected errors, reads, enrolment,
 armed transport faults and defect builds remain direct; no engine startup or business-error retry
 is added. Six fixture-only transport checks verify these guards; PostgreSQL workflow/control
-assertions remain independent.
+assertions remain independent. This D-20-era fixture description is historical: D-71 supersedes
+only the enrolment exclusion with the same finite three-attempt ordinary policy; its recorded run
+and six checks retain their original scope and identity.
 
 Core fixture admission setup mirrors the existing funding setup: at most three API requests with
 the same frozen request/key, and only after a complete checkout-deadline refusal. Each refusal is
@@ -1896,7 +1898,9 @@ its accepted identity remains provable from the committed source map. Historical
 unchanged; this entry supplies the final five-regression count and committed-source result.
 D-64's provisional "final committed-source acceptance is `not run`" is superseded by D-65.
 D-6 and production capacity remain open, including engine/API survival of a brief post-startup
-connection-check timeout. The fixture customer client does not honour enrolment's retryable 503.
+connection-check timeout. At that W7 run the fixture customer client did not honour enrolment's
+retryable 503; that fixture limitation is superseded by D-71. The original failures remain failures;
+D-71's local CONFIGURATION recovery observation does not select general production availability.
 
 ### D-66. Recovery result output and optional diagnostics
 
@@ -2007,12 +2011,14 @@ freeze/probe read failures and transaction-entry failures (including checkout, c
 connection-check failures) trace a skipped tick and try again after one second. Errors after
 transaction entry, including an unacknowledged COMMIT, still end the service under the existing
 ownership policy; the supervisor handles that exit. Clients resend identical bytes and the same key,
-honour both retry_after_ms and Retry-After, and use a finite attempt budget (local journey: at most
-four attempts).
+honour both retry_after_ms and Retry-After, and use a finite attempt budget (historical W8 local
+journey: at most four attempts).
 Enrolment overload is equally retryable; the server does not implement a client retry loop.
-pvr-kin remains open: targeted post-admission checkout/configuration failure and recovery, and
-paced enrolment retry verification are not run. General successful startup and C14 supervisor
-bounds do not demonstrate these injections; this D-70 implementation is only partially verified.
+At D-70 publication the targeted post-admission checkout/configuration failure/recovery and paced
+enrolment retry were not run. D-71 records the checkout-only admission correction, paced enrolment
+recovery and the post-admission CONFIGURATION failure/recovery arm. Separate startup acquisition
+failure remains not run; general successful startup and C14 supervisor bounds do not demonstrate it.
+Historical W8 results below retain their original scope and identities.
 
 An engine already admitted and advanced must survive a brief failed startup checkout/check.
 The restart-pass/quarantine acquisitions now repeat begin (no business statement or sent COMMIT
@@ -2057,6 +2063,65 @@ binds their current GREEN separately from historical RED fixture identities. The
 W5 P2 fixture refusal F27 remains a failure despite the separate W5 pass. No owner policy changed.
 The live D17/D18 functional cases were not reachable and remain not run; suite proofs own those fixes. Compilation alone is not conformance evidence.
 
+### D-71. Release enrolment admission only after typed pre-BEGIN checkout refusal
+
+**Measured local prototype (2026-11-24).** [STO-55](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/05-persistence.md#L291)
+and [DOM-17](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/01-domain-model.md#L700)
+require the advertised retry to be safe and sensible. [API-33](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/04-api-contract.md#L371),
+[API-40](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/04-api-contract.md#L815)
+and [WIR-12](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/13-wire-contract.md#L450)
+retain atomic single use, admission-before-body-validation and no enrolment idempotency replay.
+The [R1 diagnostic](../evidence/kin/r1.json) on c5045df confirmed a P1 in D-70/W8/D-6's supported
+retry: 503 overloaded/retryable with 250 ms body / 1 s header, then identical unexpired request
+400 after 1.081186978 seconds in the same process; fresh code 200. R1 is an expected negative
+demonstration, exit 0 / 10.105560480 seconds, not successful live acceptance.
+
+`Admission::consume` still reserves the nonce atomically. Its `ConsumedAdmission` has no release
+on drop. Only `ConsumedAdmission::release_after_checkout_refusal`, called by the API enrol path
+for typed `CheckoutRefused` from `Store::begin_checked` before BEGIN submission, releases that
+request's reservation. Success, other validation failures, cancellation and all failures from
+BEGIN onward keep the code spent. No replay route, durable idempotency, automatic service retry
+or policy for other enrolment refusals is added; those separate hypotheses remain follow-ups.
+
+The [live run](../evidence/kin/live.json) uses default release binaries at 5deadfa and private
+driver b82d0d0: accept-i3-b pass, exit 0 / 10.065245687 seconds, actual 503→identical-body 200
+after 1.077288216 seconds, then used-code 400 before expiry, one account, no refusal receipt and
+same API process. The targeted script performs exactly one busy send and one paced resend, then
+a separate used-code check; unexpected replies/transport errors stop it. It has no automatic
+four-attempt loop. `Workflow.request` now includes ordinary enrolment in its existing finite
+three-attempt policy, freezing bytes and honouring both hints. Expected errors, armed gates and
+defect controls remain direct. D-18's D-20-era fixture text and D-65's W7 exclusion are historical
+and superseded only on that point. W8's separate four-attempt journey remains historical.
+
+After generation advance and restart-pass, the live engine saw configuration lock timeout 55P03,
+acknowledged rollback and one whole-transaction retry spent 500 ms under the existing 2000 ms bound,
+then acknowledged configuration COMMIT and 71 ordinary claim polls in one second, same PID and
+invocation, no restart or repeated external call. This measures only `Engine::configuration`'s
+post-admission CONFIGURATION recovery arm under
+[OPS-49](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1968);
+[OPS-47](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L135)
+and [OPS-21](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1836)
+constraints remain unchanged. Separate startup acquisition failure is not run. The first candidate
+setup attempt accept-i2-a remains inconclusive, exit 1 / 0.241099419 seconds, both arms not run.
+
+[Regressions](../evidence/kin/regressions.json) record baseline red exit 1 / 51.024309556 seconds
+at the intended retry-should-200 assertion (actual 400), green exit 0 / 60.319961566 seconds
+(503→200→400), and seven client checks exit 0 / 1.516944277 seconds. The shared workflow registry
+runs `w4_round2.enrolment_retry` in canonical workflow: actual
+`W4-enrolment-pre-BEGIN-busy-retry` pass once among 85 pass rows.
+[Validation](../evidence/kin/validation.json) on clean 70d86db records first iteration fail
+(exit 1 / 554.955759231 seconds), exactly one D-69 timing-class rerun pass
+(exit 0 / 509.967890345 seconds), and one serial canonical pass (exit 0 / 1831.510351548 seconds),
+all twelve phase processes passing; 274 pass, two expected negative demonstrations, five not run
+outside controls. The first launch selected 25900 rather than documented 25500: a controlled pure
+unit comparison establishes the preexisting port-unit assumption only. It does not establish the
+independent W7 checkout timing cause or prove that changing ports cured it. The first failure is
+retained. All historical W8 failed canonicals and the separate focused W5 result remain unchanged.
+
+The [report](../evidence/kin/report.md) records exact commands, versions, source/runtime/test-byte
+bindings, cleanup and filed P2/P3 follow-ups. No production tuning, dispatch, purchase, funds,
+outage guarantee, automatic failover, history change or accepted-profile change is selected.
+
 ### D-6 provisional W2 parameters — measured local prototype
 
 D-6 is **settled for the measured local prototype only**. The [live journey](../evidence/w8/live.json)
@@ -2070,7 +2135,9 @@ canonical and all prior failures remain recorded. Complete commands, counts and 
 are linked there; no single green all-phase invocation is claimed. The 104-file operational map
 b19007e2 remains equal after metadata writes and runtime bytes equal aa1ad12. The evidence
 identifies the tested commit separately from publication metadata and embeds no circular publication hash.
-Targeted pvr-kin startup/enrolment verification remains not run.
+D-71 adds measured paced enrolment recovery and post-admission CONFIGURATION recovery;
+the separate startup acquisition-failure variant remains not run. Historical W8 results above are
+unchanged; [pvr-kin validation](../evidence/kin/validation.json) separately records the later runs.
 OVR-19 store-timeout rows are statement 1000 ms,
 lock 500 ms, idle transaction 1000 ms, client pre-COMMIT call/connect 2000 ms, read-only check
 3000 ms, and checkout 250 ms. Pooled TCP keepalives are idle 2 s, interval 1 s, count 2 on
@@ -2091,8 +2158,9 @@ not outage guarantees.
 | Store timeouts | STO-7, STO-55 | statement 1000 ms; lock 500 ms; idle transaction 1000 ms |
 | API read/write concurrency | STO-55 | one checkout in each ordinary pool |
 | Engine worker concurrency | STO-55 | three retained worker permits and three write checkouts; one compatibility read checkout; startup lock and one read-only accounting observer outside pools |
-| Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms; D-70 implements post-admission acquisitions/configuration, targeted verification not run; backoff 10 ms |
+| Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms; backoff 10 ms; D-71 [configuration evidence](../evidence/kin/live.json): actual 55P03, rollback, one whole-transaction retry spent 500 ms, acknowledged COMMIT and 71 polls in 1 s without restart; separate startup acquisition-failure variant not run |
 | Pool checkout bound | STO-55 | 250 ms; request refusal 503 overloaded, retryable, retry_after_ms=250; no business transaction or refusal receipt |
+| Local customer resend | STO-55, DOM-17, API-33/40, WIR-12 | D-71: request checkout 250 ms; body hint 250 ms / header 1 s; [live](../evidence/kin/live.json) actual resend delay 1.077288216 s, 503→200; targeted script exactly two sends (one resend), plus separate used-code 400 check; ordinary fixture budget 3; historical W8 client budget 4 remains historical, not a measured loop in this targeted run; no production selection |
 | Connection-exhaustion alarm threshold | STO-55, OVR-18 | D-70: independent read/write failure streak 2000 ms; fatal service/startup failure immediate (0 ms) |
 | Supervisor restart guarantee | STO-55, OPS-47, OVR-18 | D-70: four total starts, interval infinity, delay 1 s, three steps to 8 s; operator reset after recovery |
 | Ordinary OS resources | STO-55 | D-70: per-unit MemoryMax=16G, MemorySwapMax=0, stop allowance 5 s |
