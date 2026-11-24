@@ -7,7 +7,7 @@ use crate::{
     http::{self, Request},
     local::Parameters,
     pricing,
-    store::{CommitOutcome, CreateRequest, Store, Trace, Transaction},
+    store::{CheckoutRefused, CommitOutcome, CreateRequest, Store, Trace, Transaction},
     wire::{self, Error},
 };
 use anyhow::{Context, Result, ensure};
@@ -430,7 +430,9 @@ impl State {
         if path == "/v1/enrol" && r.method == "POST" {
             self.rate(&source.to_string(), true)?;
             let v = wire::parse(&r.body)?;
-            self.admission
+            // API-33/40, WIR-12: reserve atomically before other body validation.
+            let admission = self
+                .admission
                 .consume(v["admission_token"].as_str().unwrap_or(""))?;
             wire::least(wire::unknown(&v, &["admission_token"]))?;
             let spending = auth::secret("pvd_s_")?;
@@ -439,7 +441,17 @@ impl State {
             let id = uuid::Uuid::new_v4().to_string();
             let expiry = auth::now() + self.p.n("tenant_seconds");
             let component = self.store.component();
-            let mut tx = component.begin().await?;
+            let mut tx = match component.begin().await {
+                Ok(tx) => tx,
+                Err(error) => {
+                    // STO-55/DOM-17: the retryable checkout refusal permits the
+                    // same code again. BEGIN and later errors keep it consumed.
+                    if error.is::<CheckoutRefused>() {
+                        admission.release_after_checkout_refusal();
+                    }
+                    return Err(error);
+                }
+            };
             tx.rows("SELECT pg_advisory_xact_lock(1347572816,0)", &[])
                 .await?;
             let count: i64 = tx

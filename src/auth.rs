@@ -28,6 +28,22 @@ pub struct Admission {
     validity: i64,
     capacity: usize,
 }
+// API-33: only the request that consumed a nonce can release its reservation.
+// No Drop release: validation, cancellation and transaction errors keep it spent.
+pub struct ConsumedAdmission<'a> {
+    admission: &'a Admission,
+    nonce: String,
+}
+impl ConsumedAdmission<'_> {
+    /// STO-55/DOM-17: release only for a checkout refusal before request BEGIN.
+    pub(crate) fn release_after_checkout_refusal(self) {
+        self.admission
+            .spent
+            .lock()
+            .expect("nonces")
+            .remove(&self.nonce);
+    }
+}
 impl Admission {
     pub fn new(delay_ms: u64, validity: i64, capacity: usize) -> anyhow::Result<Self> {
         anyhow::ensure!(
@@ -59,7 +75,7 @@ impl Admission {
             t + self.validity,
         ))
     }
-    pub fn consume(&self, token: &str) -> Result<(), Error> {
+    pub fn consume(&self, token: &str) -> Result<ConsumedAdmission<'_>, Error> {
         let invalid = || {
             Error::new(
                 "invalid_request",
@@ -92,7 +108,10 @@ impl Admission {
             return Err(invalid());
         }
         spent.insert(nonce.to_owned(), t + self.validity);
-        Ok(())
+        Ok(ConsumedAdmission {
+            admission: self,
+            nonce: nonce.to_owned(),
+        })
     }
 }
 
