@@ -515,7 +515,23 @@ impl Engine {
             && row["correlator_value"].is_string()
             && descriptor["correlator"] == "operation_id";
         let mut in_progress = false;
+        // OPS-13/27: retained safe identities are evidence, separate from this
+        // pass's authority/cardinality verdict. Partial rereads cannot erase them.
         let mut identifiers = std::collections::BTreeSet::new();
+        for prior in [
+            &row["error"]["details"]["provider_identifiers"]["reconciliation"],
+            &row["error"]["details"]["reconciliation"]["provider_identifiers"],
+        ] {
+            if let Some(prior) = prior.as_array() {
+                identifiers.extend(
+                    prior
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .filter(|id| safe_identity(id))
+                        .map(str::to_owned),
+                );
+            }
+        }
         if authoritative {
             for channel in descriptor["channels"].as_array().context("channels")? {
                 let found=self.reconciliation_call(component, d, descriptor,"/search",&json!({"account":account,"operation":id,"correlator":row["correlator_value"],"channel":channel,"resolution":true})).await?;

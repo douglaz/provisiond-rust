@@ -74,7 +74,7 @@ pub async fn continue_pre_lock(store: &Store, trace: Trace) -> Result<()> {
     if crate::store::test_defect("startup_order") {
         return Ok(());
     }
-    store.compatible_schema().await?;
+    store.compatible_schema_for("engine").await?;
     let incident = crate::recovery::current(store).await?;
     if incident.is_null() {
         return Ok(());
@@ -108,4 +108,14 @@ pub async fn continue_pre_lock(store: &Store, trace: Trace) -> Result<()> {
         "pre-lock recovery actor failed; no startup lock or generation write"
     );
     Ok(())
+}
+
+/// OVR-18/19, STO-55: stderr is retained by the supervisor journal. Runtime
+/// checkout failure streaks alarm at 2000 ms; fatal component exits alarm at once.
+pub fn alarm(component: &str, message: &str, threshold_ms: u64) {
+    eprintln!(
+        "{}",
+        serde_json::json!({"event":"alarm","component":component,
+        "message":message,"threshold_ms":threshold_ms,"operator_action_required":true})
+    );
 }

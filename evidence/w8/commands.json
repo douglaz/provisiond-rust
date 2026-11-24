@@ -1,0 +1,308 @@
+{
+  "limits": {
+    "memory_max_bytes": 17179869184,
+    "memory_swap_max_bytes": 0,
+    "oom_policy": "continue",
+    "w4_outer_timeout_seconds": 1190,
+    "w6_child_timeout_seconds": 1190
+  },
+  "live_reproduction": {
+    "command": [
+      "nix",
+      "develop",
+      "<private-evidence>/old-release",
+      "--command",
+      "python3",
+      "-I",
+      "<private-evidence>/live/drive.py",
+      "--commit-old",
+      "8d32a2438dafbbcfd1f680676d62f41a6c8c6abb",
+      "--commit-new",
+      "aa1ad12d1ff2b9085ee2c11b84730dffbc32ff61",
+      "--run-dir",
+      "<private-evidence>/live/runs/<fresh-run>",
+      "--port-base",
+      "24500"
+    ],
+    "driver_commit": "014edf9",
+    "required_launch_context": "Owned capped live unit, frozen recorded driver and old/new source versions; not a new execution authorization."
+  },
+  "per_run_environment": "Use the corresponding recorded private run root, TMPDIR, harness root and invocation-owned build targets. W4/W6 use i12/impl-fix1 or i13/impl-fix1/runs; W7 uses red-runs, green-runs or focused-runs under i9/impl-lossy-window.",
+  "records": [
+    {
+      "case": "w4-red",
+      "command": [
+        "python3",
+        "-B",
+        "<private-evidence>/i12/impl-fix1/replay.py",
+        "--red"
+      ],
+      "exit_status": 1,
+      "result": "expected negative demonstration",
+      "wall_seconds": 1.0781669882126153
+    },
+    {
+      "case": "w4-green",
+      "command": [
+        "python3",
+        "-B",
+        "tests/postgres/test_w4_probe.py"
+      ],
+      "exit_status": 0,
+      "result": "pass",
+      "wall_seconds": 0.03246307885274291
+    },
+    {
+      "case": "w4-fixed",
+      "command": [
+        "python3",
+        "-B",
+        "tests/postgres/harness.py",
+        "--phase",
+        "workflow",
+        "--jobs",
+        "1",
+        "--seed",
+        "20261105",
+        "--evidence",
+        "<private-evidence>/i15/impl-finalize/frozen/i12/impl-fix1/fixed.json",
+        "--case",
+        "w4_api_checkout"
+      ],
+      "exit_status": 0,
+      "result": "pass",
+      "wall_seconds": 12.652788788080215
+    },
+    {
+      "case": "w4-fault-absent",
+      "command": [
+        "python3",
+        "-B",
+        "<private-evidence>/i12/impl-fix1/focused-run.py",
+        "--phase",
+        "workflow",
+        "--jobs",
+        "1",
+        "--seed",
+        "20261105",
+        "--evidence",
+        "<private-evidence>/i15/impl-finalize/frozen/i12/impl-fix1/fault-absent.json",
+        "--case",
+        "w4_api_checkout"
+      ],
+      "exit_status": 1,
+      "result": "expected negative demonstration",
+      "wall_seconds": 8.087804712820798
+    },
+    {
+      "case": "w4-workflow",
+      "command": [
+        "python3",
+        "-B",
+        "tests/postgres/harness.py",
+        "--phase",
+        "workflow",
+        "--jobs",
+        "1",
+        "--seed",
+        "20261105",
+        "--evidence",
+        "<private-evidence>/i15/impl-finalize/frozen/i12/impl-fix1/workflow.json"
+      ],
+      "exit_status": 0,
+      "result": "pass",
+      "wall_seconds": 259.0617769090459
+    },
+    {
+      "case": "w6-green",
+      "command": [
+        "python3",
+        "<private-evidence>/i13/impl-fix1/experiment.py",
+        "green"
+      ],
+      "exit_status": 0,
+      "result": "pass",
+      "wall_seconds": 88.42658221302554
+    },
+    {
+      "case": "w6-negative",
+      "command": [
+        "python3",
+        "<private-evidence>/i13/impl-fix1/experiment.py",
+        "negative"
+      ],
+      "exit_status": 0,
+      "result": "expected negative demonstration",
+      "wall_seconds": 102.69858404621482
+    },
+    {
+      "case": "w6-full-w6",
+      "command": [
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "w6",
+        "--jobs",
+        "1",
+        "--evidence",
+        "<private-evidence>/i15/impl-finalize/frozen/i13/impl-fix1/full-w6.json"
+      ],
+      "exit_status": 0,
+      "result": "pass",
+      "wall_seconds": 641.1846088860184
+    },
+    {
+      "case": "w7-lossy-red",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "<private-evidence>/i9/impl-lossy-window/experiment.py",
+        "red"
+      ],
+      "exit_status": 1,
+      "result": "expected negative demonstration",
+      "wall_seconds": 144.08955830801278
+    },
+    {
+      "case": "w7-lossy-green",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "<private-evidence>/i9/impl-lossy-window/experiment.py",
+        "green"
+      ],
+      "exit_status": 0,
+      "result": "pass",
+      "wall_seconds": 125.54791611712426
+    },
+    {
+      "case": "w7-lossy-focused",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "<private-evidence>/i9/impl-lossy-window/focused.py"
+      ],
+      "exit_status": 0,
+      "result": "pass",
+      "wall_seconds": 85.51566904969513
+    },
+    {
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "bash",
+        "tools/iteration.sh",
+        "--jobs",
+        "1",
+        "--seed",
+        "20261105",
+        "--evidence",
+        "<private-evidence>/i15/impl-finalize/frozen/i14/iteration/iteration.json"
+      ],
+      "exit_status": 0,
+      "label": "i14/iteration",
+      "raw_record": {
+        "bytes": 2132,
+        "private_ref": "<private-evidence>/i15/impl-finalize/frozen/i14/iteration/result.json",
+        "retention": "private immutable copy; omitted from publication",
+        "sha256": "5f3f8c38c983f4aefac58398643d02cdc3df9f2053243da7b4de17830fb68339"
+      },
+      "result": "pass",
+      "wall_seconds": 855.0702537759207
+    },
+    {
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "bash",
+        "tools/postgres.sh",
+        "--jobs",
+        "1",
+        "--seed",
+        "20261105",
+        "--evidence",
+        "<private-evidence>/i15/impl-finalize/frozen/i14/canonical/canonical.json"
+      ],
+      "exit_status": 1,
+      "label": "i14/canonical",
+      "raw_record": {
+        "bytes": 2131,
+        "private_ref": "<private-evidence>/i15/impl-finalize/frozen/i14/canonical/result.json",
+        "retention": "private immutable copy; omitted from publication",
+        "sha256": "f1385bc78693a7315295042c68914f64e88023d716f54da2534de79d89f302e2"
+      },
+      "result": "fail",
+      "wall_seconds": 1844.113252311945
+    },
+    {
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "python3",
+        "tests/postgres/harness.py",
+        "--phase",
+        "w5",
+        "--jobs",
+        "1",
+        "--seed",
+        "20261105",
+        "--evidence",
+        "<private-evidence>/i15/impl-finalize/frozen/i14/w5-followup/w5.json"
+      ],
+      "exit_status": 0,
+      "label": "i14/w5-followup",
+      "raw_record": {
+        "bytes": 2158,
+        "private_ref": "<private-evidence>/i15/impl-finalize/frozen/i14/w5-followup/result.json",
+        "retention": "private immutable copy; omitted from publication",
+        "sha256": "b288544698167e3a94f13da3bfc089793e19bb954d44b2d8f4109c71c7e499f4"
+      },
+      "result": "pass",
+      "wall_seconds": 137.34869240084663
+    }
+  ],
+  "scope": "Exact completed command argv with private placeholders; Nix mode and measured versions in validation.json. No project execution during finalization.",
+  "shared_environment": {
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_HOME": "<private-evidence>/live/cargo-home",
+    "PROVISIOND_HARNESS_PORT_BASE": "25500",
+    "PROVISIOND_HARNESS_UNIT": "<owned-capped-unit>",
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "w6_pure_commands": [
+    {
+      "command": [
+        "python3",
+        "<private-evidence>/i13/impl-fix1/replay-r1.py"
+      ],
+      "exit_status": 1,
+      "result": "expected negative demonstration",
+      "wall_seconds": null
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/postgres",
+        "-p",
+        "test_w6_default_witness.py",
+        "-v"
+      ],
+      "exit_status": 0,
+      "result": "pass",
+      "wall_seconds": null
+    }
+  ]
+}

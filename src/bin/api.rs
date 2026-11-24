@@ -10,7 +10,7 @@ async fn main() {
     let mut process = Process::new(trace.clone());
     let result = async {
         let store = entry::local_store(process.clone(), trace)?;
-        store.compatible_schema().await?;
+        store.compatible_schema_for("api").await?;
         if std::env::args().any(|a| a == "--check-schema") {
             Ok(())
         } else {
@@ -19,6 +19,11 @@ async fn main() {
     }
     .await;
     if let Err(error) = &result {
+        entry::alarm(
+            "api",
+            &format!("api unavailable after fatal startup or service failure: {error:#}"),
+            0,
+        );
         eprintln!("provisiond api: {error:#}");
     }
     // STO-7: if an owner remains, exit without unwinding its live work. Never

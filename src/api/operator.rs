@@ -423,6 +423,8 @@ impl State {
                 earliest_date: None,
                 observed_at: chrono::Utc::now(),
             };
+            // OPS-27/LDG-32: propagate the store's external_id_attached conflict
+            // as a clear operator refusal; this transaction posts no debit.
             if !tx.resolve(&resolution).await? {
                 return Err(Error::conflict("state").into());
             }

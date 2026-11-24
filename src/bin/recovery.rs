@@ -59,7 +59,7 @@ async fn main() {
     let mut process = Process::new(trace.clone());
     let result: Result<()> = async {
         let store = entry::local_store(process.clone(), trace)?;
-        store.compatible_schema().await?;
+        store.compatible_schema_for("recovery").await?;
         let args = std::env::args().skip(1).collect::<Vec<_>>();
         match args.first().map(String::as_str) {
             Some("--check-schema") if args.len() == 1 => (),
@@ -114,6 +114,7 @@ async fn main() {
         Ok(())
     }.await;
     if let Err(error) = &result {
+        entry::alarm("recovery", &format!("recovery unavailable: {error:#}"), 0);
         eprintln!("provisiond recovery: {error:#}");
     }
     let Some(owner) = Arc::get_mut(&mut process) else {

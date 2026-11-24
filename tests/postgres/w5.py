@@ -15,7 +15,7 @@ CASES = [
 
 def w5(h, case=None, defect=None):
     from workflow import Workflow
-    h.config['w5']=dict(required_scenarios=CASES,selected_case=case,defect=defect,automatic_reconciliation='read-only simulator barrier for named interrupted-state assertions; W6 separately verified',deployment_saturation='not run (W8)',recovery_incidents='not run (W7)')
+    h.config['w5']=dict(required_scenarios=CASES,selected_case=case,defect=defect,automatic_reconciliation='read-only simulator barrier for named interrupted-state assertions; W6 separately verified',deployment_saturation='w5_accounting_saturation: ordinary capacity unavailable; out-of-band standby restoration',recovery_incidents='not run (W7)')
     w = Workflow(h, defect='generation' if defect == 'w5_generation' else defect)
     try:
         for name in ([case] if case else CASES):

@@ -139,7 +139,7 @@ stop, retry exhaustion and supersession require process exit, retaining uncertai
 reply. W5 demonstrates the dedicated replication-freeze stop-record drill's named create arm
 (ENG-07): an older record retains its original deadline through lock loss and exits nonzero
 while its sent COMMIT remains unacknowledged. W6 demonstrates selected ENG-05 simulator
-reconciliation; DB-10 deployment-wide saturation remains not run. Local pool
+reconciliation; DB-10 deployment-wide saturation is now evidenced narrowly by [W8](../evidence/w8/report.md). Local pool
 budgets do not guarantee observer access or bound residual backends across process lifetimes.
 
 The API serves only the explicit loopback `local-simulator` profile after schema compatibility.
@@ -387,7 +387,7 @@ W7 supplies continuation, restore grace and exception suppression for establishe
 Unsupported legacy incidents still refuse startup. General exhaustion and suspension fan-out, extension/survival by extension, scheduled
 cancellation, surviving attachments, other mutations and import/rescue remain `not run`, owned by
 deferred follow-on work. No-rate OPS-41 steps 4–5 remain `not run`; reaching them stops safely before
-fence/provider dispatch. Production D-6 policy and saturation/recovery are W8; W9–W11 and any real
+fence/provider dispatch. Production D-6 policy remains open; local saturation/recovery implementation is W8; W9–W11 and any real
 pilot remain unauthorized. Known P2/P3 and preexisting limits are retained in the W6 report.
 
 Demonstrating no duplicate purchase for the supported traces is not a proof of exactly-once execution by an arbitrary provider. External uncertainty remains part of the product model. [S5] [S10]
@@ -492,13 +492,80 @@ Python units and all twelve canonical phases exited 0. It preserves the earlier 
 known timing class's one recorded serial rerun. Each iteration uses `tools/iteration.sh` (quick
 checks, units, W7 and controls); before publication `tools/postgres.sh --jobs N` runs the full suite
 with 2–3 workers or serially. These fixtures select no production availability guarantee.
-The engine/API survival of a brief post-startup connection-check timeout remains an open W8
-question; the fixture customer client does not retry enrolment's retryable 503.
+D-70 implements bounded engine/API retry handling. Targeted post-admission engine checkout/configuration
+failure and recovery, and paced enrolment retry remain not run (pvr-kin stays open).
+[W8 live evidence](../evidence/w8/live.json) records the broader local journey. The existing fixture
+customer client does not retry enrolment's retryable 503; the journey uses a separate four-attempt client.
 CNF-295's different-person and before-first-customer-payment obligations remain operator-owned
 `not run`. General fan-out, extensions, scheduled
-cancellation, OPS-41 no-rate steps 4–5, production alarms/fencing and W8–W11 remain deferred.
+cancellation, OPS-41 no-rate steps 4–5, production alarms/fencing and W9–W11 remain deferred; W8 completed validation and its separate focused W5 result are stated below.
 
 Recovery CLI actions return one result row on stdout; diagnostics are quiet by default and can be
 appended through `PROVISIOND_RECOVERY_LOG`. Reporting notices/errors remain on stderr; the
 engine-supervised preparation child sends traces to the engine log without a result row. Absent
 reporting input retains unknown endpoints and is distinct from malformed input (D-66).
+
+
+## W8 local evidence and completed validation
+
+The final canonical invocation failed (exit 1); the separate unchanged-source W5 follow-up passed
+(exit 0). Neither result replaces the other. See
+[report](../evidence/w8/report.md), [validation](../evidence/w8/validation.json) and
+[source inventory](../evidence/w8/source-inventory.json).
+
+Schema/semantics 5 is an offline contract release. `Store::migrate` checks NOLOGIN and zero
+application backends before DDL; every runtime entry checks schema, semantics and declarations.
+The old schema-4 binary is excluded. Migration history conservatively backfills declarations for
+1–4; schema 5 tightens attachment ownership with rollback floor 5. STO-12/13 and CNF-57 own these
+guards; no migration uses CONCURRENTLY, so the invalid-index arm is inapplicable and not run.
+The numbered [release](release.md) and [saturation recovery](recovery.md#saturation-recovery-on-unchanged-history)
+procedures retain the one-primary/one-designated-standby manual profile.
+
+Runtime read/write checkout failure streaks alarm at 2000 ms; fatal service exits alarm immediately.
+Post-admission startup and configuration implement bounded Store retry; targeted failure/recovery
+and paced enrolment retry verification remain not run (pvr-kin stays open). Request checkout refusal remains
+retryable without service exit; pretransaction housekeeping failures skip a tick. Safe provider IDs
+accumulate independently of latest verdicts, and conflicting external identities are refused before
+fee/unit debits. Generation fencing and money flags are unchanged.
+
+The recorded local simulator journey i7 exited 0 in 170.318 seconds on runtime aa1ad12 and driver
+014edf9. It demonstrates the exercised offline release and unchanged-history saturation arms,
+including ordinary observer refusal, bounded supervisor backoff, alarms and standby restoration.
+The waiting engine XID 6164 equals the succeeded outcome xmin 6164. Typed 503 overload begins no
+business transaction and writes no refusal receipt across observed API generations. Exact resend,
+one purchase/charge and balance checks were exercised. Primary shutdown fallback was not run.
+Reserved administrator fixture assertions are separate from out-of-band recovery controls.
+
+D17/D18 were not reachable: functional results are not run. Historical runtime RED and recorded
+GREEN evidence for identifier retention and conflicting attachment are in
+[regressions](../evidence/w8/regressions.json). Final canonical W6 demonstrates safe identifier
+retention and both tenant scopes of attachment conflict before debit. Observer sent-COMMIT retention
+is demonstrated in the separate focused W5 invocation; canonical W5 did not reach that case.
+
+Tests are restored. The iteration exited 0 in 855.070254 seconds at 18574b3 plus the reviewed patch,
+verified byte-identical to committed b1b0c721. It includes the fast gate (exit 0), 50 Python tests
+(exit 0), all 21 W7 selectors and 44 controls plus five candidate negative demonstrations. The
+[final canonical](../evidence/w8/canonical-final.json) started clean b1b0c721 and exited 1 in
+1844.113252 seconds: all 12 phase processes ran; 11 passed, W5 failed on the F27 pre-admission
+fixture allowlist. Its 259 scenario rows are 251 pass, one fail, two expected negative
+demonstrations and five not run. W4 workflow has 84 pass rows, W6 has 53 selectors / 54 pass plus
+one not-run row, and W7 has 21 pass rows. The single separate unchanged-source W5 follow-up exited
+0 in 137.348692 seconds with all 27 selectors / 30 pass rows. The complete phase collection
+(eleven canonical phases plus focused W5) has 280 rows: 273 pass, two expected negative
+demonstrations and five not run. This is a collection of separate invocations. All 11 ordinary
+canonical cleanups, 49 control-child cleanups and focused W5 cleanup passed. The first canonical
+failure (exit 1 / 1678.641406 seconds on 18574b3) and earlier failures remain recorded.
+
+The 104-file tested operational map remains equal after documentation, evidence and tracker writes.
+Runtime bytes equal aa1ad12. The [source inventory](../evidence/w8/source-inventory.json) records
+the tested commit and a separate equality observation; no circular publication hash is embedded.
+
+The local D-6 profile is measured only within these prototype runs. Four total starts, bounded
+backoff, 16 GiB per unit, no swap and a 5-second stop allowance are local settings. Production
+capacity, alert routing, separate-host rehearsal and availability guarantees remain open.
+pvr-31s remains open P1: only the failure_run idle-observer site is repaired. Preexisting
+pvr-2g0 and pvr-oqf remain unfixed. The W7 first-snapshot budget can fail closed after later
+window widening (F24, pvr-5rl); F27 (pvr-58k) rejects a clean pre-admission driver closure.
+Both are fail-closed fixture limits. Six final follow-ups F21–F24/F26/F27 are filed;
+[report](../evidence/w8/report.md) lists their IDs. No deterministic-suite claim is made. W6 proves a stable window only; its
+batch-snapshot runtime implication remains preexisting and unmeasured. W9–W11 remain deferred.

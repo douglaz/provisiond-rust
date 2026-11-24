@@ -107,14 +107,14 @@ def pause_standby(h):
     return pid
 
 
-def resume_standby(h):
+def resume_standby(h,verify=True):
     for pid,parent,start in h.paused:
         fields=Path(f'/proc/{pid}/stat').read_text().split(') ',1)[1].split()
         assert int(fields[1])==parent and fields[19]==start,'paused process identity changed'
         os.kill(pid,signal.SIGCONT)
         h.event('fault_released',fault='standby_receiver_pause',pid=pid)
     h.paused=[]
-    h.identity()
+    if verify:h.identity()
 
 
 def syncrep(h):

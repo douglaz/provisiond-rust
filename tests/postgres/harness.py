@@ -117,7 +117,7 @@ class Harness:
                 startup_lock_outside_pool=True,startup_wait_ms=500,store_retry_ms=2000,stop_record_ms=1000,
                 startup_lock_keepalives=dict(idle_seconds=2,interval_seconds=1,count=2,profile_assignment="shared with pooled local values"),
                 runtime_build=dict(features=["store-test-hooks"],target_directory=str(self.target)),
-                migration_lock_ms=500,migration_lock_retries=2,schema_version=4,semantic_version=4,notice_cap=16)
+                migration_lock_ms=500,migration_lock_retries=2,schema_version=5,semantic_version=5,notice_cap=16)
         self.archive = self.root / 'archive'
         self.archive.mkdir()
         self.event('invocation', seed=seed, specification=SPEC, phase=phase,

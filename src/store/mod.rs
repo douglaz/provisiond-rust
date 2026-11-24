@@ -109,6 +109,10 @@ pub struct Store {
     process: Arc<Process>,
     manager: Manager,
     accounting: Option<Arc<accounting::Accounting>>,
+    // STO-55/OVR-18: independent read/write failure streaks. A healthy read
+    // cannot conceal a saturated write pool; these observers never reconnect.
+    read_failure: Arc<Mutex<Option<std::time::Instant>>>,
+    write_failure: Arc<Mutex<Option<std::time::Instant>>>,
 }
 impl Store {
     pub fn new(
@@ -143,31 +147,68 @@ impl Store {
             trace,
             process,
             accounting: None,
+            read_failure: Arc::new(Mutex::new(None)),
+            write_failure: Arc::new(Mutex::new(None)),
         })
     }
-    async fn checkout(&self, pool: &Pool) -> Result<Checkout> {
+    async fn checkout(
+        &self,
+        pool: &Pool,
+        failure: &Arc<Mutex<Option<std::time::Instant>>>,
+    ) -> Result<Checkout> {
         #[cfg(feature = "store-test-hooks")]
         if pool.status().available == 0 && pool.status().size == pool.status().max_size {
             (self.trace)(json!({"event":"pool_checkout_waiting"}));
         }
         let acquisition = async {
-            pool.get()
-                .await
-                .map_err(|e| anyhow::anyhow!("pool checkout/create/check: {e}"))
+            pool.get().await.map_err(|error| match error {
+                // STO-55: retain the database reason, SQLSTATE and typed cause.
+                managed::PoolError::Backend(error) => error.context("pool checkout/create/check"),
+                error => anyhow::anyhow!("pool checkout/create/check: {error}"),
+            })
         };
         if test_defect("checkout") {
             return acquisition.await;
         }
         // STO-55: one bound includes waiting, recycling, construction and admission.
-        tokio::time::timeout(self.settings.checkout_bound, acquisition)
+        let result = tokio::time::timeout(self.settings.checkout_bound, acquisition)
             .await
-            .context("whole pool checkout deadline (waiting/create/admission)")?
+            .context("whole pool checkout deadline (waiting/create/admission)")
+            .and_then(|r| r);
+        let mut streak = failure.lock().expect("checkout alarm state");
+        if result.is_ok() {
+            *streak = None;
+        } else if streak.is_none() {
+            let started = std::time::Instant::now();
+            *streak = Some(started);
+            let failure = Arc::downgrade(failure);
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                if failure
+                    .upgrade()
+                    .is_some_and(|f| *f.lock().expect("checkout alarm state") == Some(started))
+                {
+                    let binary = std::env::current_exe().ok();
+                    let component = binary
+                        .as_ref()
+                        .and_then(|p| p.file_name())
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("component");
+                    crate::entry::alarm(
+                        component,
+                        "No successful database checkout observed for 2000 ms after a failure; possible database outage or connection exhaustion: follow the saturation recovery runbook",
+                        2000,
+                    );
+                }
+            });
+        }
+        result
     }
     pub async fn read_session(&self) -> Result<Checkout> {
-        self.checkout(&self.read).await
+        self.checkout(&self.read, &self.read_failure).await
     }
     pub async fn write_session(&self) -> Result<Checkout> {
-        self.checkout(&self.write).await
+        self.checkout(&self.write, &self.write_failure).await
     }
 
     /// STO-7: repeat SELECT and post-read check on a new session after any failure.
@@ -280,6 +321,12 @@ impl managed::Manager for Manager {
                     config
                         .connect_raw(transport::Transport::new(socket, connect_protocol), NoTls)
                         .await
+                        .map_err(|error| {
+                            let reason = error.as_db_error().map(|db|
+                                format!("SQLSTATE {}: {}", db.code().code(), db.message()));
+                            let error = anyhow::Error::new(error);
+                            match reason { Some(reason) => error.context(reason), None => error }
+                        })
                         .context("connect authentication")
                 })
                 .await

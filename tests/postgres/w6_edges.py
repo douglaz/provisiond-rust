@@ -155,6 +155,27 @@ def meter_edges(w):
     w.h.event('w6_causal_trace',scenario=w.case,operation=op,boundary='explicit range audit quarantines; deletion records stop with unchanged meter evidence',before=before,snapshot=after)
 
 
+def default_resolution_witness(initial,current,seen,provider_events,op,now,deadline,budget):
+    """PRV-36/STO-53/OPS-27: accept only a bounded, eligible wrong-correlator read."""
+    assert now<deadline,('ordinary non-exact resolution search missing within effective-window budget',budget,current)
+    # STO-53 is append-only: equal effective windows at the opening and closing
+    # snapshots certify a stable cutoff for the captured requests. Widening
+    # cannot prove request-time eligibility; fail closed without renewing time.
+    assert (current['effective_seconds'],current['eligible_at'])==(initial['effective_seconds'],initial['eligible_at']), \
+        'PRV-36 visibility window changed during witness; request-time eligibility unverified'
+    reads=[e for e in provider_events if e.get('command')==op
+        and e['stage']=='request_received' and e['path']=='/search' and e.get('resolution')]
+    earliest=datetime.fromisoformat(initial['eligible_at']).timestamp()
+    assert all(e['timestamp']>=earliest for e in reads),'PRV-36 resolution read before effective visibility'
+    if seen:
+        assert current['remaining_seconds']==0 and reads
+        assert seen[-1]['evidence']['matches']==0 and not seen[-1]['evidence']['authoritative']
+        assert any(e.get('command')==op and e['stage']=='resolution_evidence_returned'
+            and e.get('search')=='wrong' and e['resources'] for e in provider_events)
+        return seen[-1],reads
+    return None
+
+
 def default_hooks(w):
     """Ordinary executables exercise every new defect environment without arming it."""
     from w6 import create,lost,pending,proof,one_purchase
@@ -183,7 +204,55 @@ def default_hooks(w):
         w.defect='w6_non_exact'
         _,_,op,barrier=lost(w,'ordinary-non-exact',search='wrong')
         w.start_engine();barrier.unlink()
-        eventually(lambda:any(e['operation']==op for e in events(w.engine,'resolution_search')))
+        # PRV-36/STO-53: earlier cases retain dispatch-to-observation samples.
+        # The first read waits that account's current max from this wait end;
+        # the declared one second alone does not bound this witness.
+        def window():
+            value=json.loads(h.sql(f"""WITH sampled AS MATERIALIZED (SELECT clock_timestamp() AS now),
+              current_window AS (SELECT o.id,o.provider_account,o.status,o.resolution,
+                COALESCE(o.mutation_wait_ended_at,o.updated_at) AS wait_end,
+                (a.descriptor->>'visibility_seconds')::numeric AS declared_seconds,
+                s.status AS account_status,p.operation_id AS sample_operation,p.dispatched_at,p.observed_at,
+                greatest(COALESCE((a.descriptor->>'visibility_seconds')::numeric,1),
+                  COALESCE(extract(epoch FROM p.observed_at-p.dispatched_at),0)) AS effective_seconds
+                FROM provisiond.operations o JOIN provisiond.provider_accounts a ON a.account=o.provider_account
+                JOIN provisiond.provider_account_status s ON s.provider_account=o.provider_account
+                LEFT JOIN LATERAL (SELECT * FROM provisiond.provider_observations
+                  WHERE provider_account=o.provider_account ORDER BY observed_at-dispatched_at DESC LIMIT 1) p ON true
+                WHERE o.id='{op}')
+              SELECT to_jsonb(c)||jsonb_build_object('sampled_at',now,
+                'age_seconds',extract(epoch FROM now-wait_end),
+                'eligible_at',wait_end+effective_seconds*interval '1 second',
+                'eligible',now>=wait_end+effective_seconds*interval '1 second',
+                'remaining_seconds',greatest(0,effective_seconds-extract(epoch FROM now-wait_end)))
+              FROM current_window c CROSS JOIN sampled"""))
+            h.event('w6_default_resolution_window',**value)
+            assert value['status']=='needs_reconciliation' and value['resolution'] is None
+            assert value['account_status']=='healthy'
+            return value
+        started=time.monotonic();initial=window()
+        # Absolute fixture budget: measured remaining wait plus 20 s for a full
+        # shared-history pass, capped at 180 s. Widening never renews the budget.
+        budget=min(180,math.ceil(initial['remaining_seconds'])+20)
+        deadline=started+budget
+        h.event('w6_default_resolution_budget',operation=op,budget_seconds=budget,
+            completion_allowance_seconds=20,overall_cap_seconds=180,features=w.builds['engine']['features'],
+            ignored_control_files=[str(p) for p in paths if p.exists()],initial=initial)
+        while True:
+            assert w.engine.poll() is None,'ordinary engine exited before resolution search'
+            seen=[e for e in events(w.engine,'resolution_search') if e['operation']==op]
+            provider_events=w.external()['events']
+            # Close the window snapshot after capturing the request evidence so
+            # a widening before any captured request cannot escape validation.
+            current=window()
+            witness=default_resolution_witness(initial,current,seen,provider_events,op,
+                time.monotonic(),deadline,budget)
+            if witness:
+                search,reads=witness
+                h.event('w6_default_resolution_observed',operation=op,elapsed_seconds=time.monotonic()-started,
+                    initial=initial,current=current,search=search,provider_reads=reads)
+                break
+            time.sleep(min(.5,max(0,deadline-time.monotonic())))
         assert not pending(w,op)['machines'];w.stop_engine();one_purchase(w,op)
         observed.append(dict(defect=w.defect,operation=op,attached=False))
         # A real interrupted running row plus closed incident marker reaches the

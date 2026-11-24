@@ -557,25 +557,28 @@ def predispatch(h,defect=None):
 
 def startup(h,defect=None):
     empty_queue(h)
+    saved=h.sql('SELECT json_agg(v ORDER BY version) FROM provisiond.schema_migrations v')
     for mode in ('newer','older','semantics','uninitialized','missing_history','missing_schema'):
         if mode in ('newer','older','semantics'):
-            version,semantics={'newer':(5,4),'older':(0,4),'semantics':(4,5)}[mode]
-            h.sql(f'UPDATE provisiond.schema_migrations SET version={version},semantics={semantics} WHERE version NOT IN (1,2,3)')
+            version,semantics={'newer':(6,5),'older':(0,5),'semantics':(5,4)}[mode]
+            h.sql(f'UPDATE provisiond.schema_migrations SET version={version},semantics={semantics},rollback_floor=LEAST({semantics},5) WHERE version=5')
         elif mode=='uninitialized':h.sql('DELETE FROM provisiond.schema_migrations')
         elif mode=='missing_history':h.sql('ALTER TABLE provisiond.schema_migrations RENAME TO saved_migrations')
         else:h.sql('ALTER SCHEMA provisiond RENAME TO missing_schema_fixture')
         schema='missing_schema_fixture' if mode=='missing_schema' else 'provisiond'
         generation=h.sql(f'SELECT generation FROM {schema}.startup_generation')
-        r=binary(h,'engine',ok=False,defect=defect)
-        protected=any(e in r.stdout for e in ('startup_lock_acquired','generation_advanced','claim_registered','simulator_accepted'))
-        h.event('real_startup_schema_observed',mode=mode,exit_status=r.returncode,protected_entry=protected,check_only=False,error=r.stderr)
-        assert not protected, 'unsupported real engine startup must precede protected entry'
-        assert r.returncode==1 and ('unsupported schema/semantic' in r.stderr or 'missing/uninitialized schema' in r.stderr)
-        assert h.sql(f'SELECT generation FROM {schema}.startup_generation')==generation
+        for name in ('engine','api'):
+            r=binary(h,name,ok=False,defect=defect)
+            protected=any(e in r.stdout for e in ('startup_lock_acquired','generation_advanced','claim_registered','simulator_accepted','api_listening'))
+            h.event('real_startup_schema_observed',binary=name,mode=mode,exit_status=r.returncode,protected_entry=protected,check_only=False,error=r.stderr)
+            assert not protected, 'STO-13 unsupported real startup must precede protected entry'
+            assert r.returncode==1 and 'recorded schema/semantics' in r.stderr
+            assert h.sql(f'SELECT generation FROM {schema}.startup_generation')==generation
         if mode=='missing_schema':h.sql('ALTER SCHEMA missing_schema_fixture RENAME TO provisiond')
         elif mode=='missing_history':h.sql('ALTER TABLE provisiond.saved_migrations RENAME TO schema_migrations')
-        elif mode=='uninitialized':h.sql('INSERT INTO provisiond.schema_migrations(version,semantics) VALUES(1,1),(2,2),(3,3),(4,4)')
-        else:h.sql('UPDATE provisiond.schema_migrations SET version=4,semantics=4 WHERE version NOT IN (1,2,3)')
+        else:
+            h.sql('DELETE FROM provisiond.schema_migrations')
+            h.sql("INSERT INTO provisiond.schema_migrations SELECT * FROM json_populate_recordset(NULL::provisiond.schema_migrations,$json$"+saved+'$json$)')
     # Ordinary supported startup, no --check-schema: terminate only its lock session.
     log=h.root/'supported-engine-startup.log'
     with log.open('w') as output:

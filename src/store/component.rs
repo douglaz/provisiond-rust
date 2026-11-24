@@ -108,6 +108,15 @@ impl Component {
             let rows=tx.rows("SELECT generation::text FROM provisiond.startup_generation WHERE singleton FOR SHARE /* OPS-50 first statement */",&[]).await?;
             let matches = rows.len() == 1 && rows[0].get::<_, String>(0) == fence.generation;
             if !matches && !super::test_defect("generation") {
+                // OVR-18/19, STO-55: a superseded engine may exit directly; alarm on stderr first.
+                crate::entry::alarm(
+                    "engine",
+                    &format!(
+                        "engine superseded: startup generation {} is no longer current",
+                        fence.generation
+                    ),
+                    0,
+                );
                 fence.fatal.store(true, Ordering::Release);
                 (self.store.trace)(
                     json!({"event":"engine_superseded","generation":fence.generation,"fatal":true}),
@@ -231,10 +240,17 @@ impl StartupKeepalives {
     }
 }
 impl EngineDatabase {
-    pub async fn start(mut store: Store, wait_ms: u32) -> Result<Self> {
+    pub async fn start(store: Store, wait_ms: u32) -> Result<Self> {
+        Self::start_with_retry_bound(store, wait_ms, Duration::from_secs(2)).await
+    }
+    pub(crate) async fn start_with_retry_bound(
+        mut store: Store,
+        wait_ms: u32,
+        retry_bound: Duration,
+    ) -> Result<Self> {
         startup_milliseconds(&wait_ms.to_string())?;
         if !super::test_defect("startup_order") {
-            store.compatible_schema().await?;
+            store.compatible_schema_for("engine").await?;
         }
         // STO-56/STO-54(1): initial incident decision precedes the lifetime lock.
         // A distinct operator recovery actor owns the pre-lock status writes;
@@ -281,7 +297,7 @@ impl EngineDatabase {
         }
         (store.trace)(json!({"event":"startup_lock_acquired","session":lock.pid}));
         if super::test_defect("startup_order") {
-            store.compatible_schema().await?;
+            store.compatible_schema_for("engine").await?;
         }
         // OPS-49/STO-55: one checked, dedicated read-only observer precedes the
         // first write. Startup also budgets the transient generation session.
@@ -289,8 +305,13 @@ impl EngineDatabase {
         (store.trace)(
             json!({"event":"commit_observer_started","session":observer_session.pid,"backend_start":observer_session.backend_start,"sampling_ms":20,"ordinary_capacity":capacity,"startup_sessions":store.read.status().max_size + store.write.status().max_size + 3}),
         );
-        let (accounting, observer) =
-            super::accounting::Accounting::start(store.manager.clone(), observer_session)?;
+        let fatal = Arc::new(AtomicBool::new(false));
+        let (accounting, observer) = super::accounting::Accounting::start(
+            store.manager.clone(),
+            observer_session,
+            retry_bound,
+            fatal.clone(),
+        )?;
         store.accounting = Some(accounting);
         let mut advance = store.dedicated().await?;
         advance.settings.call_bound = advance
@@ -322,7 +343,7 @@ impl EngineDatabase {
             _observer: observer,
             fence: Fence {
                 generation,
-                fatal: Arc::new(AtomicBool::new(false)),
+                fatal,
                 entry: Arc::new(tokio::sync::Mutex::new(())),
                 lock_loss: Arc::new(Mutex::new(None)),
             },
@@ -371,6 +392,8 @@ impl EngineDatabase {
         self.fence.fatal.load(Ordering::Acquire)
     }
     pub fn fatal(&self, reason: &str) {
+        // OVR-18/19, STO-55: direct process exits bypass the entry-point alarm.
+        crate::entry::alarm("engine", reason, 0);
         self.fence.fatal.store(true, Ordering::Release);
         (self.store.trace)(json!({"event":"engine_fatal","reason":reason}));
     }

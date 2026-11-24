@@ -11,7 +11,7 @@ pub struct Dispatcher {
 }
 impl Dispatcher {
     pub async fn load(engine: &Arc<Engine>) -> Result<Self> {
-        let v=engine.component().value("SELECT COALESCE(jsonb_object_agg(account,descriptor),'{}'::jsonb)::text FROM provisiond.provider_accounts",&[]).await?;
+        let v = engine.configuration().await?;
         for descriptor in v.as_object().context("configured descriptors")?.values() {
             pricing::validate_descriptor(descriptor)?;
         }
@@ -82,7 +82,10 @@ impl Engine {
             }
             if spent >= self.retry_bound {
                 component.trace(json!({"event":"preflight_read_exhausted","operation":c.id,"claim_number":c.number,"site":site,"spent_ms":spent.as_millis(),"bound_ms":self.retry_bound.as_millis()}));
-                return self.fatal("preflight store retry exhausted; no worker classification");
+                return self.fatal_with_error(
+                    "preflight store retry exhausted; no worker classification",
+                    Some(&error),
+                );
             }
         }
     }

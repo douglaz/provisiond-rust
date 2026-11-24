@@ -6,6 +6,7 @@ mutations under test go through the actual Rust transaction entry and owner.
 import json
 import subprocess
 import time
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from scenarios import prepare, Probe
 from harness import eventually
@@ -16,6 +17,7 @@ def environment(h,role='app',defect=None):
         PROVISIOND_DATABASE_URL=f'host=127.0.0.1 port={h.ports[3]} user={role} password={h.passwords[role]} dbname=postgres sslmode=disable',
         PROVISIOND_STANDBY_NAME='provisiond_sync',PROVISIOND_STANDBY_ROLE='replicator',
         PROVISIOND_STANDBY_ADDRESS='127.0.0.1',PROVISIOND_STARTUP_WAIT_MS='500',
+        PROVISIOND_APPLICATION_ROLES='app',
         PROVISIOND_PROVIDER_SIMULATOR=f'127.0.0.1:{h.ports[5]}')
     if defect: env['STORE_TEST_DEFECT']=defect
     return env
@@ -27,11 +29,24 @@ def core_probe(h,defect=None,boundary=None):
     return Probe(h,defect=defect,program='core-probe',extra_env=env)
 
 
-def binary(h,name,*args,role='app',ok=True,defect=None):
+@contextmanager
+def offline_migration(h):
+    """STO-13: fixture deployment disables login and observes drained sessions."""
+    login=h.sql("SELECT rolcanlogin FROM pg_roles WHERE rolname='app'")=='t'
+    h.sql('ALTER ROLE app NOLOGIN')
+    try:
+        eventually(lambda:h.sql("SELECT count(*) FROM pg_stat_activity WHERE usename='app'")=='0')
+        yield
+    finally:
+        if login:h.sql('ALTER ROLE app LOGIN')
+
+
+def binary(h,name,*args,role='app',ok=True,defect=None,offline=True):
     old=h.env
     h.env=dict(old,**environment(h,role,defect))
     try:
-        return h.run([str(h.target/'debug'/name),*args],ok=ok,timeout=12)
+        with offline_migration(h) if name=='migrate' and offline else nullcontext():
+            return h.run([str(h.target/'debug'/name),*args],ok=ok,timeout=12)
     finally:
         h.env=old
 
@@ -80,11 +95,13 @@ def migrations(h):
         r=binary(h,name,'--check-schema',ok=False)
         assert r.returncode!=0 and 'schema_compatible' not in r.stdout
     binary(h,'migrate',role='migrator')
-    assert h.sql('SELECT version||\'/\'||semantics FROM provisiond.schema_migrations ORDER BY version DESC LIMIT 1')=='4/4'
+    assert h.sql('SELECT version||\'/\'||semantics FROM provisiond.schema_migrations ORDER BY version DESC LIMIT 1')=='5/5'
     # STO-12: each history row and its DDL belong to one migration transaction.
-    transactions=h.sql('SELECT count(DISTINCT xmin::text) FROM provisiond.schema_migrations')
-    h.event('migration_transaction_partition_observed',history_rows=4,transactions=int(transactions))
-    assert transactions=='4','each migration must commit in its own transaction'
+    # Release 5 updates historical declaration columns (and thus xmin); the
+    # original transaction timestamps still prove distinct completion transactions.
+    transactions=h.sql('SELECT count(DISTINCT completed_at) FROM provisiond.schema_migrations')
+    h.event('migration_transaction_partition_observed',history_rows=5,transactions=int(transactions))
+    assert transactions=='5','each migration must commit in its own transaction'
     assert h.sql('SELECT count(*) FROM provisiond.startup_generation')=='1'
     binary(h,'migrate',role='migrator')
     # STO-12/13: a populated release-1 database upgrades without reapplying its DDL
@@ -98,31 +115,32 @@ def migrations(h):
     legacy_machine=h.sql("INSERT INTO provisiond.machines(tenant_id,provider_account,external_id,offer_id,kind,state,billing_unit_seconds) VALUES('upgrade-tenant','upgrade-account','TEST-UPGRADE-RESOURCE','test-offer','virtual','running',3600) RETURNING id").splitlines()[0]
     h.sql(f"INSERT INTO provisiond.operator_deficiencies(provider_account,machine_id,operation_id,cause,native_minor,currency,clamped_sats,rate_num,rate_den,idempotency_key) VALUES('upgrade-account','{legacy_machine}',gen_random_uuid(),'clamp_overflow',3,'SIM',7,2,3,'upgrade-deficiency')")
     deficiency_opened=h.sql("SELECT created_at::text FROM provisiond.operator_deficiencies WHERE idempotency_key='upgrade-deficiency'")
-    retained="SELECT jsonb_build_object('generation',(SELECT generation FROM provisiond.startup_generation),'history',(SELECT to_jsonb(v) FROM provisiond.schema_migrations v WHERE version=1),'tenant',(SELECT to_jsonb(t)-'issued_credential_generation' FROM provisiond.tenants t WHERE id='upgrade-tenant'),'deposit',(SELECT to_jsonb(d)-'invoice'-'lightning_cancelled' FROM provisiond.deposits d WHERE tenant_id='upgrade-tenant'),'ledger',(SELECT to_jsonb(l)-'billing_period'-'increment_end' FROM provisiond.ledger_entries l WHERE tenant_id='upgrade-tenant'))::text"
+    retained="SELECT jsonb_build_object('generation',(SELECT generation FROM provisiond.startup_generation),'history',(SELECT to_jsonb(v)-'stop_order'-'contract_step'-'rollback_floor' FROM provisiond.schema_migrations v WHERE version=1),'tenant',(SELECT to_jsonb(t)-'issued_credential_generation' FROM provisiond.tenants t WHERE id='upgrade-tenant'),'deposit',(SELECT to_jsonb(d)-'invoice'-'lightning_cancelled' FROM provisiond.deposits d WHERE tenant_id='upgrade-tenant'),'ledger',(SELECT to_jsonb(l)-'billing_period'-'increment_end' FROM provisiond.ledger_entries l WHERE tenant_id='upgrade-tenant'))::text"
     before_upgrade=h.sql(retained)
     for name in ('api','engine'):
         r=binary(h,name,'--check-schema',ok=False)
-        assert r.returncode==1 and 'unsupported schema/semantic' in r.stderr
+        assert r.returncode==1 and 'recorded schema/semantics' in r.stderr
         assert 'startup_lock_acquired' not in r.stdout and 'generation_advanced' not in r.stdout
     binary(h,'migrate',role='migrator')
     assert h.sql(retained)==before_upgrade,'offline upgrade must preserve release-1 records'
     assert h.sql("SELECT billing_period IS NULL AND increment_end IS NULL FROM provisiond.ledger_entries WHERE tenant_id='upgrade-tenant'")=='t'
-    assert h.sql("SELECT string_agg(version::text||'/'||semantics::text,',' ORDER BY version) FROM provisiond.schema_migrations")=='1/1,2/2,3/3,4/4'
+    assert h.sql("SELECT string_agg(version::text||'/'||semantics::text,',' ORDER BY version) FROM provisiond.schema_migrations")=='1/1,2/2,3/3,4/4,5/5'
     assert h.sql("SELECT to_regclass('provisiond.enrolments') IS NOT NULL")=='t'
     assert h.sql("SELECT opened_at::text FROM provisiond.operator_deficiencies WHERE idempotency_key='upgrade-deficiency'")==deficiency_opened
     assert h.sql("SELECT subject_kind||':'||(subject_id=machine_id)||':'||absorbed_seconds||':'||provider_account||':'||native_minor||':'||rate_num||'/'||rate_den FROM provisiond.operator_deficiencies WHERE idempotency_key='upgrade-deficiency'")=='machine:true:0:upgrade-account:3:2/3'
-    h.event('migration_upgrade_preserved',from_version=1,to_version=4,prior_completion_unchanged=True,identities_money_destinations_unchanged=True,older_schema_refused_before_startup=True)
+    h.event('migration_upgrade_preserved',from_version=1,to_version=5,prior_completion_unchanged=True,identities_money_destinations_unchanged=True,older_schema_refused_before_startup=True)
     # Genuine concurrent fresh runners, each supervised and waited before assertions.
     h.sql('DROP SCHEMA provisiond CASCADE; CREATE SCHEMA provisiond AUTHORIZATION migrator;')
-    children=[]
-    for n in range(2):
-        log=(h.root/f'migrate-concurrent-{n}.log').open('w')
-        p=subprocess.Popen([str(h.target/'debug/migrate')],env=dict(h.env,**environment(h,'migrator')),stdout=log,stderr=log,text=True)
-        log.close();h.extra.append(p);children.append(p)
-    statuses=[p.wait(timeout=12) for p in children]
+    with offline_migration(h):
+        children=[]
+        for n in range(2):
+            log=(h.root/f'migrate-concurrent-{n}.log').open('w')
+            p=subprocess.Popen([str(h.target/'debug/migrate')],env=dict(h.env,**environment(h,'migrator')),stdout=log,stderr=log,text=True)
+            log.close();h.extra.append(p);children.append(p)
+        statuses=[p.wait(timeout=12) for p in children]
     h.event('migration_concurrent_observed',statuses=statuses,history=h.sql('SELECT count(*) FROM provisiond.schema_migrations'))
     assert statuses==[0,0]
-    assert h.sql('SELECT count(*) FROM provisiond.schema_migrations')=='4'
+    assert h.sql('SELECT count(*) FROM provisiond.schema_migrations')=='5'
     # Failed DDL/history transaction cannot expose partial schema or completion.
     h.sql('DROP SCHEMA provisiond CASCADE; CREATE SCHEMA provisiond AUTHORIZATION migrator;')
     r=binary(h,'migrate',role='migrator',defect='migration_failure',ok=False)
@@ -130,36 +148,39 @@ def migrations(h):
     assert h.sql("SELECT to_regclass('provisiond.operations') IS NULL AND to_regclass('provisiond.schema_migrations') IS NULL")=='t'
     h.event('migration_failure_atomicity_observed',exit_status=r.returncode,ddl_visible=False,history_visible=False)
     # COMMIT actually lands before its reply is lost. Next invocation inspects it.
-    gate=h.proxy.arm('store COMMIT','commit_reply')
-    log=(h.root/'migration-uncertain.log').open('w')
-    p=subprocess.Popen([str(h.target/'debug/migrate')],env=dict(h.env,**environment(h,'migrator')),stdout=log,stderr=log,text=True)
-    log.close();h.extra.append(p)
-    c=gate.wait()
-    assert h.sql('SELECT count(*) FROM provisiond.schema_migrations')=='1'
-    h.proxy.close_connection(c,'lost_migration_reply')
-    gate.release()
-    assert p.wait(timeout=12)==1
+    with offline_migration(h):
+        gate=h.proxy.arm('store COMMIT','commit_reply')
+        log=(h.root/'migration-uncertain.log').open('w')
+        p=subprocess.Popen([str(h.target/'debug/migrate')],env=dict(h.env,**environment(h,'migrator')),stdout=log,stderr=log,text=True)
+        log.close();h.extra.append(p)
+        c=gate.wait()
+        assert h.sql('SELECT count(*) FROM provisiond.schema_migrations')=='1'
+        h.proxy.close_connection(c,'lost_migration_reply')
+        gate.release()
+        assert p.wait(timeout=12)==1
     h.event('migration_uncertain_observed',durable_version=1,exit_status=1)
     binary(h,'migrate',role='migrator')
-    for version,semantics in [(0,4),(5,4),(4,5)]:
-        h.sql(f'UPDATE provisiond.schema_migrations SET version={version},semantics={semantics} WHERE version NOT IN (1,2,3)')
+    for version,semantics in [(0,5),(6,5),(5,4)]:
+        h.sql(f'UPDATE provisiond.schema_migrations SET version={version},semantics={semantics},rollback_floor=LEAST({semantics},5) WHERE version NOT IN (1,2,3,4)')
         for name in ('api','engine'):
             r=binary(h,name,'--check-schema',ok=False)
-            assert r.returncode==1 and 'unsupported schema/semantic' in r.stderr
+            assert r.returncode==1 and 'recorded schema/semantics' in r.stderr
             assert 'startup_lock_acquired' not in r.stdout and 'generation_advanced' not in r.stdout
-    h.sql('UPDATE provisiond.schema_migrations SET version=4,semantics=4 WHERE version NOT IN (1,2,3)')
+    h.sql('UPDATE provisiond.schema_migrations SET version=5,semantics=5,rollback_floor=5 WHERE version NOT IN (1,2,3,4)')
     for name in ('api','engine'):
         r=binary(h,name,'--check-schema')
         assert 'schema_compatible' in r.stdout
     r=binary(h,'api',ok=False)
     assert r.returncode==1 and 'missing local parameters file' in r.stderr
     # Initial acquisition failure is one attempt with returned layer reason.
+    completed=h.sql('SELECT json_agg(v ORDER BY version) FROM provisiond.schema_migrations v')
     h.proxy.refuse_after=len(h.proxy.connections)
     before=len(h.proxy.connections)
     r=binary(h,'migrate',role='migrator',ok=False)
     assert r.returncode==1 and 'initial acquisition failed' in r.stderr
     assert len(h.proxy.connections)==before+1
     h.proxy.refuse_after=None
+    assert h.sql('SELECT json_agg(v ORDER BY version) FROM provisiond.schema_migrations v')==completed, 'STO-13 acquisition failure must retain every completed migration'
     h.event('migration_connection_failure_observed',stage='initial',exit_status=r.returncode,reason=r.stderr)
     # Lock-timeout retry reacquires once; refusal of that reconnect must carry
     # its own stage and returned reason, with no further connection attempt.
@@ -174,8 +195,11 @@ def migrations(h):
     holder.stdin.close();assert holder.wait(timeout=5)==0
     h.proxy.refuse_after=None
     h.event('migration_connection_failure_observed',stage='reconnect',exit_status=r.returncode,reason=r.stderr,connections=len(h.proxy.connections)-before)
-    assert r.returncode==1 and 'reconnect acquisition failed' in r.stderr
+    assert r.returncode==1 and 'reconnect failed' in r.stderr
     assert len(h.proxy.connections)==before+2
+    assert h.sql('SELECT json_agg(v ORDER BY version) FROM provisiond.schema_migrations v')==completed, 'STO-13 reconnect failure must retain every completed migration'
+    from w8 import migration_boundaries
+    migration_boundaries(h)
     h.results.append(dict(test='REL-02',result='pass',arms='real binary compatibility; separate migration transactions; populated release-1 upgrade; fresh/rerun/concurrent/failed/uncertain migrations'))
 
 
