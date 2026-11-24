@@ -1,0 +1,304 @@
+{
+  "case": "w4_enrolment_retry",
+  "requirements": [
+    "STO-55",
+    "DOM-17",
+    "API-33",
+    "API-40",
+    "WIR-12"
+  ],
+  "baseline_commit": "c5045df725e8856ef9ca88ea2d4cc9e133308d2f",
+  "candidate_runtime_commit": "5deadfa51435d7d6dcf46c5137b53b9183080c1c",
+  "source_binding": "Uncommitted test bytes were identical in red and green; 47 protected runtime/build files matched each checkout HEAD and remained unchanged. Committed test-byte binding is recorded by the later validation record.",
+  "runs": {
+    "red": {
+      "result": "expected negative demonstration",
+      "harness_result": "fail",
+      "execution": {
+        "command": [
+          "nix",
+          "develop",
+          "--offline",
+          "--command",
+          "python3",
+          "tests/postgres/harness.py",
+          "--phase",
+          "workflow",
+          "--case",
+          "w4_enrolment_retry",
+          "--seed",
+          "20261124",
+          "--jobs",
+          "1",
+          "--evidence",
+          "<private-evidence>/i4/impl-tests/red/manifest.json"
+        ],
+        "cwd": "<private-evidence>/regression-red/source",
+        "environment": {
+          "PROVISIOND_HARNESS_ROOT": "<private-evidence>/i4/impl-tests/red/harness",
+          "PROVISIOND_HARNESS_UNIT": "fastlane-kin-i4-tests.service",
+          "PROVISIOND_HARNESS_PORT_BASE": "25960",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_HOME": "<private-driver>/cargo-home",
+          "CARGO_TARGET_DIR": "<private-evidence>/i4/impl-tests/red/target",
+          "CARGO_NET_OFFLINE": "true",
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "removed_environment": [
+          "PROVISIOND_HARNESS_INVOCATION"
+        ],
+        "timeout_seconds": 1200,
+        "exit_status": 1,
+        "wall_seconds": 51.024309555999935,
+        "timed_out": false
+      },
+      "scenarios": [
+        {
+          "test": "w4_enrolment_retry",
+          "result": "fail",
+          "reason": "STO-55/DOM-17: paced identical-body enrolment resend after pre-BEGIN busy must return 200"
+        }
+      ],
+      "observations": [
+        {
+          "event": "enrolment_busy_reply_observed",
+          "timestamp": 1795541064.502063,
+          "elapsed": 7.466717614792287,
+          "status": 503,
+          "error": {
+            "details": {
+              "retry_after_ms": 250
+            },
+            "kind": "overloaded",
+            "message": "store checkout unavailable",
+            "retryable": true
+          },
+          "session": 488278,
+          "api_pid": 488235,
+          "body_sha256": "920c09689e65cd7d8afb63c9fcfd52bd815559e8d77847903119569f196c2d9b",
+          "begin_before": 5,
+          "begin_after": 5,
+          "gate_activated": true
+        },
+        {
+          "event": "enrolment_same_body_resend_observed",
+          "timestamp": 1795541065.5443428,
+          "elapsed": 8.508996570948511,
+          "status": 400,
+          "error": {
+            "details": {},
+            "kind": "invalid_request",
+            "message": "invalid admission token",
+            "retryable": false
+          },
+          "wait_seconds": 1.0008064727298915,
+          "minimum_wait_seconds": 1.0,
+          "token_unexpired": true,
+          "body_sha256": "920c09689e65cd7d8afb63c9fcfd52bd815559e8d77847903119569f196c2d9b",
+          "api_pid": 488235
+        },
+        {
+          "event": "workflow_children_reaped",
+          "timestamp": 1795541065.561193,
+          "elapsed": 8.52584663592279,
+          "count": 4
+        },
+        {
+          "event": "proxy_cleanup",
+          "timestamp": 1795541065.6512992,
+          "elapsed": 8.615953223779798,
+          "cancel_requests": 0
+        },
+        {
+          "event": "cleanup_complete",
+          "timestamp": 1795541067.4083254,
+          "elapsed": 10.372978832107037,
+          "result": "pass",
+          "errors": [],
+          "raw_evidence": "<run-dir>/workflow-7pz1iudp"
+        }
+      ],
+      "manifest_source_hash": "a2a5dfe14c5de5e421dc7bc3e19191d20a3901bcd9261c853049798da279fb5b",
+      "raw_manifest_sha256": "18917544c59e9b31485e51d99dc0f89c34d6dbf4ea79dd751b1cd3d91a81a7f9",
+      "raw_stdout_sha256": "d84ac9759f995063c86833eb8f5ab3466e45c9c8f2e1db2843d067352d8ea9a0",
+      "raw_stderr_sha256": "a545cda293ac36bfb24622fed146b65a8e49f07fdfd8f43a7293ba5f5bb4b63b"
+    },
+    "green": {
+      "result": "pass",
+      "harness_result": "pass",
+      "execution": {
+        "command": [
+          "nix",
+          "develop",
+          "--offline",
+          "--command",
+          "python3",
+          "tests/postgres/harness.py",
+          "--phase",
+          "workflow",
+          "--case",
+          "w4_enrolment_retry",
+          "--seed",
+          "20261124",
+          "--jobs",
+          "1",
+          "--evidence",
+          "<private-evidence>/i4/impl-tests/green/manifest.json"
+        ],
+        "cwd": "<product-checkout>",
+        "environment": {
+          "PROVISIOND_HARNESS_ROOT": "<private-evidence>/i4/impl-tests/green/harness",
+          "PROVISIOND_HARNESS_UNIT": "fastlane-kin-i4-tests.service",
+          "PROVISIOND_HARNESS_PORT_BASE": "25960",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_HOME": "<private-driver>/cargo-home",
+          "CARGO_TARGET_DIR": "<private-evidence>/i4/impl-tests/green/target",
+          "CARGO_NET_OFFLINE": "true",
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "removed_environment": [
+          "PROVISIOND_HARNESS_INVOCATION"
+        ],
+        "timeout_seconds": 1200,
+        "exit_status": 0,
+        "wall_seconds": 60.31996156601235,
+        "timed_out": false
+      },
+      "scenarios": [
+        {
+          "test": "W4-enrolment-pre-BEGIN-busy-retry",
+          "result": "pass"
+        }
+      ],
+      "observations": [
+        {
+          "event": "enrolment_busy_reply_observed",
+          "timestamp": 1795541138.5217543,
+          "elapsed": 18.702626462560147,
+          "status": 503,
+          "error": {
+            "details": {
+              "retry_after_ms": 250
+            },
+            "kind": "overloaded",
+            "message": "store checkout unavailable",
+            "retryable": true
+          },
+          "session": 499940,
+          "api_pid": 499895,
+          "body_sha256": "6440c9b44bb42f059a697f24dfec8e5bedcfa57c745d8085cb74e978385631de",
+          "begin_before": 5,
+          "begin_after": 5,
+          "gate_activated": true
+        },
+        {
+          "event": "enrolment_same_body_resend_observed",
+          "timestamp": 1795541139.6168146,
+          "elapsed": 19.797685625962913,
+          "status": 200,
+          "error": null,
+          "wait_seconds": 1.0035175560042262,
+          "minimum_wait_seconds": 1.0,
+          "token_unexpired": true,
+          "body_sha256": "6440c9b44bb42f059a697f24dfec8e5bedcfa57c745d8085cb74e978385631de",
+          "api_pid": 499895
+        },
+        {
+          "event": "enrolment_busy_recovery_observed",
+          "timestamp": 1795541139.645911,
+          "elapsed": 19.826782224699855,
+          "api_pid": 499895,
+          "api_restarted": false,
+          "accounts_created": 1,
+          "receipt_created": false,
+          "successful_code_reuse_status": 400,
+          "invalid_token_precedes_unknown_field": true,
+          "counts_before": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "counts_after": [
+            1,
+            1,
+            1,
+            0
+          ]
+        },
+        {
+          "event": "workflow_children_reaped",
+          "timestamp": 1795541139.6501877,
+          "elapsed": 19.831058841664344,
+          "count": 4
+        },
+        {
+          "event": "proxy_cleanup",
+          "timestamp": 1795541139.7698815,
+          "elapsed": 19.950753146782517,
+          "cancel_requests": 0
+        },
+        {
+          "event": "cleanup_complete",
+          "timestamp": 1795541142.1035008,
+          "elapsed": 22.284371975809336,
+          "result": "pass",
+          "errors": [],
+          "raw_evidence": "<run-dir>/workflow-2pqs5rjz"
+        }
+      ],
+      "manifest_source_hash": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+      "raw_manifest_sha256": "9971e5f1f0e622c3cdf58ab6e98b75cbac8d314328d7a13d3f34b8a1709a9f94",
+      "raw_stdout_sha256": "5f3df81afbc0fb8bcade95bf3f3c503e6579b7764a002af1a88388d14e4346df",
+      "raw_stderr_sha256": "f5cfc392197759900f33536bab21481f2d0bd5e28004705fe26eaad4ca0dfe8d"
+    }
+  },
+  "client": {
+    "result": "pass",
+    "tests": 7,
+    "execution": {
+      "command": [
+        "nix",
+        "develop",
+        "--offline",
+        "--command",
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/postgres",
+        "-p",
+        "test_enrolment_retry.py",
+        "-v"
+      ],
+      "cwd": "<product-checkout>",
+      "environment": {
+        "PROVISIOND_HARNESS_ROOT": "<private-evidence>/i4/impl-tests/client/harness",
+        "PROVISIOND_HARNESS_UNIT": "fastlane-kin-i4-tests.service",
+        "PROVISIOND_HARNESS_PORT_BASE": "25960",
+        "CARGO_BUILD_JOBS": "2",
+        "CARGO_HOME": "<private-driver>/cargo-home",
+        "CARGO_TARGET_DIR": "<private-evidence>/i4/impl-tests/client/target",
+        "CARGO_NET_OFFLINE": "true",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "removed_environment": [
+        "PROVISIOND_HARNESS_INVOCATION"
+      ],
+      "timeout_seconds": 1200,
+      "exit_status": 0,
+      "wall_seconds": 1.516944277100265,
+      "timed_out": false
+    },
+    "raw_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "raw_stderr_sha256": "b814bc82565e956e6a0202f5cc11255a8ebb2ac2c43513f205bea8b77bf631bb"
+  },
+  "intended_red_assertion": "STO-55/DOM-17: paced identical-body enrolment resend after pre-BEGIN busy must return 200",
+  "source_proof_sha256": "dfa4565e19f5c0f265ab67d0535dd7fffcc3a867f033efc202c74bca5fff7b7f",
+  "final_verification_sha256": "1f7f6e0fa15b14992ee0f6e6b1122c85b481f8f629ec554cb962d841ef2e9ec5",
+  "limits": [
+    "Focused regression and client checks only; iteration and canonical results are recorded separately.",
+    "The integration regression uses the suite proxy; deployed default binaries were independently verified by the live journey."
+  ]
+}

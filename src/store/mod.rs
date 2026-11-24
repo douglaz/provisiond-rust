@@ -549,6 +549,16 @@ impl Drop for DiscardUnlessFinished {
     }
 }
 
+/// STO-55: a failed whole checkout, before request BEGIN is submitted.
+#[derive(Debug)]
+pub(crate) struct CheckoutRefused;
+impl std::fmt::Display for CheckoutRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("pool checkout refused before BEGIN")
+    }
+}
+impl std::error::Error for CheckoutRefused {}
+
 /// STO-7: pre-COMMIT cancellation or failure closes the physical session before
 /// another checkout can use it. This guard never sends a PostgreSQL cancel packet.
 pub struct Transaction {
@@ -567,7 +577,7 @@ impl Store {
     /// short guard covers only the first poll, which submits tokio-postgres's
     /// simple query before waiting for its reply; never hold it across I/O.
     async fn begin_checked<G>(&self, admission: impl FnOnce() -> Result<G>) -> Result<Transaction> {
-        let checkout = self.write_session().await?;
+        let checkout = self.write_session().await.context(CheckoutRefused)?;
         let transaction = Transaction {
             id: next_transaction(),
             checkout: Some(Connection::Pooled(checkout)),

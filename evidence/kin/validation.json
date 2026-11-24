@@ -1,0 +1,3193 @@
+{
+  "result": "pass",
+  "scope": "One complete iteration failure, its one recorded timing-class rerun, and one complete pre-publication canonical invocation. No discarded or relabeled failure.",
+  "versions": [
+    {
+      "command": [
+        "nix",
+        "--version"
+      ],
+      "exit_status": 0,
+      "stdout": "nix (Nix) 2.35.6\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "systemctl",
+        "--version"
+      ],
+      "exit_status": 0,
+      "stdout": "systemd 262 (262)\n+PAM +AUDIT -SELINUX +APPARMOR +IMA +IPE +SMACK +SECCOMP -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 +KMOD +LIBCRYPTSETUP +LIBCRYPTSETUP_PLUGINS +LIBFDISK +PCRE2 +PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD +BPF_FRAMEWORK -BTF -XKBCOMMON +UTMP +LIBARCHIVE\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "br",
+        "--version"
+      ],
+      "exit_status": 0,
+      "stdout": "br 0.7.4\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "--version"
+      ],
+      "exit_status": 0,
+      "stdout": "git version 2.56.0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "nix",
+        "develop",
+        "<product-checkout>",
+        "--command",
+        "python3",
+        "-c",
+        "import subprocess,json; print(json.dumps({n: subprocess.check_output([n, '--version'], text=True).strip() for n in ('rustc','cargo','python3','postgres')},indent=2))"
+      ],
+      "exit_status": 0,
+      "stdout": "{\n  \"rustc\": \"rustc 1.97.1 (8bab26f4f 2026-07-14) (built from a source tarball)\",\n  \"cargo\": \"cargo 1.97.0 (c980f4866 2026-06-30)\",\n  \"python3\": \"Python 3.14.7\",\n  \"postgres\": \"postgres (PostgreSQL) 18.6\"\n}\n",
+      "stderr": ""
+    }
+  ],
+  "source_binding": {
+    "tested_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+    "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+    "source_dirty": false,
+    "runtime_commit": "5deadfa51435d7d6dcf46c5137b53b9183080c1c",
+    "runtime_map_sha256": "1540583e4a967d4e257f189bfb1e8cb170e7d7247a87bf31a8ae7bfcb4b2ec39",
+    "test_files": {
+      "tests/postgres/harness.py": "cded62474ac53f3809e6786256b944f4d112771ee893c44c079419a0638b9e01",
+      "tests/postgres/w4_round2.py": "b130405a6823aa7ddfc690677a261364921d8649e7edce270286b7d733f9d1c1",
+      "tests/postgres/workflow.py": "bdcdff36ffaeda5c446ce4454bcdfad46b7834878e20b4df7cf380aa0e971cac",
+      "tests/postgres/test_enrolment_retry.py": "16986834fc1a21db07299d24b9fefc2247f5736c3a1aace2db04f9db49344f39"
+    },
+    "operational_files": {
+      ".github/workflows/ci.yml": "3b7354c0b47c9895b2520af620939673a4dcaf50cae40ad5f8aeb9d4eaee3ce7",
+      ".gitignore": "82dd166414c2a273a88cefa590813388148c2e97765d1e14d4c49827701c1f72",
+      "AGENTS.md": "3d31f1fc55bac309e2fac72b2cbcc67137b3da0353d5e2f39d096bab0e612032",
+      "Cargo.lock": "2591f28e7ee8bf70ad19077bf726aeeec58dadac28f53e5510a75841da01b94d",
+      "Cargo.toml": "439237dfa99f243dbe8d31edbccca79f0b57afb414ba2b7490950c3b17b91dce",
+      "README.md": "e8938c6948bf69bbb89a0eab942a746fc2506b155c02504641294f61e42329ed",
+      "deploy/systemd/provisiond-api@.service": "bce0aea042629eb322b8f41c36ff8a15b0531828bc75a5abd78a011e4386d2fb",
+      "deploy/systemd/provisiond-engine@.service": "dce6a2972432eaa61bb1696293571a4ee2a169ba57e049a09b59a784b7bdb5e5",
+      "flake.lock": "859b34962b11f1e85bdb97add8c34f37a74262cb689ff78a9501a0b7d067eb13",
+      "flake.nix": "db3d0e22fd444ed2ecf666ad3b3de447334c265cadb5475eae4f84c762b0f2ee",
+      "migrations/0001-core.sql": "857e69cfe049b230f3441f9b547e8ed3ee0fd65d6ec0b7f58893be097ecbba89",
+      "migrations/0002-local-service.sql": "12895278c7c36936bd9435b390d6e555715c1f9aa4072060be51af790f2c394d",
+      "migrations/0003-reconciliation.sql": "1c2a2ad0105f8923b5e122e6e5f9cd63af055efb3892fd51173f1d14eaa5434f",
+      "migrations/0004-recovery.sql": "5019db427cb7026b907e7ce5d921ff609ad25dfaf5966d048337ee0d98413e0e",
+      "migrations/0005-offline-release.sql": "60d285cea86a849baec5e66912153bfc88ad6a6bfb4cea76886b34e3e8b99d54",
+      "spec-lock.json": "7a65f0e88a21b9861dc7735a5a505f0be66098a996bfbfe28009266372561370",
+      "src/api/funding.rs": "a11e8be51b85f010521032f9139fd1d4d24211164e8661060a71a56c4d13bfa1",
+      "src/api/mod.rs": "cefd9a358f21cce0c28b17d8b46085196e599c00aa865dda4f81f67a615586a1",
+      "src/api/operator.rs": "cdd8199e6454562018d1a40e8a1b02e8e0b07b1031d80d4a1d86e36ed42614f6",
+      "src/auth.rs": "0c08cdbf4b6135e4cfaf5e3313c7f23fa6008e742bde572945c291c347ca931a",
+      "src/bin/api.rs": "26b728f0afca0a408ca410ca671951b70226feee6a79817ad4231e65690b5598",
+      "src/bin/engine.rs": "b216dc4befe6e321be47f18fd992b7c02011400681e97c14edb341583f5a7ec6",
+      "src/bin/migrate.rs": "4d1851365165222f523f31f828d8646174c76974ab7747b336399a2d142768c3",
+      "src/bin/recovery.rs": "5ee3a26e8d982df858f5bac8028e3252d5f91ec309613e5ebfc2f09f57ec4af3",
+      "src/engine.rs": "ea3c6c9e396512d455a1e005ad098f5e0d8c05a44cdfc2d8d3a7f52f2b7bdf72",
+      "src/engine/deletion.rs": "9c75bd2f5ecb0d9110b29560711536c2467a308fd1dacdfc90e3838fa78a0eb6",
+      "src/engine/dispatch.rs": "318548a4f7fbb41141171b1903abdab2d01e52db163d2c1b2fe1f018b0ad78b1",
+      "src/engine/reconciliation.rs": "9766e98aeb7f2ebe00364af65c37cd59152632319cbeb3b01727093d5f21e40b",
+      "src/entry.rs": "0e6fb0ac28b8d572acbe6a6b3febea4b21a93fa1033ba11666859d6ffca29df2",
+      "src/http.rs": "5431cf1682b1feb02ce5e127e523a9cbcaee79bd22a9a1694c01b135e363667f",
+      "src/ledger.rs": "ef8a0cf1bb7ca63fcb6aee54240694ad22f1426ce57bc8db06cf908b44c64af6",
+      "src/lib.rs": "bfa0db8b87e171831c2c408c6ede6aa8ac77fcfcb2fc205a08854a8e2b3363cd",
+      "src/local.rs": "b1f65af586e884ef44dd524a8025bb1bd71700f3ba7da72bb90d119fea6fb90f",
+      "src/pricing.rs": "b38950fda4d52cd56b02ec1984b56efb5301cf4c5e8f069cf8be08623a789850",
+      "src/provider.rs": "e292b8c8a7878f3575c853c71d204927d4a64edc0bd0c38d54646f1978888b20",
+      "src/recovery.rs": "86c2ead6048c1a2c98869920b7cf96b0aa9885f166c778b3dea45a3e6a9711b0",
+      "src/store/accounting.rs": "f4b71c59af00bd7e1b1be04238fc59326e53b01d614662ea9b5baada3ae03635",
+      "src/store/business.rs": "1c4b6af3d85ca2eea968a00a8be2801f5bd16ea590268f3c9973af5d4fdfc1b1",
+      "src/store/commit.rs": "4c1eba4f7928abdfff6c4648603f322c91319d111764f6321da9ae0042a10e17",
+      "src/store/component.rs": "160d36dd2138115726c80afd67cc54b84629724f5fa01e5073eac937d8387e22",
+      "src/store/customer.rs": "41ad793a9740f72af9ad5f277971e41a17259a20b24f8543461ca584d4ba6b80",
+      "src/store/deletion.rs": "a0f3fef19c4492af1f1996760cfabca0e93fd90bc9755b3c7cab99b7528cbc6a",
+      "src/store/migration.rs": "78159dcb49577369d10093c692a75212951c3331730219703926ac2342d6d32e",
+      "src/store/mod.rs": "ee36fbf6dd9f59ad0b25b7de2f364956d3d5e049259c141feebda763ba77be45",
+      "src/store/process.rs": "88604efc765fd9138e7f9bb674cf627cf30f98942c038e8b7eb962ae38f6c4ee",
+      "src/store/reconciliation.rs": "c45b4620cdfa3333fb571374bba50cc9ee48ed4d1afe9ab45ac4dd1a199091f8",
+      "src/store/transport.rs": "9b364e704ab09744fa5aaa75373d5e3d01c625d3842defc565c0d1c37fa36e88",
+      "src/wire.rs": "d653bcd39eac3057b1978e8b18675119a1a5f6654d9d06979d1928ba2ad92a12",
+      "tests/entry_points.rs": "379d79a5dabce483307c1f14f165a3002314500a72c814893b5e4758014789a9",
+      "tests/postgres/candidate_reds.py": "1d0b45a1d97339ccb2f9685800051d9011313d140c8851b139a8ec05ee317d59",
+      "tests/postgres/client.rs": "4f0c607be19cce1de5f391e924c533bb8b581c9a40766f2594d890d24a5c1723",
+      "tests/postgres/controls.py": "9e7673ba99a2c6f787351683ba6c80f0b8d2dc8782c1c750020b77b7e8b49c92",
+      "tests/postgres/core.py": "59ac3eb3b6f9476e60df262bf2ccbac6363312acd184faa187a3ceb5629de6d6",
+      "tests/postgres/core_client.rs": "6561a0e0622bcfaed31c34790d2cf541b7a8ebd4c2c36878cb312285b6448e50",
+      "tests/postgres/corrections.py": "5784caca0927d48a81ab111e566fca16c467e966b2437a2d588b61d89ed7f588",
+      "tests/postgres/harness.py": "cded62474ac53f3809e6786256b944f4d112771ee893c44c079419a0638b9e01",
+      "tests/postgres/ownership.py": "f5baa204a8329a4cdfe006003f922ad0ad7fddb312634c7afd54b3af3013c3d5",
+      "tests/postgres/privileges.sql": "928d5046e9e8e7f42cb0c339f6624320e2ac73cbf08490de1647ccaf75c14be4",
+      "tests/postgres/provider_client.rs": "559418b43b5476e681a52c3e2eb0b1c99d5b2145734c7bacadc18c1b5da3c72f",
+      "tests/postgres/proxy.py": "a69b59bf45c456b67379f6819ccf8ddba89803f829bd8a2e8a861f635bd4a743",
+      "tests/postgres/runner.py": "8fba71011ba9c323362984e2fa98ecf4c7dadfa90339f1b54f94dfa35004938b",
+      "tests/postgres/scenarios.py": "9fe3ca3ec3a5f0d8afb52d5e20e2df40ad2f530e9ad650e12761ad9704d744ca",
+      "tests/postgres/simulator.py": "fdb72b61c2d74974fdebf4b5869d82ea52a30463a33d2103c8838fe750eeba1e",
+      "tests/postgres/test_enrolment_retry.py": "16986834fc1a21db07299d24b9fefc2247f5736c3a1aace2db04f9db49344f39",
+      "tests/postgres/test_iteration.py": "0c193096d430c827926df780d7bb0e82fb2c917e927079d11a5953bf9cd6311c",
+      "tests/postgres/test_ports.py": "948c210b19a9df7f6dbd3e5cfec46bde58cd9d66583e074065b6d9ebdc757106",
+      "tests/postgres/test_recovery_ports.py": "d45f025fcbec81d95939e9bd494cb27f9d04f645256b3c5b61dcf83570f7cfcc",
+      "tests/postgres/test_release_runbook.py": "183cc0327d525d5d456f7359352f77571b0daef0d8177c311131747cb19f0feb",
+      "tests/postgres/test_runner.py": "59488ad130082d8f03e2de7368e3aae654bd192b4aa8505e7675e6835f0c2fab",
+      "tests/postgres/test_startup_retry.py": "d798ba154a7053d06ca9031a4b87902ac1fb4eb72f4aaabcd42748da2f655564",
+      "tests/postgres/test_trace.py": "135c6dbf6b412e7f5d7e895c2231b5eb4fdf0dc77b02663bab7c6ead4eca8af2",
+      "tests/postgres/test_w4_probe.py": "4330ebb5b00cb33221330987f64381d2e81e3a9e1eae60c90b5d9ddd81cc5ed4",
+      "tests/postgres/test_w5_inventory.py": "2776332cb52f9a3f76d70cff4cf6cedcbedbadb3f26a808b227bb7479b0c9a8a",
+      "tests/postgres/test_w5_release.py": "214665bca541e84c65ac4786438d6b5a4bcc61c45320698281ff045fac7c3263",
+      "tests/postgres/test_w6_default_witness.py": "f1b128fb7ff553851ea9be214ab592217f95c0b222a604414e9575917abf0bdc",
+      "tests/postgres/test_w6_inventory.py": "faa1b7f7aa1972248f049f7e0af53a8fd7cf1cf195485e3206fec41f7666327b",
+      "tests/postgres/test_w7_inventory.py": "a73c5cd92bbebfaab1de2fd18c2efc04b29201666603805bf4186a4f5b438651",
+      "tests/postgres/test_w7_operator.py": "512503f63eb39c6d3b9da770629ab753e9045a3e72ef5a8146d2f419fe5f18e1",
+      "tests/postgres/w4_expiry.py": "8e8e448b281cf633dcf54450a3f29f656f937fa2bd04b3be17a99338bb3e5510",
+      "tests/postgres/w4_observation.py": "b1867bead9a477a013f32c0d3c22404f6f46d50e6de5d3b7448a53e7c0dedcf1",
+      "tests/postgres/w4_preflight.py": "9b4f377a2419a412f67d416557f7594246966e42d4ec8a8d34566fe592ac4a49",
+      "tests/postgres/w4_probe.py": "19fd5ebda2147cd2ca1dfba5827a1d55241c180f25f26122f4abfd2921890902",
+      "tests/postgres/w4_publication.py": "8716f43ab74a9a53adda861bd14beedcdd63f776d16ed2cecfadef2248896aa6",
+      "tests/postgres/w4_read_deadline.py": "99fe62b98f69320e9917e18bed1a6ee1a02a69636b84d4e009f7ad85585fe407",
+      "tests/postgres/w4_regressions.py": "577d78da7ed134ac404d634ff383751c5304c792710ffdc0ccdc234e69eba1cc",
+      "tests/postgres/w4_retention.py": "238c0b9b52a40054bc5fbe0d85a5baf001f6001bf1f38e41d5c97d11cc2c24a2",
+      "tests/postgres/w4_retention_scale.py": "8224ce88410cf26575aee74ba23e7d46a9232254d1480e59f067ff7026b9a79a",
+      "tests/postgres/w4_round2.py": "b130405a6823aa7ddfc690677a261364921d8649e7edce270286b7d733f9d1c1",
+      "tests/postgres/w4_simulator.py": "ccbddd0bba234a09080c543812f4d0214af996025f2af8d91ff98af785c3dee2",
+      "tests/postgres/w5.py": "581b527865aec36f1f2bb384a55fd8c77696dd33bd3ecb51d0910a2c53f2092d",
+      "tests/postgres/w5_accounting.py": "4ebe59f0a520f900c42eabdd0e1d6148823c675ee3ef4727da1556e74b6c1a19",
+      "tests/postgres/w5_baseline.py": "69d90ebf96204d7545cbd7775d34ffa58aec598667f536ae94d39d10d33c8d92",
+      "tests/postgres/w5_release_control.py": "adc2a25a3d3e7ef5e8f6cf03305706f04adb0371f99de56f2432ed65aedf6708",
+      "tests/postgres/w6.py": "ab64564953394cf9efc2a69ca70e9f678d7b3bb6134dc36b026efa92aa675494",
+      "tests/postgres/w6_blocking.py": "92bb9081da8b4a8f9e2917df53429ec7b75febcc47132d48d4a11c53949b04da",
+      "tests/postgres/w6_blocking_baseline.py": "605807fa46a72f1f4bae6cca82d611143772b5aacda08e5e954754d18b24c576",
+      "tests/postgres/w6_continuation.py": "2f861fd5bcc45c44e21e12bccd013f08d5b1c4c7995a55dab33d387161269f08",
+      "tests/postgres/w6_edges.py": "b9b17b6533d93e305b4d505d68c8c281623d93b2b95fe84f76e81cc6b2d616e4",
+      "tests/postgres/w6_exact.py": "28db3aeef367261cf99a0e7c81c139b68a4012e350702e4a0907bf11e268ba43",
+      "tests/postgres/w6_final_repairs.py": "78b07982167404517c60b7b789dcb4cf62df1f8bf49323bec64a42be1df16bda",
+      "tests/postgres/w6_gone_reply.py": "9b03a5c2627b2f2bceffebf7466dc7abf0ea9da249516f06f329d61697b6fe56",
+      "tests/postgres/w6_repairs.py": "61c3f8d539a9eab1f216447b2a912550f669442fca7271f067823f451b4ae71a",
+      "tests/postgres/w6_retired_targets.py": "53ea8ada5da4b32ba400ba51cd86f241c445834a5d8238d0515c824a40ddbc20",
+      "tests/postgres/w7.py": "29dbae0b6d7ed6e0d5765787a1b8a04478d711fbc56b51cadea5bbfac0a76802",
+      "tests/postgres/w8.py": "c9266fc11fa42c78e6c6f17bbaee21ec402ba3f1c84971b479b0f2e19fbf59f1",
+      "tests/postgres/workflow.py": "bdcdff36ffaeda5c446ce4454bcdfad46b7834878e20b4df7cf380aa0e971cac",
+      "tests/support/pause.py": "12d95b008fb86fd73513bb513a4ecefea0598d0d0ea5a377b48664fefa4700e8",
+      "tools/check.sh": "eb6fc0f8f3386de84a0abddba2585ec64617117f8bdc460a4e92f4bc20cd7200",
+      "tools/iteration.sh": "00de3ec1b7a373e15f7e34cf85456fdbec5c299464b4f63d108193019a2a9349",
+      "tools/postgres.sh": "81820117bb9713547cad20ffc70055954d28acf8d71d8d5002f0efbd597bfd8c"
+    },
+    "operational_map_sha256": "982d89d5422528430311a834655cfd14979db45b3332b31d316c2f1b616831e7",
+    "scope": "Canonical operational bytes excluding tracker, documentation and evidence. Publication metadata may change separately; no publication commit hash is embedded.",
+    "equality_observed": true
+  },
+  "iteration_first": {
+    "kind": "iteration",
+    "command": [
+      "nix",
+      "develop",
+      "--command",
+      "bash",
+      "tools/iteration.sh",
+      "--jobs",
+      "3",
+      "--seed",
+      "20261124",
+      "--evidence",
+      "<private-evidence>/i4/iteration/iteration.json"
+    ],
+    "wrapper": [
+      "timeout",
+      "1200"
+    ],
+    "cwd": "<product-checkout>",
+    "commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+    "source_tree": "b80eda2db8b86099e9079b6d7f353a298315d90f",
+    "selected_environment": {
+      "CARGO_HOME": "<private-driver>/cargo-home",
+      "CARGO_TARGET_DIR": "<private-evidence>/i4/iteration/gate-target",
+      "CARGO_BUILD_JOBS": "2",
+      "CARGO_NET_OFFLINE": "true",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PROVISIOND_HARNESS_ROOT": "<private-evidence>/i4/iteration/harness",
+      "PROVISIOND_HARNESS_UNIT": "fastlane-kin-i4-iteration.service",
+      "PROVISIOND_HARNESS_PORT_BASE": "25900",
+      "TMPDIR": "<private-temp>"
+    },
+    "started_utc": "2026-11-24T17:38:05.818417+00:00",
+    "exit_status": 1,
+    "wall_seconds": 554.9557592310011,
+    "finished_utc": "2026-11-24T17:47:20.774309+00:00",
+    "head_unchanged": true,
+    "worktree_clean": true,
+    "raw_hashes": {
+      "result.json": "3b9a36a1f81301441d9a15fea68f3c775af40c0b2ba941fd96e314c9deea38cf",
+      "stdout": "1a523ffa62bb70f43ee07537a0d7e74732533ddce74db5b9ec337d1c10490dbd",
+      "stderr": "17b036735375605730585532e54aa5f3117de687c750ba75af6f6a072d80b115",
+      "exit": "5ea0cd30b56874ac07bfc870eec5fc95ef3bd0629fbfc64d32ef216c7934a85d"
+    },
+    "manifest": {
+      "result": "fail",
+      "raw_manifest_sha256": "81203117655a4dbd1974ff2096c3adb8bceb0ad306326d0a771b33b043d38e96",
+      "jobs": 3,
+      "phases": [
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "w7",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/iteration/iteration-w7.json"
+          ],
+          "exit_status": 1,
+          "wall_seconds": 366.12001825124025,
+          "path": "<private-evidence>/i4/iteration/iteration-w7.json",
+          "phase": "w7",
+          "result": "fail",
+          "manifest": {
+            "result": "fail",
+            "raw_manifest_sha256": "0e813ef69bc3d124bf3338be764af6c3a8368df5fd01e75236cf4e2067bdc6a6",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 20,
+              "fail": 2
+            },
+            "nonpass_rows": [
+              {
+                "test": "w7_markers",
+                "result": "fail"
+              },
+              {
+                "test": "w7",
+                "result": "fail",
+                "reason": "W7 child scenario or cleanup failed"
+              }
+            ],
+            "enrolment_retry_rows": [],
+            "cleanup": {
+              "count": 22,
+              "result_counts": {
+                "pass": 22
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "controls",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/iteration/iteration-controls.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 443.5185724152252,
+          "path": "<private-evidence>/i4/iteration/iteration-controls.json",
+          "phase": "controls",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "2104ce9f1abb7eb8d9e10aa38c5433c8c1d2b5d2542caa8da08d3f9789995e20",
+            "controls": {
+              "count": 44,
+              "result_counts": {
+                "expected negative demonstration": 44
+              },
+              "exit_counts": {
+                "1": 44
+              },
+              "children": [
+                {
+                  "case": "w7_retry_reset",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 30.98586024902761,
+                  "raw_manifest_sha256": "6a2107342054a823399dfd06a5c4bc225c19a47e637eb54d61c2f4293b72be12",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_lossless_restart",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 52.3192092878744,
+                  "raw_manifest_sha256": "1f6e31222d80e2c61b2c6536df524af6775517b48cff025220b4761c28d9a9d9",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_no_ack",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 28.256330540403724,
+                  "raw_manifest_sha256": "d331555f05739a943e9ca135a53f0708b67090ab5c501d39bf39e3aa73495912",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_supersession_inherits",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 27.05255716526881,
+                  "raw_manifest_sha256": "de0323c8d6acef0568de5437e728570dcce065a189ff78430fd2f5b0d0c26900",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_finite_guess",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 306.218716355972,
+                  "raw_manifest_sha256": "eb4d4ee45111fd12f17456806ac9b7efb375692c69eeefa2ad65ac3000c59256",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w6_blind_repeat",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 14.847800381015986,
+                  "raw_manifest_sha256": "8d7113eced4f4474e1664b2eb0109d2113508070794a2417670f89baf1b8e008",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w6_non_exact",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 255.69673010194674,
+                  "raw_manifest_sha256": "7a10a2bcdd38e1fc60f21d122093529f3137b3707055484b6a9156ddd6a234c1",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w6_release_timeout",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 12.050059105735272,
+                  "raw_manifest_sha256": "7d14fd65292b124ecfbcd95323fb3d6785d93e388a67c37726f0202129c01f76",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w6_skip_startup",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 11.891133849974722,
+                  "raw_manifest_sha256": "3eb2f0d205f6c86e137ccad42a8e35e23c65cfac9617f7148f32fb5addd472a8",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_observer_run",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 13.056404068134725,
+                  "raw_manifest_sha256": "c562cf3aa08b1ed6f6fd3eeae7674611512cfe1b656b85c38b5b06f1ff081c7b",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_stop_reset",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.305985419079661,
+                  "raw_manifest_sha256": "dbbf6e2b421a96eff97cf0ddd29bc250dff1d49a864847e14b2915b16f23b9df",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_generation",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.481750431936234,
+                  "raw_manifest_sha256": "46b96de3fc9308291f8885641a7a6bf9a036b807d0d1973a750a7841d58e3894",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_checkout",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 9.533851538784802,
+                  "raw_manifest_sha256": "1d0e6cdd4a93201d82f58f7a3a10384d5ef331ae79d1430e3eee66135dd77fbb",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_blind_retry",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.492323400918394,
+                  "raw_manifest_sha256": "4d5ff797fe74a12792e7f272019bb04f496a78b61fd128daf022fba81acb8899",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w4_atomic",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.870537009090185,
+                  "raw_manifest_sha256": "c9f8123e000850303364b71ab9ea1a37e5e5a7f99ea06cfef335867ae76f1a82",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w4_ack",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.576795869041234,
+                  "raw_manifest_sha256": "7bd4a6621f5279faea77ca8a0e070481ed58017557b5bdf7848980a61cd8560f",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w4_overload",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 16.830328446347266,
+                  "raw_manifest_sha256": "03f17f3426eca2383f9f6c6c4dd9fa0d944002818ac134065d69ab14341c83f3",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "execute_cancel",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.904444321990013,
+                  "raw_manifest_sha256": "ed274654ec2180c35374cfc58677aa16c709e6304888e0e01f44a44375141d6b",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "checkout",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.76972972182557,
+                  "raw_manifest_sha256": "8ae497bdde10a72b1397dd5dbf730569a9f6f4b4803421eb19424d6f4b8fda82",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "caller_sql",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.19539960892871,
+                  "raw_manifest_sha256": "e2bc1d33e05621f083fd572853250c47648e38c7065dfa9a3f428334a87bad4a",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "commit_setting",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.72076426493004,
+                  "raw_manifest_sha256": "13a0f759652beabf672ce8629f523a3037fcfde2c42db7f8ce565057a12ec410",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "notices",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.210728878155351,
+                  "raw_manifest_sha256": "66fb6099e818538cabea100b7d5b46aa971818a387848d60ae7f8347405c66b9",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "notice_sticky",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.398309167008847,
+                  "raw_manifest_sha256": "597a5a9b213f231bc976e870719117c7769251ca2f4682e9a5c20845c368d6fb",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "verify_cancel",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.678182701114565,
+                  "raw_manifest_sha256": "3f390b6830b96d55447e9c2b9862578b99ac19b17c20badae730c55d525a0a2d",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "generation",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.735007570590824,
+                  "raw_manifest_sha256": "b5ea296cf8236866adc969b0ab0f58a3ff40e1c4b4eed92a33b0c460d25a4dff",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "claim_guard",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.903080407995731,
+                  "raw_manifest_sha256": "afa7bd5ea9c5e6d3ed10611f5586a3d2162b15396850c1795013786934a53401",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "payment_atomic",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.259950535837561,
+                  "raw_manifest_sha256": "ce6b614ed203ba7d1bc5e11ad70f50dcb2d5fbe67537e8a6bb6701c327a20a58",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "claim_cancel",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 9.40736033488065,
+                  "raw_manifest_sha256": "d17af954bcd636f4cabff7b31972d06b982f5a4fe562ddcdfa746d6aa770410d",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "defer_cancel",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.589745861012489,
+                  "raw_manifest_sha256": "41018630c07e66f4f87c499be2e5a2af3ced329708b2d8f437e06b8c468cdc70",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "licensing_stop",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 44.92136041121557,
+                  "raw_manifest_sha256": "3fedbc91fe8ddd16ac0cd8d7ee08e5b606daf48d174f7b40d1ff9cad786a8883",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "outcome_stop",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 15.17188175022602,
+                  "raw_manifest_sha256": "ec6fef8446396540dea39be11bc0e2290e48bc6344b5e7080bccf1fb6ed9e0f1",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "deadline",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.52769224718213,
+                  "raw_manifest_sha256": "ef2280c5cbd73230fc7c20d94210a5200891f07a9c77418cc6523b98ee3dfdcf",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "lock_observers",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 9.208092350047082,
+                  "raw_manifest_sha256": "913c991a7916d50bd45db3ea050fbb0e6b8ec3a12f4f1890d0599b55711e0435",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "surface",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.85730055719614,
+                  "raw_manifest_sha256": "0b7f030e30a765480ca979c6a4a0ca910cff9c9a2e477fb828a5ff2790f5e43b",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "predispatch",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 48.013255337718874,
+                  "raw_manifest_sha256": "8e2e779ddb5342baffd81e6306d7e6bb75f7e6a69aa155d89d74ac0ff3cdc5a4",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "startup_order",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 47.809176032897085,
+                  "raw_manifest_sha256": "cc08ee04ad5e75ec42b128d664f1195e40c7534fc2caacdbf5f298b93ff79a7d",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "terminal_zero",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 38.246445569209754,
+                  "raw_manifest_sha256": "72c8457f5af7163c5ff8879905dcca170ea91054eef12ff4168428c9a6644258",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "terminal_capacity",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.593770849052817,
+                  "raw_manifest_sha256": "9819e43d884167f0d7b6a5a1faf576065f29f494a0bff536265a24f9a1e4a669",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "loss_stop",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.524089608341455,
+                  "raw_manifest_sha256": "b4140344fa4ad481f860cbe2db2c419d114716329ffb88b012f8fb8784053ff1",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "queued_claim",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.564598911907524,
+                  "raw_manifest_sha256": "9baee78400edf50bbc30f0f3d21b615db99b579705d2356ac717a705b097f3a6",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "queued_claim_pool",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.28036199696362,
+                  "raw_manifest_sha256": "835004c1aa4615d8549ce2693d5d6e3b9fd7812920ce7ee191b1ceb4d96f8363",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "replacement_outcome",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.29641024209559,
+                  "raw_manifest_sha256": "75e3071571877c475050825fa6222c2e7d4c2e8f9de79b2bff53672abab5a7eb",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "displaced_record",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.413135570008308,
+                  "raw_manifest_sha256": "e6dd8d7953fe051666d45d155af2f6664989fa70f9db0917af3efc7a204fd59a",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "lock_record_reset",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.613007324747741,
+                  "raw_manifest_sha256": "c86f6f613ac17131388b859ae283e879eaf64f1f0d9ba48356124b6164fe6a34",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                }
+              ]
+            },
+            "candidate_regressions": {
+              "count": 5,
+              "result_counts": {
+                "expected negative demonstration": 5
+              },
+              "exit_counts": {
+                "1": 5
+              },
+              "children": [
+                {
+                  "case": "w7_reporting",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 40.199853035155684,
+                  "raw_manifest_sha256": "90cae52c14bd4877dc356e76cf21bbdb98da8ea056e920e6faa09e25465d9e3a",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_parent_retirement",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 17.154131666757166,
+                  "raw_manifest_sha256": "a27e6b6cde83a2cd8ea57c661f4aa904fe64348cb701d330298219deefe00917",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_caller_grace",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 18.66626660292968,
+                  "raw_manifest_sha256": "34d7a9f228c8961317a2016dd094265ffbc2a737bc2e6f1bd3936b9d247bb9f9",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_coherent_rates",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.045632805209607,
+                  "raw_manifest_sha256": "8e5e5e10ba550960bb8b3839e6f15026ef61952df55698598c9b22d17290784e",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_expired_replay",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 13.331656348891556,
+                  "raw_manifest_sha256": "a595b27b1bc95746560dc9199f377045a3123511695630cd68ec1895fbc67f51",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                }
+              ]
+            },
+            "release_assertion_sensitivity": {
+              "result": "pass",
+              "method": "synthetic records passed to actual failed_attempt_release helper",
+              "probes": [
+                {
+                  "checked_out": 0,
+                  "exit_status": 0,
+                  "result": "pass",
+                  "assertion": null,
+                  "application_release": [
+                    {
+                      "event": "w5_failed_attempt_release",
+                      "session": 101,
+                      "application_release": {
+                        "event": "transaction_resources_released",
+                        "transaction": 17,
+                        "session": 101,
+                        "component_available": 1,
+                        "pool_checked_out": 0,
+                        "discarded": false
+                      },
+                      "rollback": {
+                        "event": "transaction_rollback_acknowledged",
+                        "transaction": 17,
+                        "session": 101,
+                        "ready_status": 73
+                      },
+                      "server_end": {
+                        "event": "protocol_response",
+                        "session": 101,
+                        "command_tag": "ROLLBACK",
+                        "query": "ROLLBACK /* store transaction 17 */"
+                      },
+                      "release_before_backoff": true
+                    }
+                  ],
+                  "command": [
+                    "/nix/store/b5bpi6zfajzzrwwpgba2q6li3nnya4bs-python3-3.14.7/bin/python3",
+                    "-B",
+                    "tests/postgres/w5_release_control.py",
+                    "--checked-out",
+                    "0",
+                    "--evidence",
+                    "<private-evidence>/i4/iteration/harness/controls-lgy_03ga/release-checkout-0.json"
+                  ]
+                },
+                {
+                  "checked_out": 1,
+                  "exit_status": 1,
+                  "result": "expected negative demonstration",
+                  "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+                  "application_release": null,
+                  "command": [
+                    "/nix/store/b5bpi6zfajzzrwwpgba2q6li3nnya4bs-python3-3.14.7/bin/python3",
+                    "-B",
+                    "tests/postgres/w5_release_control.py",
+                    "--checked-out",
+                    "1",
+                    "--evidence",
+                    "<private-evidence>/i4/iteration/harness/controls-lgy_03ga/release-checkout-1.json"
+                  ]
+                },
+                {
+                  "checked_out": 2,
+                  "exit_status": 1,
+                  "result": "expected negative demonstration",
+                  "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+                  "application_release": null,
+                  "command": [
+                    "/nix/store/b5bpi6zfajzzrwwpgba2q6li3nnya4bs-python3-3.14.7/bin/python3",
+                    "-B",
+                    "tests/postgres/w5_release_control.py",
+                    "--checked-out",
+                    "2",
+                    "--evidence",
+                    "<private-evidence>/i4/iteration/harness/controls-lgy_03ga/release-checkout-2.json"
+                  ]
+                },
+                {
+                  "checked_out": 3,
+                  "exit_status": 1,
+                  "result": "expected negative demonstration",
+                  "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+                  "application_release": null,
+                  "command": [
+                    "/nix/store/b5bpi6zfajzzrwwpgba2q6li3nnya4bs-python3-3.14.7/bin/python3",
+                    "-B",
+                    "tests/postgres/w5_release_control.py",
+                    "--checked-out",
+                    "3",
+                    "--evidence",
+                    "<private-evidence>/i4/iteration/harness/controls-lgy_03ga/release-checkout-3.json"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "steps": [
+      {
+        "command_shell": "bash tools/check.sh",
+        "exit_status": 0,
+        "wall_seconds": 36
+      },
+      {
+        "command_shell": "python3 -m unittest discover -s tests/postgres -p test_\\*.py",
+        "exit_status": 1,
+        "wall_seconds": 3
+      },
+      {
+        "command_shell": "python3 tests/postgres/harness.py --phase iteration --jobs 3 --seed 20261124 --evidence <private-evidence>/i4/iteration/iteration.json",
+        "exit_status": 1,
+        "wall_seconds": 515
+      }
+    ]
+  },
+  "iteration_corrected": {
+    "kind": "iteration",
+    "command": [
+      "nix",
+      "develop",
+      "--command",
+      "bash",
+      "tools/iteration.sh",
+      "--jobs",
+      "3",
+      "--seed",
+      "20261124",
+      "--evidence",
+      "<private-evidence>/i4/iteration-corrected/iteration.json"
+    ],
+    "wrapper": [
+      "timeout",
+      "1200"
+    ],
+    "cwd": "<product-checkout>",
+    "commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+    "source_tree": "b80eda2db8b86099e9079b6d7f353a298315d90f",
+    "selected_environment": {
+      "CARGO_HOME": "<private-driver>/cargo-home",
+      "CARGO_TARGET_DIR": "<private-evidence>/i4/iteration-corrected/gate-target",
+      "CARGO_BUILD_JOBS": "2",
+      "CARGO_NET_OFFLINE": "true",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PROVISIOND_HARNESS_ROOT": "<private-evidence>/i4/iteration-corrected/harness",
+      "PROVISIOND_HARNESS_UNIT": "fastlane-kin-i4-iteration-corrected.service",
+      "PROVISIOND_HARNESS_PORT_BASE": "25500",
+      "TMPDIR": "<private-temp>"
+    },
+    "started_utc": "2026-11-24T17:49:43.292174+00:00",
+    "exit_status": 0,
+    "wall_seconds": 509.9678903450258,
+    "finished_utc": "2026-11-24T17:58:13.260189+00:00",
+    "head_unchanged": true,
+    "worktree_clean": true,
+    "raw_hashes": {
+      "result.json": "097a9418c51675920c42b023de441c237240d2f3887c8a1301b5633fdb42e669",
+      "stdout": "927c15f8a24a1798fb2f2b910a3bdaeaa871e23165caeeb95c42ebcc88110c2c",
+      "stderr": "badefe6c769f0f433061be49c556e5f8b8619d293cba07bd0f04993987286da0",
+      "exit": "f06fd0e1f74806d9fe5629b304faf9c73efacdcf1e45c4f51a25a7d2c7a015e8"
+    },
+    "manifest": {
+      "result": "pass",
+      "raw_manifest_sha256": "20a17c38d21e602b804cd922aa61ec3770d4c701c60897041bbbba2cb4238ef2",
+      "jobs": 3,
+      "phases": [
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "w7",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/iteration-corrected/iteration-w7.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 280.94057603925467,
+          "path": "<private-evidence>/i4/iteration-corrected/iteration-w7.json",
+          "phase": "w7",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "a8f97a6eb982a8a20fbb11eaecd09202cd1f35a8121292d35f40b238a40ea4b1",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 21
+            },
+            "nonpass_rows": [],
+            "enrolment_retry_rows": [],
+            "cleanup": {
+              "count": 22,
+              "result_counts": {
+                "pass": 22
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "controls",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/iteration-corrected/iteration-controls.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 402.18179218284786,
+          "path": "<private-evidence>/i4/iteration-corrected/iteration-controls.json",
+          "phase": "controls",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "a8a03f0449d565149485250d4e603eb563543bc4ea374ba52fd3e645fb6addb9",
+            "controls": {
+              "count": 44,
+              "result_counts": {
+                "expected negative demonstration": 44
+              },
+              "exit_counts": {
+                "1": 44
+              },
+              "children": [
+                {
+                  "case": "w7_retry_reset",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 33.7284942260012,
+                  "raw_manifest_sha256": "11383146bd02fe060cdd94aedba584a9c9a60589609addad881818c9e15f08b9",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_lossless_restart",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 33.72910341108218,
+                  "raw_manifest_sha256": "f92090fa7ff5cfd5a15c026e039fe1567f7f34049ee934ef07dcf5734c2154dd",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_no_ack",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 21.98703680280596,
+                  "raw_manifest_sha256": "2b5d5c7b6dfce6033c35b5e891ee3fa1b06dbc0cd5b367cd855f3463e9c94c50",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_supersession_inherits",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 36.62933106068522,
+                  "raw_manifest_sha256": "fb857b9c83f76f32231738782c5135df6d54a078675733d5f9b02c65b88702d2",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_finite_guess",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 263.07907509384677,
+                  "raw_manifest_sha256": "e7232730dc87305e60b794f829286dc1804df13943e0d58c1f887a5bd47b60d9",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w6_blind_repeat",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 18.728382735978812,
+                  "raw_manifest_sha256": "616a54794f610063b7d5630c90593691aff24327198be95e82cafafe860944ea",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w6_non_exact",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 201.96616749092937,
+                  "raw_manifest_sha256": "1f7b5cd35b04ce0fd6655883bb58d6abaad1c75f3ccaaed846903813aeeb4a46",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w6_release_timeout",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 11.182051429990679,
+                  "raw_manifest_sha256": "18e79045e3560495000102eb4bc83efc28076b65bab221571cc1548051efa4f2",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w6_skip_startup",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 11.862989178858697,
+                  "raw_manifest_sha256": "d339d94dcb6e98d2e8683ba95535ac61df79e377a66ebe764a6fb07e6235fcb7",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_observer_run",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 11.503131901845336,
+                  "raw_manifest_sha256": "9e9dd96b1cecc5f9587c665cf92d0e439f5e47ceaa9223692f03ba53223b1d69",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_stop_reset",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 11.68671196512878,
+                  "raw_manifest_sha256": "e2f66ec50cb991a92c99fbc0faf22118540848c9969e2e3be8c4db236e42578a",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_generation",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.942277311347425,
+                  "raw_manifest_sha256": "6c19a4c245542916588515c97e0f0592e91b76775924d0ac2a43947a4ff19081",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_checkout",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.698652784340084,
+                  "raw_manifest_sha256": "43de28ce0ec0d33b82e2598bdff960e8ed6bc1d0f49420063f19f01447f851cd",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_blind_retry",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.284143334254622,
+                  "raw_manifest_sha256": "579676d20e43960fccca630888ac371b4a29730ec57362a0f10232608953c70f",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w4_atomic",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.643878499977291,
+                  "raw_manifest_sha256": "cb3de4dfcfa5a7445ee4a0319537a6e9550da6c73852cc16bc694c6f47ffee63",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w4_ack",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 48.93855900224298,
+                  "raw_manifest_sha256": "f7331ece1f7b9137c18870ea4930b79ae7439ded0fed3222c04c3a504384e945",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w4_overload",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 18.413261490873992,
+                  "raw_manifest_sha256": "7af2e0e2432f4e2cd4df49831aab068d2980cf103ddfb113603dce5b2491fdfb",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "execute_cancel",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.6692794393748045,
+                  "raw_manifest_sha256": "f3aeb8e47234a3d1178d0423cfa76b8d7c1a55c7a9fd1de120e77197a62c67b4",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "checkout",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 9.836150255985558,
+                  "raw_manifest_sha256": "e0dd9a987390179088971a23734fbec2c4a9d80ef349cde82c0a4282567614d1",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "caller_sql",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.50857698218897,
+                  "raw_manifest_sha256": "7ed7c03259fcb789eb5cfb5d01a10549744f4cfe6b6c776d7628194491c65219",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "commit_setting",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.437523526605219,
+                  "raw_manifest_sha256": "53b3728e20d47e006ac08a2e97e0b252195464026172f115e4f38837c98ba33a",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "notices",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.199419526848942,
+                  "raw_manifest_sha256": "0a0b31493d003a0a2b9f256595ab163e9239833a21cc8f51b07406377ba36dbf",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "notice_sticky",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 4.925956215709448,
+                  "raw_manifest_sha256": "903970954fc6a76f3d766a8b779374d83d02dae18a888b48f7f218750da175d3",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "verify_cancel",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 40.952926211990416,
+                  "raw_manifest_sha256": "2723c3bb9fa37667db03e2c57753286d8096730f023fc3b7441d6e48fbe7da8a",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "generation",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 32.97948211664334,
+                  "raw_manifest_sha256": "370c09ee0637cc404897328a867e37c7f3c7fd900d4f376a54b379be8ad4e20e",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "claim_guard",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 19.29731539916247,
+                  "raw_manifest_sha256": "48551574f29f5c6deb69d6f98e75ad256e64f3c25b645e6516af904e477b1bc2",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "payment_atomic",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 19.236772684846073,
+                  "raw_manifest_sha256": "cedaf9330cac3bf9528fdc3809670ae4355ded038beb231ed50b0e0e48f9b7a5",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "claim_cancel",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.052347218152136,
+                  "raw_manifest_sha256": "6b28caed11018a7de2de46f6ccc497e2458d84764554a609a979a6a4382dd716",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "defer_cancel",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 12.685506639070809,
+                  "raw_manifest_sha256": "cdb8ea0e885df4509e5adde2b2c64ee061f2276f2e85e57eaf11e2cc74213a49",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "licensing_stop",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.616332555189729,
+                  "raw_manifest_sha256": "da0d862d443d825117c3b8050cb57ceb44affc67ccf66413d6c6ce6b71d941f5",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "outcome_stop",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 11.55557693587616,
+                  "raw_manifest_sha256": "6c72585f25bc1f95d7ffe5c5b634cde2ae5f04fb948f415f3368c4f1303bc2e1",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "deadline",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 12.310729838907719,
+                  "raw_manifest_sha256": "e6f56beabfa45e9d8206a88994748ce2bf2dd944d0b7ee55e1ba5a9f6b81d0c2",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "lock_observers",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 11.53960770694539,
+                  "raw_manifest_sha256": "72b54e09975a48bf99b47870757e580ec39a4235b1505db825afb11d62eb5cb0",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "surface",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.580360257066786,
+                  "raw_manifest_sha256": "88694b073ea19aec19156d75ff7bdbfb7aaf7a0232d5c3770d53f6571c300924",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "predispatch",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.510276213753968,
+                  "raw_manifest_sha256": "5c41b66e12ea7257189fb130d57b805827ad6c73cf390136d8e065193ca013f8",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "startup_order",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.552444000728428,
+                  "raw_manifest_sha256": "30fd032a4de9b27d0dda578faab71116239162494b8f5944df39f30ea7ed9d7e",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "terminal_zero",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.531460835132748,
+                  "raw_manifest_sha256": "666ecc1c2dbacc6b619eea1c654470b97428658a66ae40d014a4c297fe484103",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "terminal_capacity",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.481340219732374,
+                  "raw_manifest_sha256": "23a34a16cd9779076e63332ecd82a1f398e7d8b942366e07dfbb6e4383099e19",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "loss_stop",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 11.285107977222651,
+                  "raw_manifest_sha256": "05d7ff5e22cc295956d6fbf9b45a0c174075c0135808d6079842f790c40ed82f",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "queued_claim",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 11.23510799696669,
+                  "raw_manifest_sha256": "8984be0c6397849f31cf3d0b2ae0c0fa6b6cc8c43f168f9d1ed85aaa3b5de212",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "queued_claim_pool",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.627682655584067,
+                  "raw_manifest_sha256": "08353eb02af1b1494dd4289e3fa21560adae4609dda8a99aee9b180d7d9d05b0",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "replacement_outcome",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.346053583081812,
+                  "raw_manifest_sha256": "e74e51f2e541ec533c8f719887fb4219056dd6c42357d64c2ed6f317a4f0a00e",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "displaced_record",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.789117776788771,
+                  "raw_manifest_sha256": "4ebde6d83b53c301b7a45b6b15bdc9ea005d0134f107e74d7d539731b2f81b8f",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "lock_record_reset",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.214162385556847,
+                  "raw_manifest_sha256": "b20f84a941d483c8aec50a86df801b40bafe8343206b4537be41f41a8db94792",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                }
+              ]
+            },
+            "candidate_regressions": {
+              "count": 5,
+              "result_counts": {
+                "expected negative demonstration": 5
+              },
+              "exit_counts": {
+                "1": 5
+              },
+              "children": [
+                {
+                  "case": "w7_reporting",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 9.191589009948075,
+                  "raw_manifest_sha256": "e413d2c43e8033cc5abcfce1c5a04f84b4205710b8f9ad7daec81eef314ea5b8",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_parent_retirement",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 29.513798570260406,
+                  "raw_manifest_sha256": "fd08e1a5022865ef3df3257826e105de09a43e447f40acd2721171304558ea32",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_caller_grace",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 31.577027525752783,
+                  "raw_manifest_sha256": "07c314b94eee7f239198608bdc9fe044127d232ff3cafdebfa5a0a2252dbca31",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_coherent_rates",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 11.947311475407332,
+                  "raw_manifest_sha256": "0d76fb36632c9d12fdae955a49abc250cbb0f7f83968579497f938852daca479",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_expired_replay",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 13.981496558059007,
+                  "raw_manifest_sha256": "ccaf8c363998eb8d9756a927e2045071422461cbfc1d60c37328fda4a6048d54",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                }
+              ]
+            },
+            "release_assertion_sensitivity": {
+              "result": "pass",
+              "method": "synthetic records passed to actual failed_attempt_release helper",
+              "probes": [
+                {
+                  "checked_out": 0,
+                  "exit_status": 0,
+                  "result": "pass",
+                  "assertion": null,
+                  "application_release": [
+                    {
+                      "event": "w5_failed_attempt_release",
+                      "session": 101,
+                      "application_release": {
+                        "event": "transaction_resources_released",
+                        "transaction": 17,
+                        "session": 101,
+                        "component_available": 1,
+                        "pool_checked_out": 0,
+                        "discarded": false
+                      },
+                      "rollback": {
+                        "event": "transaction_rollback_acknowledged",
+                        "transaction": 17,
+                        "session": 101,
+                        "ready_status": 73
+                      },
+                      "server_end": {
+                        "event": "protocol_response",
+                        "session": 101,
+                        "command_tag": "ROLLBACK",
+                        "query": "ROLLBACK /* store transaction 17 */"
+                      },
+                      "release_before_backoff": true
+                    }
+                  ],
+                  "command": [
+                    "/nix/store/b5bpi6zfajzzrwwpgba2q6li3nnya4bs-python3-3.14.7/bin/python3",
+                    "-B",
+                    "tests/postgres/w5_release_control.py",
+                    "--checked-out",
+                    "0",
+                    "--evidence",
+                    "<private-evidence>/i4/iteration-corrected/harness/controls-2i5ppqgw/release-checkout-0.json"
+                  ]
+                },
+                {
+                  "checked_out": 1,
+                  "exit_status": 1,
+                  "result": "expected negative demonstration",
+                  "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+                  "application_release": null,
+                  "command": [
+                    "/nix/store/b5bpi6zfajzzrwwpgba2q6li3nnya4bs-python3-3.14.7/bin/python3",
+                    "-B",
+                    "tests/postgres/w5_release_control.py",
+                    "--checked-out",
+                    "1",
+                    "--evidence",
+                    "<private-evidence>/i4/iteration-corrected/harness/controls-2i5ppqgw/release-checkout-1.json"
+                  ]
+                },
+                {
+                  "checked_out": 2,
+                  "exit_status": 1,
+                  "result": "expected negative demonstration",
+                  "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+                  "application_release": null,
+                  "command": [
+                    "/nix/store/b5bpi6zfajzzrwwpgba2q6li3nnya4bs-python3-3.14.7/bin/python3",
+                    "-B",
+                    "tests/postgres/w5_release_control.py",
+                    "--checked-out",
+                    "2",
+                    "--evidence",
+                    "<private-evidence>/i4/iteration-corrected/harness/controls-2i5ppqgw/release-checkout-2.json"
+                  ]
+                },
+                {
+                  "checked_out": 3,
+                  "exit_status": 1,
+                  "result": "expected negative demonstration",
+                  "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+                  "application_release": null,
+                  "command": [
+                    "/nix/store/b5bpi6zfajzzrwwpgba2q6li3nnya4bs-python3-3.14.7/bin/python3",
+                    "-B",
+                    "tests/postgres/w5_release_control.py",
+                    "--checked-out",
+                    "3",
+                    "--evidence",
+                    "<private-evidence>/i4/iteration-corrected/harness/controls-2i5ppqgw/release-checkout-3.json"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "steps": [
+      {
+        "command_shell": "bash tools/check.sh",
+        "exit_status": 0,
+        "wall_seconds": 40
+      },
+      {
+        "command_shell": "python3 -m unittest discover -s tests/postgres -p test_\\*.py",
+        "exit_status": 0,
+        "wall_seconds": 2
+      },
+      {
+        "command_shell": "python3 tests/postgres/harness.py --phase iteration --jobs 3 --seed 20261124 --evidence <private-evidence>/i4/iteration-corrected/iteration.json",
+        "exit_status": 0,
+        "wall_seconds": 468
+      }
+    ]
+  },
+  "known_timing_class_reruns_used": 1,
+  "known_timing_class_reruns_allowed": 1,
+  "canonical_once": {
+    "kind": "canonical",
+    "command": [
+      "nix",
+      "develop",
+      "--command",
+      "bash",
+      "tools/postgres.sh",
+      "--jobs",
+      "1",
+      "--seed",
+      "20261124",
+      "--evidence",
+      "<private-evidence>/i4/canonical/canonical.json"
+    ],
+    "wrapper": [
+      "timeout",
+      "3300"
+    ],
+    "cwd": "<product-checkout>",
+    "commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+    "source_tree": "b80eda2db8b86099e9079b6d7f353a298315d90f",
+    "selected_environment": {
+      "CARGO_HOME": "<private-driver>/cargo-home",
+      "CARGO_TARGET_DIR": "<private-evidence>/i4/canonical/gate-target",
+      "CARGO_BUILD_JOBS": "2",
+      "CARGO_NET_OFFLINE": "true",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PROVISIOND_HARNESS_ROOT": "<private-evidence>/i4/canonical/harness",
+      "PROVISIOND_HARNESS_UNIT": "fastlane-kin-i4-canonical.service",
+      "PROVISIOND_HARNESS_PORT_BASE": "25500",
+      "TMPDIR": "<private-temp>"
+    },
+    "started_utc": "2026-11-24T17:59:28.128115+00:00",
+    "exit_status": 0,
+    "wall_seconds": 1831.510351548437,
+    "finished_utc": "2026-11-24T18:29:59.638631+00:00",
+    "head_unchanged": true,
+    "worktree_clean": true,
+    "raw_hashes": {
+      "result.json": "dee0791fa2bbc7b3372327fc0384eeed84d51f0c74a13a74666ec5950c88e20c",
+      "stdout": "8e24d8e2ad56aee7d9c3f8754aed338766c046783b958222833712bd4b66280f",
+      "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit": "f06fd0e1f74806d9fe5629b304faf9c73efacdcf1e45c4f51a25a7d2c7a015e8"
+    },
+    "manifest": {
+      "result": "pass",
+      "raw_manifest_sha256": "23574c2b43a3956ea093f716724b7e73f4a5e8452bdd79ee4e8f95aa0af0178d",
+      "jobs": 1,
+      "phases": [
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "w1",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/canonical/canonical-w1.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 6.9627167521975935,
+          "path": "<private-evidence>/i4/canonical/canonical-w1.json",
+          "phase": "w1",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "9b1856a5c591fcf1901c3bca9cfa46ad4c9854ee287bd0a4866c145fee69d058",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 3
+            },
+            "nonpass_rows": [],
+            "enrolment_retry_rows": [],
+            "cleanup": {
+              "count": 1,
+              "result_counts": {
+                "pass": 1
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "checks",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/canonical/canonical-checks.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 30.294051405973732,
+          "path": "<private-evidence>/i4/canonical/canonical-checks.json",
+          "phase": "checks",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "5a8782d88cda8fb36e5172b12a97eea6bc17589e47fef63ed2eb1b658c43c3b1",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 13
+            },
+            "nonpass_rows": [],
+            "enrolment_retry_rows": [],
+            "cleanup": {
+              "count": 1,
+              "result_counts": {
+                "pass": 1
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "commits",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/canonical/canonical-commits.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 19.278271602932364,
+          "path": "<private-evidence>/i4/canonical/canonical-commits.json",
+          "phase": "commits",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "0b1fd90adc24238812dafbff4a0a1ed5c261c6af105070864c2eeb4a25d0da7f",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 13,
+              "expected negative demonstration": 2,
+              "not run": 1
+            },
+            "nonpass_rows": [
+              {
+                "test": "retention-defect-control",
+                "result": "expected negative demonstration",
+                "exit_status": 42,
+                "assertion": "original write checkout retained",
+                "establishes": "exact same green retention assertion detects original-checkout loss after observed SyncRep"
+              },
+              {
+                "test": "warning-defect-control",
+                "result": "expected negative demonstration",
+                "exit_status": 43,
+                "assertion": "replication warning must not acknowledge",
+                "diagnostic": {
+                  "detail": "The transaction has already committed locally, but might not have been replicated to the standby.",
+                  "event": "driver_notice",
+                  "message": "canceling wait for synchronous replication due to user request",
+                  "severity": "WARNING",
+                  "sqlstate": "01000"
+                },
+                "establishes": "actual driver warning plus COMMIT completion; intentional defect fails exact assertion"
+              },
+              {
+                "test": "DB-10",
+                "result": "not run",
+                "reason": "full capacity/saturation/retry/recovery is W8"
+              }
+            ],
+            "enrolment_retry_rows": [],
+            "cleanup": {
+              "count": 1,
+              "result_counts": {
+                "pass": 1
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "regressions",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/canonical/canonical-regressions.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 13.381153699941933,
+          "path": "<private-evidence>/i4/canonical/canonical-regressions.json",
+          "phase": "regressions",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "8c76eb4c6a18d3e003550bc7aa90819765b5bdda4a596723257d0f2c7a959567",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 9
+            },
+            "nonpass_rows": [],
+            "enrolment_retry_rows": [],
+            "cleanup": {
+              "count": 1,
+              "result_counts": {
+                "pass": 1
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "corrections",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/canonical/canonical-corrections.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 9.879772336222231,
+          "path": "<private-evidence>/i4/canonical/canonical-corrections.json",
+          "phase": "corrections",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "d71d896d5376a4695a82092c4e414f0571482e4aed52fe7cd6abc2c062a22ce4",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 8
+            },
+            "nonpass_rows": [],
+            "enrolment_retry_rows": [],
+            "cleanup": {
+              "count": 1,
+              "result_counts": {
+                "pass": 1
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "core",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/canonical/canonical-core.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 67.58537577604875,
+          "path": "<private-evidence>/i4/canonical/canonical-core.json",
+          "phase": "core",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "3cb09a62ba53792f2b94ac2d17c69c9b621bf5336898e47dcc9e0854d068dd8d",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 36,
+              "not run": 3
+            },
+            "nonpass_rows": [
+              {
+                "test": "ENG-05",
+                "result": "not run",
+                "reason": "covered in the dedicated W6 phase, not this store-only phase"
+              },
+              {
+                "test": "ENG-07",
+                "result": "not run",
+                "reason": "dedicated replication-freeze stop-record drill belongs to later work"
+              },
+              {
+                "test": "DB-10",
+                "result": "not run",
+                "reason": "W8 deployment-wide saturation"
+              }
+            ],
+            "enrolment_retry_rows": [],
+            "cleanup": {
+              "count": 1,
+              "result_counts": {
+                "pass": 1
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "workflow",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/canonical/canonical-workflow.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 239.04945032903925,
+          "path": "<private-evidence>/i4/canonical/canonical-workflow.json",
+          "phase": "workflow",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "d2c196d2601101ea8c218bb38985be80d63e5a7302e81a915d2b878733c6a6e5",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 85
+            },
+            "nonpass_rows": [],
+            "enrolment_retry_rows": [
+              {
+                "test": "W4-enrolment-limits-TTL-orphan",
+                "result": "pass"
+              },
+              {
+                "test": "W4-enrolment-pacing-no-delay-oracle",
+                "result": "pass"
+              },
+              {
+                "test": "W4-enrolment-pre-BEGIN-busy-retry",
+                "result": "pass"
+              }
+            ],
+            "cleanup": {
+              "count": 1,
+              "result_counts": {
+                "pass": 1
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "default-workflow",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/canonical/canonical-default-workflow.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 7.435355033259839,
+          "path": "<private-evidence>/i4/canonical/canonical-default-workflow.json",
+          "phase": "default-workflow",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "d433ff0a819d1c9b2a45fbfe4001afa9a734aa4f3d5a636de8a5a3619122629a",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 2
+            },
+            "nonpass_rows": [],
+            "enrolment_retry_rows": [],
+            "cleanup": {
+              "count": 1,
+              "result_counts": {
+                "pass": 1
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "w5",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/canonical/canonical-w5.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 94.38125408999622,
+          "path": "<private-evidence>/i4/canonical/canonical-w5.json",
+          "phase": "w5",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "ded70f10dfd967c79aa112ac60b8666c8a79cda5d0613c1b0cea3ef2a49c42f4",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 30
+            },
+            "nonpass_rows": [],
+            "enrolment_retry_rows": [],
+            "cleanup": {
+              "count": 1,
+              "result_counts": {
+                "pass": 1
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "w6",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/canonical/canonical-w6.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 603.874230934307,
+          "path": "<private-evidence>/i4/canonical/canonical-w6.json",
+          "phase": "w6",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "1bf2ca17b8e34ac7e073e9b567b2e2bee783370992194f6c0d347b56840be3d7",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 54,
+              "not run": 1
+            },
+            "nonpass_rows": [
+              {
+                "test": "OPS-41-no-rate-steps-4-5",
+                "result": "not run",
+                "reason": "path stopped before fence/provider call; deferred follow-on owner"
+              }
+            ],
+            "enrolment_retry_rows": [],
+            "cleanup": {
+              "count": 1,
+              "result_counts": {
+                "pass": 1
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "w7",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/canonical/canonical-w7.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 321.2082213596441,
+          "path": "<private-evidence>/i4/canonical/canonical-w7.json",
+          "phase": "w7",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "df851efaa22e888b52201dd25aaa261caefd575bf4a2a7abeb677feb9daceb15",
+            "implementation_commit": "70d86db89da633e17cbfc28d44dd7ec41f27009b",
+            "specification_commit": "ac37c7cae5d3ff746515137774a4cdd5a3531375",
+            "tested_source_sha256": "5d7360ce21834de129dbdca2fac77b4dd270e686f7304078fb8ea3493714cebc",
+            "source_dirty": false,
+            "scenario_counts": {
+              "pass": 21
+            },
+            "nonpass_rows": [],
+            "enrolment_retry_rows": [],
+            "cleanup": {
+              "count": 22,
+              "result_counts": {
+                "pass": 22
+              },
+              "errors": []
+            }
+          }
+        },
+        {
+          "command": [
+            "python3",
+            "tests/postgres/harness.py",
+            "--phase",
+            "controls",
+            "--seed",
+            "20261124",
+            "--evidence",
+            "<private-evidence>/i4/canonical/canonical-controls.json"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 353.8616677992977,
+          "path": "<private-evidence>/i4/canonical/canonical-controls.json",
+          "phase": "controls",
+          "result": "pass",
+          "manifest": {
+            "result": "pass",
+            "raw_manifest_sha256": "91e7b67a73cc0c5a7b4d58ba3b83d11e5918eef167ca524b10256596b51e9ed2",
+            "controls": {
+              "count": 44,
+              "result_counts": {
+                "expected negative demonstration": 44
+              },
+              "exit_counts": {
+                "1": 44
+              },
+              "children": [
+                {
+                  "case": "w7_retry_reset",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 9.55485017830506,
+                  "raw_manifest_sha256": "0b3a3d037059dd86ade3f7e41d0d8f08aa210ec780a0befba297ee1700f3e3bc",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_lossless_restart",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 10.476690876297653,
+                  "raw_manifest_sha256": "ac593b65941a8b07fd54e7d2a13742d2b5068f241b78beced842da1d3bc45419",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_no_ack",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.782850016839802,
+                  "raw_manifest_sha256": "867503c9803dc24f24114b2fda040f90f5e76763538b0ee8d00a1d94f84529bb",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_supersession_inherits",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 16.047328515909612,
+                  "raw_manifest_sha256": "8ff4958b0324f5c5c74e38434fcff607937b78a6f601939f10031c17de75cd5f",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_finite_guess",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 9.718386388383806,
+                  "raw_manifest_sha256": "7c80001db0632325b29a5a71f3b273e34c966d9a2d6c6845bb47217eaf0eda49",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w6_blind_repeat",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.66462545376271,
+                  "raw_manifest_sha256": "c1cdc9630d25d286e3e87fa4e05755fb2a8cd27d5ad83ce06eef21ce68154995",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w6_non_exact",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.201068854890764,
+                  "raw_manifest_sha256": "bc69502653e6afc93aa3099d1ba9c0b61f4cd0d947feee451f6e04a88329eee9",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w6_release_timeout",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.06083125108853,
+                  "raw_manifest_sha256": "37448e94e94606dadf98c3288c1e053d02fa02bdc077bb68435a5c5a08ab0ec6",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w6_skip_startup",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.091214592102915,
+                  "raw_manifest_sha256": "feafdcfeee52bb219aa908aa73a5124a28760d937121d63e17cc63d2e7453072",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_observer_run",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.1552329058758914,
+                  "raw_manifest_sha256": "a3df6264c0d2eef8d57fda111dc8e4200a4d89cae8e20f9a4ab4963bb4b00e3a",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_stop_reset",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.644323200918734,
+                  "raw_manifest_sha256": "31921b17fd374eadf388bdec8bab0b948af871614b4583982e1730d45093a373",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_generation",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.683672750834376,
+                  "raw_manifest_sha256": "06a88d215d886679e9df255ce138b372dc1aef0448c5efffabf143f3accf2dd0",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_checkout",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.152933050878346,
+                  "raw_manifest_sha256": "ebbcf7a94b15ecaf9a235119abafa2b40c0ec369380c850ca152d23e1b84947d",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w5_blind_retry",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.499725228175521,
+                  "raw_manifest_sha256": "b4d841c59e731f2b71c5bd8317bf5a37bbeacba1cc6fb1f32ff9d6eb3b1aad3f",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w4_atomic",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.911225654184818,
+                  "raw_manifest_sha256": "9943226dc3e5e2ec1353706fa81ad55ea04b47736eb65899a49cab7d2deb0caf",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w4_ack",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.95063770795241,
+                  "raw_manifest_sha256": "187d3c5c64627b5bf3809939db0dbf6fe16486690cb85cba7cd4fd93a7fec36b",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w4_overload",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 15.011430142913014,
+                  "raw_manifest_sha256": "b74cd163ecc4fcf59c886eb2bb194c368b8c2bdd2af60fe064a83ef0fa990cb4",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "execute_cancel",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 4.871659075841308,
+                  "raw_manifest_sha256": "e53819e1717d4fe125190ec6757f35734eb3c53fd741f2322f577ac7b9c28033",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "checkout",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.28725263196975,
+                  "raw_manifest_sha256": "b4ce6a9f8a70561af38bbe1265402e6d9dc8dee87e86cb5a2ed22b94a5bee0fb",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "caller_sql",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 3.844282053411007,
+                  "raw_manifest_sha256": "9f78304bbb4f251f11e3e6d5c3a7cc7d91fe0dd07f76b9596e5265ac5e8b16d8",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "commit_setting",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 3.8553203027695417,
+                  "raw_manifest_sha256": "c1cfffe0794f25db9a67258dc7ec187f2907aa7bfe1fdecab9ed126ef7493dd0",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "notices",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 3.833439444191754,
+                  "raw_manifest_sha256": "efa991fffe73a645af7494a54fec06e8d3868ed53f14406de7cfd8106fb16dc9",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "notice_sticky",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 3.8628544667735696,
+                  "raw_manifest_sha256": "f414573ba636c7bfa19d4847397b58da6d34f33edacf71920c597d4b1fcc9089",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "verify_cancel",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.709194493014365,
+                  "raw_manifest_sha256": "4b5b3a377a96ad9ab8df803ca7e33d7a74ccf076dcae5796a5277d0af8785928",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "generation",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.56709698215127,
+                  "raw_manifest_sha256": "ff20631b6cf12db0e9351b18400c7b3c9c0efe1ede59789a3673f8f62be62187",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "claim_guard",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.835290102753788,
+                  "raw_manifest_sha256": "20d8a87efa77e57f976a95a5fe18ad1de35f9daa0f2cfcb06f14b06c5c3621a0",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "payment_atomic",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.401374886743724,
+                  "raw_manifest_sha256": "606b3b1eae0cf1bf3cda0c0cc25f5cfec1d2071edd91d31e67e66c51db93c943",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "claim_cancel",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.253013846930116,
+                  "raw_manifest_sha256": "165836dd9721adeba1a26e35cc411ed6a3b95dcd77828f633b43722f91724d70",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "defer_cancel",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.51536979386583,
+                  "raw_manifest_sha256": "011f3b15f1c87ca052ed2e698e7dbdca92c7e92f3b0febb7d8a4dc51c898403e",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "licensing_stop",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.54779051290825,
+                  "raw_manifest_sha256": "082661b3cb7247c42c41653aa9c1e697569373dec2449dfbafef8124ecb339d4",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "outcome_stop",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.534139158669859,
+                  "raw_manifest_sha256": "9567d0f3a98c835054e002d931935f78adb350f926b9eac5a4e32495c8723760",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "deadline",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.8904753271490335,
+                  "raw_manifest_sha256": "6177f7a70f9282b2e14046ede52d33b39cddb4a05e4aac2f3bfc5fa5ced6c459",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "lock_observers",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.071505889296532,
+                  "raw_manifest_sha256": "7abd57944b13c6b1bffd273f29321955001538b59d4ac2af593322f2a7af0d52",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "surface",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.326840990688652,
+                  "raw_manifest_sha256": "fa95d1d0b7076e1b7368acaf224513819d73b2892830b067e7fb6d4bf658cf6c",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "predispatch",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.5944322953000665,
+                  "raw_manifest_sha256": "6d938b981576233fa55f164836a37a431c1fc0916ea3e0077d30e32d44140f95",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "startup_order",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.529856977984309,
+                  "raw_manifest_sha256": "89e92f4c00dd11a682b939967f8c9101d6ee0c9f6b9964464d607577ed65e4c8",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "terminal_zero",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.67974862921983,
+                  "raw_manifest_sha256": "ac3d6238bca28b0b2ec25869b38b45f7996b163e921845300ef7183cc2f12d21",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "terminal_capacity",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.2832470391877,
+                  "raw_manifest_sha256": "bb98c8b9ac849c1b158dedd487961dd376f886410b36fabc76f16c51aaeead51",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "loss_stop",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.941516349092126,
+                  "raw_manifest_sha256": "bbb5b94f7fe04a0f37172e2aaa44086c24a3fafbd086206c8a8a31e86a7d9b34",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "queued_claim",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.01878854399547,
+                  "raw_manifest_sha256": "a0d0aa0aae982efb879376084faba907161f2bd3a820a7cfb3be62bb81fdcb03",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "queued_claim_pool",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.2006983160972595,
+                  "raw_manifest_sha256": "2701f6d3ca022742cd1563f95b88095e0282ed25d076e211df4edd24ad618bab",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "replacement_outcome",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 5.797151411883533,
+                  "raw_manifest_sha256": "5da9bd9e0e9424db4b69f1a2b72e7c93e15b85ae7f5964cc5377d5f8d906c944",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "displaced_record",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.605173351243138,
+                  "raw_manifest_sha256": "1b0be97edb5e3eb4943b866ce06f34cf31a24d0b03c50b9f9eb1ab8d19b23baa",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "lock_record_reset",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 6.187315444927663,
+                  "raw_manifest_sha256": "8e03057e20058ae45fc10549044153cd38f8954811912baf3247aee0c687aeda",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                }
+              ]
+            },
+            "candidate_regressions": {
+              "count": 5,
+              "result_counts": {
+                "expected negative demonstration": 5
+              },
+              "exit_counts": {
+                "1": 5
+              },
+              "children": [
+                {
+                  "case": "w7_reporting",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 8.009457487147301,
+                  "raw_manifest_sha256": "b44915116d2c445edba5f04a438af6b631cb93fb8902ef71d80dd8edab3c48c6",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_parent_retirement",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 12.150629756972194,
+                  "raw_manifest_sha256": "c8506d20a311dd26996638e3c914b3b3cf98c44930ff028c602bb83ba814d3a0",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_caller_grace",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 14.037466429173946,
+                  "raw_manifest_sha256": "f1f2f24158ade6b92a5ec428cfaa4079bec0210d21daff2de3ca11a97c62f559",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_coherent_rates",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 7.112887239083648,
+                  "raw_manifest_sha256": "b39bf510899af525bc758a909fbc372e56ba4382f94b5a4f07483ca5d7e633de",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                },
+                {
+                  "case": "w7_expired_replay",
+                  "result": "expected negative demonstration",
+                  "exit_status": 1,
+                  "wall_seconds": 14.177618789020926,
+                  "raw_manifest_sha256": "874df83cc44a987b0fd9fe07c989c81d460841d9c5912dea51261dc3c56be3f1",
+                  "cleanup_count": 1,
+                  "cleanup_result_counts": {
+                    "pass": 1
+                  },
+                  "cleanup_errors": []
+                }
+              ]
+            },
+            "release_assertion_sensitivity": {
+              "result": "pass",
+              "method": "synthetic records passed to actual failed_attempt_release helper",
+              "probes": [
+                {
+                  "checked_out": 0,
+                  "exit_status": 0,
+                  "result": "pass",
+                  "assertion": null,
+                  "application_release": [
+                    {
+                      "event": "w5_failed_attempt_release",
+                      "session": 101,
+                      "application_release": {
+                        "event": "transaction_resources_released",
+                        "transaction": 17,
+                        "session": 101,
+                        "component_available": 1,
+                        "pool_checked_out": 0,
+                        "discarded": false
+                      },
+                      "rollback": {
+                        "event": "transaction_rollback_acknowledged",
+                        "transaction": 17,
+                        "session": 101,
+                        "ready_status": 73
+                      },
+                      "server_end": {
+                        "event": "protocol_response",
+                        "session": 101,
+                        "command_tag": "ROLLBACK",
+                        "query": "ROLLBACK /* store transaction 17 */"
+                      },
+                      "release_before_backoff": true
+                    }
+                  ],
+                  "command": [
+                    "/nix/store/b5bpi6zfajzzrwwpgba2q6li3nnya4bs-python3-3.14.7/bin/python3",
+                    "-B",
+                    "tests/postgres/w5_release_control.py",
+                    "--checked-out",
+                    "0",
+                    "--evidence",
+                    "<private-evidence>/i4/canonical/harness/controls-egcms40b/release-checkout-0.json"
+                  ]
+                },
+                {
+                  "checked_out": 1,
+                  "exit_status": 1,
+                  "result": "expected negative demonstration",
+                  "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+                  "application_release": null,
+                  "command": [
+                    "/nix/store/b5bpi6zfajzzrwwpgba2q6li3nnya4bs-python3-3.14.7/bin/python3",
+                    "-B",
+                    "tests/postgres/w5_release_control.py",
+                    "--checked-out",
+                    "1",
+                    "--evidence",
+                    "<private-evidence>/i4/canonical/harness/controls-egcms40b/release-checkout-1.json"
+                  ]
+                },
+                {
+                  "checked_out": 2,
+                  "exit_status": 1,
+                  "result": "expected negative demonstration",
+                  "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+                  "application_release": null,
+                  "command": [
+                    "/nix/store/b5bpi6zfajzzrwwpgba2q6li3nnya4bs-python3-3.14.7/bin/python3",
+                    "-B",
+                    "tests/postgres/w5_release_control.py",
+                    "--checked-out",
+                    "2",
+                    "--evidence",
+                    "<private-evidence>/i4/canonical/harness/controls-egcms40b/release-checkout-2.json"
+                  ]
+                },
+                {
+                  "checked_out": 3,
+                  "exit_status": 1,
+                  "result": "expected negative demonstration",
+                  "assertion": "OPS-49 failed attempt must release its original write checkout before backoff",
+                  "application_release": null,
+                  "command": [
+                    "/nix/store/b5bpi6zfajzzrwwpgba2q6li3nnya4bs-python3-3.14.7/bin/python3",
+                    "-B",
+                    "tests/postgres/w5_release_control.py",
+                    "--checked-out",
+                    "3",
+                    "--evidence",
+                    "<private-evidence>/i4/canonical/harness/controls-egcms40b/release-checkout-3.json"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "scenario_counts_excluding_controls": {
+        "pass": 274,
+        "expected negative demonstration": 2,
+        "not run": 5
+      }
+    }
+  },
+  "port_profile_comparison": {
+    "result": {
+      "changed_setting_only": "PROVISIOND_HARNESS_PORT_BASE",
+      "test_file_identical_to_c5045df": true,
+      "runs": [
+        {
+          "command": [
+            "nix",
+            "develop",
+            "--command",
+            "python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests/postgres",
+            "-p",
+            "test_ports.py",
+            "-k",
+            "test_runner_refuses_overlap_before_build_or_reservation",
+            "-v"
+          ],
+          "port_base": "25500",
+          "exit_status": 0,
+          "wall_seconds": 0.21451024990528822
+        },
+        {
+          "command": [
+            "nix",
+            "develop",
+            "--command",
+            "python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests/postgres",
+            "-p",
+            "test_ports.py",
+            "-k",
+            "test_runner_refuses_overlap_before_build_or_reservation",
+            "-v"
+          ],
+          "port_base": "25900",
+          "exit_status": 1,
+          "wall_seconds": 0.21464142203330994
+        }
+      ]
+    },
+    "raw_result_sha256": "77b37e576057ab97f317e15fb5728227d00c0a71a60e6c5eccc635d2acb00b91",
+    "conclusion": "Only the preexisting port unit failure was caused by the nondefault selected base. The comparison does not establish the cause of the separate W7 checkout deadline or prove a port change fixed that timing failure.",
+    "retained_setup_failures": [
+      "port-profile: import failed before assertions",
+      "port-profile-b: missing Cargo.toml working directory before assertions"
+    ],
+    "followup": "pvr-q4o (preexisting, deduplicated; unchanged)"
+  },
+  "new_regression_canonical_rows": [
+    {
+      "test": "W4-enrolment-pre-BEGIN-busy-retry",
+      "result": "pass"
+    }
+  ],
+  "publication": "Selected manifest fields, counts and raw hashes; checkout/private artifact paths normalized. Full raw streams remain private. Focused red/green and live statuses are independent evidence in sibling JSON files.",
+  "limits": [
+    "Only the one post-admission configuration recovery arm was driven live; separate startup acquisition failure was not run.",
+    "Local prototype and simulators only. No production capacity, guarantee, real provider dispatch, purchase, funds, promotion or history replacement.",
+    "Previous W8 failed canonical runs and separate W5 pass remain historical and unchanged.",
+    "P2/P3 findings are deferred to separate beads; pvr-31s was not changed."
+  ]
+}
