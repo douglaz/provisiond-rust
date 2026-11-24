@@ -15,7 +15,9 @@ follow-up passed. [Validation](../evidence/w8/validation.json) retains both resu
    export ENGINE_EVENTS="$HOME/.local/state/provisiond/local-engine-events.jsonl"
    export API_EVENTS="$HOME/.local/state/provisiond/local-api-events.jsonl"
    export APP_ROLE=app
-   export PROVISIOND_APPLICATION_ROLES="$APP_ROLE"
+   # Local default; preserve an explicitly configured deployment inventory.
+   export PROVISIOND_APPLICATION_ROLES="${PROVISIOND_APPLICATION_ROLES-$APP_ROLE}"
+   # For multiple logins, for example: export PROVISIOND_APPLICATION_ROLES=app,worker
    # Set NEW_RELEASE to the installed release directory containing bin/.
    # Set APP_ENV and MIGRATOR_ENV to private shell-compatible KEY=value files.
    # Set OPERATOR_DATABASE_URL to the bootstrap administrator connection.
@@ -43,6 +45,9 @@ follow-up passed. [Validation](../evidence/w8/validation.json) retains both resu
    login identities for **all** components (including recovery), not a group role. The local
    bootstrap has only `app`. Other login aliases, jobs or role memberships capable of application
    writes must be included and stopped; the deployment owns the completeness of this inventory.
+   `APP_ROLE` selects one login for the administrative SQL in steps 3, 4 and 6; repeat
+   those commands for each inventory login. Keep the complete `PROVISIOND_APPLICATION_ROLES`
+   inventory in the parent shell throughout the procedure.
    Exclude the operator, migrator and replication identities. Freeze role/login administration
    until migration finishes. No new bootstrap grants are needed.
    `PRIMARY_SERVER_OPTIONS` and `STANDBY_SERVER_OPTIONS` preserve the original ports,
@@ -126,14 +131,16 @@ follow-up passed. [Validation](../evidence/w8/validation.json) retains both resu
    This visibility was exercised in the [W8 local offline release](../evidence/w8/live.json); final canonical core passed; [validation](../evidence/w8/validation.json) records the overall canonical failure and separate W5 pass.
 
 5. **Run the new release's migration and require exit 0.** The subshell keeps application and
-   migration identities separate:
+   migration identities separate and preserves the parent's complete deployment inventory
+   across sourcing the migrator configuration (STO-13):
 
    ```sh
    (
+     readonly deployment_application_roles="${PROVISIOND_APPLICATION_ROLES:?}"
      set -a
      . "$MIGRATOR_ENV"
      set +a
-     export PROVISIOND_APPLICATION_ROLES="$APP_ROLE"
+     export PROVISIOND_APPLICATION_ROLES="$deployment_application_roles"
      "$NEW_RELEASE/bin/migrate"
    )
    ```
