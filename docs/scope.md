@@ -614,7 +614,9 @@ The same PID/start time/invocation with zero restarts completed one restart pass
 COMMIT and 53 ordinary polls spanning 1.025000095 seconds. Provider/rail requests and state and
 business rows stayed empty. The [report](../evidence/startup/report.md) distinguishes native
 server timestamps from driver receipt times and binds retained private artifacts. This is only
-engine startup recovery: no repeat-provider proof, production tuning, general availability or
+a local policy observation of D-70's engine startup recovery, recorded in D-72. It reuses the existing
+OPS-49 retry bound without demonstrating its worker/periodic store-call retry mandate. No
+repeat-provider proof, production tuning, general availability or
 whole OPS-47/49/21 demonstration. Primary shutdown fallback, sent-COMMIT ownership, generation
 fencing and all existing bounds remain unchanged.
 

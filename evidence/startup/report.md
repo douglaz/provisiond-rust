@@ -39,9 +39,12 @@ at final-inputs. The recorded build and live run preceded publication; required 
 
 ## Observed startup boundary
 
-This arm exercises `Engine::begin_startup` under
-[OPS-49](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1968),
-within unchanged [OPS-47](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L135)
+This arm observes `Engine::begin_startup`'s existing local startup policy from
+[D-70](../../docs/decisions.md#d-70-offline-release-declarations-and-bounded-local-saturation-policy),
+recorded in [D-72](../../docs/decisions.md#d-72-observed-startup-recovery-after-a-short-refusal-of-new-connections).
+It reuses the existing [OPS-49](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1968)
+retry bound; this startup observation does not demonstrate OPS-49's worker/periodic store-call retry
+mandate. The policy remains within unchanged [OPS-47](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L135)
 and [STO-55](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/05-persistence.md#L291)
 constraints. An ordinary preopened operator transaction held the generation row until the
 engine held its startup lock and opened its dedicated generation session. A planned short
@@ -109,3 +112,9 @@ Commands ran in the clean detached tested source, with `PROVISIOND_HARNESS_PORT_
 | `nix develop --command bash tools/postgres.sh --jobs 1 --seed 20261124 --evidence <private-evidence>/validation/canonical-a1/canonical.json` | 1 | 2044.788749327 |
 
 Recorded non-control scenario rows: 263 pass, 2 expected negative demonstration, 2 not run, 1 fail. These are recorded rows, not a count of unexecuted later core arms. Full stdout/stderr, original native failed verdicts and child manifests remain retained and hash-bound. The live cleanup passed; the separate core cleanup verdict remains failed.
+
+## Attribution correction validation
+
+The attribution-only correction separately ran the iteration check on the same unchanged operational bytes: exit 0 / 575.560000174 seconds at port base 25500, first attempt, no rerun. The original failed canonical was not rerun; its failures and unrun checks remain unchanged.
+
+The new attribution distinguishes D-70/D-72 local startup policy from OPS-49’s worker/periodic-engine mandate; no behavior, requirement or check was changed. Exact commands, statuses, times and raw bindings are in [validation.json](validation.json).

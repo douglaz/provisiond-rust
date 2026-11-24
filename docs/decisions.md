@@ -2126,9 +2126,11 @@ outage guarantee, automatic failover, history change or accepted-profile change 
 
 ### D-72. Observed startup recovery after a short refusal of new connections
 
-**Measured local prototype (2026-11-24), engine-only startup arm.**
-[OPS-49](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1968)
-owns `Engine::begin_startup`'s bounded acquisition retry, within unchanged
+**Measured local prototype (2026-11-24), engine-only local policy observation.**
+D-70 selected `Engine::begin_startup`'s bounded acquisition retry as a local startup policy,
+reusing the existing [OPS-49](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1968)
+retry bound. OPS-49 mandates retries for worker and periodic-engine store calls; this startup
+observation does not demonstrate that mandate. The policy remains within unchanged
 [OPS-47](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L135)
 and [STO-55](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/05-persistence.md#L291)
 constraints. This supersedes only the current startup-acquisition `not run` statements in
@@ -2168,6 +2170,8 @@ zero; operations, providers and tenants stayed empty. This demonstrates only loc
 with no repeat-provider proof, production tuning, general availability or whole OPS-47/49/21 claim.
 Primary shutdown fallback and all other existing limits remain unchanged. The [required validation](../evidence/startup/validation.json) ran against clean master dc772365, whose runtime, test, tool, migration and deployment bytes match this publication. The first iteration passed, exit 0 / 546.696320233 seconds, at port base 25500 with no rerun. The one serial canonical invocation failed, exit 1 / 2044.788749327 seconds: all twelve phase processes completed, ten passed; core and controls failed. Core stopped before its planned generation-reply check. Its engine_start probe met a pre-lock checkout deadline; the later planned reply event never occurred. Core also recorded a failed cleanup verdict for the unexpected exit 71. The intended check and later core arms are not run, never pass; P2 pvr-wlm tracks the fixture investigation. Controls rejected w6_non_exact at a different assertion from its required no-attachment assertion, with passing child cleanup; P2 pvr-aqm tracks that investigation. W5 and W6 passed in this invocation. No canonical rerun, product correction or pvr-31s change is claimed.
 
+The attribution-only correction separately ran the iteration check on the same unchanged operational bytes: exit 0 / 575.560000174 seconds at port base 25500, first attempt, no rerun. The original failed canonical was not rerun; its failures and unrun checks remain unchanged. See [validation](../evidence/startup/validation.json).
+
 ### D-6 provisional W2 parameters — measured local prototype
 
 D-6 is **settled for the measured local prototype only**. The [live journey](../evidence/w8/live.json)
@@ -2205,7 +2209,7 @@ not outage guarantees.
 | Store timeouts | STO-7, STO-55 | statement 1000 ms; lock 500 ms; idle transaction 1000 ms |
 | API read/write concurrency | STO-55 | one checkout in each ordinary pool |
 | Engine worker concurrency | STO-55 | three retained worker permits and three write checkouts; one compatibility read checkout; startup lock and one read-only accounting observer outside pools |
-| Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms; backoff 10 ms; D-71 [configuration evidence](../evidence/kin/live.json): actual 55P03, rollback, one whole-transaction retry spent 500 ms, acknowledged COMMIT and 71 polls in 1 s without restart; D-72 [startup evidence](../evidence/startup/live.json): native 53300 after generation COMMIT, startup checkout retries spent 2/16 ms, role limit restored after 47.515952 ms restriction / 16.109659 ms after first observation, one restart pass and configuration COMMIT, 53 polls spanning 1.025000095 s in the same process; empty local startup arm only |
+| Startup wait / Store retry | OPS-15; OPS-49 worker/periodic retry; D-70/D-72 local startup policy | 500 ms / 2000 ms; backoff 10 ms; D-71 [configuration evidence](../evidence/kin/live.json): actual 55P03, rollback, one whole-transaction retry spent 500 ms, acknowledged COMMIT and 71 polls in 1 s without restart; D-72 [startup evidence](../evidence/startup/live.json): native 53300 after generation COMMIT, startup checkout retries spent 2/16 ms, role limit restored after 47.515952 ms restriction / 16.109659 ms after first observation, one restart pass and configuration COMMIT, 53 polls spanning 1.025000095 s in the same process; empty local startup arm only, reusing the existing bound without demonstrating OPS-49's worker/periodic mandate |
 | Pool checkout bound | STO-55 | 250 ms; request refusal 503 overloaded, retryable, retry_after_ms=250; no business transaction or refusal receipt |
 | Local customer resend | STO-55, DOM-17, API-33/40, WIR-12 | D-71: request checkout 250 ms; body hint 250 ms / header 1 s; [live](../evidence/kin/live.json) actual resend delay 1.077288216 s, 503→200; targeted script exactly two sends (one resend), plus separate used-code 400 check; ordinary fixture budget 3; historical W8 client budget 4 remains historical, not a measured loop in this targeted run; no production selection |
 | Connection-exhaustion alarm threshold | STO-55, OVR-18 | D-70: independent read/write failure streak 2000 ms; fatal service/startup failure immediate (0 ms) |
