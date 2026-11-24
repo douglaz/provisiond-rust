@@ -2017,7 +2017,8 @@ Enrolment overload is equally retryable; the server does not implement a client 
 At D-70 publication the targeted post-admission checkout/configuration failure/recovery and paced
 enrolment retry were not run. D-71 records the checkout-only admission correction, paced enrolment
 recovery and the post-admission CONFIGURATION failure/recovery arm. Separate startup acquisition
-failure remains not run; general successful startup and C14 supervisor bounds do not demonstrate it.
+failure is now demonstrated only for D-72's [engine-only local arm](../evidence/startup/live.json);
+general successful startup and C14 supervisor bounds alone do not demonstrate it.
 Historical W8 results below retain their original scope and identities.
 
 An engine already admitted and advanced must survive a brief failed startup checkout/check.
@@ -2101,7 +2102,8 @@ post-admission CONFIGURATION recovery arm under
 [OPS-49](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1968);
 [OPS-47](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L135)
 and [OPS-21](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1836)
-constraints remain unchanged. Separate startup acquisition failure is not run. The first candidate
+constraints remain unchanged. D-72 separately records the later [startup acquisition recovery](../evidence/startup/live.json)
+in an empty local database; pvr-kin's engine result remains limited to CONFIGURATION recovery. The first candidate
 setup attempt accept-i2-a remains inconclusive, exit 1 / 0.241099419 seconds, both arms not run.
 
 [Regressions](../evidence/kin/regressions.json) record baseline red exit 1 / 51.024309556 seconds
@@ -2122,6 +2124,50 @@ The [report](../evidence/kin/report.md) records exact commands, versions, source
 bindings, cleanup and filed P2/P3 follow-ups. No production tuning, dispatch, purchase, funds,
 outage guarantee, automatic failover, history change or accepted-profile change is selected.
 
+### D-72. Observed startup recovery after a short refusal of new connections
+
+**Measured local prototype (2026-11-24), engine-only startup arm.**
+[OPS-49](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1968)
+owns `Engine::begin_startup`'s bounded acquisition retry, within unchanged
+[OPS-47](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L135)
+and [STO-55](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/05-persistence.md#L291)
+constraints. This supersedes only the current startup-acquisition `not run` statements in
+D-70/D-71/D-6; their historical W8 and pvr-kin identities, outcomes and failure counts stay intact.
+
+The [recorded live run](../evidence/startup/live.json), `startup-a1`, passed on its first attempt:
+driver exit 0 / 8.655418857 seconds including verified cleanup, launcher exit 0, no rerun.
+It used clean detached default master dc772365e46f8160caaccdff691cc31d28383c75 and private
+driver ba722c9731abc25a519b823fb930260d45aaecae. The actual build was
+`nix develop /var/tmp/provisiond-manager/fastlane-startup/build-source --command cargo build --release --locked --bins`,
+exit 0 / 60.203742645 seconds, default features. The [report](../evidence/startup/report.md)
+records the exact live command, versions, installed binary hashes, one 43-file runtime map
+and SHA-256 bindings to retained private artifacts. No runtime change or product defect was established.
+
+A preopened operator transaction held the generation row until the engine held its startup lock
+and dedicated generation session. A planned short loss of new connections used native role
+`CONNECTION LIMIT 0`, keeping existing sessions alive. Generation COMMIT on backend 1606928 at
+20:14:04.464 UTC preceded native `53300: too many connections for role "app"` at .467 and .481.
+The early application name was unknown; attribution rests on this engine being the sole app actor
+in the fresh empty owned database and retries occurring after generation advance but before
+restart-pass completion. The cold ordinary write pool retried with spent values 2 and 16 ms;
+exactly one generation advance and one restart pass completed. The original role limit -1 was
+restored after 47.515952 ms of restriction, 16.109659 ms after the first observed refusal.
+These intervals use driver observations; native log timestamps are server times, not trace receipt times.
+
+Startup-lock, observer and generation sessions were distinct; the first two survived the refusal.
+The same engine PID 1606891, start time 239292593 and InvocationID
+`d114c7a61daa4628bf50baf107ba864d` continued with NRestarts 0 and Restart `no`.
+Native configuration SELECT then COMMIT at 20:14:04.544 UTC preceded 53 ordinary polls spanning
+1.025000095 seconds, during 1.089068815 seconds of observation. Source/build/install/driver inputs
+matched again at the end. Cleanup recorded no errors or surviving children, stopped owned units
+and PostgreSQL nodes, and removed owned data.
+
+The 500 ms startup wait, 2000 ms Store-retry budget and 10 ms backoff remain unchanged, as do sent-COMMIT
+ownership, generation fencing and OPS-21. Provider/rail requests and purchase/payment state stayed
+zero; operations, providers and tenants stayed empty. This demonstrates only local startup recovery,
+with no repeat-provider proof, production tuning, general availability or whole OPS-47/49/21 claim.
+Primary shutdown fallback and all other existing limits remain unchanged. The [required validation](../evidence/startup/validation.json) ran against clean master dc772365, whose runtime, test, tool, migration and deployment bytes match this publication. The first iteration passed, exit 0 / 546.696320233 seconds, at port base 25500 with no rerun. The one serial canonical invocation failed, exit 1 / 2044.788749327 seconds: all twelve phase processes completed, ten passed; core and controls failed. Core stopped before its planned generation-reply check. Its engine_start probe met a pre-lock checkout deadline; the later planned reply event never occurred. Core also recorded a failed cleanup verdict for the unexpected exit 71. The intended check and later core arms are not run, never pass; P2 pvr-wlm tracks the fixture investigation. Controls rejected w6_non_exact at a different assertion from its required no-attachment assertion, with passing child cleanup; P2 pvr-aqm tracks that investigation. W5 and W6 passed in this invocation. No canonical rerun, product correction or pvr-31s change is claimed.
+
 ### D-6 provisional W2 parameters — measured local prototype
 
 D-6 is **settled for the measured local prototype only**. The [live journey](../evidence/w8/live.json)
@@ -2136,8 +2182,9 @@ are linked there; no single green all-phase invocation is claimed. The 104-file 
 b19007e2 remains equal after metadata writes and runtime bytes equal aa1ad12. The evidence
 identifies the tested commit separately from publication metadata and embeds no circular publication hash.
 D-71 adds measured paced enrolment recovery and post-admission CONFIGURATION recovery;
-the separate startup acquisition-failure variant remains not run. Historical W8 results above are
-unchanged; [pvr-kin validation](../evidence/kin/validation.json) separately records the later runs.
+D-72 adds the separate [engine-only local startup acquisition recovery](../evidence/startup/live.json).
+Historical W8 results above are unchanged;
+[pvr-kin validation](../evidence/kin/validation.json) separately records the later runs.
 OVR-19 store-timeout rows are statement 1000 ms,
 lock 500 ms, idle transaction 1000 ms, client pre-COMMIT call/connect 2000 ms, read-only check
 3000 ms, and checkout 250 ms. Pooled TCP keepalives are idle 2 s, interval 1 s, count 2 on
@@ -2158,7 +2205,7 @@ not outage guarantees.
 | Store timeouts | STO-7, STO-55 | statement 1000 ms; lock 500 ms; idle transaction 1000 ms |
 | API read/write concurrency | STO-55 | one checkout in each ordinary pool |
 | Engine worker concurrency | STO-55 | three retained worker permits and three write checkouts; one compatibility read checkout; startup lock and one read-only accounting observer outside pools |
-| Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms; backoff 10 ms; D-71 [configuration evidence](../evidence/kin/live.json): actual 55P03, rollback, one whole-transaction retry spent 500 ms, acknowledged COMMIT and 71 polls in 1 s without restart; separate startup acquisition-failure variant not run |
+| Startup wait / Store retry | OPS-15, OPS-49 | 500 ms / 2000 ms; backoff 10 ms; D-71 [configuration evidence](../evidence/kin/live.json): actual 55P03, rollback, one whole-transaction retry spent 500 ms, acknowledged COMMIT and 71 polls in 1 s without restart; D-72 [startup evidence](../evidence/startup/live.json): native 53300 after generation COMMIT, startup checkout retries spent 2/16 ms, role limit restored after 47.515952 ms restriction / 16.109659 ms after first observation, one restart pass and configuration COMMIT, 53 polls spanning 1.025000095 s in the same process; empty local startup arm only |
 | Pool checkout bound | STO-55 | 250 ms; request refusal 503 overloaded, retryable, retry_after_ms=250; no business transaction or refusal receipt |
 | Local customer resend | STO-55, DOM-17, API-33/40, WIR-12 | D-71: request checkout 250 ms; body hint 250 ms / header 1 s; [live](../evidence/kin/live.json) actual resend delay 1.077288216 s, 503→200; targeted script exactly two sends (one resend), plus separate used-code 400 check; ordinary fixture budget 3; historical W8 client budget 4 remains historical, not a measured loop in this targeted run; no production selection |
 | Connection-exhaustion alarm threshold | STO-55, OVR-18 | D-70: independent read/write failure streak 2000 ms; fatal service/startup failure immediate (0 ms) |

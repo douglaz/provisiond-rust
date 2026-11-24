@@ -499,7 +499,8 @@ checks, units, W7 and controls); before publication `tools/postgres.sh --jobs N`
 with 2–3 workers or serially. These fixtures select no production availability guarantee.
 D-70 implements bounded engine/API retry handling. D-71 and the [pvr-kin report](../evidence/kin/report.md)
 record paced enrolment recovery and the post-admission CONFIGURATION lock-timeout recovery arm;
-the separate startup acquisition-failure arm remains not run.
+D-72 and the [startup report](../evidence/startup/report.md) separately demonstrate the startup
+acquisition-failure arm in an empty local database, without a provider-repeat proof.
 The W7-era statement that the fixture customer client does not retry enrolment's retryable 503 is
 historical and superseded by D-71's three-attempt ordinary fixture policy. The broader
 [W8 live journey](../evidence/w8/live.json) used a separate four-attempt client. The current targeted
@@ -533,8 +534,9 @@ procedures retain the one-primary/one-designated-standby manual profile.
 Runtime read/write checkout failure streaks alarm at 2000 ms; fatal service exits alarm immediately.
 Post-admission startup and configuration implement bounded Store retry. At W8 publication their
 targeted failure/recovery and paced enrolment verification were not run; the later D-71 evidence
-below demonstrates enrolment recovery and only the CONFIGURATION arm. Separate startup acquisition
-failure remains not run. Request checkout refusal remains retryable without service exit;
+below demonstrates enrolment recovery and only the CONFIGURATION arm. D-72 separately records
+[startup acquisition recovery](../evidence/startup/live.json) for the engine-only local arm.
+Request checkout refusal remains retryable without service exit;
 pretransaction housekeeping failures skip a tick. Safe provider IDs
 accumulate independently of latest verdicts, and conflicting external identities are refused before
 fee/unit debits. Generation fencing and money flags are unchanged.
@@ -596,9 +598,27 @@ The [default release live run](../evidence/kin/live.json) on 5deadfa exited 0 / 
 same API process. After generation advance and restart-pass, an actual configuration lock timeout
 55P03 rolled back, spent 500 ms in one whole-transaction retry, acknowledged configuration COMMIT
 and completed 71 ordinary claim polls during one second, same engine PID/invocation, no restart
-and no repeated external call. Only this post-admission CONFIGURATION recovery arm is demonstrated;
-the separate startup acquisition-failure arm remains not run. The earlier accept-i2-a setup failure
+and no repeated external call. That run demonstrates only the post-admission CONFIGURATION arm;
+D-72's later [startup run](../evidence/startup/live.json) separately demonstrates startup acquisition
+recovery in an empty local database. The earlier accept-i2-a setup failure
 remains inconclusive (exit 1 / 0.241099419 seconds), both arms not run.
+
+The separate startup run used default release master dc772365e46f8160caaccdff691cc31d28383c75,
+driver ba722c9731abc25a519b823fb930260d45aaecae: first attempt pass, driver exit 0 /
+8.655418857 seconds including verified cleanup, launcher exit 0. A planned short loss of new
+connections produced actual native PostgreSQL 53300 refusals after generation COMMIT and before
+the restart pass; the cold ordinary write pool retried with spent values 2/16 ms. Early connection
+application names were unknown; only this engine used the app role in the fresh owned database.
+The exact role limit -1 returned after 47.515952 ms restriction, 16.109659 ms after first observation.
+The same PID/start time/invocation with zero restarts completed one restart pass, configuration
+COMMIT and 53 ordinary polls spanning 1.025000095 seconds. Provider/rail requests and state and
+business rows stayed empty. The [report](../evidence/startup/report.md) distinguishes native
+server timestamps from driver receipt times and binds retained private artifacts. This is only
+engine startup recovery: no repeat-provider proof, production tuning, general availability or
+whole OPS-47/49/21 demonstration. Primary shutdown fallback, sent-COMMIT ownership, generation
+fencing and all existing bounds remain unchanged.
+
+The [required validation](../evidence/startup/validation.json) ran against clean master dc772365, whose runtime, test, tool, migration and deployment bytes match this publication. The first iteration passed, exit 0 / 546.696320233 seconds, at port base 25500 with no rerun. The one serial canonical invocation failed, exit 1 / 2044.788749327 seconds: all twelve phase processes completed, ten passed; core and controls failed. Core stopped before its planned generation-reply check. Its engine_start probe met a pre-lock checkout deadline; the later planned reply event never occurred. Core also recorded a failed cleanup verdict for the unexpected exit 71. The intended check and later core arms are not run, never pass; P2 pvr-wlm tracks the fixture investigation. Controls rejected w6_non_exact at a different assertion from its required no-attachment assertion, with passing child cleanup; P2 pvr-aqm tracks that investigation. W5 and W6 passed in this invocation. No canonical rerun, product correction or pvr-31s change is claimed.
 
 [Regression evidence](../evidence/kin/regressions.json) retains baseline red exit 1 / 51.024309556
 seconds at the intended retry-should-return-200 assertion (actual 400), fixed green exit 0 /
