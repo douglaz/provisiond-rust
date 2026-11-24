@@ -1,5 +1,6 @@
 """LDG-47, WIR-34, STO-7/55: HTTP regressions at the real adapter/owner boundaries."""
 import concurrent.futures
+from datetime import datetime, timezone
 import hashlib
 from http.client import HTTPException
 import json
@@ -258,6 +259,78 @@ def checkout_failure(w):
     w.h.results.append(dict(test='W4-housekeeping-checkout-lifecycle',result='pass'))
 
 
+def enrolment_retry(w):
+    # STO-55/DOM-17, API-33/40, WIR-12: only a pre-BEGIN refusal leaves
+    # this still-valid code usable. Successful enrolment has no replay receipt.
+    w.stop_engine();w.restart_api();p=w.api
+    h=w.h
+    counts="SELECT (SELECT count(*) FROM provisiond.tenant_identities)||':'||(SELECT count(*) FROM provisiond.tenants)||':'||(SELECT count(*) FROM provisiond.enrolments)||':'||(SELECT count(*) FROM provisiond.idempotency_records)"
+    before=[int(n) for n in h.sql(counts).split(':')]
+    provider_before=w.external()['events']
+    token=w.request('POST','/v1/enrol/token',{})
+    htoken=token['admission_token'];w.private.append(htoken)
+    expiry=datetime.fromisoformat(token['expires_at'].replace('Z','+00:00')).timestamp()
+    # Deliberate whitespace and an ignored header survive the resend unchanged.
+    payload=(' { "admission_token" : '+json.dumps(htoken)+' }\n').encode()
+    key='ignored-enrolment-retry-header'
+    invalid=w.request('POST','/v1/enrol',{'admission_token':'invalid','unexpected':1},status=400)
+    assert invalid['error']['kind']=='invalid_request' and invalid['error']['details']=={}
+    def begins():
+        return sum(e['event']=='bytes_transmitted' and e.get('query','').startswith('BEGIN') for e in h.events)
+    begin_before=begins();marker=len(h.events)
+    # The restarted API has a warm read pool and a cold write pool. Withhold
+    # its real admission-check reply, outside any transaction, past checkout.
+    gate=h.proxy.arm('/* store admission target */','reply')
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        pending=pool.submit(http,h.ports[4],'POST','/v1/enrol',None,None,key,payload)
+        try:
+            connection=gate.wait();session=connection['pid']
+            code,value,headers=pending.result(timeout=5)
+            h.event('enrolment_busy_reply_observed',status=code,error=value.get('error'),
+                    session=session,api_pid=p.pid,body_sha256=hashlib.sha256(payload).hexdigest(),
+                    begin_before=begin_before,begin_after=begins(),gate_activated=True)
+            assert code==503,'STO-55 regression requires an actual pre-BEGIN enrolment busy 503'
+            assert value['error']['kind']=='overloaded' and value['error']['retryable'] is True
+            assert value['error']['details']=={'retry_after_ms':250}
+            assert set(value)=={'error','correlation_id'} and set(value['error'])=={'kind','message','retryable','details'}
+            assert headers['X-Correlation-Id']==value['correlation_id']
+            assert headers['Retry-After']=='1'
+            assert not gate.released.is_set() and begins()==begin_before,'busy enrolment must transmit no BEGIN'
+            assert any(e['event']=='bytes_transmitted' and e.get('session')==session
+                       and '/* store admission target */' in e.get('query','') for e in h.events[marker:])
+            assert not any(e.get('event')=='session_admitted' and e.get('session')==session for e in api_events(p))
+            assert [int(n) for n in h.sql(counts).split(':')]==before,'busy enrolment must create no account or receipt'
+            assert w.external()['events']==provider_before,'busy enrolment must initiate no provider mutation'
+            assert p.poll() is None and w.api is p
+            refused_at=time.monotonic()
+        finally:gate.release()
+    delay=max(value['error']['details']['retry_after_ms'],int(headers['Retry-After'])*1000)/1000
+    assert datetime.now(timezone.utc).timestamp()+delay<expiry,'regression requires a still-valid admission token'
+    time.sleep(delay)
+    elapsed=time.monotonic()-refused_at
+    code,tenant,_=http(h.ports[4],'POST','/v1/enrol',key=key,raw=payload)
+    h.event('enrolment_same_body_resend_observed',status=code,error=tenant.get('error'),
+            wait_seconds=elapsed,minimum_wait_seconds=delay,token_unexpired=datetime.now(timezone.utc).timestamp()<expiry,
+            body_sha256=hashlib.sha256(payload).hexdigest(),api_pid=p.pid)
+    assert code==200,'STO-55/DOM-17: paced identical-body enrolment resend after pre-BEGIN busy must return 200'
+    w.private.extend([tenant['spending_token'],tenant['recovery_credential']])
+    assert elapsed>=delay and datetime.now(timezone.utc).timestamp()<expiry
+    assert tenant['status']=='pending' and tenant['handle'] and tenant['tenant_id']
+    assert tenant['spending_token'].startswith('pvd_s_') and tenant['recovery_credential'].startswith('pvd_r_')
+    after=[before[0]+1,before[1]+1,before[2]+1,before[3]]
+    assert [int(n) for n in h.sql(counts).split(':')]==after,'resend must create exactly one account without an idempotency receipt'
+    assert h.sql(f"SELECT count(*) FROM provisiond.enrolments WHERE tenant_id='{tenant['tenant_id']}' AND handle='{tenant['handle']}'")=='1'
+    for raw in [payload,json.dumps({'admission_token':htoken,'unexpected':1}).encode()]:
+        code,reused,_=http(h.ports[4],'POST','/v1/enrol',key=key,raw=raw)
+        assert code==400 and reused['error']==invalid['error'],'API-33/40, WIR-12: spent token must remain a generic 400 before field validation'
+    assert [int(n) for n in h.sql(counts).split(':')]==after,'spent-code reuse must create no second account'
+    assert w.external()['events']==provider_before and p.poll() is None and w.api is p
+    h.event('enrolment_busy_recovery_observed',api_pid=p.pid,api_restarted=False,
+            accounts_created=1,receipt_created=False,successful_code_reuse_status=400,
+            invalid_token_precedes_unknown_field=True,counts_before=before,counts_after=after)
+    h.results.append(dict(test='W4-enrolment-pre-BEGIN-busy-retry',result='pass'))
+
+
 def sent_commit_failure(w):
     t=w.enrol();p=w.api;events_before=len(api_events(p))
     gate=w.h.proxy.arm('COMMIT /* store COMMIT */','commit_reply')
@@ -303,4 +376,4 @@ def sent_commit_failure(w):
 
 CASES=dict(w4_underpayment=underpayment,w4_overpayment=overpayment,w4_operator_hiding=operator_hiding,
            w4_api_startup=startup,w4_api_idle=idle_failure,w4_api_checkout=checkout_failure,
-           w4_api_commit=sent_commit_failure)
+           w4_enrolment_retry=enrolment_retry,w4_api_commit=sent_commit_failure)
