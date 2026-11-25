@@ -487,8 +487,19 @@ pvr-kin and W8 results retain their identities and outcomes.
 The startup row above demonstrates D-70's local startup policy, recorded in D-72. It reuses
 the existing OPS-49 retry bound; it does not demonstrate OPS-49's worker/periodic store-call retry
 mandate. The separate
-[startup publication validation](../evidence/startup/validation.json) records iteration exit 0
-and canonical exit 1 on unchanged master runtime/suite bytes: core stopped before its planned
-reply event, and its cleanup verdict failed on an unexpected child exit (pvr-wlm). Controls also
-rejected a wrong-site assertion in w6_non_exact, whose cleanup passed (pvr-aqm). Later core arms
-are not run; these results do not create a whole-requirement claim.
+[startup publication validation](../evidence/startup/validation.json) and
+[report](../evidence/startup/report.md) retain these invocations on unchanged master runtime/suite
+bytes. The historical first iteration (`iteration-a1`, 2026-11-24) passed, exit 0 / 546.696320233
+seconds. The historical first canonical invocation (`canonical-a1`, 2026-11-24) failed, exit 1 /
+2044.788749327 seconds: core stopped before its planned reply event, and its cleanup verdict
+failed on an unexpected child exit (pvr-wlm). In that first canonical invocation, controls also
+rejected a wrong-site assertion in w6_non_exact, whose child cleanup passed (pvr-aqm); later core
+arms were not run in that invocation. The owner-ordered second canonical invocation
+(`canonical_owner_rerun`, 2026-11-25) failed, exit 1 / 2038.233505776 seconds: 11 of 12 phases
+passed; core passed with 36 pass and three explicitly not run scenario rows, with core cleanup
+pass; controls failed, with child cleanup pass. The second-run publication iteration
+(`rerun_publication_iteration`, 2026-11-25) failed, exit 1 / 602.379761834 seconds: W7 passed;
+controls failed solely for the older pvr-aqm variant, whose child exited 0 without the intended
+negative failure. Its parent correctly rejected that result, and owned cleanup passed. Both
+failed canonical records and the failed publication iteration remain retained. No cause is
+established; these results do not create a whole-requirement claim.

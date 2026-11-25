@@ -102,7 +102,11 @@ identities and failures remain intact; new suite results are recorded below and 
 
 ## Required suite validation
 
-The [required validation](validation.json) ran against clean master dc772365, whose runtime, test, tool, migration and deployment bytes match this publication. The first iteration passed, exit 0 / 546.696320233 seconds, at port base 25500 with no rerun. The one serial canonical invocation failed, exit 1 / 2044.788749327 seconds: all twelve phase processes completed, ten passed; core and controls failed. Core stopped before its planned generation-reply check. Its engine_start probe met a pre-lock checkout deadline; the later planned reply event never occurred. Core also recorded a failed cleanup verdict for the unexpected exit 71. The intended check and later core arms are not run, never pass; P2 pvr-wlm tracks the fixture investigation. Controls rejected w6_non_exact at a different assertion from its required no-attachment assertion, with passing child cleanup; P2 pvr-aqm tracks that investigation. W5 and W6 passed in this invocation. No canonical rerun, product correction or pvr-31s change is claimed.
+The [required validation](validation.json) ran against clean master dc772365, whose runtime, test, tool, migration and deployment bytes match this publication. The first iteration passed, exit 0 / 546.696320233 seconds, at port base 25500 with no rerun. The first serial canonical invocation failed, exit 1 / 2044.788749327 seconds: all twelve phase processes completed, ten passed; core and controls failed. Core stopped before its planned generation-reply check. Its engine_start probe met a pre-lock checkout deadline; the later planned reply event never occurred. Core also recorded a failed cleanup verdict for the unexpected exit 71. The intended check and later core arms are not run, never pass; P2 pvr-wlm tracks the fixture investigation. Controls rejected w6_non_exact at a different assertion from its required no-attachment assertion, with passing child cleanup; P2 pvr-aqm tracks that investigation. W5 and W6 passed in this invocation. The first failed result is retained. No product correction or pvr-31s change is claimed.
+
+On 2026-11-25, the owner requested one additional full canonical invocation on clean master dc772365e46f8160caaccdff691cc31d28383c75. All 110 operational files matched the first invocation. The command, serial jobs setting, seed 20261124 and port base 25500 were unchanged. The additional invocation exited 1 in 2038.233505776 seconds: all twelve phases completed, eleven passed, and controls failed. Core passed, including the planned generation-advance reply check; probe 158 acquired the startup lock and reported the expected unacknowledged-generation result after the planned reply loss. Core cleanup passed. The earlier pre-lock checkout deadline did not repeat; pvr-wlm remains open, with no cause or correction established. The w6_non_exact control repeated the unlabelled pending() status assertion at w6.py:31, called from conflicting() at line 153. Its no-attachment assertion at line 152 was reached and passed; it did not produce the intended negative failure. Child cleanup passed. The other 43 controls and five candidate regressions remained recognized expected negative demonstrations; release-helper sensitivity results were unchanged. No other scenario verdict changed. The first failed invocation, exit 1 in 2044.788749327 seconds with ten passing phases, remains retained. No product code, check, production bound or configuration was changed, and pvr-31s was not continued.
+
+Immediately before launch at 2026-11-25T00:14:31.760783Z, load averages (1/5/15 minutes) were 0.70/0.82/0.71, MemAvailable was 49074276 kB, and free space on / was 163757268992 bytes (152.511 GiB). Immediately after exit at 2026-11-25T00:48:30.229962Z, the readings were 4.80/2.55/2.72, 48550768 kB and 149339873280 bytes (139.084 GiB). These are endpoint observations on a shared machine, not evidence of a cause for either failure.
 
 Commands ran in the clean detached tested source, with `PROVISIOND_HARNESS_PORT_BASE=25500`; the final branch changes only documents, evidence and tracker records. The validation manifest binds the tested source and all unchanged operational bytes separately from publication metadata.
 
@@ -110,11 +114,35 @@ Commands ran in the clean detached tested source, with `PROVISIOND_HARNESS_PORT_
 |---|---:|---:|
 | `nix develop --command bash tools/iteration.sh --jobs 3 --seed 20261124 --evidence <private-evidence>/validation/iteration-a1/iteration.json` | 0 | 546.696320233 |
 | `nix develop --command bash tools/postgres.sh --jobs 1 --seed 20261124 --evidence <private-evidence>/validation/canonical-a1/canonical.json` | 1 | 2044.788749327 |
+| `nix develop --command bash tools/postgres.sh --jobs 1 --seed 20261124 --evidence <private-evidence>/validation/canonical-a2/canonical.json` | 1 | 2038.233505776 |
 
-Recorded non-control scenario rows: 263 pass, 2 expected negative demonstration, 2 not run, 1 fail. These are recorded rows, not a count of unexecuted later core arms. Full stdout/stderr, original native failed verdicts and child manifests remain retained and hash-bound. The live cleanup passed; the separate core cleanup verdict remains failed.
+First-invocation recorded non-control scenario rows: 263 pass, 2 expected negative demonstration, 2 not run, 1 fail. These are recorded rows, not a count of unexecuted later core arms. Full stdout/stderr, original native failed verdicts and child manifests remain retained and hash-bound. The live cleanup passed; the first invocation's separate core cleanup verdict remains failed.
+
+All twelve phases completed in each invocation. Phase durations below are seconds rounded to nine decimal places; the unrounded values remain in `validation.json`.
+
+| Phase | First result | First exit | First seconds | Owner-ordered result | Owner-ordered exit | Owner-ordered seconds |
+|---|---|---:|---:|---|---:|---:|
+| w1 | pass | 0 | 9.137599694 | pass | 0 | 10.232037542 |
+| checks | pass | 0 | 30.527423911 | pass | 0 | 33.407405336 |
+| commits | pass | 0 | 13.116291763 | pass | 0 | 17.065246363 |
+| regressions | pass | 0 | 11.956180053 | pass | 0 | 14.152292716 |
+| corrections | pass | 0 | 9.093065266 | pass | 0 | 10.069450180 |
+| core | fail | 1 | 76.422181078 | pass | 0 | 67.644195767 |
+| workflow | pass | 0 | 255.178204096 | pass | 0 | 248.461837699 |
+| default-workflow | pass | 0 | 9.695353874 | pass | 0 | 7.815092544 |
+| w5 | pass | 0 | 117.253819193 | pass | 0 | 100.192472125 |
+| w6 | pass | 0 | 695.039672168 | pass | 0 | 665.875132813 |
+| w7 | pass | 0 | 334.883057418 | pass | 0 | 376.218259534 |
+| controls | fail | 1 | 419.402643801 | fail | 1 | 423.949551852 |
+
+The owner-ordered core phase records 36 pass and three explicitly not run scenario rows; the three not-run rows are not passes. Core cleanup passed. In both invocations, all 49 control and candidate child cleanups passed. The other 43 controls, five candidate regressions and release-helper sensitivity verdicts were unchanged.
 
 ## Attribution correction validation
 
-The attribution-only correction separately ran the iteration check on the same unchanged operational bytes: exit 0 / 575.560000174 seconds at port base 25500, first attempt, no rerun. The original failed canonical was not rerun; its failures and unrun checks remain unchanged.
+The attribution-only correction separately ran the iteration check on the same unchanged operational bytes: exit 0 / 575.560000174 seconds at port base 25500, first attempt, no rerun. That attribution correction did not rerun the canonical suite. The original failed result is retained; the later owner-ordered rerun is recorded separately.
 
 The new attribution distinguishes D-70/D-72 local startup policy from OPS-49’s worker/periodic-engine mandate; no behavior, requirement or check was changed. Exact commands, statuses, times and raw bindings are in [validation.json](validation.json).
+
+## Second-run publication validation
+
+The documents, evidence and tracker update recording the owner-ordered second canonical result ran the iteration check on unchanged operational bytes: exit 1 / 602.379761834 seconds at port base 25500, first attempt, no timing-class rerun. W7 passed; controls failed only for the older pvr-aqm variant, whose child exited 0 without the intended negative failure. The recognizer correctly rejected it; owned cleanup passed. This is not a demonstrated checkout-deadline or timing-window failure, so no timing-class rerun was used. Both full canonical results remain recorded separately above; no third full canonical invocation occurred.
