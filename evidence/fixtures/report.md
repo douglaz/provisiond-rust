@@ -60,3 +60,20 @@ The one full canonical invocation exited 1 in 2519.849645005 seconds, jobs 1, at
 pvr-ag5 is closed on this branch. P3 pvr-tel, `review-nit`, tracks consistent wording for directory/unreadable-input OSErrors at `historical_inputs.py:14-20`. Those errors already fail nonzero with a path before builds, so no false pass is shown. P3 pvr-lba, `review-nit`, tracks a clearer early unsupported-path diagnostic. Both are deferred and uncorrected. pvr-aqm, pvr-wlm, pvr-kd7 and unrelated follow-ups remain open. No requirement coverage or conformance status is upgraded, and no production availability claim follows from this test-input packaging.
 
 Two further P3 `review-nit` follow-ups remain uncorrected: pvr-7ty pairs the internal evidence key `fixtures-F3` with its already filed issue pvr-s48; pvr-h0e corrects the recorded diagnostic citation, whose range 14-20 misses the wrapper raise at line 21. These are navigation/citation issues only. No evidence field, native observation, verdict, bound or check is changed.
+
+## Stored bytes at checkout
+
+A contributor attributes file containing `*.py text eol=crlf` converted the
+stored CLI input at checkout while leaving its Git blob unchanged. The repository
+had no `.gitattributes`; this observation requires a contributor line-ending
+setting and does not measure the default failure rate. The uncorrected loader
+failed clearly, as its strict hash check requires.
+
+The repository now marks `tests/postgres/fixtures/w7/** -text`. Normal and
+CRLF-configured fresh single-branch checkouts both loaded all 44 files
+byte-identical, with both historical commit objects absent. An altered scratch
+input still failed with the integrity diagnostic. All payload and manifest bytes
+remain unchanged. [The focused record](checkout-attributes.json) retains statuses
+and times. The iteration check and full suite were not rerun for this one-line
+attributes correction; it changes no test code, stored byte, bound or assertion.
+The earlier failed suite invocations remain failed.
