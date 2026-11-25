@@ -473,11 +473,33 @@ iteration failure. [Current validation](../evidence/kin/validation.json) records
 rerun and one serial canonical pass on 70d86db (exit 0 / 1831.510351548 seconds), with the new
 workflow row actually present once: 85 workflow pass rows, 274 non-control pass rows, two expected
 negative demonstrations and five not run overall. Historical W8 rows/results above remain historical.
-No whole-requirement claim for OPS-47/49/21 follows; startup acquisition failure remains not run.
+No whole-requirement claim for OPS-47/49/21 follows. D-72 separately records the later
+[engine-only local startup acquisition recovery](../evidence/startup/report.md); historical
+pvr-kin and W8 results retain their identities and outcomes.
 
 | Requirement / recorded arm | Pinned source | Implementation symbol | Validation symbol / observation | Evidence | Status |
 |---|---|---|---|---|---|
 | STO-55; DOM-17 — pre-BEGIN enrolment checkout refusal and same-request recovery | [05-persistence.md:291](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/05-persistence.md#L291), [01-domain-model.md:700](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/01-domain-model.md#L700) | `Store::begin_checked`, `CheckoutRefused`, `ConsumedAdmission::release_after_checkout_refusal`, `State::handle` enrol path | `w4_round2.enrolment_retry`, `Workflow.request`, `EnrolmentRetry`: actual 503→identical-body 200→used-code 400, no BEGIN/refusal receipt on refusal, one account, same process; ordinary fixture budget 3 | [red/green and seven client checks](../evidence/kin/regressions.json), [live](../evidence/kin/live.json), [canonical workflow row](../evidence/kin/validation.json) | demonstrated |
 | API-33/40; WIR-12 — admission reservation, validation precedence and single use after success | [04-api-contract.md:371](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/04-api-contract.md#L371), [04-api-contract.md:815](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/04-api-contract.md#L815), [13-wire-contract.md:450](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/13-wire-contract.md#L450) | `Admission::consume`, `ConsumedAdmission`, `State::handle` enrol path | `w4_round2.enrolment_retry`: invalid token wins over unknown field, successful code reuse remains generic 400, no second account or credential replay; no release on drop, BEGIN/later failures keep reservation | [regressions](../evidence/kin/regressions.json), [live](../evidence/kin/live.json); these exercised assertions only | demonstrated |
 | OPS-49 — post-admission CONFIGURATION lock-timeout recovery, within OPS-47/21 constraints | [03-operation-lifecycle.md:1968](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1968), [03-operation-lifecycle.md:135](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L135), [03-operation-lifecycle.md:1836](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1836) | `Engine::configuration`, `Engine::transaction`, `Engine::transaction_stoppable` | Private `Acceptance.engine_arm`: generation advance and restart-pass precede actual 55P03, rollback, one whole-transaction retry spent 500 ms, acknowledged configuration COMMIT, 71 ordinary polls during 1 s; same PID/invocation, no restart or repeated external call | [live](../evidence/kin/live.json), accept-i3-b; only CONFIGURATION recovery arm | demonstrated |
-| OPS-49 — separate post-admission startup acquisition-failure recovery | [03-operation-lifecycle.md:1968](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/03-operation-lifecycle.md#L1968) | `Engine::begin_startup` | Separate startup acquisition-failure injection not driven | [live limits](../evidence/kin/live.json), [validation limits](../evidence/kin/validation.json) | implemented |
+| LOCAL POLICY OBSERVATION — separate post-admission startup acquisition-failure recovery | Local policy: [D-70](decisions.md#d-70-offline-release-declarations-and-bounded-local-saturation-policy); observation: [D-72](decisions.md#d-72-observed-startup-recovery-after-a-short-refusal-of-new-connections) | `src/engine.rs::Engine::begin_startup` | Private startup driver `Startup.engine_arm`, startup-a1: native 53300 after dedicated generation COMMIT, cold write-pool startup retries spent 2/16 ms before one restart pass; exact role limit restored, configuration COMMIT and 53 polls spanning 1.025000095 s; same PID/start time/invocation, zero restarts; empty local database, no provider-repeat proof | [startup live](../evidence/startup/live.json), [report](../evidence/startup/report.md), D-72; only this engine-only local startup arm | demonstrated |
+
+The startup row above demonstrates D-70's local startup policy, recorded in D-72. It reuses
+the existing OPS-49 retry bound; it does not demonstrate OPS-49's worker/periodic store-call retry
+mandate. The separate
+[startup publication validation](../evidence/startup/validation.json) and
+[report](../evidence/startup/report.md) retain these invocations on unchanged master runtime/suite
+bytes. The historical first iteration (`iteration-a1`, 2026-11-24) passed, exit 0 / 546.696320233
+seconds. The historical first canonical invocation (`canonical-a1`, 2026-11-24) failed, exit 1 /
+2044.788749327 seconds: core stopped before its planned reply event, and its cleanup verdict
+failed on an unexpected child exit (pvr-wlm). In that first canonical invocation, controls also
+rejected a wrong-site assertion in w6_non_exact, whose child cleanup passed (pvr-aqm); later core
+arms were not run in that invocation. The owner-ordered second canonical invocation
+(`canonical_owner_rerun`, 2026-11-25) failed, exit 1 / 2038.233505776 seconds: 11 of 12 phases
+passed; core passed with 36 pass and three explicitly not run scenario rows, with core cleanup
+pass; controls failed, with child cleanup pass. The second-run publication iteration
+(`rerun_publication_iteration`, 2026-11-25) failed, exit 1 / 602.379761834 seconds: W7 passed;
+controls failed solely for the older pvr-aqm variant, whose child exited 0 without the intended
+negative failure. Its parent correctly rejected that result, and owned cleanup passed. Both
+failed canonical records and the failed publication iteration remain retained. No cause is
+established; these results do not create a whole-requirement claim.
