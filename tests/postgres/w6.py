@@ -145,9 +145,19 @@ def delayed(w):
 def conflicting(w):
     for name,config in [('wrong',dict(search='wrong')),('failed',dict(search='normal',direct='failed')),('account',dict(search='normal',direct='wrong_account'))]:
         _,_,op,hold=lost(w,'reconcile-conflict-'+name,**config)
+        previous=snapshot(w,op)['operation']['resolution_attempted_at']
         w.start_engine();hold.unlink();wait_search(w,op)
-        time.sleep(.2)
-        result=snapshot(w,op)
+        # Test observation ordering: the search event precedes final reads and commit.
+        def completed_pass():
+            state=snapshot(w,op)
+            operation=state['operation']
+            if operation['resolution'] is not None or (operation['resolution_attempted_at'] is not None
+                    and operation['resolution_attempted_at']!=previous):
+                return state
+        result=eventually(completed_pass)
+        w.h.event('w6_resolution_pass_observed',operation=op,search=name,
+            previous_attempted_at=previous,attempted_at=result['operation']['resolution_attempted_at'],
+            resolution=result['operation']['resolution'])
         w.h.event('w6_exact_observed',operation=op,search=name,attached=bool(result['machines']),provider=external(w,op),status=result['operation']['status'])
         assert not result['machines'],'exact-correlator/no-attachment'
         result=pending(w,op)
