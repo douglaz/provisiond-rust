@@ -138,6 +138,15 @@ def accounting(w, mode):
             if path.exists():path.unlink()
 
 
+def terminate_idle_observer(h,observer):
+    """Wait for the recorded observer's idle gap without targeting a replacement."""
+    from harness import eventually
+    try:
+        eventually(lambda:h.sql(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid={observer} AND state='idle' AND wait_event IS DISTINCT FROM 'SyncRep'")=='t')
+    except AssertionError as error:
+        raise AssertionError(f'observer {observer} idle termination timed out: {error}') from error
+
+
 def reconnect(w):
     """Loss is alarmed; a new checked observer attributes a later attempt."""
     from harness import eventually
@@ -147,7 +156,7 @@ def reconnect(w):
         p=w.start_engine()
         eventually(lambda:events(p,'dispatch_step_held'))
         observer=events(p,'commit_observer_started')[-1]['session']
-        assert h.sql(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid={observer} AND state='idle' AND wait_event IS DISTINCT FROM 'SyncRep'")=='t'
+        terminate_idle_observer(h,observer)
         eventually(lambda:events(p,'commit_observer_reestablished'))
         fresh=events(p,'commit_observer_reestablished')[-1]['session']
         assert fresh!=observer and events(p,'commit_observer_failed')
@@ -211,7 +220,7 @@ def failure_run(w,saturation=False):
         # Kill precisely the original observer, independently excluding SyncRep.
         # Its periodic read can be active at the first probe, especially while
         # opening saturation clients. Wait for idle without relaxing the guard.
-        eventually(lambda:h.sql(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid={observer} AND state='idle' AND wait_event IS DISTINCT FROM 'SyncRep'")=='t')
+        terminate_idle_observer(h,observer)
         eventually(lambda:any(e['owner']==owner for e in events(p,'test_observer_run_closed')))
         closure=next(e for e in events(p,'test_observer_run_closed') if e['owner']==owner)
         before=closure['before'];after=closure['after']
