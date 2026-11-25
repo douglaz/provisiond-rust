@@ -1,0 +1,48 @@
+[package]
+name = "provisiond"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Rust implementation of the provisiond specification (pre-conformance prototype)"
+repository = "https://github.com/douglaz/provisiond-rust"
+publish = false
+
+[features]
+store-test-hooks = []
+
+[[example]]
+name = "store-probe"
+path = "tests/postgres/client.rs"
+required-features = ["store-test-hooks"]
+
+[dependencies]
+anyhow = "1"
+deadpool = { version = "0.12", features = ["managed", "rt_tokio_1"] }
+futures-util = "0.3"
+serde = "1"
+base64 = "0.22"
+subtle = "2"
+sha2 = "0.10"
+hmac = "0.12"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+uuid = { version = "1", features = ["v4"] }
+serde_json = "1"
+socket2 = { version = "0.6", features = ["all"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+tokio-postgres = "0.7"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[[example]]
+name = "core-probe"
+path = "tests/postgres/core_client.rs"
+required-features = ["store-test-hooks"]
+
+[[example]]
+name = "provider-probe"
+path = "tests/postgres/provider_client.rs"
+required-features = ["store-test-hooks"]

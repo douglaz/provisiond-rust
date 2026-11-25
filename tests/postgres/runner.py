@@ -3,7 +3,6 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 import fcntl
 import hashlib
-import io
 import json
 import os
 from pathlib import Path
@@ -11,7 +10,6 @@ import shutil
 import socket
 import subprocess
 import tempfile
-import tarfile
 import threading
 import time
 import tomllib
@@ -92,6 +90,9 @@ def invocation(root,jobs,candidates=False):
     if os.environ.get('PROVISIOND_HARNESS_INVOCATION'):
         yield
         return
+    if candidates:
+        from historical_inputs import BASE,load_w7_inputs
+        historical=load_w7_inputs()
     base=int(os.environ['PROVISIOND_HARNESS_PORT_BASE'])
     assert jobs>=1 and base%10==0 and 25500<=base and base+10*jobs<=26000,'worker slots exceed the allowed port range'
     root.mkdir(parents=True,exist_ok=True)
@@ -120,12 +121,11 @@ def invocation(root,jobs,candidates=False):
                 dest.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copy2(source,dest)
         if candidates:
-            from candidate_reds import BASE
             export=owned/'candidate-source';export.mkdir()
-            paths=subprocess.check_output(['git','ls-tree','-r','--name-only',BASE],text=True).splitlines()
-            paths=[p for p in paths if p.startswith(('src/','migrations/')) or p in ('Cargo.toml','Cargo.lock') or p.startswith('tests/postgres/') and p.endswith('.rs')]
-            archive=subprocess.check_output(['git','archive',BASE,*paths])
-            with tarfile.open(fileobj=io.BytesIO(archive)) as tree:tree.extractall(export,filter='data')
+            paths=list(historical['baseline'])
+            for path,data in historical['baseline'].items():
+                dest=export/path;dest.parent.mkdir(parents=True,exist_ok=True)
+                dest.write_bytes(data)
             protected={p:hashlib.sha256((export/p).read_bytes()).hexdigest() for p in paths}
             command=['cargo','build','--manifest-path',str(export/'Cargo.toml'),'--bins','--examples','--features','store-test-hooks','--locked','--jobs','2']
             started=time.monotonic()
@@ -135,7 +135,8 @@ def invocation(root,jobs,candidates=False):
             (owned/'builds.json').write_text(json.dumps(records,indent=2)+'\n')
             after={p:hashlib.sha256((export/p).read_bytes()).hexdigest() for p in paths}
             assert protected==after,'candidate baseline source changed during build'
-            (owned/'candidate-source-proof.json').write_text(json.dumps(dict(baseline=BASE,before=protected,after=after),indent=2)+'\n')
+            (owned/'candidate-source-proof.json').write_text(json.dumps(dict(baseline=BASE,before=protected,after=after,
+                historical_inputs=historical['proof']),indent=2)+'\n')
             if child.returncode:raise RuntimeError(f'candidate build failed: {owned}/candidate.stderr')
             for name in ['api','engine','migrate','recovery',*['examples/'+name for name in EXAMPLES]]:
                 dest=owned/'candidate'/name;dest.parent.mkdir(parents=True,exist_ok=True)
