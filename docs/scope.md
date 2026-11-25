@@ -576,7 +576,8 @@ the tested commit and a separate equality observation; no circular publication h
 The local D-6 profile is measured only within these prototype runs. Four total starts, bounded
 backoff, 16 GiB per unit, no swap and a 5-second stop allowance are local settings. Production
 capacity, alert routing, separate-host rehearsal and availability guarantees remain open.
-pvr-31s remains open P1: only the failure_run idle-observer site is repaired. Preexisting
+At the W8 checkpoint, pvr-31s remained open P1: only the failure_run idle-observer site was repaired.
+The later [observer idle-wait correction](../evidence/observer-idle/report.md) also covers reconnect. Preexisting
 pvr-2g0 and pvr-oqf remain unfixed. The W7 first-snapshot budget can fail closed after later
 window widening (F24, pvr-5rl); F27 (pvr-58k) rejects a clean pre-admission driver closure.
 Both are fail-closed fixture limits. Six final follow-ups F21–F24/F26/F27 are filed;
@@ -620,7 +621,7 @@ repeat-provider proof, production tuning, general availability or
 whole OPS-47/49/21 demonstration. Primary shutdown fallback, sent-COMMIT ownership, generation
 fencing and all existing bounds remain unchanged.
 
-The [required validation](../evidence/startup/validation.json) ran against clean master dc772365, whose runtime, test, tool, migration and deployment bytes match this publication. The first iteration passed, exit 0 / 546.696320233 seconds, at port base 25500 with no rerun. The first serial canonical invocation failed, exit 1 / 2044.788749327 seconds: all twelve phase processes completed, ten passed; core and controls failed. Core stopped before its planned generation-reply check. Its engine_start probe met a pre-lock checkout deadline; the later planned reply event never occurred. Core also recorded a failed cleanup verdict for the unexpected exit 71. The intended check and later core arms are not run, never pass; P2 pvr-wlm tracks the fixture investigation. Controls rejected w6_non_exact at a different assertion from its required no-attachment assertion, with passing child cleanup; P2 pvr-aqm tracks that investigation. W5 and W6 passed in this invocation. The first failed result is retained. No product correction or pvr-31s change is claimed.
+The [required validation](../evidence/startup/validation.json) ran against clean master dc772365, whose runtime, test, tool, migration and deployment bytes matched the startup-check publication before the later W5 tooling correction below. The first iteration passed, exit 0 / 546.696320233 seconds, at port base 25500 with no rerun. The first serial canonical invocation failed, exit 1 / 2044.788749327 seconds: all twelve phase processes completed, ten passed; core and controls failed. Core stopped before its planned generation-reply check. Its engine_start probe met a pre-lock checkout deadline; the later planned reply event never occurred. Core also recorded a failed cleanup verdict for the unexpected exit 71. The intended check and later core arms are not run, never pass; P2 pvr-wlm tracks the fixture investigation. Controls rejected w6_non_exact at a different assertion from its required no-attachment assertion, with passing child cleanup; P2 pvr-aqm tracks that investigation. W5 and W6 passed in this invocation. The first failed result is retained. No product correction or pvr-31s change is claimed.
 
 On 2026-11-25, the owner requested one additional full canonical invocation on clean master dc772365e46f8160caaccdff691cc31d28383c75. All 110 operational files matched the first invocation. The command, serial jobs setting, seed 20261124 and port base 25500 were unchanged. The additional invocation exited 1 in 2038.233505776 seconds: all twelve phases completed, eleven passed, and controls failed. Core passed, including the planned generation-advance reply check; probe 158 acquired the startup lock and reported the expected unacknowledged-generation result after the planned reply loss. Core cleanup passed. The earlier pre-lock checkout deadline did not repeat; pvr-wlm remains open, with no cause or correction established. The w6_non_exact control repeated the unlabelled pending() status assertion at w6.py:31, called from conflicting() at line 153. Its no-attachment assertion at line 152 was reached and passed; it did not produce the intended negative failure. Child cleanup passed. The other 43 controls and five candidate regressions remained recognized expected negative demonstrations; release-helper sensitivity results were unchanged. No other scenario verdict changed. The first failed invocation, exit 1 in 2044.788749327 seconds with ten passing phases, remains retained. No product code, check, production bound or configuration was changed, and pvr-31s was not continued.
 
@@ -641,3 +642,23 @@ The rerun used documented 25500. Historical W8 failed canonicals and separate fo
 remain unchanged. Source/runtime/test-byte bindings, cleanup and deferred follow-ups are in the
 report. These observations select no production capacity/outage guarantee, automatic failover,
 history change, real dispatch, purchase, funds or new accepted profile.
+
+
+## W5 observer idle-wait tooling correction
+
+The [recorded-observer report](../evidence/observer-idle/report.md) closes pvr-31s on this branch.
+Reconnect and failure_run share the bounded original-PID idle/non-SyncRep wait; saturation delegates
+to failure_run. A true termination result, actual planned loss, checked replacement, later COMMIT
+and cleanup remain required. Product code, production bounds and every check are unchanged.
+
+Three unchanged-master reconnect cases passed, so the old failure was not reproduced cheaply.
+Five fixed native reconnect cases all passed with actual planned loss and cleanup (exit 0 /
+76.033 s including build setup). A separate controlled helper check verifies
+retry and a clear never-idle failure; it is not live PostgreSQL evidence or a hard 20 s query bound.
+The first iteration exited 0 / 542.516 s; the single full canonical exited
+0 / 1935.537 s. Exact phases, controls and cleanup verdicts remain in
+[validation](../evidence/observer-idle/validation.json). No rerun, new conformance status, production
+availability guarantee or correction of pvr-aqm, pvr-wlm or pvr-kd7 is claimed.
+P3 pvr-9un, pvr-xyn and pvr-nyr remain open; startup PR #13 is independent.
+The final review also filed P3 pvr-1p1 and pvr-hs3; the path-alias nit is covered by pvr-xbh.
+No follow-up correction is included.
