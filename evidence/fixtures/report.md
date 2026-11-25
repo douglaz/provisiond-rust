@@ -77,3 +77,26 @@ remain unchanged. [The focused record](checkout-attributes.json) retains statuse
 and times. The iteration check and full suite were not rerun for this one-line
 attributes correction; it changes no test code, stored byte, bound or assertion.
 The earlier failed suite invocations remain failed.
+
+
+## Validation after the control correction landed
+
+PR #17 landed at `ebeada41b05b5a0e21a27566aa2d1b0e116585ed`. This branch was rebased from `75dd6232d3be07ba094e1f91bef6353b67d867e9` onto that master and validated at `22655c13635b6a81a08d739a4a7dfdfa4c2b89c8`. The earlier exit-1 iteration and full-suite runs above remain historical observations. Their seven original JSON files and hashes are unchanged, and the earlier report bytes survive as an exact prefix. Their results were not replaced by the following runs.
+
+The tracker reconciles 166 records from the old branch and 155 from the new master into 168 unique records. All portable record fields survive. The native `br 0.7.6` JSONL-only label update also omitted the legacy machine-local `source_repo_path` field from export; the before generations are retained privately, and an independent field comparison found no other change beyond the approved label and timestamp. `pvr-fk50` remains P3 and now has label `review-nit`.
+
+All 44 files in the stored-input tree, including the manifest and README, and the root attribute file remain byte-identical. The manifest still binds the two inputs to `8339aae5ecf20e6337f4d5d5e22ec4f4573efbfb` and `06b7636cfed13cd4d6049dbe316ed8b191c93fa2`. The combined 45-path SHA-256 map is `6875c44588dd054c2ef35118a59a61fcc7ca23beef26f6eec8bf69c3f2eeeded`.
+
+In the fresh single-branch clone, the new master and rebased implementation commit are ancestors (exit 0). The five old branch commits and both historical input objects are absent (object and ancestry lookups exit 128). Old branch ids remain only as historical evidence citations; no executable source or evidence command field reads them. Both required inputs load from the checked stored bytes without those objects.
+
+| Additional invocation | Actual exit | Seconds | Failed phases |
+|---|---|---|---|
+| iteration-a1 | 1 | 570.334149894 | controls |
+| canonical-a1 | 0 | 2117.413906425 | none |
+| fresh single-branch offline iteration | 0 | 596.453952266 | none |
+
+Ordinary checks use short private harness roots, port base 25500 and seed 20261124; the iteration uses jobs 3 and the single full suite uses jobs 1. The fresh clone runs the actual iteration with external network disabled and only local loopback available. Exact commands, failures, cleanup, ancestry and source bindings are in [rebase-validation.json](rebase-validation.json). Any failed invocation remains failed. No validation result is inferred from machine load.
+
+The ordinary iteration failed at `tests/postgres/w7.py:284` during the supersession control's recovery establish call, before its intended observation or assertion. Recovery exited 1 with a whole-pool checkout deadline; cleanup passed. This additional setup observation is recorded against open P2 `pvr-kd7`. The original issue records markers; this is a different case at the same recovery-establish checkout boundary, with no shared underlying cause established. No rerun or correction was made. All 21 ordinary W7 rows passed, with 43/44 ordinary controls and all 5 stored-input controls recognized in that invocation. The subsequent single full-suite run passed all 12 phases, recognized all 44 ordinary and all 5 stored-input controls, and recorded passing cleanup. That later observation does not explain the earlier failure.
+
+No new three-review round was needed. The sole operational change inherited by this rebase is the exact `tests/postgres/w6.py` correction already reviewed in PR #17; its four evidence files were inherited too. New work is tracker reconciliation, the scope entries and this additional validation record. The old fixture implementation, its assertions and all stored bytes are unchanged. The old source map remains a record of its original run; the new operational map is in the additional record.

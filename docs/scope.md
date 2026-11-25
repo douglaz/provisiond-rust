@@ -680,3 +680,6 @@ The ordinary-checkout iteration failed setup, exit 1 in 129.395170911 seconds: t
 No product code, production bound, scenario assertion, accepted profile or conformance status changes. Four standalone replay inputs and 129 citation-only references in the original audit cohort remain unchanged. P3 pvr-tel and pvr-lba, and P2 pvr-s48, stay open and uncorrected; pvr-aqm, pvr-wlm, pvr-kd7, pvr-scn and pvr-x16 remain open.
 
 P3 pvr-7ty and pvr-h0e additionally track an evidence-to-bead navigation key and an off-by-one diagnostic citation. Both remain open and uncorrected.
+
+
+The [additional fixture validation](../evidence/fixtures/rebase-validation.json) records the rebase onto `ebeada41b05b5a0e21a27566aa2d1b0e116585ed` and new checks at `22655c13635b6a81a08d739a4a7dfdfa4c2b89c8`. Both existing scope entries and all tracker records survive; `pvr-fk50` is P3 with label `review-nit`, and `pvr-aqm` is closed in the new base. All 44 stored-input tree files and the attribute line remain byte-identical. The prior failed runs stay recorded, and exact additional outcomes are in the linked record. The inherited W6 observation correction was already reviewed; new work is tracker, scope and evidence only.
