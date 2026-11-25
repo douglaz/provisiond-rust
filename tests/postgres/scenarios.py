@@ -64,18 +64,19 @@ class Probe:
             e=self.queue.get(timeout=max(.01,end-time.monotonic()))
             if e is None:
                 self.queue.put(None)
-                raise self.failure(command,'stdout closed before a matching reply',wait_for_exit=True)
+                grace=min(.1,max(0,end-time.monotonic()))
+                raise self.failure(command,'stdout closed before a matching reply',exit_grace=grace)
             if e.get('event')=='result' and e['command']==command:
                 assert ok is None or e['ok']==ok,e
                 return e
         raise AssertionError('missing client result: '+command)
 
-    def failure(self,command,reason,*,wait_for_exit=False):
+    def failure(self,command,reason,*,exit_grace=0):
         status=self.p.poll()
-        if status is None and wait_for_exit:
+        if status is None and exit_grace>0:
             # EOF or a fatal reply can reach the reader before the child is waitable.
             try:
-                status=self.p.wait(timeout=.1)
+                status=self.p.wait(timeout=exit_grace)
             except subprocess.TimeoutExpired:
                 status=self.p.poll()
         if status is None:

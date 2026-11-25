@@ -449,7 +449,7 @@ def claim_loss(h):
     if reason is not None:
         h.results.append(dict(test='generation-advance-reply-loss',result='not run',
                               reason='engine_start failed before fault activation'))
-        raise p.failure('engine_start',reason,wait_for_exit=True)
+        raise p.failure('engine_start',reason,exit_grace=.1)
     h.event('advance_reply_loss_activated',durable_generation=h.sql('SELECT generation FROM provisiond.startup_generation'))
     h.proxy.close_connection(c,'lost_advance_reply');gate.release()
     p.result('engine_start',ok=False);p.expected_status=71;p.finish()
