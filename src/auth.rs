@@ -88,13 +88,7 @@ impl Admission {
         let (data, signature) = token.rsplit_once('.').ok_or_else(invalid)?;
         let (t, nonce) = data.split_once('.').ok_or_else(invalid)?;
         let t = t.parse::<i64>().map_err(|_| invalid())?;
-        let current = now();
-        if t > current
-            || current.saturating_sub(t) >= self.validity
-            || nonce.len() != 64
-            || signature.len() != 64
-            || !signature.is_ascii()
-        {
+        if nonce.len() != 64 || signature.len() != 64 || !signature.is_ascii() {
             return Err(invalid());
         }
         let bytes = (0..32)
@@ -103,6 +97,11 @@ impl Admission {
             .map_err(|_| invalid())?;
         self.mac(data).verify_slice(&bytes).map_err(|_| invalid())?;
         let mut spent = self.spent.lock().expect("nonces");
+        // API-33: judge expiry after waiting for the spent lock.
+        let current = now();
+        if t > current || current.saturating_sub(t) >= self.validity {
+            return Err(invalid());
+        }
         spent.retain(|_, expiry| *expiry > current);
         if spent.len() >= self.capacity || spent.contains_key(nonce) {
             return Err(invalid());
