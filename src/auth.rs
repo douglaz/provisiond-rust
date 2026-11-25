@@ -133,3 +133,195 @@ impl Admission {
         Some(data)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        sync::{Arc, mpsc},
+        thread,
+        time::{Duration, SystemTime, UNIX_EPOCH},
+    };
+
+    fn stamp() -> f64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_secs_f64()
+    }
+
+    // Start just after a whole second, so a request that starts at once reads the issue second.
+    fn align() {
+        let fraction = stamp().fract();
+        thread::sleep(Duration::from_secs_f64(1.0 - fraction + 0.005));
+    }
+
+    fn refusal(admission: &Admission, token: &str) -> Option<serde_json::Value> {
+        admission.consume(token).err().map(|e| e.0)
+    }
+
+    // One request waits for `spent` while the test holds it; `during` runs on the held records
+    // just before release. Returns the request's refusal (None when served), start and release times.
+    fn waiting_request(
+        admission: &Arc<Admission>,
+        token: &str,
+        during: impl FnOnce(&mut BTreeMap<String, i64>),
+    ) -> (Option<serde_json::Value>, f64, f64) {
+        let mut held = admission.spent.lock().expect("nonces");
+        let (send, receive) = mpsc::channel();
+        let worker = Arc::clone(admission);
+        let token = token.to_owned();
+        let handle = thread::spawn(move || {
+            send.send(stamp()).expect("start");
+            refusal(&worker, &token)
+        });
+        let started = receive.recv_timeout(Duration::from_secs(2)).expect("start");
+        thread::sleep(Duration::from_millis(1400));
+        assert!(
+            !handle.is_finished(),
+            "the request must still be waiting for the lock"
+        );
+        during(&mut held);
+        let released = stamp();
+        drop(held);
+        (handle.join().expect("request"), started, released)
+    }
+
+    // API-33/WIR-49: a code is refused once its validity period has ended, including after a wait.
+    #[test]
+    fn api33_code_expiring_while_waiting_is_refused() {
+        let admission = Arc::new(Admission::new(1, 1, 64).unwrap());
+        align();
+        let (token, expiry) = admission.issue().unwrap();
+        let (late, started, released) = waiting_request(&admission, &token, |_| {});
+        let normal = admission.issue().unwrap().0;
+        let in_time = admission.consume(&normal).is_ok();
+        let repeated = refusal(&admission, &normal);
+        let unknown = refusal(&admission, "pvd_a_1.2.3");
+        println!(
+            "TIMING {{\"request_start\":{started},\"expiry\":{expiry},\"released\":{released},\"late_accepted\":{},\"late_refusal_identical\":{},\"in_time_served\":{in_time},\"used_refused\":{}}}",
+            late.is_none(),
+            late.is_some() && late == unknown,
+            repeated.is_some()
+        );
+        assert!(started < expiry as f64 && released > expiry as f64);
+        assert!(in_time && repeated.is_some() && repeated == unknown);
+        assert!(
+            late.is_some(),
+            "a request that waited past the validity period must be refused"
+        );
+        assert_eq!(late, unknown, "the late refusal must not say why");
+    }
+
+    // A request that waits but stays inside the validity period is still served.
+    #[test]
+    fn api33_code_valid_after_wait_is_served() {
+        let admission = Arc::new(Admission::new(1, 3, 64).unwrap());
+        align();
+        let (token, expiry) = admission.issue().unwrap();
+        let (result, started, released) = waiting_request(&admission, &token, |_| {});
+        println!(
+            "IN_TIME {{\"request_start\":{started},\"expiry\":{expiry},\"released\":{released},\"served\":{}}}",
+            result.is_none()
+        );
+        assert!(released < expiry as f64);
+        assert!(
+            result.is_none(),
+            "a request inside the validity period must be served after a wait"
+        );
+        assert!(refusal(&admission, &token).is_some());
+    }
+
+    // API-33/WIR-49, fixed order: a used code waits; its record is removed as a later request's cleanup
+    // would remove it (validity ended by the later reading); the waiting request must still be refused.
+    #[test]
+    fn api33_used_code_refused_after_its_record_is_removed() {
+        let admission = Arc::new(Admission::new(1, 1, 64).unwrap());
+        align();
+        let (token, expiry) = admission.issue().unwrap();
+        assert!(admission.consume(&token).is_ok());
+        assert!(refusal(&admission, &token).is_some());
+        let mut removed = false;
+        let (again, started, released) = waiting_request(&admission, &token, |records| {
+            let later = now();
+            records.retain(|_, expiry| *expiry > later);
+            removed = records.is_empty();
+        });
+        let unknown = refusal(&admission, "pvd_a_1.2.3");
+        println!(
+            "REMOVED {{\"request_start\":{started},\"expiry\":{expiry},\"released\":{released},\"record_removed\":{removed},\"used_accepted\":{},\"refusal_identical\":{}}}",
+            again.is_none(),
+            again.is_some() && again == unknown
+        );
+        assert!(started < expiry as f64 && released > expiry as f64 && removed);
+        assert!(
+            again.is_some(),
+            "a code used once must stay refused after its record is removed"
+        );
+        assert_eq!(again, unknown);
+    }
+
+    // API-33/WIR-49, real cleanup: a fresh request removes old records as the lock is released.
+    #[test]
+    fn api33_used_code_stays_refused_during_cleanup() {
+        let mut accepted_again = 0;
+        for attempt in 0..6 {
+            let admission = Arc::new(Admission::new(1, 1, 64).unwrap());
+            align();
+            let (token, expiry) = admission.issue().unwrap();
+            assert!(admission.consume(&token).is_ok());
+            assert!(refusal(&admission, &token).is_some());
+            let held = admission.spent.lock().expect("nonces");
+            let (send, receive) = mpsc::channel();
+            let worker = Arc::clone(&admission);
+            let used = token.clone();
+            let handle = thread::spawn(move || {
+                send.send(stamp()).expect("start");
+                worker.consume(&used).is_ok()
+            });
+            let started = receive.recv_timeout(Duration::from_secs(2)).expect("start");
+            thread::sleep(Duration::from_millis(1400));
+            assert!(
+                !handle.is_finished(),
+                "the used-code request must wait for the lock"
+            );
+            let fresh = admission.issue().unwrap().0;
+            let released = stamp();
+            drop(held);
+            // The fresh request removes records whose validity period has ended.
+            let fresh_served = admission.consume(&fresh).is_ok();
+            let accepted = handle.join().expect("request");
+            if accepted {
+                accepted_again += 1;
+            }
+            println!(
+                "BOOKKEEPING {{\"attempt\":{attempt},\"request_start\":{started},\"expiry\":{expiry},\"released\":{released},\"fresh_served\":{fresh_served},\"used_accepted\":{accepted}}}"
+            );
+            assert!(started < expiry as f64 && released > expiry as f64);
+            assert!(fresh_served);
+        }
+        assert_eq!(
+            accepted_again, 0,
+            "a code used once must stay refused during cleanup"
+        );
+    }
+
+    // STO-55/DOM-17 (D-71): only a pre-BEGIN checkout refusal releases a code for its resend.
+    #[test]
+    fn api33_checkout_refusal_resend_still_served() {
+        let admission = Admission::new(1, 3, 64).unwrap();
+        let (token, _) = admission.issue().unwrap();
+        admission
+            .consume(&token)
+            .expect("first send")
+            .release_after_checkout_refusal();
+        assert!(
+            admission.consume(&token).is_ok(),
+            "the resend must be served"
+        );
+        assert!(
+            refusal(&admission, &token).is_some(),
+            "then the code is used"
+        );
+    }
+}
