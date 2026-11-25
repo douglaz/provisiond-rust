@@ -574,7 +574,8 @@ the tested commit and a separate equality observation; no circular publication h
 The local D-6 profile is measured only within these prototype runs. Four total starts, bounded
 backoff, 16 GiB per unit, no swap and a 5-second stop allowance are local settings. Production
 capacity, alert routing, separate-host rehearsal and availability guarantees remain open.
-pvr-31s remains open P1: only the failure_run idle-observer site is repaired. Preexisting
+At the W8 checkpoint, pvr-31s remained open P1: only the failure_run idle-observer site was repaired.
+The later [observer idle-wait correction](../evidence/observer-idle/report.md) also covers reconnect. Preexisting
 pvr-2g0 and pvr-oqf remain unfixed. The W7 first-snapshot budget can fail closed after later
 window widening (F24, pvr-5rl); F27 (pvr-58k) rejects a clean pre-admission driver closure.
 Both are fail-closed fixture limits. Six final follow-ups F21–F24/F26/F27 are filed;
@@ -615,3 +616,23 @@ The rerun used documented 25500. Historical W8 failed canonicals and separate fo
 remain unchanged. Source/runtime/test-byte bindings, cleanup and deferred follow-ups are in the
 report. These observations select no production capacity/outage guarantee, automatic failover,
 history change, real dispatch, purchase, funds or new accepted profile.
+
+
+## W5 observer idle-wait tooling correction
+
+The [recorded-observer report](../evidence/observer-idle/report.md) closes pvr-31s on this branch.
+Reconnect and failure_run share the bounded original-PID idle/non-SyncRep wait; saturation delegates
+to failure_run. A true termination result, actual planned loss, checked replacement, later COMMIT
+and cleanup remain required. Product code, production bounds and every check are unchanged.
+
+Three unchanged-master reconnect cases passed, so the old failure was not reproduced cheaply.
+Five fixed native reconnect cases all passed with actual planned loss and cleanup (exit 0 /
+76.033 s including build setup). A separate controlled helper check verifies
+retry and a clear never-idle failure; it is not live PostgreSQL evidence or a hard 20 s query bound.
+The first iteration exited 0 / 542.516 s; the single full canonical exited
+0 / 1935.537 s. Exact phases, controls and cleanup verdicts remain in
+[validation](../evidence/observer-idle/validation.json). No rerun, new conformance status, production
+availability guarantee or correction of pvr-aqm, pvr-wlm or pvr-kd7 is claimed.
+P3 pvr-9un, pvr-xyn and pvr-nyr remain open; startup PR #13 is independent.
+The final review also filed P3 pvr-1p1 and pvr-hs3; the path-alias nit is covered by pvr-xbh.
+No follow-up correction is included.
