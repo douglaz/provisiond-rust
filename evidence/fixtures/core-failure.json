@@ -1,0 +1,235 @@
+{
+  "finding_key": "fixtures-F3",
+  "title": "Investigate the core stop-check reply deadline",
+  "priority": 2,
+  "label": "review-followup",
+  "status": "newly observed failure in unchanged operational paths; underlying cause unestablished",
+  "site": "tests/postgres/core.py:571 stops -> Probe.result poll_lock -> scenarios.py:56 queue get 12-second deadline",
+  "not_pvr_wlm": true,
+  "generation_advance_reply_loss_passed": true,
+  "native_failure": [
+    {
+      "event": "failure",
+      "timestamp": 1795606670.8505762,
+      "elapsed": 80.82063036086038,
+      "type": "Empty",
+      "message": ""
+    }
+  ],
+  "native_cleanup": {
+    "event": "cleanup_complete",
+    "timestamp": 1795606678.236055,
+    "elapsed": 88.20610899664462,
+    "result": "fail",
+    "errors": [
+      "(71, '{\"component\":\"engine\",\"event\":\"alarm\",\"message\":\"stop bound expired; records not observed landed: 803f7022-afee-48c5-b1cd-fdaf420f4779 (claim=1),a5cdd104-3d9d-44d5-96ef-7297d604f7b9 (claim=1),e1f99aa6-c568-4475-9e21-8a13d975abf4 (claim=1)\",\"operator_action_required\":true,\"threshold_ms\":0}\\n')"
+    ],
+    "raw_evidence": "<run-dir>/core-f0iks6u5"
+  },
+  "relevant_probe": 203,
+  "relevant_observations": [
+    {
+      "elapsed": 67.91335947671905,
+      "event": "commit_possible_dispatch",
+      "owner": 1,
+      "session": 1673590
+    },
+    {
+      "elapsed": 67.96871435176581,
+      "event": "commit_possible_dispatch",
+      "owner": 2,
+      "session": 1673594
+    },
+    {
+      "elapsed": 67.98265266790986,
+      "event": "commit_possible_dispatch",
+      "owner": 3,
+      "session": 1673594
+    },
+    {
+      "elapsed": 67.99423079797998,
+      "command": "engine_start",
+      "event": "result",
+      "ok": true,
+      "value": {
+        "generation": "fd50e1b2-2212-48c7-95b9-24a65fb11c32",
+        "lock_pid": 1673584
+      }
+    },
+    {
+      "elapsed": 67.997810583096,
+      "event": "commit_possible_dispatch",
+      "owner": 4,
+      "session": 1673594
+    },
+    {
+      "elapsed": 68.00988072296605,
+      "command": "claim",
+      "event": "result",
+      "ok": true,
+      "value": {
+        "id": "e1f99aa6-c568-4475-9e21-8a13d975abf4",
+        "kind": "create",
+        "number": 1,
+        "tenant": "stop-0"
+      }
+    },
+    {
+      "elapsed": 68.01269297488034,
+      "event": "commit_possible_dispatch",
+      "owner": 5,
+      "session": 1673594
+    },
+    {
+      "elapsed": 68.02341165672988,
+      "command": "claim",
+      "event": "result",
+      "ok": true,
+      "value": {
+        "id": "803f7022-afee-48c5-b1cd-fdaf420f4779",
+        "kind": "create",
+        "number": 1,
+        "tenant": "stop-1"
+      }
+    },
+    {
+      "elapsed": 68.02535684406757,
+      "event": "commit_possible_dispatch",
+      "owner": 6,
+      "session": 1673594
+    },
+    {
+      "elapsed": 68.04411945398897,
+      "command": "claim",
+      "event": "result",
+      "ok": true,
+      "value": {
+        "id": "a5cdd104-3d9d-44d5-96ef-7297d604f7b9",
+        "kind": "create",
+        "number": 1,
+        "tenant": "stop-2"
+      }
+    },
+    {
+      "elapsed": 68.04427505191416,
+      "command": "execute_pending",
+      "event": "result",
+      "ok": true,
+      "value": {}
+    },
+    {
+      "elapsed": 68.04533336265013,
+      "event": "commit_possible_dispatch",
+      "owner": 7,
+      "session": 1673594
+    },
+    {
+      "elapsed": 68.094807846006,
+      "command": "execute_return",
+      "event": "result",
+      "ok": true,
+      "value": {}
+    },
+    {
+      "elapsed": 68.09839892573655,
+      "event": "commit_possible_dispatch",
+      "owner": 8,
+      "session": 1673594
+    },
+    {
+      "elapsed": 68.15583713771775,
+      "command": "start_settlement",
+      "event": "result",
+      "ok": true,
+      "value": {}
+    },
+    {
+      "elapsed": 68.15611939271912,
+      "bound_ms": 1000,
+      "event": "stop_record_started",
+      "operation": "a5cdd104-3d9d-44d5-96ef-7297d604f7b9"
+    },
+    {
+      "elapsed": 68.15619990089908,
+      "command": "record_stop",
+      "event": "result",
+      "ok": true,
+      "value": {}
+    },
+    {
+      "elapsed": 68.6589344390668,
+      "event": "whole_transaction_retry",
+      "external_call_repeated": false,
+      "serialization": false,
+      "spent_ms": 503,
+      "transaction": 9
+    },
+    {
+      "elapsed": 68.69601320801303,
+      "event": "whole_transaction_retry",
+      "external_call_repeated": false,
+      "serialization": false,
+      "spent_ms": 539,
+      "transaction": 10
+    },
+    {
+      "elapsed": 68.71668305201456,
+      "error": "db error",
+      "event": "driver_dead"
+    },
+    {
+      "elapsed": 68.76689528580755,
+      "event": "startup_lock_lost",
+      "session": 1673584,
+      "stop_new_work": true
+    },
+    {
+      "elapsed": 68.76700019091368,
+      "bound_ms": 1000,
+      "event": "stop_record_started",
+      "existing_settlement": true,
+      "operation": "803f7022-afee-48c5-b1cd-fdaf420f4779"
+    },
+    {
+      "elapsed": 68.76703006681055,
+      "bound_ms": 1000,
+      "event": "stop_record_started",
+      "operation": "e1f99aa6-c568-4475-9e21-8a13d975abf4"
+    },
+    {
+      "elapsed": 68.8135554259643,
+      "event": "commit_possible_dispatch",
+      "owner": 9,
+      "session": 1673617
+    },
+    {
+      "elapsed": 68.82793588982895,
+      "event": "commit_possible_dispatch",
+      "owner": 10,
+      "session": 1673603
+    },
+    {
+      "elapsed": 68.83146483264863,
+      "event": "commit_possible_dispatch",
+      "owner": 11,
+      "session": 1673594
+    },
+    {
+      "elapsed": 69.1579529880546,
+      "event": "engine_fatal",
+      "reason": "stop bound expired; records not observed landed: 803f7022-afee-48c5-b1cd-fdaf420f4779 (claim=1),a5cdd104-3d9d-44d5-96ef-7297d604f7b9 (claim=1),e1f99aa6-c568-4475-9e21-8a13d975abf4 (claim=1)"
+    }
+  ],
+  "lock_contention_released": {
+    "event": "fault_released",
+    "timestamp": 1795606658.850257,
+    "elapsed": 68.82031116494909,
+    "fault": "tenant_lock_contention",
+    "label": "stop-records"
+  },
+  "core_probe_source_and_runtime_equal_master": true,
+  "manifest_sha256": "e8f267bbc77287639f77b9bbd861063555f7d938d23fc51454a5ba83043dcb3c",
+  "stderr_sha256": "7d508663497f9abe3492a8a4248c800ff758ca1b06fec0bed3e0df685a2c3a61",
+  "judgement": "P2 investigation, not a demonstrated product defect or false pass. The unchanged case planned connection loss under an already-running local 1000 ms record bound; the engine reported unresolved records and exited 71, while the fixture expected a poll_lock result and later successful records. The exact original bound, lock release, COMMIT and observer observations are retained; no cause is inferred from host load or from elapsed times alone. The earlier core startup reply check passed. Do not attribute this to pvr-wlm, rerun it, weaken a check or correct unrelated behavior in the fixture-packaging change.",
+  "bounded_next_evidence": "One separately authorized focused stops case with original bounds: retain record-start and original-deadline identities, tenant-holder release, each COMMIT/observer acknowledgment, process exit and missing/result reply timing. Establish whether fixture preconditions left enough time or a runtime requirement failed; a missing intended case or failed cleanup stays failed."
+}

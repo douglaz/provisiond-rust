@@ -3,11 +3,9 @@ import ast
 import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 
-BASE='8339aae5ecf20e6337f4d5d5e22ec4f4573efbfb'
-FIXTURE='06b7636cfed13cd4d6049dbe316ed8b191c93fa2'
+from historical_inputs import BASE,FIXTURE,load_w7_inputs
 ASSERTIONS={
     'w7_reporting':'STO-54 malformed reporting file must not hold establishment',
     'w7_parent_retirement':'STO-14 cancelled recovery parent must retire without stopping API',
@@ -23,7 +21,7 @@ def main():
     # run independently in every ordinary W7 child.
     import w7
     from harness import main as harness_main
-    source=subprocess.check_output(['git','show',FIXTURE+':tests/postgres/w7.py'],text=True)
+    source=load_w7_inputs()['cli']
     function=next(node for node in ast.parse(source).body if isinstance(node,ast.FunctionDef) and node.name=='operator')
     module=ast.Module(body=[function],type_ignores=[])
     exec(compile(module,'historical-cli-fixture','exec'),w7.__dict__)
