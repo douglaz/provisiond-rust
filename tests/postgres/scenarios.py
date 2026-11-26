@@ -19,6 +19,7 @@ class Probe:
         self.h=h
         self.events=[]
         self.queue=queue.Queue()
+        self.stdout_closed=threading.Event()
         self.index=len(getattr(h,'probes',[]))
         env=dict(h.env,STORE_CONNECTION=f"host=127.0.0.1 port={h.ports[3]} user={role} password={password or h.passwords[role]} dbname=postgres sslmode=disable")
         if extra_env:
@@ -27,24 +28,31 @@ class Probe:
             env['STORE_TEST_DEFECT']=defect
         self.defect=defect
         self.program=program
-        stderr=(h.root/f'client-{self.index}.stderr').open('w')
-        self.p=subprocess.Popen([str(h.target/'debug/examples'/program)],stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE,stderr=stderr,text=True,env=env,bufsize=1)
-        stderr.close()
+        self.stdout_path=h.root/f'client-{self.index}.stdout'
+        self.stderr_path=h.root/f'client-{self.index}.stderr'
+        with self.stderr_path.open('wb') as stderr:
+            self.p=subprocess.Popen([str(h.target/'debug/examples'/program)],stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE,stderr=stderr,text=True,env=env,bufsize=1)
         self.thread=threading.Thread(target=self.read)
         self.thread.start()
         h.probes.append(self)
         h.event('client_process_started',pid=self.p.pid,probe=self.index,test_defect=defect)
 
     def read(self):
-        for line in self.p.stdout:
-            try:
-                e=json.loads(line)
-            except ValueError:
-                e=dict(event='invalid_client_output',line=line)
-            self.events.append(e)
-            self.h.event('client_observation',probe=self.index,message=e)
-            self.queue.put(e)
+        with self.stdout_path.open('wb') as stdout:
+            for raw_line in self.p.stdout.buffer:
+                stdout.write(raw_line)
+                stdout.flush()
+                try:
+                    e=json.loads(raw_line.decode(self.p.stdout.encoding))
+                except ValueError:
+                    line=raw_line.decode(self.p.stdout.encoding,errors='backslashreplace')
+                    e=dict(event='invalid_client_output',line=line)
+                self.events.append(e)
+                self.h.event('client_observation',probe=self.index,message=e)
+                self.queue.put(e)
+        self.stdout_closed.set()
+        self.queue.put(None) # EOF follows all replies in the queue.
 
     def send(self,command):
         self.p.stdin.write(command+'\n')
@@ -54,10 +62,27 @@ class Probe:
         end=time.monotonic()+12
         while time.monotonic()<end:
             e=self.queue.get(timeout=max(.01,end-time.monotonic()))
+            if e is None:
+                self.queue.put(None)
+                grace=min(.1,max(0,end-time.monotonic()))
+                raise self.failure(command,'stdout closed before a matching reply',exit_grace=grace)
             if e.get('event')=='result' and e['command']==command:
                 assert ok is None or e['ok']==ok,e
                 return e
         raise AssertionError('missing client result: '+command)
+
+    def failure(self,command,reason,*,exit_grace=0):
+        status=self.p.poll()
+        if status is None and exit_grace>0:
+            # EOF or a fatal reply can reach the reader before the child is waitable.
+            try:
+                status=self.p.wait(timeout=exit_grace)
+            except subprocess.TimeoutExpired:
+                status=self.p.poll()
+        if status is None:
+            status='pending'
+        return AssertionError(f'{command}: {reason}; probe {self.index} ({self.program}, PID {self.p.pid}), '
+                              f'exit status {status}; stdout: {self.stdout_path}; stderr: {self.stderr_path}')
 
     def command(self,command,ok=True):
         self.send(command)

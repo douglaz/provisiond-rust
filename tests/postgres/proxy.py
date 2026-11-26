@@ -6,6 +6,7 @@ without recording them. A requested fault is evidence only after activated.wait(
 import socket
 import struct
 import threading
+import time
 
 
 def receive(sock, count):
@@ -26,8 +27,21 @@ class Gate:
         self.connection = None
         self.on_release = None
 
-    def wait(self):
-        assert self.activated.wait(10), f'fault never activated: {self.pattern}'
+    def wait(self,interrupted=None):
+        timeout=10
+        if interrupted is None:
+            activated=self.activated.wait(timeout)
+        else:
+            end=time.monotonic()+timeout
+            while not self.activated.is_set():
+                if interrupted():
+                    return self.connection if self.activated.is_set() else None
+                remaining=end-time.monotonic()
+                if remaining<=0:
+                    break
+                self.activated.wait(min(.05,remaining))
+            activated=self.activated.is_set()
+        assert activated, f'fault never activated: {self.pattern}'
         return self.connection
 
     def release(self):

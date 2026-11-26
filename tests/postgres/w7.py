@@ -28,6 +28,8 @@ def operator(w,*args,ok=True,extra=None):
     h=w.h
     old=h.env
     prefix=h.root/f'recovery-{len(h.commands)}'
+    stdout_path=prefix.with_suffix('.stdout')
+    stderr_path=prefix.with_suffix('.stderr')
     h.env=dict(old,**environment(h),PROVISIOND_RECOVERY_LOG=str(prefix.with_suffix('.jsonl')),
         PROVISIOND_COMPONENTS_STOPPED='yes',
         PROVISIOND_RECOVERY_INTERVAL_SECONDS='3',PROVISIOND_RECOVERY_DERIVATION_GAP='10000')
@@ -35,9 +37,21 @@ def operator(w,*args,ok=True,extra=None):
     h.env={key:value for key,value in h.env.items() if value is not None}
     if w.defect and w.defect!='w7_no_ack':h.env['STORE_TEST_DEFECT']=w.defect
     try:
-        result=h.run([str(h.target/'debug/recovery'),*args],ok=ok,timeout=12)
-        prefix.with_suffix('.stdout').write_text(result.stdout)
-        prefix.with_suffix('.stderr').write_text(result.stderr)
+        command=[str(h.target/'debug/recovery'),*args]
+        try:
+            result=h.run(command,ok=False,timeout=12)
+        except subprocess.TimeoutExpired as error:
+            for path,stream in ((stdout_path,error.stdout),(stderr_path,error.stderr)):
+                if isinstance(stream,str):
+                    path.write_text(stream)
+                else:
+                    path.write_bytes(stream or b'')
+            error.add_note(f'Recovery command streams saved to {stdout_path} and {stderr_path}')
+            raise
+        stdout_path.write_text(result.stdout)
+        stderr_path.write_text(result.stderr)
+        if ok:
+            assert result.returncode == 0, f'{command[0]} exited {result.returncode}: {result.stderr}'
         # STO-54/56: internal traces stay in the requested diagnostic file.
         # OVR-18/STO-55: failed standalone calls can also emit entry::alarm's
         # recovery operator alarm on stderr, alongside plain operator notices.
@@ -66,7 +80,7 @@ def operator(w,*args,ok=True,extra=None):
         events=trace_events(log) if log and log.exists() else []
         if log:assert events,'STO-54 requested recovery log must receive trace events'
         h.event('recovery_cli_contract_observed',action=args[0],row=row,log_requested=log is not None,
-            trace_events=events,stdout_path=str(prefix.with_suffix('.stdout')),stderr_path=str(prefix.with_suffix('.stderr')))
+            trace_events=events,stdout_path=str(stdout_path),stderr_path=str(stderr_path))
         h.event('recovery_cli_completed',action=args[0],exit_status=result.returncode,
             stdout_sha256=hashlib.sha256(result.stdout.encode()).hexdigest(),
             stderr_sha256=hashlib.sha256(result.stderr.encode()).hexdigest())

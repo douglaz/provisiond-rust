@@ -430,7 +430,26 @@ def claim_loss(h):
     # Generation advance reply loss is fatal before startup sweep/claims.
     p=core_probe(h)
     gate=h.proxy.arm('store COMMIT','commit_reply')
-    p.send('engine_start');c=gate.wait()
+
+    def startup_error():
+        # A startup reply already read from stdout takes precedence over EOF.
+        closed=p.stdout_closed.is_set()
+        for e in p.events:
+            if e.get('event')=='result' and e['command']=='engine_start' and not e['ok']:
+                return e['error']
+        return 'stdout closed before fault activation' if closed else None
+
+    try:
+        p.send('engine_start')
+    except BrokenPipeError:
+        reason=startup_error() or 'stdin closed before sending the startup command'
+    else:
+        c=gate.wait(interrupted=startup_error)
+        reason=startup_error() if c is None else None
+    if reason is not None:
+        h.results.append(dict(test='generation-advance-reply-loss',result='not run',
+                              reason='engine_start failed before fault activation'))
+        raise p.failure('engine_start',reason,exit_grace=.1)
     h.event('advance_reply_loss_activated',durable_generation=h.sql('SELECT generation FROM provisiond.startup_generation'))
     h.proxy.close_connection(c,'lost_advance_reply');gate.release()
     p.result('engine_start',ok=False);p.expected_status=71;p.finish()
