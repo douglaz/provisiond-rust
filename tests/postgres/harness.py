@@ -340,9 +340,10 @@ tcp_keepalives_count = 2
                    maintenance_session_closed=True, maintenance_mode_exception=False,
                    elapsed_seconds=time.monotonic()-started)
 
-    def wait_for_standby_flush(self, primary='primary'):
-        """Wait for the designated standby's primary-side flush report (STO-7)."""
-        target = self.sql('SELECT pg_current_wal_flush_lsn()', node=primary)
+    def wait_for_standby_flush(self, primary='primary', *, target=None):
+        """Wait for the designated standby to report a specified or sampled WAL position (STO-7)."""
+        if target is None:
+            target = self.sql('SELECT pg_current_wal_flush_lsn()', node=primary)
         eventually(lambda: self.sql(f"SELECT count(*)=1 FROM pg_stat_replication WHERE application_name='provisiond_sync' AND usename='replicator' AND client_addr='127.0.0.1' AND sync_state='sync' AND flush_lsn >= '{target}'::pg_lsn", node=primary)=='t')
         return target
 
