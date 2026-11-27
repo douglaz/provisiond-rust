@@ -38,6 +38,7 @@ fn operation_history(operations: &str, receipts: &str, retention_seconds: i64) -
 // Receipt presence is distinct from expiry; receiptless rows keep the strict age
 // fallback. Both statements evaluate this relation afresh at statement time.
 const SETTLED_RETENTION: &str = "(WITH candidates AS MATERIALIZED (SELECT id,updated_at FROM provisiond.operations WHERE status IN ('succeeded','failed')) SELECT c.id,COALESCE(r.expires_at,c.updated_at+$1::bigint*interval '1 second') AS retained_until FROM candidates c LEFT JOIN (SELECT r.resource_id,max(r.expires_at) AS expires_at FROM provisiond.idempotency_records r JOIN candidates c ON c.id=r.resource_id WHERE r.resource_kind='operation' GROUP BY r.resource_id) r ON r.resource_id=c.id WHERE (r.resource_id IS NOT NULL AND r.expires_at<=statement_timestamp()) OR (r.resource_id IS NULL AND c.updated_at<statement_timestamp()-$1::bigint*interval '1 second'))";
+const BALANCE_TOTALS: &str = "jsonb_build_object('balance_sats',COALESCE((SELECT balance_after FROM provisiond.ledger_entries WHERE tenant_id=$1 ORDER BY seq DESC LIMIT 1),0),'committed_sats',COALESCE((SELECT sum(reserved_sats) FROM provisiond.commitments WHERE tenant_id=$1 AND state='open'),0),'earliest_runway_until',(SELECT provisiond.wire_time(min(runway_until)) FROM provisiond.machines WHERE tenant_id=$1 AND state IN ('running','stopped','cancellation_scheduled')))";
 
 fn operation_result(v: &Value) -> Result<Value> {
     if !v["body"].is_null() && v["expired"] != true {
@@ -1057,15 +1058,27 @@ impl State {
             return Ok(json!({"offers":out}));
         }
         if path == "/v1/balance" {
-            let mut v=self.store.value("SELECT jsonb_build_object('balance_sats',COALESCE((SELECT balance_after FROM provisiond.ledger_entries WHERE tenant_id=$1 ORDER BY seq DESC LIMIT 1),0),'committed_sats',COALESCE((SELECT sum(reserved_sats) FROM provisiond.commitments WHERE tenant_id=$1 AND state='open'),0),'earliest_runway_until',(SELECT provisiond.wire_time(min(runway_until)) FROM provisiond.machines WHERE tenant_id=$1 AND state IN ('running','stopped','cancellation_scheduled')))::text",&[&tenant]).await?;
+            let page = if query(&r.target, "commitments").as_deref() == Some("true") {
+                self.page(r, tenant, "commitments").await.map(Some)
+            } else {
+                Ok(None)
+            };
+            let (mut v, page) = match page {
+                Ok(Some(mut page)) => (page["totals"].take(), Ok(Some(page))),
+                Err(error) if !error.is::<Error>() => return Err(error),
+                page => {
+                    // Preserve the totals read's precedence over pagination errors.
+                    let sql = format!("SELECT {BALANCE_TOTALS}::text");
+                    (self.store.value(&sql, &[&tenant]).await?, page)
+                }
+            };
             v["available_sats"] = json!(
                 v["balance_sats"].as_i64().context("balance")?
                     - v["committed_sats"].as_i64().context("commitment")?
             );
-            if query(&r.target, "commitments").as_deref() == Some("true") {
-                let page = self.page(r, tenant, "commitments").await?;
-                v["commitments"] = page["items"].clone();
-                v["next_cursor"] = page["next_cursor"].clone();
+            if let Some(mut page) = page? {
+                v["commitments"] = page["items"].take();
+                v["next_cursor"] = page["next_cursor"].take();
             }
             return Ok(v);
         }
@@ -1222,10 +1235,17 @@ impl State {
         } else {
             "status"
         };
+        let page = "COALESCE(jsonb_agg(jsonb_build_object('body',body,'time',created_at::text,'id',id) ORDER BY created_at DESC,id),'[]'::jsonb)";
+        // WIR-16: read the balance totals and commitments page in one snapshot.
+        let select = if collection == "commitments" {
+            format!("jsonb_build_object('totals',{BALANCE_TOTALS},'rows',{page})")
+        } else {
+            page.to_owned()
+        };
         let sql = format!(
-            "SELECT COALESCE(jsonb_agg(jsonb_build_object('body',body,'time',created_at::text,'id',id) ORDER BY created_at DESC,id),'[]'::jsonb)::text FROM (SELECT * FROM {table} v WHERE ($1::text IS NULL OR tenant_id=$1) AND body IS NOT NULL AND ($2='' OR body->>'{status_field}'=ANY(string_to_array($2,','))) AND ($3='' OR body->>'requested_by'=ANY(string_to_array($3,','))) AND ($4='' OR body->>'system_reason'=ANY(string_to_array($4,','))) AND ($5='' OR (body->>'terminal')::boolean=$5::boolean) AND ($6='' OR created_at<NULLIF($6,'')::timestamptz OR (created_at=NULLIF($6,'')::timestamptz AND id::text>$7)) ORDER BY created_at DESC,id LIMIT $8) page"
+            "SELECT {select}::text FROM (SELECT * FROM {table} v WHERE ($1::text IS NULL OR tenant_id=$1) AND body IS NOT NULL AND ($2='' OR body->>'{status_field}'=ANY(string_to_array($2,','))) AND ($3='' OR body->>'requested_by'=ANY(string_to_array($3,','))) AND ($4='' OR body->>'system_reason'=ANY(string_to_array($4,','))) AND ($5='' OR (body->>'terminal')::boolean=$5::boolean) AND ($6='' OR created_at<NULLIF($6,'')::timestamptz OR (created_at=NULLIF($6,'')::timestamptz AND id::text>$7)) ORDER BY created_at DESC,id LIMIT $8) page"
         );
-        let rows = self
+        let mut result = self
             .store
             .value(
                 &sql,
@@ -1241,6 +1261,11 @@ impl State {
                 ],
             )
             .await?;
+        let rows = if collection == "commitments" {
+            &result["rows"]
+        } else {
+            &result
+        };
         let rows = rows.as_array().context("page")?;
         let selected: Vec<_> = rows.iter().take(limit as usize).collect();
         let next = if rows.len() > limit as usize {
@@ -1249,9 +1274,11 @@ impl State {
         } else {
             None
         };
-        Ok(
-            json!({"items":selected.iter().map(|v|v["body"].clone()).collect::<Vec<_>>(),"next_cursor":next}),
-        )
+        let mut page = json!({"items":selected.iter().map(|v|v["body"].clone()).collect::<Vec<_>>(),"next_cursor":next});
+        if collection == "commitments" {
+            page["totals"] = result["totals"].take();
+        }
+        Ok(page)
     }
 }
 fn query(target: &str, key: &str) -> Option<String> {

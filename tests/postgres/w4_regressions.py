@@ -1,4 +1,4 @@
-"""Focused API-7/13/29/49/50, OPS-43 and LDG-31 regression observations."""
+"""Focused API-7/13/29/49/50, OPS-43, LDG-31 and WIR-16 regression observations."""
 import concurrent.futures
 import hashlib
 import json
@@ -599,3 +599,55 @@ CASES.update({'w4_provider_refusal':provider_refusal,'w4_provider_ambiguity':pro
 
 from w4_read_deadline import read_deadline
 CASES['w4_read_deadline']=read_deadline
+
+
+def balance_snapshot(w):
+    """WIR-16: totals and a full commitments page describe one snapshot."""
+    w.stop_engine()
+    tenant = funded(w, 'balance-snapshot')
+    path = '/v1/balance?commitments=true'
+    before = w.request('GET', path, tenant=tenant)
+    assert before['commitments'] == []
+    port = w.h.ports[4]
+    token = tenant['spending_token']
+    body = w.create_body(tenant)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        write_gate = w.h.proxy.arm('UPDATE provisiond.operations SET request=$2::text::jsonb', 'send')
+        try:
+            creating = pool.submit(http, port, 'POST', '/v1/machines', body, token, 'balance-snapshot-create')
+            writer = write_gate.wait(interrupted=creating.done)
+            assert writer is not None, 'create finished before its write gate activated'
+
+            read_gate = w.h.proxy.arm("jsonb_build_object('balance_sats'", 'execute_reply')
+            try:
+                reading = pool.submit(http, port, 'GET', path, token=token)
+                reader = read_gate.wait(interrupted=reading.done)
+                assert reader is not None, 'balance finished before its reply gate activated'
+                assert reader['pid'] != writer['pid'], 'create and balance must use separate sessions'
+                write_gate.release()
+                status, create, _ = creating.result()
+                assert status == 202, 'create must be acknowledged while the balance reply is held'
+                assert not reading.done(), 'balance must still be pending when create is acknowledged'
+            finally:
+                read_gate.release()
+        finally:
+            write_gate.release()
+        status, balance, _ = reading.result()
+
+    assert status == 200
+    assert balance['next_cursor'] is None
+    assert balance['committed_sats'] == sum(c['reserved_sats'] for c in balance['commitments']), (
+        'WIR-16: committed_sats must equal the sum of reserved_sats on the full commitments page'
+    )
+    assert balance['available_sats'] == balance['balance_sats'] - balance['committed_sats']
+    assert balance == before, 'WIR-16: the held balance must match the snapshot before the create'
+
+    after = w.request('GET', path, tenant=tenant)
+    commitment, = after['commitments']
+    assert commitment['operation_id'] == create['id']
+    assert commitment['reserved_sats'] == create['committed_sats'] > 0
+    w.h.results.append(dict(test='W4-balance-one-snapshot', result='pass'))
+
+
+CASES['w4_balance_snapshot'] = balance_snapshot
