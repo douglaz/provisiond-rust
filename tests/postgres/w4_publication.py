@@ -5,6 +5,7 @@ import time
 from harness import eventually
 from scenarios import pause_standby, resume_standby
 from w4_regressions import funded
+from workflow import trace_events
 
 
 def state(w,op):
@@ -164,6 +165,7 @@ def lock_dispatch_arm(w,mode):
     a=funded(w,'lock-active-'+mode);b=funded(w,'lock-pending-'+mode)
     active=w.request('POST','/v1/machines',w.create_body(a),a,'lock-active',status=202)['id']
     hold=w.control/'hold-step-9';hold.touch()
+    dispatch_hold=w.control/'hold-dispatch'
     gates=[]
     try:
         p=w.start_engine()
@@ -173,13 +175,18 @@ def lock_dispatch_arm(w,mode):
         eventually(lambda:any(e.get('operation')==active and e.get('step')==9 for e in current('dispatch_step_held')))
         lock_pid=current('startup_lock_acquired')[-1]['session']
         generation=h.sql('SELECT generation FROM provisiond.startup_generation')
+        # Keep CNF-366's real claim and STO-7's session bounds. Pause between
+        # iterations while the API makes B available, before any claim BEGIN.
+        dispatch_hold.touch()
+        eventually(lambda:any(e.get('event')=='test_dispatch_paused' for e in trace_events(p.log)))
         # This is a normal dispatcher iteration, held before selecting B. A has
         # an acknowledged claim and license, with its execution still represented.
         selection=h.proxy.arm("SELECT o.id::text FROM provisiond.operations o WHERE status='queued'",'send');gates.append(selection)
-        connection=selection.wait();pid=connection['pid']
-        assert pid!=lock_pid and p.poll() is None
         pending=None if mode=='empty_claim' else w.request('POST','/v1/machines',w.create_body(b),b,'lock-pending-'+mode,status=202)['id']
         if pending:eventually(lambda:h.sql(f"SELECT clock_timestamp()>=available_at FROM provisiond.operations WHERE id='{pending}'")=='t')
+        dispatch_hold.unlink()
+        connection=selection.wait();pid=connection['pid']
+        assert pid!=lock_pid and p.poll() is None
         commit=h.proxy.arm('COMMIT /* store COMMIT */','send',session=pid);gates.append(commit)
         selection.release();commit.wait()
         owners=[e for e in current('commit_possible_dispatch') if e['session']==pid]
@@ -264,6 +271,7 @@ def lock_dispatch_arm(w,mode):
         w.stop_engine()
         if h.paused:resume_standby(h)
         for gate in gates:gate.release()
+        dispatch_hold.unlink(missing_ok=True)
         hold.unlink()
         h.event('dispatch_lock_fixture_recovered',owned_replication_restored=True,arm=mode)
 
