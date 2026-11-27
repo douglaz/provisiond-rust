@@ -25,19 +25,15 @@ fn local_store_with_write_limit(
         env::var("PROVISIOND_PROFILE").as_deref() == Ok("local-simulator"),
         "pre-conformance prototype requires PROVISIOND_PROFILE=local-simulator"
     );
-    let connection = env::var("PROVISIOND_DATABASE_URL")
-        .context("missing database connection")?
+    let connection = read_setting("PROVISIOND_DATABASE_URL")?
         .parse()
         .map_err(|_| anyhow::anyhow!("invalid database connection configuration"))?;
     Store::new(
         Settings {
             connection,
-            designated_name: env::var("PROVISIOND_STANDBY_NAME")
-                .context("missing designated standby name")?,
-            designated_role: env::var("PROVISIOND_STANDBY_ROLE")
-                .context("missing designated standby role")?,
-            designated_address: env::var("PROVISIOND_STANDBY_ADDRESS")
-                .context("missing designated standby address")?,
+            designated_name: read_setting("PROVISIOND_STANDBY_NAME")?,
+            designated_role: read_setting("PROVISIOND_STANDBY_ROLE")?,
+            designated_address: read_setting("PROVISIOND_STANDBY_ADDRESS")?,
             statement_ms: 1000,
             lock_ms: 500,
             idle_transaction_ms: 1000,
@@ -53,6 +49,17 @@ fn local_store_with_write_limit(
         write_limit,
         trace,
     )
+}
+
+// SEC-3 says "No credential — provider token, rescue password, private key, signed URL — may
+// appear in a log line, an operation result, an error message, or a stored metadata blob."
+// The database address setting can carry the database password, so a setting error names the
+// setting and never repeats its value.
+fn read_setting(name: &str) -> Result<String> {
+    env::var(name).map_err(|error| match error {
+        env::VarError::NotPresent => anyhow::anyhow!("missing {name}"),
+        env::VarError::NotUnicode(_) => anyhow::anyhow!("{name} is not valid UTF-8 text"),
+    })
 }
 
 pub async fn migrate(store: &Store) -> Result<()> {
