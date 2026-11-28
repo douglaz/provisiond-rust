@@ -125,6 +125,13 @@ def bootstrap(w):
     assert h.sql("SHOW synchronous_standby_names")=='FIRST 1 (provisiond_sync)'
     h.event('replacement_standby_verified',maintenance_mode_exception=False,prior_incident_required=False)
 
+def wait_for_recovery_checkout(h):
+    # STO-7/54: the backup can leave the receiver at a WAL segment boundary.
+    # Give it a record in the next segment and wait for its flush report
+    # before either recovery session starts.
+    target = h.sql('SELECT pg_log_standby_snapshot()')
+    h.wait_for_standby_flush(target=target)
+
 def continue_recovery(w):
     operator(w,'prepare')
     w.quiesced=False
@@ -250,6 +257,7 @@ def continuation(w):
     tenant=w.enrol();w.fund(tenant,'continuation-funding')
     predecessor=record(w)
     promote(w);bootstrap(w)
+    wait_for_recovery_checkout(h)
     id,_=establish(w,predecessor=predecessor['id'] if predecessor else None)
     operator(w,'prepare');w.quiesced=False
     w.start_engine();eventually(lambda:record(w)['steps_completed']==2);w.stop_engine()
@@ -295,9 +303,10 @@ def supersession(w):
     if record(w) is None:continuation(w)
     before=record(w);assert before['steps_completed']==3
     promote(w);bootstrap(w)
+    h=w.h
+    wait_for_recovery_checkout(h)
     id,_=establish(w,predecessor=before['id'])
     after=record(w)
-    h=w.h
     h.event('w7_supersession_observed',before=before,after=after)
     assert after['id']!=before['id'] and after['supersedes_incident_id']==before['id'] and after['steps_completed']==0 and after['grace_ends_at'] is None,'STO-56 supersession must start fresh progress and null grace'
     assert h.sql(f"SELECT closed_at IS NOT NULL FROM provisiond.recovery_incidents WHERE id='{before['id']}'")=='t'
@@ -504,7 +513,9 @@ def markers(w):
     assert w.status(parents[0])=='queued'
     assert h.sql(f"SELECT disposition FROM provisiond.recovery_waiting_parents WHERE incident_id='{id}' AND operation_id='{parents[0]}'")=='confirmed'
     assert operator(w,'parent',id,parents[0],'cancelled',ok=False).returncode!=0
-    promote(w);bootstrap(w);next_id,_=establish(w,predecessor=id)
+    promote(w);bootstrap(w)
+    wait_for_recovery_checkout(h)
+    next_id,_=establish(w,predecessor=id)
     assert h.sql(f"SELECT restore_markers_untrusted FROM provisiond.operations WHERE id='{fresh}'")=='t'
     h.event('w7_causal_trace',scenario=w.case,incident=next_id,seeded_operations=old,waiting_parents=parents,
         fresh_provenance_changed_only_on_new_event=fresh,not_run='fresh install/rescue admission and suspension fan-out; deferred workers')

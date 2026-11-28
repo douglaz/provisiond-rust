@@ -720,6 +720,8 @@ def crash_and_restart(h):
         p.command('admit',ok=False)
         before=len(p.events)
         resume_standby(h)
+        if crash=='primary':
+            h.wait_for_standby_flush()
         p.command('admit')
         new_events=p.events[before:]
         assert any(e.get('event')=='check_target' and e.get('kind')=='admission' for e in new_events)

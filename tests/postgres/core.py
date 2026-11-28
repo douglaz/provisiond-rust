@@ -429,6 +429,7 @@ def claim_loss(h):
     h.results.append(dict(test='ENG-03',result='pass',arms='claim reply lost after durable claim; fatal exit; restart recovery'))
     # Generation advance reply loss is fatal before startup sweep/claims.
     p=core_probe(h)
+    h.wait_for_standby_flush()
     gate=h.proxy.arm('store COMMIT','commit_reply')
 
     def startup_error():
