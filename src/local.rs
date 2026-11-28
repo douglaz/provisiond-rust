@@ -7,7 +7,7 @@ pub struct Parameters {
 }
 impl Parameters {
     pub fn load() -> Result<Self> {
-        let path = std::env::var("PROVISIOND_LOCAL_PARAMETERS")
+        let path = crate::entry::var("PROVISIOND_LOCAL_PARAMETERS")
             .context("missing local parameters file")?;
         Self::new(serde_json::from_slice(&std::fs::read(path)?)?)
     }

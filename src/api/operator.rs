@@ -24,7 +24,7 @@ impl Authority {
             return Ok(None);
         };
         let address = http::loopback(&address)?;
-        let path = std::env::var("PROVISIOND_OPERATOR_AUTHORITY")?;
+        let path = crate::entry::var("PROVISIOND_OPERATOR_AUTHORITY")?;
         let config: Value = serde_json::from_slice(&std::fs::read(path)?)?;
         let mut principals = Vec::new();
         let mut names = std::collections::BTreeSet::new();
@@ -41,7 +41,8 @@ impl Authority {
                 .as_str()
                 .filter(|s| opaque(s))
                 .context("opaque operator principal required")?;
-            let token = std::env::var(
+            // SEC-3: a token setting error names the setting, never its value.
+            let token = crate::entry::var(
                 entry["token_env"]
                     .as_str()
                     .context("token environment name")?,

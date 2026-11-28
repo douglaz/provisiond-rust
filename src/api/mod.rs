@@ -1321,11 +1321,12 @@ pub async fn serve(store: Store, trace: Trace) -> Result<()> {
     // OVR-10b, STO-13: validate the whole local service configuration before
     // binding or reporting readiness. --check-schema never enters this path.
     let address = http::loopback(
-        &std::env::var("PROVISIOND_API_LISTEN").context("missing PROVISIOND_API_LISTEN")?,
+        &crate::entry::var("PROVISIOND_API_LISTEN").context("missing PROVISIOND_API_LISTEN")?,
     )
     .context("PROVISIOND_API_LISTEN must be a loopback socket address with a positive port")?;
     let rail_address = http::loopback(
-        &std::env::var("PROVISIOND_RAIL_SIMULATOR").context("missing PROVISIOND_RAIL_SIMULATOR")?,
+        &crate::entry::var("PROVISIOND_RAIL_SIMULATOR")
+            .context("missing PROVISIOND_RAIL_SIMULATOR")?,
     )
     .context("PROVISIOND_RAIL_SIMULATOR must be a loopback socket address with a positive port")?;
     let operators = operator::Authority::load()?;
