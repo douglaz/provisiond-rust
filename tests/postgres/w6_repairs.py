@@ -211,7 +211,23 @@ def auth_stop(w):
             w.h.sql(f"UPDATE provisiond.operations SET mutation_wait_ended_at=clock_timestamp()-interval '61 seconds' WHERE id='{op}'")
             eventually(lambda:snapshot(w,op)['commitment']['state']=='closed')
             assert snapshot(w,op)['operation']['status']=='needs_reconciliation'
-        time.sleep(2.4);w.stop_engine();observed=w.external()['events'][before:]
+        # PRV-41/OPS-32: one engine pass reads pending operations, then each healthy
+        # account in catalog order, so the healthy account's pass is due later in the
+        # pass that saw the rejection, after any work ahead of it; decisions.md bounds
+        # a pass by its I/O, not by time. After the fixed window, read the engine's own
+        # trace order: that pass must complete before any account's third pass after
+        # the rejection, which ends one whole later pass. 120 s is a liveness guard only.
+        def healthy_pass():
+            trace=events(p);passes={}
+            mark=next((i for i,e in enumerate(trace) if e.get('event')=='provider_credentials_rejected' and e.get('provider_account')==account
+                       or e.get('event')=='resolution_read_refused' and e.get('kind')=='authentication'),len(trace))
+            for e in trace[mark:]:
+                if e.get('event')!='account_pass_complete':continue
+                if e.get('provider_account')==other:return 'contacted'
+                passes[e.get('provider_account')]=passes.get(e.get('provider_account'),0)+1
+                if passes[e.get('provider_account')]==3:return 'pass ended'
+            if p.poll() is not None:return 'engine exited'
+        time.sleep(2.4);healthy=eventually(healthy_pass,seconds=120);w.stop_engine();observed=w.external()['events'][before:]
         failed=[e for e in observed if e['stage']=='authentication_rejected' and e['account']==account]
         state=w.h.sql(f"SELECT status FROM provisiond.provider_account_status WHERE provider_account='{account}'")
         w.h.event('w6_authentication_stop_activated',site=site,fault=fault,credential_status=state,provider=observed,trace=events(p))
@@ -221,7 +237,7 @@ def auth_stop(w):
         if 'operation' in fault:assert failed[0]['command']==fault['operation'],'authentication fault must hit the selected read site'
         index=observed.index(failed[0])
         assert not any(e['stage']=='request_received' and e['account']==account for e in observed[index+1:]),'R5 PRV-41 no remaining or scheduled credential calls'
-        assert any(e['stage']=='request_received' and e['account']==other for e in observed[index+1:]),'healthy account continues after credential stop'
+        assert healthy=='contacted' and any(e['stage']=='request_received' and e['account']==other for e in observed[index+1:]),'healthy account continues after credential stop'
         if site=='/constraints':
             assert w.status(op)=='succeeded' and snapshot(w,op)['machines'][0]['earliest_cancellation_date'] is None
         w.provider_control(authentication_fault=None)
