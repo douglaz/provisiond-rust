@@ -42,25 +42,35 @@ def deployment_exit(h,component,process,**data):
 
 
 def empty_recovery_replay(events):
-    """STO-7/54: prove the failed write constructor preceded any business work.
+    """STO-7/54, D-68: prove the failed write constructor preceded any business work.
 
     One admitted session served startup reads. The second constructor closed
-    unused (session=0); it never reached BEGIN. An empty adapter replay is a GET.
+    unused, before its backend pid (session=0) or while its STO-7 admission
+    check still waited for the standby; either way it never reached BEGIN.
+    The derived watch set may name deposits; the replay itself is the one rail
+    GET, and any credit or observation it processed is an event outside this
+    list. A closed session's driver ends by its close signal
+    (driver_closed_unused) or with its stream (driver_closed); the driver's
+    tokio::select! takes either when both are ready (src/store/mod.rs).
     Unknown events fail closed, as do any admitted write session or step mark.
     """
     allowed={'client_keepalives_observed','check_target','check_observation','session_admitted',
              'schema_compatible','recovery_startup_decision','recovery_watch_set_derived',
-             'external_entry','call_cancelled_session_closed','driver_closed_unused','supervisor_drained'}
+             'external_entry','call_cancelled_session_closed','driver_closed_unused','driver_closed',
+             'supervisor_drained'}
     external=[e for e in events if e.get('event')=='external_entry']
     decisions=[e for e in events if e.get('event')=='recovery_startup_decision']
     watches=[e for e in events if e.get('event')=='recovery_watch_set_derived']
+    # Every event is in the allowed set, so only session admission ends with '_admitted'.
+    admitted={e.get('session') for e in events if e.get('event','').endswith('_admitted')}
+    checking={e.get('session') for e in events if e.get('event')=='check_target'}-admitted
     return (all(e.get('event') in allowed for e in events)
         and len(external)==1 and external[0].get('kind')=='Rail' and external[0].get('simulator') is True
         and len(decisions)==1 and decisions[0].get('incident',{}).get('steps_completed')==2
-        and len(watches)==1 and watches[0].get('deposits')==[]
+        and len(watches)==1 and isinstance(watches[0].get('deposits'),list)
         and sum(e.get('event')=='session_admitted' for e in events)==1
-        and any(e.get('event')=='call_cancelled_session_closed' and e.get('session')==0 for e in events)
-        and any(e.get('event')=='driver_closed_unused' for e in events))
+        and any(e.get('event')=='call_cancelled_session_closed' and (e.get('session')==0 or e.get('session') in checking) for e in events)
+        and any(e.get('event') in ('driver_closed_unused','driver_closed') for e in events))
 
 
 def http(port,method,path,body=None,token=None,key=None,raw=None,headers=None):
@@ -262,6 +272,15 @@ class Workflow:
         assert code==status,(method,path,code,value)
         return value
     def enrol(self):
+        if self.defect is not None:
+            # STO-7/55, D-71: a defect control observes its first enrolment
+            # response directly, without the ordinary client resend. API
+            # startup reads can prune pages on access, leaving WAL inserted but
+            # not yet flushed, which that one write checkout's admission target
+            # can then include (pvr-nepn: two PRUNE_ON_ACCESS records). As in
+            # the W7 recovery setup, log a standby snapshot after it and wait
+            # for the standby's flush report before the checkout starts.
+            self.h.wait_for_standby_flush(target=self.h.sql('SELECT pg_log_standby_snapshot()'))
         token=self.request('POST','/v1/enrol/token',{})
         tenant=self.request('POST','/v1/enrol',{'admission_token':token['admission_token']},key='ignored-header')
         self.private.extend([token['admission_token'],tenant['spending_token'],tenant['recovery_credential']])

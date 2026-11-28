@@ -15,6 +15,16 @@ EVENTS=[dict(event='session_admitted',session=17),
         dict(event='recovery_watch_set_derived',deposits=[]),
         dict(event='external_entry',kind='Rail',simulator=True),
         dict(event='call_cancelled_session_closed',session=0),dict(event='driver_closed_unused')]
+# The failed API start in the 2026-11-25 w7_default_hooks record (api-6.stdout), sessions renumbered.
+RECORDED=[dict(event='client_keepalives_observed'),dict(event='check_target',kind='admission',session=17),
+          dict(event='check_observation',kind='admission',session=17),dict(EVENTS[0]),
+          dict(event='schema_compatible'),dict(event='schema_compatible'),
+          dict(event='recovery_startup_decision',incident=dict(steps_completed=2)),
+          dict(event='recovery_watch_set_derived',deposits=['4b82fc29-b1f6-46ef-9d46-a84276c7bc66']),
+          dict(event='external_entry',kind='Rail',simulator=True),dict(event='client_keepalives_observed'),
+          dict(event='check_target',kind='admission',session=18),dict(event='check_observation',kind='admission',session=18),
+          dict(event='call_cancelled_session_closed',session=18),dict(event='driver_closed_unused'),
+          dict(event='driver_closed_unused'),dict(event='supervisor_drained')]
 
 
 def process(events,status):
@@ -148,6 +158,34 @@ class StartupRetry(unittest.TestCase):
                         'workflow.http',return_value=(200,settlements,{})):
                     with self.assertRaisesRegex(AssertionError,'current API startup failed before readiness'):
                         Workflow.launch_api(w)
+                self.assertEqual(w.start.call_count,1)
+
+    def test_recorded_write_constructor_refusal_can_repeat(self):
+        # D-68, pvr-nepn: the 2026-11-25 w7_default_hooks shape. The watch set
+        # named a deposit, the replay was empty, and the write constructor was
+        # cancelled while its admission check waited; it never reached BEGIN.
+        # Either driver may also end with its stream (tokio::select! picks a ready branch).
+        stream=list(RECORDED);stream[-3]=dict(event='driver_closed')
+        streams=list(stream);streams[-2]=dict(event='driver_closed')
+        for events in (RECORDED,stream,streams):
+            w=self.fixture(events)
+            with self.subTest(drivers=[e['event'] for e in events[-3:-1]]),patch('workflow.http',return_value=(200,[],{})):
+                Workflow.launch_api(w)
+                self.assertEqual(w.start.call_count,2)
+                exits=[c.kwargs for c in w.h.event.call_args_list if c.args==('api_fixture_deployment_exit',)]
+                self.assertEqual([(e['retry_eligible'],e['empty_read_only_recovery_replay']) for e in exits],[(True,True)])
+
+    def test_recorded_shape_with_admission_effect_or_unknown_session_cannot_repeat(self):
+        unknown=[dict(e,session=19) if e['event']=='call_cancelled_session_closed' else e for e in RECORDED]
+        for events,settlements in [([*RECORDED,dict(EVENTS[0],session=18)],[]),
+                                   (unknown,[]),(RECORDED,[dict(rail='lightning')]),
+                                   ([*RECORDED,dict(event='rail_observation_processed')],[]),
+                                   ([*RECORDED,dict(event='driver_dead',error='reset')],[])]:
+            w=self.fixture(events)
+            with self.subTest(events=events[-1],settlements=settlements),patch(
+                    'workflow.http',return_value=(200,settlements,{})):
+                with self.assertRaisesRegex(AssertionError,'current API startup failed before readiness'):
+                    Workflow.launch_api(w)
                 self.assertEqual(w.start.call_count,1)
 
     def engine_fixture(self,events,status=1):
