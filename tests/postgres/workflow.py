@@ -24,8 +24,8 @@ def trace_events(path):
     OPS-50 immediate process exit can interrupt the final diagnostic write.
     Keep its bytes in the raw file without manufacturing a completed event.
     """
-    return [json.loads(line) for line in path.read_bytes().splitlines(keepends=True)
-            if line.startswith(b'{') and line.endswith(b'\n')]
+    lines = path.read_bytes().split(b'\n')
+    return [json.loads(line) for line in lines[:-1] if line.startswith(b'{')]
 
 
 def exit_evidence(process):

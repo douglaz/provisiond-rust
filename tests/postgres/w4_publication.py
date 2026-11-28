@@ -49,7 +49,7 @@ def verification_stop(w,only=None):
         try:
             p=w.start_engine()
             def current(event=None):
-                rows=[json.loads(line) for line in p.log.read_text().splitlines() if line.startswith('{')]
+                rows=trace_events(p.log)
                 return [e for e in rows if event is None or e.get('event')==event]
             # Setup readiness precedes this operation-attributed provider window.
             eventually(lambda:any(e['path']=='/'+path and e['stage']=='request_held' for e in operation_events(w,op)))
@@ -170,7 +170,7 @@ def lock_dispatch_arm(w,mode):
     try:
         p=w.start_engine()
         def current(event=None):
-            rows=[json.loads(line) for line in p.log.read_text().splitlines() if line.startswith('{')]
+            rows=trace_events(p.log)
             return [e for e in rows if event is None or e.get('event')==event]
         eventually(lambda:any(e.get('operation')==active and e.get('step')==9 for e in current('dispatch_step_held')))
         lock_pid=current('startup_lock_acquired')[-1]['session']
