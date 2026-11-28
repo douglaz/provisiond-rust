@@ -58,7 +58,26 @@ fn local_store_with_write_limit(
 fn read_setting(name: &str) -> Result<String> {
     env::var(name).map_err(|error| match error {
         env::VarError::NotPresent => anyhow::anyhow!("missing {name}"),
-        env::VarError::NotUnicode(_) => anyhow::anyhow!("{name} is not valid UTF-8 text"),
+        env::VarError::NotUnicode(_) => not_unicode(name),
+    })
+}
+
+/// SEC-3: the fixed error for a setting that is not valid UTF-8 names the setting only.
+pub(crate) fn not_unicode(name: &str) -> anyhow::Error {
+    anyhow::anyhow!("{name} is not valid UTF-8 text")
+}
+
+/// SEC-3: `std::env::var` for a setting that holds an operator token, or that an operator
+/// authority's `token_env` can name, since that may be any setting the API reads first.
+/// `VarError::NotUnicode` carries the value, so it becomes the fixed error; an unset setting
+/// keeps `VarError`'s own error, which carries no value.
+pub(crate) fn var(name: &str) -> Result<String> {
+    named(name, env::var(name))
+}
+fn named(name: &str, value: Result<String, env::VarError>) -> Result<String> {
+    value.map_err(|error| match error {
+        env::VarError::NotUnicode(_) => not_unicode(name),
+        missing @ env::VarError::NotPresent => missing.into(),
     })
 }
 
@@ -125,4 +144,40 @@ pub fn alarm(component: &str, message: &str, threshold_ms: u64) {
         serde_json::json!({"event":"alarm","component":component,
         "message":message,"threshold_ms":threshold_ms,"operator_action_required":true})
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{env::VarError, ffi::OsString, os::unix::ffi::OsStringExt};
+
+    /// SEC-3, pvr-r7ov: a token setting that is not valid UTF-8 is named, never repeated.
+    #[test]
+    fn invalid_utf8_token_setting_is_named_without_its_value() {
+        let word = b"inventedsampleword";
+        for value in [
+            [b"\xff\xfe".as_slice(), word].concat(),
+            [word.as_slice(), b"\xff\xfe"].concat(),
+            [b"\xff".as_slice(), word, b"\xfe"].concat(),
+        ] {
+            let value = Err(VarError::NotUnicode(OsString::from_vec(value)));
+            let error = named("TEST_OPERATOR_TOKEN", value).unwrap_err();
+            for shown in [format!("{error:#}"), format!("{error:?}")] {
+                assert!(
+                    !shown.contains("inventedsampleword"),
+                    "value exposed: {shown}"
+                );
+                assert!(!shown.contains('\u{fffd}') && !shown.contains("\\x"));
+            }
+            assert_eq!(
+                format!("{error:#}"),
+                "TEST_OPERATOR_TOKEN is not valid UTF-8 text"
+            );
+        }
+        // Unchanged: a valid setting passes through and an unset one keeps its error.
+        let token = named("TEST_OPERATOR_TOKEN", Ok("valid".into())).unwrap();
+        assert_eq!(token, "valid");
+        let error = named("TEST_OPERATOR_TOKEN", Err(VarError::NotPresent)).unwrap_err();
+        assert_eq!(format!("{error:#}"), "environment variable not found");
+    }
 }

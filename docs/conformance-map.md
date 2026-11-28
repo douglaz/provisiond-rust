@@ -504,3 +504,12 @@ controls failed solely for the older pvr-aqm variant, whose child exited 0 witho
 negative failure. Its parent correctly rejected that result, and owned cleanup passed. Both
 failed canonical records and the failed publication iteration remain retained. No cause is
 established; these results do not create a whole-requirement claim.
+
+## Startup setting errors that never repeat a value
+
+This row covers only startup setting reads that fail because a value is not valid UTF-8. It makes no
+whole-requirement SEC-3 claim and records no run in this repository.
+
+| Requirement / recorded arm | Pinned source | Implementation symbol | Validation symbol / observation | Evidence | Status |
+|---|---|---|---|---|---|
+| SEC-3 — a setting that is not valid UTF-8 is named, never repeated: the database address (pvr-2g0) and each operator token, including a `token_env` that names a setting the API reads first (pvr-r7ov) | [07-security-requirements.md:33](https://github.com/douglaz/provisiond/blob/ac37c7cae5d3ff746515137774a4cdd5a3531375/07-security-requirements.md#L33) | `entry::read_setting`, `entry::not_unicode`, `entry::var`; callers `operator::Authority::load`, `Parameters::load`, `api::serve` | `entry::tests::invalid_utf8_token_setting_is_named_without_its_value`, `invalid_utf8_settings_are_named_without_exposing_values` (`tests/entry_points.rs`), `w4_round2.startup` operator-token arm | Implementation only; no recorded evidence in this repository | implemented |

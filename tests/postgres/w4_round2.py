@@ -150,12 +150,30 @@ def startup(w):
             assert p.returncode==1 and var in p.error.read_text()
             assert not any(e['event'] in ['external_entry','http_business_begin','rail_credit_acknowledged'] for e in api_events(p))
             with socket.socket() as s:assert s.connect_ex(('127.0.0.1',w.h.ports[4]))!=0
+    # SEC-3, pvr-r7ov: a token setting that is not valid UTF-8 is named and its value appears in
+    # no diagnostic, also when token_env names a setting the API reads first. The word is
+    # invented; it is no credential.
+    authority=w.h.root/'startup-operator-authority.json'
+    word=b'inventedstartupword'
+    for label,setting,value in [('before','TEST_STARTUP_OPERATOR',b'\xff\xfe'+word),
+            ('after','TEST_STARTUP_OPERATOR',word+b'\xff\xfe'),('both','TEST_STARTUP_OPERATOR',b'\xff'+word+b'\xfe'),
+            ('shared-name','PROVISIOND_RAIL_SIMULATOR',b'\xff'+word+b'\xfe')]:
+        authority.write_text(json.dumps([dict(principal='operator-a',token_env=setting,admin=True)]))
+        env=dict(base,PROVISIOND_OPERATOR_LISTEN=f'127.0.0.1:{w.h.ports[7]}',
+                 PROVISIOND_OPERATOR_AUTHORITY=str(authority),**{setting:value})
+        p=run('startup-operator-token-'+label,env);p.wait(timeout=5)
+        streams=p.log.read_bytes()+p.error.read_bytes()
+        exposed=word in streams
+        w.h.event('operator_token_setting_startup_observed',case=label,setting=setting,exit_status=p.returncode,value_exposed=exposed)
+        assert p.returncode==1 and not exposed,'SEC-3 operator token setting value must not appear in a startup diagnostic'
+        assert any(line.startswith(b'provisiond api: ') and line.endswith(setting.encode()+b' is not valid UTF-8 text')
+                   for line in p.error.read_bytes().splitlines())
     env=dict(base)
     for var in ['PROVISIOND_LOCAL_PARAMETERS','PROVISIOND_API_LISTEN','PROVISIOND_RAIL_SIMULATOR']:env.pop(var,None)
     p=run('schema-only-without-service',env,['--check-schema']);assert p.wait(timeout=5)==0
     assert w.build_identity(w.h.target/'debug/api',w.builds['api']['features'])==w.builds['api']
     w.launch_api();w.request('OPTIONS','/v1/machines')
-    w.h.results.append(dict(test='W4-required-startup-configuration',result='pass',default_binary=True,negative_cases=8))
+    w.h.results.append(dict(test='W4-required-startup-configuration',result='pass',default_binary=True,negative_cases=8,operator_token_cases=4))
 
 
 def clean_failure(w,p,assertion):
