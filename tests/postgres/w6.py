@@ -528,6 +528,31 @@ def exit_accounting(w):
     assert final['meter'][0]['high_water_mark']==final['machine']['meter_stopped_at']
     w.h.event('w6_causal_trace',scenario=w.case,operation=delete,boundary='elapsed two-hour exit, clamp, empty authority and atomic close',before=before,snapshot=final,provider=external(w,delete),clock='explicit fixture high-water/rate acceptance timestamps; real reply observation')
 
+def complete_search(w,p,op,account):
+    """OPS-27/29: the first complete (authoritative) search of op traced by engine p.
+    A refused channel read leaves a search incomplete; it resolves nothing and the
+    operation stays pending, so every later pass searches it again (reconciliation.rs:
+    pending loop, then each account's pass, which traces account_pass_complete). The
+    first passes may skip op silently inside its PRV-36 window, which no pass count
+    bounds, so counting starts at op's first search. A pass searches op before its
+    account passes, so the third account_pass_complete for op's account after that
+    search means two later passes each searched op again; the trace is read in order,
+    so a search after that cutoff is not accepted. 120 s is a liveness guard only."""
+    end=time.monotonic()+120
+    while True:
+        exited=p.poll() is not None;searches=[];passes=0
+        for e in events(p):
+            if e.get('event')=='resolution_search' and e.get('operation')==op:
+                if e['evidence']['authoritative'] is True:return e,searches
+                searches.append(e)
+            elif searches and e.get('event')=='account_pass_complete' and e.get('provider_account')==account:
+                passes+=1
+                if passes==3:break
+        stop=('two later passes searched it again without a complete search' if passes==3
+            else 'engine exited' if exited else '120 s liveness guard' if time.monotonic()>=end else None)
+        assert stop is None,f"no complete two-channel search: {stop}; incomplete searches={[e['evidence'] for e in searches]}"
+        time.sleep(.05)
+
 def channels(w):
     t,_,op,hold=lost(w,'all-channels',search='normal')
     original=json.loads(w.h.sql(f"SELECT descriptor FROM provisiond.provider_accounts WHERE account='{t['account']}'"))
@@ -535,9 +560,14 @@ def channels(w):
     resource=next(e['value'] for e in external(w,op) if e['stage']=='resource_created')
     other=dict(resource,channel='alternate',external_id=resource['external_id']+'-independent-candidate')
     proof(w,op,channels={'orders':[resource],'alternate':[other]})
-    w.start_engine();hold.unlink();seen=wait_search(w,op);w.stop_engine()
-    assert seen['evidence']['matches']==2 and not pending(w,op)['machines']
-    checkpoint(w,op,'union across both channels before cardinality; one purchase, independently seeded second candidate',evidence=seen['evidence'])
+    p=w.start_engine();hold.unlink();seen,incomplete=complete_search(w,p,op,t['account']);w.stop_engine()
+    # Report what the complete search and the stopped engine left, so a failure is diagnosable.
+    # OPS-33 may close the commitment 60 s after wait end; it must still be open here so the
+    # incomplete-channel step below is the one that closes it.
+    state=snapshot(w,op);machines=state['machines'];commitment=state['commitment']['state'];earlier=[e['evidence'] for e in incomplete]
+    assert seen['evidence']['matches']==2 and not machines and commitment=='open' and not pending(w,op)['machines'],(
+        f"complete two-channel search: matches={seen['evidence']['matches']} machines={machines} commitment={commitment} evidence={seen['evidence']} earlier incomplete searches={earlier}")
+    checkpoint(w,op,'union across both channels before cardinality; one purchase, independently seeded second candidate',evidence=seen['evidence'],incomplete_searches=earlier)
     proof(w,op,channels={'orders':[],'alternate':[]},incomplete_channel='alternate')
     w.h.sql(f"UPDATE provisiond.operations SET mutation_wait_ended_at=clock_timestamp()-interval '61 seconds' WHERE id='{op}'")
     w.start_engine();eventually(lambda:snapshot(w,op)['commitment']['state']=='closed');w.stop_engine()
