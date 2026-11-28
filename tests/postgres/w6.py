@@ -465,13 +465,28 @@ def eligible(w,op):
     w.h.sql(f"UPDATE provisiond.operations SET mutation_wait_ended_at=clock_timestamp()-{seconds}*interval '1 second' WHERE id='{op}'")
     w.h.event('w6_fixture_clock',operation=op,elapsed_seconds=seconds,basis='eligible beyond stored effective visibility before transaction fault; ordinary bounds unchanged')
 
+def resolving(w):
+    # OPS-27/29: one reconciliation task traces each pending operation's
+    # decision on its own line just before that operation's resolution
+    # transaction, so the newest decision names a held resolution statement.
+    decisions=[e for e in events(w.engine) if e['event'] in ('resolution_search','delete_resolution_read')]
+    assert decisions,'held resolution statement has no traced operation'
+    return decisions[-1]['operation']
+
 def resolution_reply(w):
     _,_,op,hold=lost(w,'resolution-reply',search='normal')
     eligible(w,op)
     enumeration=w.h.root/'provider/hold-enumerate';enumeration.touch()
     statement=w.h.proxy.arm('resolution=$4','send')
     w.start_engine();hold.unlink()
-    connection=statement.wait()
+    connection=statement.wait();passed=[]
+    # An earlier scenario's pending operation can be eligible in this pass (its
+    # wall-clock window); let it land and hold only this operation's COMMIT reply.
+    while (other:=resolving(w))!=op:
+        assert other not in passed,'foreign resolution statement repeated'
+        passed.append(other);later=w.h.proxy.arm('resolution=$4','send')
+        statement.release();statement=later;connection=statement.wait()
+    w.h.event('w6_resolution_reply_target',operation=op,passed=passed,session=connection['pid'])
     gate=w.h.proxy.arm('store COMMIT','commit_reply',session=connection['pid'])
     statement.release()
     try:
